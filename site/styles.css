@@ -333,3 +333,25 @@ figcaption { margin-bottom: .9rem; }
   .readout { grid-template-columns: minmax(0, 1fr); gap: .8rem; }
   .tooltip { min-width: 8.5rem; font-size: .76rem; }
 }
+
+/* The fan of forward survival windows: 24 faint lines carry the spread, two
+   bold ones carry the comparison. */
+.line-thin { stroke-width: 1; opacity: .3; }
+.dot-hit { cursor: pointer; }
+.dot-hit:hover { r: 6; }
+
+.finding {
+  margin: .85rem 0 0;
+  padding: .7rem .85rem;
+  background: var(--surface-sunk);
+  border-left: 2px solid var(--series-1);
+  font-size: .87rem;
+  line-height: 1.5;
+  max-width: 78ch;
+}
+.finding strong { font-weight: 620; }
+.finding.negative { border-left-color: var(--series-neg); }
+
+.section-break { margin: 2.75rem auto 1.25rem; padding-top: 1.75rem; border-top: 1px solid var(--rule-strong); }
+.section-break h2 { margin: 0 0 .4rem; font-size: 1.15rem; font-weight: 620; letter-spacing: -0.01em; }
+.section-intro { margin: 0; max-width: 68ch; color: var(--ink-mid); }

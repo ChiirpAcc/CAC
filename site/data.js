@@ -335,3 +335,134 @@ export function mean(values) {
   const real = values.filter(v => v !== null && Number.isFinite(v));
   return real.length ? real.reduce((a, b) => a + b, 0) / real.length : null;
 }
+
+// Forward survival: take everyone active in a month and follow that exact set
+// for the next few months.
+//
+// This is a different question from cohort retention. A cohort curve asks how
+// a single intake decays; this asks what the whole base did from a standing
+// start, which is the thing that moves the revenue line. A start month only
+// counts once its full forward window exists, otherwise the most recent
+// months look flattering purely because their losses have not happened yet.
+export function forwardSurvival(data, { horizon = 4, windows = 24 } = {}) {
+  const activeByMonth = new Map();
+  const firstMonth = new Map();
+
+  for (const row of data.customers) {
+    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Map());
+    activeByMonth.get(row.month).set(row.id, row.eopMrr);
+
+    const seen = firstMonth.get(row.id);
+    if (seen === undefined || row.month < seen) firstMonth.set(row.id, row.month);
+  }
+
+  const months = [...activeByMonth.keys()].sort();
+  const last = months[months.length - 1];
+  const complete = months.filter(m => monthAdd(m, horizon) <= last);
+  const starts = complete.slice(-windows);
+
+  const series = starts.map(month => {
+    const base = activeByMonth.get(month);
+    const curve = [1];
+    for (let k = 1; k <= horizon; k += 1) {
+      const later = activeByMonth.get(monthAdd(month, k)) || new Map();
+      let kept = 0;
+      for (const id of base.keys()) if (later.has(id)) kept += 1;
+      curve.push(kept / base.size);
+    }
+    return { month, n: base.size, curve, survival: curve[horizon] };
+  });
+
+  // Pooled survival over a group of start months, weighted by customers
+  // rather than by month, so a small month does not count as much as a big one.
+  const pool = group => {
+    let kept = 0, total = 0;
+    for (const month of group) {
+      const base = activeByMonth.get(month);
+      const later = activeByMonth.get(monthAdd(month, horizon)) || new Map();
+      for (const id of base.keys()) { total += 1; if (later.has(id)) kept += 1; }
+    }
+    return { kept, total, rate: total ? kept / total : null };
+  };
+
+  const recentCount = 6;
+  const recent = pool(starts.slice(-recentCount));
+  const earlier = pool(starts.slice(0, -recentCount));
+
+  // A two proportion z, reported for scale rather than as a verdict. The
+  // windows overlap, so these are not independent observations and the true
+  // confidence is lower than the number suggests.
+  let z = null;
+  if (recent.rate !== null && earlier.rate !== null) {
+    const se = Math.sqrt(
+      (recent.rate * (1 - recent.rate)) / recent.total +
+      (earlier.rate * (1 - earlier.rate)) / earlier.total
+    );
+    z = se ? (recent.rate - earlier.rate) / se : null;
+  }
+
+  const byBand = (bands, valueFor) => bands.map(band => {
+    let kept = 0, total = 0;
+    for (const month of starts) {
+      const base = activeByMonth.get(month);
+      const later = activeByMonth.get(monthAdd(month, horizon)) || new Map();
+      for (const [id, mrr] of base) {
+        const value = valueFor(id, mrr, month);
+        if (value >= band.lo && value < band.hi) {
+          total += 1;
+          if (later.has(id)) kept += 1;
+        }
+      }
+    }
+    return { ...band, n: total, survival: total ? kept / total : null };
+  });
+
+  const mrrBands = byBand([
+    { label: 'under $250', lo: 0, hi: 250 },
+    { label: '$250 to $500', lo: 250, hi: 500 },
+    { label: '$500 to $750', lo: 500, hi: 750 },
+    { label: '$750 to $1k', lo: 750, hi: 1000 },
+    { label: '$1k to $1.5k', lo: 1000, hi: 1500 },
+    { label: 'over $1.5k', lo: 1500, hi: Infinity },
+  ], (id, mrr) => mrr);
+
+  const tenureBands = byBand([
+    { label: '0 to 6', lo: 0, hi: 6 },
+    { label: '6 to 12', lo: 6, hi: 12 },
+    { label: '12 to 24', lo: 12, hi: 24 },
+    { label: '24 to 48', lo: 24, hi: 48 },
+    { label: 'over 48', lo: 48, hi: Infinity },
+  ], (id, mrr, month) => monthDiff(firstMonth.get(id), month));
+
+  // Median tenure per revenue band, because the cheapest band turns out to be
+  // the oldest and that is what makes it look loyal.
+  const medianTenure = mrrBands.map(band => {
+    const ages = [];
+    for (const month of starts) {
+      for (const [id, mrr] of activeByMonth.get(month)) {
+        if (mrr >= band.lo && mrr < band.hi) ages.push(monthDiff(firstMonth.get(id), month));
+      }
+    }
+    ages.sort((a, b) => a - b);
+    return ages.length ? ages[Math.floor(ages.length / 2)] : null;
+  });
+
+  return {
+    horizon, starts: series, recent, earlier, z, recentCount,
+    mrrBands: mrrBands.map((b, i) => ({ ...b, medianTenure: medianTenure[i] })),
+    tenureBands,
+    range: starts.length ? [starts[0], starts[starts.length - 1]] : [null, null],
+  };
+}
+
+export function correlate(pairs) {
+  const n = pairs.length;
+  if (n < 3) return null;
+  const mx = pairs.reduce((s, p) => s + p[0], 0) / n;
+  const my = pairs.reduce((s, p) => s + p[1], 0) / n;
+  const sx = Math.sqrt(pairs.reduce((s, p) => s + (p[0] - mx) ** 2, 0));
+  const sy = Math.sqrt(pairs.reduce((s, p) => s + (p[1] - my) ** 2, 0));
+  if (!sx || !sy) return null;
+  return pairs.reduce((s, p) => s + (p[0] - mx) * (p[1] - my), 0) / (sx * sy);
+}

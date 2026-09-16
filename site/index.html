@@ -187,6 +187,70 @@
 
   </div>
 
+  <div class="wrap section-break">
+    <h2>Forward churn</h2>
+    <p class="section-intro">
+      A cohort curve follows one intake as it decays. These follow the whole
+      base from a standing start: take everyone active in a month, and see how
+      many are still there four months later. That is the number that moves
+      revenue, and it can be asked of every month rather than only of new
+      arrivals.
+    </p>
+  </div>
+
+  <div class="wrap charts">
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>11. Forward four months, from each of the last 24 starting months</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-forward"></div>
+      <p class="finding negative" id="forward-finding"></p>
+      <p class="note" id="forward-note"></p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>12. Four-month survival, by starting month</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-forward-trend"></div>
+      <p class="note" id="forward-trend-note"></p>
+    </figure>
+
+    <figure class="card">
+      <figcaption>
+        <h3>13. Does paying more mean staying longer?</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-by-mrr"></div>
+      <p class="finding" id="mrr-finding"></p>
+      <p class="note" id="mrr-note"></p>
+    </figure>
+
+    <figure class="card">
+      <figcaption>
+        <h3>14. Four-month survival by tenure</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-by-tenure"></div>
+      <p class="finding" id="tenure-finding"></p>
+      <p class="note">Months carrying revenue before the starting month. This is the stronger of the two effects, and it is what makes the cheapest revenue band look loyal.</p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>15. Does churn rise when fewer customers arrive?</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-new-vs-churn"></div>
+      <p class="finding" id="newchurn-finding"></p>
+      <p class="note" id="newchurn-note"></p>
+    </figure>
+
+  </div>
+
   <footer class="wrap site-footer">
     <h2>What is solid and what is not</h2>
     <p>

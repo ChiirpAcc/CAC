@@ -1,9 +1,11 @@
 import {
   load, cacByMonth, splitTotals, buildCohorts, cohortEconomics,
   blendedRetention, retentionByEra, retentionAtAge, mean, monthDiff,
+  forwardSurvival, correlate,
 } from './data.js';
 import {
-  lineChart, multiLineChart, columnChart, flowChart, scatterOverTime, fmt, INK,
+  lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
+  scatterXY, fmt, INK,
 } from './charts.js';
 
 // Where the workbook currently sits. Customer Success at 100% means every
@@ -34,6 +36,7 @@ function boot() {
     $('dashboard').hidden = false;
     wireControls();
     renderStatic();
+    renderForward();
     renderAssumptionDependent();
   }).catch(err => {
     $('loading').innerHTML =
@@ -306,6 +309,149 @@ function renderAssumptionDependent() {
   });
   $('unit-note').textContent =
     'Both indexed to 100 at the first month with acquisition cost recorded, so the divergence reads without either absolute number needing to be right. Cost per logo is rebuilt from the P&L rather than read from the CAC Monthly tab, which arrived without a usable per-logo figure.';
+}
+
+// Forward survival. Independent of the split and the margin, so drawn once.
+function renderForward() {
+  const fw = forwardSurvival(data, { horizon: 4, windows: 24 });
+  const starts = fw.starts;
+  const span = fw.horizon + 1;
+  const labels = Array.from({ length: span }, (_, i) => (i ? '+' + i : 'start'));
+
+  const average = group => Array.from({ length: span }, (_, i) =>
+    group.reduce((sum, s) => sum + s.curve[i], 0) / group.length);
+
+  const recent = starts.slice(-fw.recentCount);
+  const earlier = starts.slice(0, -fw.recentCount);
+
+  // 11. The fan. Every window drawn faintly so the spread is visible, with the
+  // two period averages over the top so the shift is readable.
+  multiLineChart($('chart-forward'), {
+    labels,
+    series: [
+      ...starts.map(s => ({ label: s.month, colour: INK.tertiary, thin: true, values: s.curve })),
+      { label: 'Earlier average', colour: INK.primary, values: average(earlier) },
+      { label: 'Recent average', colour: INK.negative, values: average(recent) },
+    ],
+    yFormat: v => fmt.pct(v),
+    yMin: 0.6,
+    yMax: 1,
+    xTitle: 'Months after the starting month',
+    showLegend: false,
+    describe: i => {
+      const values = starts.map(s => s.curve[i]).sort((a, b) => a - b);
+      return '<strong>' + (i ? i + ' month' + (i > 1 ? 's' : '') + ' on' : 'Starting month') + '</strong>'
+        + '<span>Best ' + fmt.pct(values[values.length - 1], 1) + '</span>'
+        + '<span>Median ' + fmt.pct(values[Math.floor(values.length / 2)], 1) + '</span>'
+        + '<span>Worst ' + fmt.pct(values[0], 1) + '</span>';
+    },
+  });
+
+  const spread = Math.max(...starts.map(s => s.survival)) - Math.min(...starts.map(s => s.survival));
+  $('forward-finding').innerHTML =
+    '<strong>It is getting worse, and not by a little.</strong> Four-month survival ran at '
+    + fmt.pct(fw.earlier.rate, 1) + ' across ' + earlier.length + ' earlier windows and '
+    + fmt.pct(fw.recent.rate, 1) + ' across the last ' + recent.length + ', a fall of '
+    + Math.abs((fw.recent.rate - fw.earlier.rate) * 100).toFixed(1) + ' points on '
+    + (fw.recent.total + fw.earlier.total).toLocaleString() + ' customer observations. '
+    + 'The gap between the best and worst window is ' + (spread * 100).toFixed(1) + ' points.';
+
+  $('forward-note').textContent =
+    'Windows run ' + fw.range[0] + ' to ' + fw.range[1] + '. A starting month appears only '
+    + 'once its full four months have elapsed, otherwise the newest months would look '
+    + 'flattering because their losses have not happened yet. Treating this as a formal test '
+    + 'would overstate it: consecutive windows share most of their customers, so they are not '
+    + 'independent samples. The naive two-proportion z is ' + fw.z.toFixed(1)
+    + ', best read as large rather than as a p-value.';
+
+  // 12. The same thing as one number per starting month.
+  lineChart($('chart-forward-trend'), {
+    labels: starts.map(s => fmt.monthLabel(s.month)),
+    values: starts.map(s => s.survival),
+    colour: INK.negative,
+    yFormat: v => fmt.pct(v),
+    refs: [{ value: fw.earlier.rate, label: 'earlier average', variant: 'ref-floor' }],
+    describe: i => '<strong>' + starts[i].month + ' start</strong>'
+      + '<span>' + fmt.pct(starts[i].survival, 1) + ' still active four months on</span>'
+      + '<span class="muted">' + fmt.int(starts[i].n) + ' active at the start</span>',
+  });
+  $('forward-trend-note').textContent =
+    'One point per starting month. The decline is steady rather than a single bad month, '
+    + 'which rules out a one-off billing or migration event as the whole explanation.';
+
+  // 13. Revenue band.
+  const bands = fw.mrrBands.filter(b => b.n > 100);
+  columnChart($('chart-by-mrr'), {
+    labels: bands.map(b => b.label),
+    values: bands.map(b => b.survival),
+    yFormat: v => fmt.pct(v),
+    yMax: 1,
+    colour: INK.primary,
+    describe: i => '<strong>' + bands[i].label + '</strong>'
+      + '<span>' + fmt.pct(bands[i].survival, 1) + ' survive four months</span>'
+      + '<span class="muted">' + fmt.int(bands[i].n) + ' observations, median tenure '
+      + bands[i].medianTenure + ' months</span>',
+  });
+  const cheapest = bands[0];
+  const paid = bands.filter(b => b.lo >= 250);
+  $('mrr-finding').innerHTML =
+    '<strong>Yes, above $250.</strong> Survival climbs from ' + fmt.pct(paid[0].survival, 1)
+    + ' in the ' + paid[0].label + ' band to ' + fmt.pct(paid[paid.length - 1].survival, 1)
+    + ' at the top. The ' + cheapest.label + ' band looks like an exception at '
+    + fmt.pct(cheapest.survival, 1) + ', but its median tenure is ' + cheapest.medianTenure
+    + ' months against ' + paid[0].medianTenure + ' for the next band up. That band is old, '
+    + 'not cheap and loyal.';
+  $('mrr-note').textContent =
+    'Revenue measured at the starting month, pooled across all 24 windows. Bands with fewer '
+    + 'than 100 observations are dropped.';
+
+  // 14. Tenure, which is the confound behind chart 13.
+  const tenure = fw.tenureBands.filter(b => b.n > 100);
+  columnChart($('chart-by-tenure'), {
+    labels: tenure.map(b => b.label + ' mo'),
+    values: tenure.map(b => b.survival),
+    yFormat: v => fmt.pct(v),
+    yMax: 1,
+    colour: INK.secondary,
+    describe: i => '<strong>' + tenure[i].label + ' months in</strong>'
+      + '<span>' + fmt.pct(tenure[i].survival, 1) + ' survive four months</span>'
+      + '<span class="muted">' + fmt.int(tenure[i].n) + ' observations</span>',
+  });
+  $('tenure-finding').innerHTML =
+    '<strong>Survival rises with age throughout.</strong> ' + fmt.pct(tenure[0].survival, 1)
+    + ' in the first six months against ' + fmt.pct(tenure[tenure.length - 1].survival, 1)
+    + ' beyond four years. The first year is where the base is lost.';
+
+  // 15. Against new arrivals.
+  const newByMonth = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+  const points = starts
+    .filter(s => newByMonth.get(s.month) != null)
+    .map(s => ({ x: newByMonth.get(s.month), y: 1 - s.survival, month: s.month }));
+
+  scatterXY($('chart-new-vs-churn'), {
+    points,
+    xLabel: 'New logos in the starting month',
+    yLabel: 'Four-month churn',
+    xFormat: v => Math.round(v),
+    yFormat: v => fmt.pct(v),
+    colour: INK.primary,
+    describe: i => '<strong>' + points[i].month + '</strong>'
+      + '<span>' + fmt.int(points[i].x) + ' new logos</span>'
+      + '<span>' + fmt.pct(points[i].y, 1) + ' churned within four months</span>',
+  });
+
+  const r = correlate(points.map(p => [p.x, p.y]));
+  const rTime = correlate(points.map((p, i) => [i, p.y]));
+  $('newchurn-finding').innerHTML =
+    '<strong>No. This one is not supported.</strong> The correlation between new arrivals and '
+    + 'forward churn is ' + (r >= 0 ? '+' : '') + r.toFixed(2) + ', which explains about '
+    + Math.round(r * r * 100) + '% of the variation. Months with few new customers are not '
+    + 'months with worse churn.';
+  $('newchurn-note').textContent =
+    'Churn does track time (' + (rTime >= 0 ? '+' : '') + rTime.toFixed(2)
+    + ' against window order), so both quantities drift over the period. That shared drift is '
+    + 'why a raw pairwise correlation here would mislead in either direction, and why this is '
+    + 'drawn as a cloud rather than as a trend line through it.';
 }
 
 boot();

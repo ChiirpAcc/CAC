@@ -242,9 +242,10 @@ export function multiLineChart(container, { labels, series, yFormat = fmt.int, d
   for (const s of series) {
     el('path', {
       d: gappedPath(s.values, x, y),
-      class: `line ${s.dashed ? 'line-dashed' : ''}`,
+      class: `line ${s.dashed ? 'line-dashed' : ''} ${s.thin ? 'line-thin' : ''}`,
       stroke: s.colour,
     }, svg);
+    if (s.thin) continue;
     if (labels.length <= 40) {
       s.values.forEach((value, i) => {
         if (value === null || !Number.isFinite(value)) return;
@@ -361,6 +362,56 @@ export function scatterOverTime(container, { labels, series, describe, yFormat =
   xLabels(svg, labels, band);
   attachHover(svg, container, band, labels.length, describe);
   legend(container, series.map(s => ({ label: s.label, colour: s.colour })));
+}
+
+// A true scatter with a numeric x axis, for asking whether two monthly
+// quantities move together.
+export function scatterXY(container, { points, xLabel, yLabel,
+                                       xFormat = fmt.int, yFormat = fmt.pct,
+                                       colour = INK.primary, describe }) {
+  const svg = makeSvg(container);
+  if (!points.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
+
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  const xLo = 0;
+  const xHi = niceCeil(Math.max(...xs));
+  const yLo = 0;
+  const yHi = niceCeil(Math.max(...ys));
+
+  const y = frame(svg, { yMin: yLo, yMax: yHi, yFormat });
+  const x = v => plot.x0 + ((v - xLo) / (xHi - xLo || 1)) * plot.width;
+
+  for (let i = 0; i <= 5; i += 1) {
+    const value = xLo + ((xHi - xLo) * i) / 5;
+    el('text', { x: x(value), y: plot.y1 + 20, class: 'tick tick-x' }, svg)
+      .textContent = xFormat(value);
+  }
+
+  el('text', { x: plot.x0 + plot.width / 2, y: H - 2, class: 'axis-title' }, svg)
+    .textContent = xLabel;
+
+  const tip = document.createElement('div');
+  tip.className = 'tooltip';
+  tip.hidden = true;
+  container.appendChild(tip);
+
+  points.forEach((point, i) => {
+    const dot = el('circle', {
+      cx: x(point.x), cy: y(point.y), r: 4.5, class: 'dot dot-hit', fill: colour,
+    }, svg);
+    const show = () => {
+      tip.innerHTML = describe(i);
+      tip.hidden = false;
+      const ratio = x(point.x) / W;
+      tip.style.left = `${ratio * 100}%`;
+      tip.style.top = `${(y(point.y) / H) * 100}%`;
+      tip.style.transform = `translate(${ratio > 0.6 ? '-100%' : '0'}, -110%)`;
+    };
+    dot.addEventListener('mouseenter', show);
+    dot.addEventListener('touchstart', show, { passive: true });
+    dot.addEventListener('mouseleave', () => { tip.hidden = true; });
+  });
 }
 
 export { INK };
