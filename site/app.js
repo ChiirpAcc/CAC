@@ -1,6 +1,6 @@
 import {
   load, cacByMonth, splitTotals, buildCohorts, cohortEconomics,
-  blendedRetention, retentionByEra, retentionAtAge, mean, monthDiff,
+  blendedRetention, retentionByEra, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate,
 } from './data.js';
 import {
@@ -160,24 +160,44 @@ function renderStatic() {
       <span>Month 6 ${fmt.pct(m6[i].value, 1)}</span>`,
   });
 
-  // 8. Retention curve by era.
-  const eras = retentionByEra(cohorts);
-  const eraLength = Math.max(...eras.map(e => e.points.length), 0);
+  // 8. Retention by era, one line per starting year.
+  const eras = retentionByYear(cohorts, { maxMonths: 12 });
+  const eraColours = [INK.tertiary, INK.secondary, INK.negative];
   multiLineChart($('chart-era'), {
-    labels: Array.from({ length: eraLength }, (_, i) => `M${i + 2}`),
+    labels: Array.from({ length: 12 }, (_, i) => `M${i + 1}`),
     series: eras.map((era, i) => ({
-      label: era.label,
-      colour: [INK.tertiary, INK.secondary, INK.primary][i],
-      values: Array.from({ length: eraLength }, (_, k) => era.points[k]?.value ?? null),
+      label: `${era.year} cohorts`,
+      colour: eraColours[i],
+      values: era.points,
     })),
     yFormat: v => fmt.pct(v),
+    yMin: 0.5,
+    yMax: 1,
     xTitle: 'Months since first revenue',
-    describe: i => `<strong>Month ${i + 2}</strong>` + eras.map((era, k) =>
-      `<span>${era.label} ${fmt.pct(era.points[i]?.value ?? null, 1)}</span>`).join(''),
+    describe: i => `<strong>Month ${i + 1}</strong>` + eras.map(era =>
+      `<span>${era.year} ${fmt.pct(era.points[i], 1)}</span>`).join(''),
   });
-  $('era-note').textContent = eras.map(e => `${e.label}: ${e.span}`).join('. ')
-    + '. A point is dropped once fewer than three cohorts in that era have reached that age, '
-    + 'otherwise the newest era is drawn by its oldest cohort alone and a flat curve reads as improvement.';
+
+  const newest = eras[eras.length - 1];
+  const older = eras.slice(0, -1);
+  $('era-finding').innerHTML =
+    `<strong>The newest cohorts are worse from month 2 onward, and they stay worse.</strong> `
+    + `At month 3 the ${newest.year} cohorts hold ${fmt.pct(newest.month3, 1)} against `
+    + older.map(e => `${fmt.pct(e.month3, 1)} for ${e.year}`).join(' and ')
+    + `. By month 6 the gap has widened rather than closed: ${fmt.pct(newest.month6, 1)} `
+    + `against ${older.map(e => fmt.pct(e.month6, 1)).join(' and ')}. `
+    + `The lines do not converge.`;
+
+  $('era-note').textContent =
+    'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
+    + 'first month whenever that happened, then averaged into one line per starting year. '
+    + 'Everyone starts at 100% because month 1 is everyone, and the line falls as customers '
+    + 'leave. Indexed to month 1 rather than month 2, because this counts logos rather than '
+    + 'revenue and there is no setup fee to distort the first month. '
+    + eras.map(e => `${e.year}: ${e.cohorts} cohorts`).join(', ')
+    + `. The ${newest.year} line stops where fewer than three of its cohorts have reached `
+    + `that age; only ${newest.reachedMonth6} have reached month 6, so its right hand end is `
+    + 'thin and will move as more months land.';
 
   // 9. Active logo base.
   lineChart($('chart-base'), {

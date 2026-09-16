@@ -466,3 +466,43 @@ export function correlate(pairs) {
   if (!sx || !sy) return null;
   return pairs.reduce((s, p) => s + (p[0] - mx) * (p[1] - my), 0) / (sx * sy);
 }
+
+// Retention by era, grouped by the calendar year a cohort started.
+//
+// Indexed to month 1 rather than month 2. The month 2 rule exists because
+// month 1 carries setup and onboarding fees, which distorts revenue
+// retention. This curve counts logos, not revenue, so month 1 is simply
+// everybody and 100% is the honest starting point.
+//
+// A point is dropped once fewer than three cohorts in that year have reached
+// that age, otherwise the newest line is drawn by its oldest cohort alone.
+export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}) {
+  const byYear = new Map();
+  for (const cohort of cohorts) {
+    const year = cohort.month.slice(0, 4);
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year).push(cohort);
+  }
+
+  const years = [...byYear.keys()].sort().slice(-3);
+
+  return years.map(year => {
+    const group = byYear.get(year);
+    const points = [];
+    for (let offset = 0; offset < maxMonths; offset += 1) {
+      const inSample = group.filter(c => c.maxOffset >= offset && c.logos[0] > 0);
+      if (inSample.length < minCohorts) { points.push(null); continue; }
+      const base = inSample.reduce((s, c) => s + c.logos[0], 0);
+      points.push(base ? inSample.reduce((s, c) => s + c.logos[offset], 0) / base : null);
+    }
+    const reached = offset => group.filter(c => c.maxOffset >= offset).length;
+    return {
+      year,
+      cohorts: group.length,
+      points,
+      month3: points[2],
+      month6: points[5],
+      reachedMonth6: reached(5),
+    };
+  });
+}
