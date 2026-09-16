@@ -18,9 +18,13 @@ permissions:
 
 concurrency:
   group: pages
-  # A newer deploy supersedes one still in flight. Unlike the data push,
-  # there is nothing partial to protect here.
-  cancel-in-progress: true
+  # Do not cancel. The workbook push arrives as one commit per tab, seven of
+  # them within about twenty seconds, and each fires this workflow. Cancelling
+  # in progress raced badly: an early run finished and published while the
+  # final run, the one carrying the updated index, was cancelled. The site
+  # then served a stale index that listed fewer files than the repository
+  # held. Queueing instead is slower and ends on the newest commit.
+  cancel-in-progress: false
 
 jobs:
   deploy:
