@@ -1,0 +1,23 @@
+# A committed service account key is the one mistake in this repo that
+# actually matters, so JSON is blocked by default and re-allowed only
+# where data is meant to live. Order matters here: later rules win.
+*.json
+!data/*.json
+
+# Re-block the credential filenames even inside data/, because the
+# negation above would otherwise let data/key.json through.
+key.json
+credentials.json
+service-account*.json
+*-key.json
+*.pem
+
+# Compressed data files are not matched by *.json and stay tracked.
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+dist/
+.DS_Store

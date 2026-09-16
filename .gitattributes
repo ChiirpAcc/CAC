@@ -1,0 +1,4 @@
+# The workflow shell runs on Linux, so line endings stay LF in the repository
+# regardless of who checks it out.
+* text=auto eol=lf
+*.json.gz binary
