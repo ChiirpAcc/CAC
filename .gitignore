@@ -1,6 +1,6 @@
-# A committed service account key is the one mistake in this repo that
-# actually matters, so JSON is blocked by default and re-allowed only
-# where data is meant to live. Order matters here: later rules win.
+# A committed credential is the one mistake in this repo that actually
+# matters, so JSON is blocked by default and re-allowed only where data is
+# meant to live. Order matters here: later rules win.
 *.json
 !data/*.json
 

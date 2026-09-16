@@ -1,0 +1,54 @@
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+    # Data arrives as a commit pushed from the workbook Apps Script, so a
+    # data commit has to redeploy the site just as a site change does.
+    paths:
+      - 'data/**'
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  # A newer deploy supersedes one still in flight. Unlike the data push,
+  # there is nothing partial to protect here.
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - name: Assemble the site
+        # There is no build step. The site is vanilla HTML, CSS and JavaScript,
+        # and it reads the JSON straight out of data/, so the two directories
+        # just get laid out next to each other.
+        run: |
+          mkdir -p _site
+          cp -r site/. _site/
+          mkdir -p _site/data
+          cp -r data/. _site/data/
+          rm -f _site/data/README.md
+          echo "Deploying:"
+          find _site -type f | sort | sed 's/^/  /'
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

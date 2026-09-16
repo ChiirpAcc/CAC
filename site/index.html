@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CHIIRP LTV:CAC</title>
+<style>
+  :root {
+    --paper: #fbfbfa;
+    --ink: #1c1d1f;
+    --ink-soft: #5c6066;
+    --rule: #dcdcd8;
+    --panel: #ffffff;
+    --accent: #2f5d62;
+    --warn: #8a5a1f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #16181a;
+      --ink: #e8e8e6;
+      --ink-soft: #9ba1a8;
+      --rule: #2e3236;
+      --panel: #1d2023;
+      --accent: #7fb3b8;
+      --warn: #d0a05c;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 2.5rem 1rem 6rem;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  main { max-width: 46rem; margin: 0 auto; }
+
+  h1 {
+    font-size: clamp(1.6rem, 5vw, 2.1rem);
+    line-height: 1.2;
+    margin: 0 0 .4rem;
+    letter-spacing: -0.01em;
+  }
+
+  .standfirst {
+    color: var(--ink-soft);
+    margin: 0 0 2.5rem;
+    max-width: 34rem;
+  }
+
+  h2 {
+    font-size: 1rem;
+    margin: 2.5rem 0 .75rem;
+    padding-bottom: .4rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  th {
+    text-align: left;
+    font-weight: 600;
+    font-size: .85rem;
+    color: var(--ink-soft);
+    padding: .4rem .6rem .4rem 0;
+  }
+
+  td {
+    padding: .5rem .6rem .5rem 0;
+    border-top: 1px solid var(--rule);
+    vertical-align: baseline;
+  }
+
+  td.count {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .88em;
+    color: var(--ink-soft);
+  }
+
+  .status {
+    border-left: 3px solid var(--accent);
+    padding: .1rem 0 .1rem 1rem;
+    margin: 0 0 1rem;
+  }
+  .status.waiting { border-left-color: var(--warn); }
+
+  .stamp { color: var(--ink-soft); font-size: .88rem; }
+
+  a { color: var(--accent); }
+  a:focus-visible, :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .status { transition: border-color .2s; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>CHIIRP LTV:CAC</h1>
+  <p class="standfirst">
+    The analysis is still a spreadsheet. This is the site that will replace
+    the reading of it. Nothing is built yet beyond the data contract.
+  </p>
+
+  <h2>Data</h2>
+  <div id="status" class="status waiting">Checking what has arrived.</div>
+  <div id="files"></div>
+</main>
+
+<script>
+// Read the index the workbook push writes. Nothing here fetches from Google:
+// data/ arrives as a commit, and this page only reports what landed.
+async function report() {
+  const status = document.getElementById('status');
+  const files = document.getElementById('files');
+
+  let index;
+  try {
+    const response = await fetch('data/index.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    index = await response.json();
+  } catch (err) {
+    status.textContent =
+      'No data has arrived yet. The workbook Apps Script has not pushed ' +
+      'data/index.json to this repository.';
+    return;
+  }
+
+  const list = Array.isArray(index.files) ? index.files : [];
+  const total = list.reduce((sum, f) => sum + (Number(f.rows) || 0), 0);
+
+  status.classList.remove('waiting');
+  status.innerHTML =
+    list.length + ' file' + (list.length === 1 ? '' : 's') + ', ' +
+    total.toLocaleString() + ' rows. ' +
+    '<span class="stamp">Pushed ' + (index.pushed_at || 'at an unrecorded time') + '.</span>';
+
+  if (!list.length) return;
+
+  const rows = list.map(f =>
+    '<tr><td>' + escapeHtml(f.tab || '') + '</td>' +
+    '<td><code>' + escapeHtml(f.file || '') + '</code></td>' +
+    '<td class="count">' + (Number(f.rows) || 0).toLocaleString() + '</td></tr>'
+  ).join('');
+
+  files.innerHTML =
+    '<table><thead><tr><th>Tab</th><th>File</th><th class="count">Rows</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table>';
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+report();
+</script>
+</body>
+</html>
