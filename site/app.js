@@ -208,7 +208,12 @@ function renderStatic() {
 // Everything that moves with the Customer Success split, the Partnerships
 // split, or the gross margin.
 function renderAssumptionDependent() {
-  const economics = cohortEconomics(data, cohorts, state).slice(-COHORT_WINDOW);
+  // Every cohort that can carry a cost per logo, not a fixed window. The
+  // acquisition cost only starts in 2024-01, so cohorts older than that have
+  // no denominator and would be 61 empty slots. Windowing to 24 on top of
+  // that cut off the eight oldest cohorts with cost data, which are the most
+  // mature and the best performing, and made the picture look worse than it is.
+  const economics = cohortEconomics(data, cohorts, state).filter(c => c.costPerLogo !== null);
   const labels = economics.map(c => fmt.monthLabel(c.month));
 
   const totals = splitTotals(data);
@@ -243,7 +248,12 @@ function renderAssumptionDependent() {
   });
   const below = ltv.filter(v => v !== null && v < 1).length;
   $('ltv-note').textContent =
-    `Gross profit realised to date over acquisition cost, per logo. This is not a projection, so young cohorts are understated by construction and the rightmost columns will keep rising. ${below} of ${ltv.filter(v => v !== null).length} cohorts shown are below break-even.`;
+    `Gross profit realised to date over acquisition cost, per logo. This is not a `
+    + `projection, so young cohorts are understated by construction and the rightmost `
+    + `columns will keep rising. ${below} of ${ltv.filter(v => v !== null).length} cohorts `
+    + `are below break-even. Every cohort from ${economics[0].month} is shown; earlier ones `
+    + `are absent because acquisition cost is not recorded before then, not because they `
+    + `performed badly.`;
 
   // 2. Expected payback by cohort, against a 12 month goal.
   const payback = economics.map(c => c.payback);
@@ -261,9 +271,15 @@ function renderAssumptionDependent() {
         <span class="muted">${c.maxOffset + 1} months observed</span>`;
     },
   });
-  const unrecovered = economics.filter(c => c.payback === null && c.costPerLogo !== null).length;
+  const unrecovered = economics.filter(c => c.payback === null).length;
+  const recovered = economics.filter(c => c.payback !== null);
+  const withinGoal = recovered.filter(c => c.payback <= 12).length;
   $('payback-note').textContent =
-    `${unrecovered} cohorts have not recovered and may not. Those are drawn as gaps rather than zeroes, because a zero would read as instant payback, the opposite of what it means.`;
+    `${unrecovered} of ${economics.length} cohorts have not recovered and may not. Those are `
+    + `drawn as gaps rather than zeroes, because a zero would read as instant payback, the `
+    + `opposite of what it means. Of the ${recovered.length} that did recover, ${withinGoal} `
+    + `did so inside the 12 month goal. The run starts at ${economics[0].month} because `
+    + `acquisition cost is not recorded before then.`;
 
   // 3. Cumulative gross profit against cost, by cohort age.
   const mature = economics.filter(c => c.recovery.length >= 6).slice(-6);
