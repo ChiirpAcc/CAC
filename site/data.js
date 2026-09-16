@@ -633,3 +633,99 @@ export function projectedBreakEven(data, cohorts, options) {
     };
   }).filter(Boolean);
 }
+
+// Customer Success capacity per customer, against forward churn.
+//
+// Spend is the only measure of the team available here; headcount is not in
+// the pushed data. Salaries track headcount more closely than the total does,
+// because bonuses and commissions move with outcomes rather than with staff,
+// so both are carried.
+//
+// Nothing in this function is touched by the Customer Success slider. That
+// slider decides how much of the spend counts as acquisition cost, which
+// changes CAC. The spend itself is what it is.
+export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
+  const activeByMonth = new Map();
+  for (const row of data.customers) {
+    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Set());
+    activeByMonth.get(row.month).add(row.id);
+  }
+
+  const csTotal = new Map();
+  const csSalaries = new Map();
+  for (const row of data.expenses) {
+    if (row.amount === null || !row.account.includes('Customer Success')) continue;
+    csTotal.set(row.month, (csTotal.get(row.month) || 0) + row.amount);
+    if (row.account.includes('Salaries')) {
+      csSalaries.set(row.month, (csSalaries.get(row.month) || 0) + row.amount);
+    }
+  }
+
+  const newLogos = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+  const months = [...activeByMonth.keys()].sort();
+  const last = months[months.length - 1];
+
+  const points = months
+    .filter(m => monthAdd(m, horizon) <= last && csTotal.has(m) && newLogos.get(m) != null)
+    .slice(-windows)
+    .map(month => {
+      const base = activeByMonth.get(month);
+      const later = activeByMonth.get(monthAdd(month, horizon)) || new Set();
+      let kept = 0;
+      for (const id of base) if (later.has(id)) kept += 1;
+      return {
+        month,
+        churn: 1 - kept / base.size,
+        newLogos: newLogos.get(month),
+        logos: base.size,
+        csSpend: csTotal.get(month),
+        csPerLogo: csTotal.get(month) / base.size,
+        salariesPerLogo: (csSalaries.get(month) || 0) / base.size,
+      };
+    });
+
+  const churn = points.map(p => p.churn);
+  const arrivals = points.map(p => p.newLogos);
+  const capacity = points.map(p => p.csPerLogo);
+  const clock = points.map((_, i) => i);
+
+  const pair = (xs, ys) => correlate(xs.map((x, i) => [x, ys[i]]));
+
+  // Partial correlation: the association between x and y once z is held
+  // constant. Both candidate drivers drift with time, so a raw pairwise
+  // number here would be mostly the shared trend.
+  const partial = (xs, ys, zs) => {
+    const rxy = pair(xs, ys), rxz = pair(xs, zs), ryz = pair(ys, zs);
+    if (rxy === null || rxz === null || ryz === null) return null;
+    const den = Math.sqrt((1 - rxz * rxz) * (1 - ryz * ryz));
+    return den ? (rxy - rxz * ryz) / den : null;
+  };
+
+  // Momentum: the same correlation computed over a moving window, so a
+  // relationship that has faded shows as a line heading for zero rather than
+  // hiding inside one pooled number.
+  const rolling = (xs, width = 12) => points.map((_, i) => {
+    if (i < width - 1) return null;
+    const a = xs.slice(i - width + 1, i + 1);
+    const b = churn.slice(i - width + 1, i + 1);
+    return pair(a, b);
+  });
+
+  return {
+    points,
+    correlations: {
+      arrivals: pair(arrivals, churn),
+      capacity: pair(capacity, churn),
+      salaries: pair(points.map(p => p.salariesPerLogo), churn),
+      time: pair(clock, churn),
+      arrivalsGivenCapacity: partial(arrivals, churn, capacity),
+      capacityGivenArrivals: partial(capacity, churn, arrivals),
+      arrivalsGivenTime: partial(arrivals, churn, clock),
+      capacityGivenTime: partial(capacity, churn, clock),
+    },
+    rollingArrivals: rolling(arrivals),
+    rollingCapacity: rolling(capacity),
+    rollingWidth: 12,
+  };
+}

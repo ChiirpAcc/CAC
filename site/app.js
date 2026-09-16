@@ -1,7 +1,7 @@
 import {
   load, cacByMonth, splitTotals, buildCohorts, cohortEconomics,
   blendedRetention, retentionByEra, retentionByYear, retentionAtAge, mean, monthDiff,
-  forwardSurvival, correlate, projectedBreakEven,
+  forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -503,6 +503,92 @@ function renderForward() {
     + ' in the first six months against ' + fmt.pct(tenure[tenure.length - 1].survival, 1)
     + ' beyond four years. The first year is where the base is lost.';
 
+
+  // 17 and 18. Customer Success capacity, and whether either relationship is
+  // moving. Neither is touched by the sliders: the split decides how much CS
+  // spend counts as acquisition cost, not how much was spent.
+  const cap = capacityAnalysis(data);
+  const cp = cap.points;
+  const capLabels = cp.map(p => fmt.monthLabel(p.month));
+  const rc = cap.correlations;
+  const sign = v => (v >= 0 ? '+' : '') + v.toFixed(2);
+
+  // Indexed so two quantities in different units can share an axis.
+  const baseChurn = cp[0].churn;
+  const baseCap = cp[0].csPerLogo;
+  multiLineChart($('chart-capacity'), {
+    labels: capLabels,
+    series: [
+      { label: 'CS spend per active logo', colour: INK.secondary,
+        values: cp.map(p => (p.csPerLogo / baseCap) * 100) },
+      { label: 'Forward four-month churn', colour: INK.negative,
+        values: cp.map(p => (p.churn / baseChurn) * 100) },
+    ],
+    yFormat: v => Math.round(v),
+    refs: [{ value: 100, label: cp[0].month + ' = 100', variant: 'ref-floor' }],
+    describe: i => '<strong>' + fmt.monthLabel(cp[i].month) + '</strong>'
+      + '<span>CS spend ' + fmt.money(cp[i].csSpend) + '</span>'
+      + '<span>Per logo ' + fmt.money(cp[i].csPerLogo) + ' across ' + fmt.int(cp[i].logos) + '</span>'
+      + '<span>Forward churn ' + fmt.pct(cp[i].churn, 1) + '</span>',
+  });
+
+  const firstHalf = cp.slice(0, 12), secondHalf = cp.slice(12);
+  const avg = (rows, key) => rows.reduce((s, x) => s + x[key], 0) / rows.length;
+  const capGrowth = (avg(secondHalf, 'csPerLogo') / avg(firstHalf, 'csPerLogo') - 1) * 100;
+
+  $('capacity-finding').innerHTML =
+    '<strong>They rose together, which is almost certainly the team responding to churn '
+    + 'rather than causing it.</strong> CS spend per active logo is up '
+    + Math.round(capGrowth) + '% between the first and second halves of this window, and it '
+    + 'correlates with forward churn at ' + sign(rc.capacity) + ' (salaries alone, '
+    + sign(rc.salaries) + '). Holding time constant it is still ' + sign(rc.capacityGivenTime)
+    + ', so it is not only the shared trend. Read the direction with care: nothing here can '
+    + 'separate capacity driving churn, which would be perverse, from churn driving hiring, '
+    + 'which is what usually happens.';
+
+  $('capacity-note').textContent =
+    'Spend is the only measure of the team in the pushed data; headcount is not there. '
+    + 'Salaries track headcount more closely than the total, since bonuses and commissions '
+    + 'move with outcomes rather than with staff. Both indexed to '
+    + cp[0].month + ' so they can share an axis. What this does give you is a control: with '
+    + 'CS capacity held constant, the association between new arrivals and churn is '
+    + sign(rc.arrivalsGivenCapacity) + ' rather than ' + sign(rc.arrivals) + '.';
+
+  // 18. Rolling correlation, the momentum question.
+  multiLineChart($('chart-momentum'), {
+    labels: capLabels,
+    series: [
+      { label: 'New arrivals against churn', colour: INK.primary, values: cap.rollingArrivals },
+      { label: 'CS capacity against churn', colour: INK.secondary, values: cap.rollingCapacity },
+    ],
+    yFormat: v => v.toFixed(1),
+    yMin: -1,
+    yMax: 1,
+    refs: [{ value: 0, label: 'no relationship', variant: 'ref-floor' }],
+    describe: i => '<strong>' + fmt.monthLabel(cp[i].month) + '</strong>'
+      + (cap.rollingArrivals[i] === null
+          ? '<span class="muted">inside the first ' + cap.rollingWidth + ' months, no window yet</span>'
+          : '<span>Arrivals ' + sign(cap.rollingArrivals[i]) + '</span>'
+            + '<span>CS capacity ' + sign(cap.rollingCapacity[i]) + '</span>'),
+  });
+
+  const live = cap.rollingArrivals.filter(v => v !== null);
+  const liveCap = cap.rollingCapacity.filter(v => v !== null);
+  $('momentum-finding').innerHTML =
+    '<strong>One is fading, the other is not.</strong> The link between new arrivals and churn '
+    + 'ran at ' + sign(live[0]) + ' over the earliest twelve month window and '
+    + sign(live[live.length - 1]) + ' over the latest, so it has gone. The CS capacity link has '
+    + 'barely moved, ' + sign(liveCap[0]) + ' to ' + sign(liveCap[liveCap.length - 1]) + '. '
+    + 'That is why chart 15 reads ' + sign(rc.arrivals) + ' overall: a real early relationship '
+    + 'and no recent one average out to nothing.';
+
+  $('momentum-note').textContent =
+    'Correlation against forward churn computed over a moving ' + cap.rollingWidth
+    + ' month window, so a relationship that has faded shows as a line heading for zero rather '
+    + 'than hiding inside one pooled figure. The first ' + (cap.rollingWidth - 1) + ' months '
+    + 'carry no window and are blank rather than zero. With only twelve months behind each '
+    + 'point these move around, so read the direction rather than the level.';
+
   // 15. Against new arrivals.
   const newByMonth = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
   const points = starts
@@ -529,7 +615,10 @@ function renderForward() {
     + Math.round(r * r * 100) + '% of the variation. Months with few new customers are not '
     + 'months with worse churn.';
   $('newchurn-note').textContent =
-    'Churn does track time (' + (rTime >= 0 ? '+' : '') + rTime.toFixed(2)
+    'Charts 17 and 18 take this further: with Customer Success capacity held constant the '
+    + 'association is ' + sign(rc.arrivalsGivenCapacity) + ' rather than ' + sign(rc.arrivals)
+    + ', and it was real early in the window before fading to nothing. '
+    + 'Churn does track time (' + (rTime >= 0 ? '+' : '') + rTime.toFixed(2)
     + ' against window order), so both quantities drift over the period. That shared drift is '
     + 'why a raw pairwise correlation here would mislead in either direction, and why this is '
     + 'drawn as a cloud rather than as a trend line through it.';
