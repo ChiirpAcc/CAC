@@ -121,7 +121,7 @@ function renderStatic() {
     },
   });
   $('retention-note').textContent = blended.length
-    ? `Indexed to month 2, because month 1 carries setup and onboarding fees and indexing there turns a one-off charge ending into an apparent cliff. Drawn while at least 20 cohorts remain in sample, which runs to month ${blended[blended.length - 1].offset}.`
+    ? `Indexed to month 2, because month 1 carries setup and onboarding fees and indexing there turns a one-off charge ending into an apparent cliff. Held to a 24 month horizon, and drawn only while at least 20 cohorts remain in sample. Here it runs to month ${blended[blended.length - 1].offset}.`
     : 'Not enough cohort history yet.';
 
   // 5. Monthly logo churn rate, against the 5% threshold.

@@ -269,9 +269,13 @@ export function cohortEconomics(data, cohorts, { csShare, partnershipsShare, mar
 // Month 1 carries setup and onboarding fees, so indexing there turns a
 // one-off charge ending into what reads as a cliff. The sample rule keeps the
 // tail from being drawn by a handful of old cohorts.
-export function blendedRetention(cohorts, { minCohorts = 20 } = {}) {
+export function blendedRetention(cohorts, { minCohorts = 20, maxMonths = 24 } = {}) {
   const points = [];
   for (let offset = 1; ; offset += 1) {
+    // Two limits, whichever bites first. The sample rule stops the tail being
+    // drawn by a handful of old cohorts, and the horizon keeps the curve to a
+    // span somebody can actually reason about.
+    if (offset + 1 > maxMonths) break;
     const inSample = cohorts.filter(c => c.maxOffset >= offset && c.logos[1] > 0);
     if (inSample.length < minCohorts) break;
 
