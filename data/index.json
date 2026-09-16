@@ -1,0 +1,25 @@
+{
+  "pushed_at": "2026-09-16T14:14:38",
+  "files": [
+    {
+      "tab": "Waterfall Summary",
+      "file": "waterfall_summary.json",
+      "rows": 94
+    },
+    {
+      "tab": "CAC Monthly",
+      "file": "cac_monthly.json",
+      "rows": 33
+    },
+    {
+      "tab": "QB Expenses",
+      "file": "qb_expenses.json",
+      "rows": 2243
+    },
+    {
+      "tab": "QB Accounts",
+      "file": "qb_accounts.json",
+      "rows": 119
+    }
+  ]
+}
