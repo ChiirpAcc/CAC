@@ -1,7 +1,7 @@
 import {
   load, cacByMonth, splitTotals, buildCohorts, cohortEconomics,
   blendedRetention, retentionByEra, retentionByYear, retentionAtAge, mean, monthDiff,
-  forwardSurvival, correlate,
+  forwardSurvival, correlate, projectedBreakEven,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -319,6 +319,51 @@ function renderAssumptionDependent() {
   });
   $('recovery-note').textContent =
     'The six most recent cohorts with at least six months of history. Where a line crosses 100% is the month that cohort paid back. This is the one chart here that survives the split being wrong: the shape of a curve bends the same way whatever the cost baseline is.';
+
+
+  // 16. Break-even by cohort, actual where it happened and projected where it
+  // has not. Recomputed with the sliders because the cost per logo moves.
+  const projection = projectedBreakEven(data, cohorts, state);
+  const rows = projection.map(p => {
+    const label = p.projected
+      ? (p.central === null ? 'not within 10 years' : p.central + ' months')
+      : p.actual + ' months';
+    const range = !p.projected
+      ? '<span class="range none">actual</span>'
+      : (p.low === null ? '<span class="range none">too few outcomes</span>'
+                        : '<span class="range">' + p.low + ' to ' + p.high + ' months</span>');
+    const tag = p.projected
+      ? (p.neverRate >= 0.25 ? '<span class="tag risk">at risk</span>'
+                             : '<span class="tag projected">projected</span>')
+      : '<span class="tag actual">actual</span>';
+    return '<tr>'
+      + '<td>' + p.month + '</td>'
+      + '<td class="n">' + fmt.int(p.size) + '</td>'
+      + '<td class="n">' + fmt.money(p.cost) + '</td>'
+      + '<td class="n">' + p.monthsObserved + '</td>'
+      + '<td>' + tag + '</td>'
+      + '<td class="n">' + label + '</td>'
+      + '<td>' + range + '</td>'
+      + '<td class="n">' + (p.projected ? fmt.pct(p.neverRate) : '--') + '</td>'
+      + '</tr>';
+  }).join('');
+
+  $('breakeven-table').innerHTML =
+    '<thead><tr><th>Cohort</th><th class="n">Logos</th><th class="n">Cost per logo</th>'
+    + '<th class="n">Months observed</th><th>Basis</th><th class="n">Break-even</th>'
+    + '<th>90% range</th><th class="n">Risk of never</th></tr></thead><tbody>'
+    + rows + '</tbody>';
+
+  const done = projection.filter(p => !p.projected).length;
+  const atRisk = projection.filter(p => p.projected && p.neverRate >= 0.25).length;
+  $('breakeven-note').textContent =
+    done + ' of ' + projection.length + ' cohorts have already covered their cost, and those '
+    + 'rows report the month it happened rather than a forecast. The rest are projected from '
+    + 'their last observed month along a revenue retention path. The range comes from '
+    + 'resampling whole donor cohorts from 2023 onward, so it answers how far this cohort '
+    + 'could sit from the average rather than how well the average is known, which is the '
+    + 'wider and more useful question. ' + atRisk + ' cohorts carry at least a one in four '
+    + 'chance of never covering their cost. Projection stops at ten years.';
 
   // 7. Cost per logo against revenue per logo, indexed to 100.
   const cac = cacByMonth(data, state);

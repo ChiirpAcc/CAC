@@ -355,3 +355,44 @@ figcaption { margin-bottom: .9rem; }
 .section-break { margin: 2.75rem auto 1.25rem; padding-top: 1.75rem; border-top: 1px solid var(--rule-strong); }
 .section-break h2 { margin: 0 0 .4rem; font-size: 1.15rem; font-weight: 620; letter-spacing: -0.01em; }
 .section-intro { margin: 0; max-width: 68ch; color: var(--ink-mid); }
+
+/* Break-even table ------------------------------------------------------- */
+
+.table-scroll { overflow-x: auto; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+  white-space: nowrap;
+}
+.data-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-soft);
+  padding: .45rem .8rem .45rem 0;
+  border-bottom: 1px solid var(--rule-strong);
+  position: sticky;
+  top: 0;
+  background: inherit;
+}
+.data-table td {
+  padding: .4rem .8rem .4rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.data-table td.n, .data-table th.n { text-align: right; }
+.data-table tbody tr:hover { background: var(--surface-sunk); }
+
+.tag {
+  display: inline-block;
+  font-size: .72rem;
+  padding: .08rem .4rem;
+  border: 1px solid currentColor;
+  color: var(--ink-soft);
+}
+.tag.actual { color: var(--series-pos); }
+.tag.projected { color: var(--depends); }
+.tag.risk { color: var(--series-neg); }
+
+.range { color: var(--ink-mid); }
+.range.none { color: var(--ink-soft); }

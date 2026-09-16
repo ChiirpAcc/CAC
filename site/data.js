@@ -506,3 +506,130 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
     };
   });
 }
+
+// Projected break-even month per cohort, with a 90% interval.
+//
+// Cohorts that have already covered their cost report the month they did it.
+// That is a fact and carries no interval. The rest are projected forward from
+// their last observed month using a revenue retention path, and the interval
+// comes from resampling whole donor cohorts rather than from resampling the
+// pooled average. The dominant uncertainty is not "what is the average
+// retention curve", which 30-odd cohorts pin down tightly, but "how far can
+// this particular cohort sit from that average", which is much wider.
+//
+// The generator is seeded, so moving a slider and moving it back gives the
+// same interval rather than a slightly different one each time.
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function ratioPath(cohort) {
+  const path = new Map();
+  for (let k = 1; k < cohort.revenue.length; k += 1) {
+    if (cohort.revenue[k - 1] > 0) path.set(k, cohort.revenue[k] / cohort.revenue[k - 1]);
+  }
+  return path;
+}
+
+// Beyond the ages a donor observed, hold its recent average rather than
+// letting the path run off the end of the data.
+function terminalRate(path, depth = 6) {
+  const ages = [...path.keys()].sort((a, b) => a - b).slice(-depth);
+  if (!ages.length) return 0.97;
+  return ages.reduce((s, k) => s + path.get(k), 0) / ages.length;
+}
+
+export function projectedBreakEven(data, cohorts, options) {
+  const { csShare, partnershipsShare, margin, replicates = 300, horizon = 120 } = options;
+  const cac = cacByMonth(data, { csShare, partnershipsShare });
+  const newLogos = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+
+  // Donors need enough history to lend a trajectory, and recent enough to be
+  // lending one from the same regime.
+  const donors = cohorts.filter(c => c.month >= '2023-01' && c.maxOffset >= 12);
+  const donorPaths = donors.map(ratioPath);
+  const donorTerminals = donorPaths.map(p => terminalRate(p));
+
+  const pooled = new Map();
+  const numerator = new Map();
+  const denominator = new Map();
+  for (const cohort of donors) {
+    for (let k = 1; k < cohort.revenue.length; k += 1) {
+      if (cohort.revenue[k - 1] <= 0) continue;
+      numerator.set(k, (numerator.get(k) || 0) + cohort.revenue[k]);
+      denominator.set(k, (denominator.get(k) || 0) + cohort.revenue[k - 1]);
+    }
+  }
+  for (const [k, den] of denominator) if (den > 0) pooled.set(k, numerator.get(k) / den);
+  const pooledTerminal = terminalRate(pooled);
+
+  const monthsToCover = (cohort, cost, path, terminal) => {
+    let cumulative = 0;
+    let projected = null;
+    for (let k = 0; k < horizon; k += 1) {
+      let monthly;
+      if (k <= cohort.maxOffset) {
+        monthly = cohort.revenue[k];
+      } else {
+        const step = path.has(k) ? path.get(k) : terminal;
+        projected = (projected === null ? cohort.revenue[cohort.maxOffset] : projected) * step;
+        monthly = projected;
+      }
+      cumulative += (monthly * margin) / cohort.size;
+      if (cumulative >= cost) return k + 1;
+    }
+    return null;
+  };
+
+  return cohorts.map(cohort => {
+    const spend = cac.get(cohort.month);
+    const acquired = newLogos.get(cohort.month);
+    const cost = (spend === undefined || !acquired) ? null : spend / acquired;
+    if (cost === null) return null;
+
+    // What actually happened, using only observed months.
+    let cumulative = 0;
+    let actual = null;
+    for (let k = 0; k <= cohort.maxOffset; k += 1) {
+      cumulative += (cohort.revenue[k] * margin) / cohort.size;
+      if (cumulative >= cost) { actual = k + 1; break; }
+    }
+
+    const base = {
+      month: cohort.month, size: cohort.size, cost,
+      monthsObserved: cohort.maxOffset + 1, actual,
+    };
+    if (actual !== null) {
+      return { ...base, central: actual, low: null, high: null, neverRate: 0, projected: false };
+    }
+
+    const central = monthsToCover(cohort, cost, pooled, pooledTerminal);
+
+    // One seed per cohort, so each row is stable in its own right.
+    const rand = seededRandom(Number(cohort.month.replace('-', '')) || 1);
+    const hits = [];
+    let never = 0;
+    for (let i = 0; i < replicates; i += 1) {
+      const pick = Math.floor(rand() * donorPaths.length);
+      const result = monthsToCover(cohort, cost, donorPaths[pick], donorTerminals[pick]);
+      if (result === null) never += 1; else hits.push(result);
+    }
+    hits.sort((a, b) => a - b);
+
+    const enough = hits.length >= 30;
+    return {
+      ...base,
+      central,
+      low: enough ? hits[Math.floor(0.05 * hits.length)] : null,
+      high: enough ? hits[Math.min(Math.floor(0.95 * hits.length), hits.length - 1)] : null,
+      neverRate: never / replicates,
+      projected: true,
+    };
+  }).filter(Boolean);
+}
