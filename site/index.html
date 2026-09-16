@@ -3,170 +3,209 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CHIIRP LTV:CAC</title>
-<style>
-  :root {
-    --paper: #fbfbfa;
-    --ink: #1c1d1f;
-    --ink-soft: #5c6066;
-    --rule: #dcdcd8;
-    --panel: #ffffff;
-    --accent: #2f5d62;
-    --warn: #8a5a1f;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --paper: #16181a;
-      --ink: #e8e8e6;
-      --ink-soft: #9ba1a8;
-      --rule: #2e3236;
-      --panel: #1d2023;
-      --accent: #7fb3b8;
-      --warn: #d0a05c;
-    }
-  }
-
-  * { box-sizing: border-box; }
-
-  body {
-    margin: 0;
-    padding: 2.5rem 1rem 6rem;
-    background: var(--paper);
-    color: var(--ink);
-    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-
-  main { max-width: 46rem; margin: 0 auto; }
-
-  h1 {
-    font-size: clamp(1.6rem, 5vw, 2.1rem);
-    line-height: 1.2;
-    margin: 0 0 .4rem;
-    letter-spacing: -0.01em;
-  }
-
-  .standfirst {
-    color: var(--ink-soft);
-    margin: 0 0 2.5rem;
-    max-width: 34rem;
-  }
-
-  h2 {
-    font-size: 1rem;
-    margin: 2.5rem 0 .75rem;
-    padding-bottom: .4rem;
-    border-bottom: 1px solid var(--rule);
-  }
-
-  table { width: 100%; border-collapse: collapse; }
-
-  th {
-    text-align: left;
-    font-weight: 600;
-    font-size: .85rem;
-    color: var(--ink-soft);
-    padding: .4rem .6rem .4rem 0;
-  }
-
-  td {
-    padding: .5rem .6rem .5rem 0;
-    border-top: 1px solid var(--rule);
-    vertical-align: baseline;
-  }
-
-  td.count {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  code {
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: .88em;
-    color: var(--ink-soft);
-  }
-
-  .status {
-    border-left: 3px solid var(--accent);
-    padding: .1rem 0 .1rem 1rem;
-    margin: 0 0 1rem;
-  }
-  .status.waiting { border-left-color: var(--warn); }
-
-  .stamp { color: var(--ink-soft); font-size: .88rem; }
-
-  a { color: var(--accent); }
-  a:focus-visible, :focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .status { transition: border-color .2s; }
-  }
-</style>
+<title>CHIIRP unit economics</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<main>
-  <h1>CHIIRP LTV:CAC</h1>
-  <p class="standfirst">
-    The analysis is still a spreadsheet. This is the site that will replace
-    the reading of it. Nothing is built yet beyond the data contract.
-  </p>
 
-  <h2>Data</h2>
-  <div id="status" class="status waiting">Checking what has arrived.</div>
-  <div id="files"></div>
-</main>
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1>CHIIRP unit economics</h1>
+    <p id="stamp" class="stamp">Loading.</p>
+  </div>
+</header>
 
-<script>
-// Read the index the workbook push writes. Nothing here fetches from Google:
-// data/ arrives as a commit, and this page only reports what landed.
-async function report() {
-  const status = document.getElementById('status');
-  const files = document.getElementById('files');
+<div id="loading" class="wrap"><p class="empty">Reading the workbook data.</p></div>
 
-  let index;
-  try {
-    const response = await fetch('data/index.json', { cache: 'no-store' });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    index = await response.json();
-  } catch (err) {
-    status.textContent =
-      'No data has arrived yet. The workbook Apps Script has not pushed ' +
-      'data/index.json to this repository.';
-    return;
-  }
+<div id="dashboard" hidden>
 
-  const list = Array.isArray(index.files) ? index.files : [];
-  const total = list.reduce((sum, f) => sum + (Number(f.rows) || 0), 0);
+  <section class="wrap kpis" aria-label="Headline figures">
+    <div class="kpi">
+      <p class="kpi-label">Active logos</p>
+      <p class="kpi-value" id="kpi-base">--</p>
+      <p class="kpi-note" id="kpi-base-note"></p>
+    </div>
+    <div class="kpi">
+      <p class="kpi-label">Logo flow</p>
+      <p class="kpi-value" id="kpi-flow">--</p>
+      <p class="kpi-note" id="kpi-flow-note"></p>
+    </div>
+    <div class="kpi">
+      <p class="kpi-label">New logos, latest month</p>
+      <p class="kpi-value" id="kpi-new">--</p>
+      <p class="kpi-note" id="kpi-new-note"></p>
+    </div>
+  </section>
 
-  status.classList.remove('waiting');
-  status.innerHTML =
-    list.length + ' file' + (list.length === 1 ? '' : 's') + ', ' +
-    total.toLocaleString() + ' rows. ' +
-    '<span class="stamp">Pushed ' + (index.pushed_at || 'at an unrecorded time') + '.</span>';
+  <section class="wrap panel" aria-labelledby="assumptions-heading">
+    <div class="panel-head">
+      <h2 id="assumptions-heading">Assumptions</h2>
+      <button type="button" id="reset" class="reset">Reset to workbook defaults</button>
+    </div>
+    <p class="panel-intro">
+      The figures below the first three cards depend on these settings. Customer
+      Success is the one that matters: ten CSMs, about a third of the Sales and
+      Marketing group, currently counted in full as a cost of acquiring
+      customers rather than of keeping them. Nobody has decided that. Move it
+      and watch what happens.
+    </p>
 
-  if (!list.length) return;
+    <div class="controls">
+      <label class="control">
+        <span class="control-label">Customer Success counted as acquisition</span>
+        <input type="range" id="cs-split" min="0" max="100" step="5">
+        <output id="cs-split-value" class="control-value">100%</output>
+      </label>
 
-  const rows = list.map(f =>
-    '<tr><td>' + escapeHtml(f.tab || '') + '</td>' +
-    '<td><code>' + escapeHtml(f.file || '') + '</code></td>' +
-    '<td class="count">' + (Number(f.rows) || 0).toLocaleString() + '</td></tr>'
-  ).join('');
+      <label class="control">
+        <span class="control-label">Partnerships counted as acquisition</span>
+        <input type="range" id="pt-split" min="0" max="100" step="5">
+        <output id="pt-split-value" class="control-value">100%</output>
+      </label>
 
-  files.innerHTML =
-    '<table><thead><tr><th>Tab</th><th>File</th><th class="count">Rows</th></tr></thead>' +
-    '<tbody>' + rows + '</tbody></table>';
-}
+      <label class="control">
+        <span class="control-label">Blended gross margin</span>
+        <input type="range" id="margin" min="40" max="95" step="0.5">
+        <output id="margin-value" class="control-value">75.7%</output>
+      </label>
+    </div>
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, c => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-  ));
-}
+    <dl class="readout">
+      <div>
+        <dt>Acquisition cost, all months</dt>
+        <dd id="cac-total">--</dd>
+      </div>
+      <div class="readout-wide">
+        <dt>Composition</dt>
+        <dd id="cac-total-note" class="readout-prose">--</dd>
+      </div>
+    </dl>
 
-report();
-</script>
+    <p class="caveat">
+      Platform margin of 75.7% comes from the P&amp;L. It is applied here to all
+      revenue, because the pushed data does not split revenue by class. Usage
+      and one-time revenue carry different margins, so this figure is an
+      estimate until QuickBooks cost of sales is split by class.
+    </p>
+  </section>
+
+  <div class="wrap charts">
+
+    <figure class="card depends" id="fig-ltv">
+      <figcaption>
+        <h3>1. LTV:CAC by cohort</h3>
+        <p class="register">Depends on the assumptions above</p>
+        <p class="adjusted-notice" hidden>Showing a setting you chose, not what the workbook currently produces.</p>
+      </figcaption>
+      <div class="plot" id="chart-ltv-cac"></div>
+      <p class="note" id="ltv-note"></p>
+    </figure>
+
+    <figure class="card depends" id="fig-payback">
+      <figcaption>
+        <h3>2. Expected payback by cohort</h3>
+        <p class="register">Depends on the assumptions above</p>
+        <p class="adjusted-notice" hidden>Showing a setting you chose, not what the workbook currently produces.</p>
+      </figcaption>
+      <div class="plot" id="chart-payback"></div>
+      <p class="note" id="payback-note"></p>
+    </figure>
+
+    <figure class="card depends wide" id="fig-recovery">
+      <figcaption>
+        <h3>3. Cumulative gross profit against cost, by cohort age</h3>
+        <p class="register">Depends on the assumptions above</p>
+        <p class="adjusted-notice" hidden>Showing a setting you chose, not what the workbook currently produces.</p>
+      </figcaption>
+      <div class="plot" id="chart-recovery"></div>
+      <p class="note" id="recovery-note"></p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>4. Blended retention curve, logos against revenue</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-retention"></div>
+      <p class="note" id="retention-note"></p>
+    </figure>
+
+    <figure class="card">
+      <figcaption>
+        <h3>5. Monthly logo churn rate</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-churn"></div>
+      <p class="note">Churned logos over the prior month closing base.</p>
+    </figure>
+
+    <figure class="card">
+      <figcaption>
+        <h3>6. Retention at month 3 and month 6, by cohort</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-age-retention"></div>
+      <p class="note">A cohort appears only once that age is behind it. Plotting it earlier would make every recent cohort read as perfect.</p>
+    </figure>
+
+    <figure class="card depends wide" id="fig-unit">
+      <figcaption>
+        <h3>7. Cost per logo against revenue per logo</h3>
+        <p class="register">Depends on the assumptions above</p>
+        <p class="adjusted-notice" hidden>Showing a setting you chose, not what the workbook currently produces.</p>
+      </figcaption>
+      <div class="plot" id="chart-unit"></div>
+      <p class="note" id="unit-note"></p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>8. Retention curve by era</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-era"></div>
+      <p class="note" id="era-note"></p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>9. Active logo base by month</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-base"></div>
+      <p class="note">The truest number on this page. It needs no split, no margin and no cohort definition.</p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>10. Monthly logo flows</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-flows"></div>
+      <p class="note">New and reactivated above the axis, churned below. Net change is a line rather than a third column, because it is the sum of the other two and would otherwise read as an independent quantity.</p>
+    </figure>
+
+  </div>
+
+  <footer class="wrap site-footer">
+    <h2>What is solid and what is not</h2>
+    <p>
+      The logo counts, the flows and the retention curves come straight from the
+      workbook and hold whatever anyone decides about cost allocation. The
+      ratios do not. LTV:CAC and payback both move further on the Customer
+      Success split than on every other correction combined, and that split is
+      an open question rather than a measurement.
+    </p>
+    <p>
+      Two limits worth carrying: gross profit here is what a cohort has
+      actually returned to date rather than a projection, so young cohorts are
+      understated by construction. And the second Stripe environment has not
+      been pulling, so anything it alone carries is missing from these cohorts.
+    </p>
+  </footer>
+
+</div>
+
+<script type="module" src="app.js"></script>
 </body>
 </html>
