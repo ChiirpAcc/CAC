@@ -984,6 +984,34 @@ function annotate(plotId, takeaways, assumptions) {
 // about what to do, not a number, and it should not silently change when a
 // push moves a decimal.
 const MEANS = {
+  'chart-price-volume':
+    'This is the chart to put in front of anyone who has seen the volume line on its own. '
+    + 'Fewer customers at a higher price is a different business from fewer customers, and '
+    + 'the revenue effect is roughly two thirds of what the count alone implies. It does not '
+    + 'make the decline disappear, and it does change what to do about it: the pricing move '
+    + 'is working and the volume problem is partly a measurement boundary, so the honest '
+    + 'reading is that neither a discount nor a panic about demand is supported here.',
+
+  'chart-onboarding':
+    'Charging more customers and charging them more are separate decisions with separate '
+    + 'effects on conversion, and reading them as one movement hides which lever was actually '
+    + 'pulled. Setup fees are also the part of first-month cash that is least visible in MRR, '
+    + 'so a change here moves payback without moving any recurring number.',
+
+  'chart-start-type':
+    'The share of a month that is not a standard start is the share of the cohort dating that '
+    + 'is approximate. Shifted forward customers are the left censoring problem, already '
+    + 'classified by hand upstream, which is a better answer than any rule that infers them. '
+    + 'The annual customers are worth watching separately: two of them carry enough to make '
+    + 'the months holding them read high.',
+
+  'chart-quick-cancel':
+    'These customers were counted as won at full price and were gone before contributing. '
+    + 'They inflate both acquisition and churn in the same quarter, which is the worst kind of '
+    + 'noise because it moves two numbers in opposite directions. The same-day cluster is the '
+    + 'part to chase: six cancellations on one date is an account closing, not a retention '
+    + 'signal, and treating it as churn would point effort at the wrong problem.',
+
   'chart-ltv-cac':
     'The model works and has been proven to work. The 2024 cohorts returned three to six '
     + 'times what they cost at around $2,000 a logo. What has broken is the price of a '
@@ -1382,6 +1410,57 @@ function renderAnnotations() {
     'Both series drift over the period, and two drifting series correlate whether or not they are related. No trend line is drawn for that reason.',
     'Correlation is not causation here in either direction, and the confound is time rather than anything either axis measures.',
   ]);
+
+  // The four charts built from the signup source and the lifetimes file.
+  const sx2 = signupEconomics(data);
+  if (sx2.months.length) {
+    const a = sx2.months[0];
+    const z = sx2.months[sx2.months.length - 1];
+    const attach = sx2.months.filter(r => r.attachRate !== null);
+    const fees = sx2.months.filter(r => r.averageFee !== null);
+
+    annotate('chart-price-volume', [
+      `<strong>Volume fell ${Math.abs((z.count / a.count - 1) * 100).toFixed(0)}% while the price at signup rose ${((z.averagePrice / a.averagePrice - 1) * 100).toFixed(0)}%</strong>, ${fmt.money(a.averagePrice)} to ${fmt.money(z.averagePrice)}.`,
+      `New MRR added fell ${Math.abs((z.startingMrr / a.startingMrr - 1) * 100).toFixed(0)}%, ${fmt.money(a.startingMrr)} to ${fmt.money(z.startingMrr)}, which is less than the fall in count because each signup is worth more.`,
+      `The two lines cross, so the revenue effect is smaller than the volume line alone suggests.`,
+    ], [
+      'Starting MRR is what a customer was sold, not what they have paid since, so this is a price measure rather than a revenue one.',
+      'The same S1 weighting applies. The last month of this source carries a handful of customers and is dropped rather than drawn.',
+    ]);
+
+    annotate('chart-onboarding', [
+      `<strong>The share charged a setup fee moved from ${fmt.pct(attach[0].attachRate, 1)} to ${fmt.pct(attach[attach.length - 1].attachRate, 1)}</strong> across the window.`,
+      `The fee itself went from ${fmt.money(fees[0].averageFee)} to ${fmt.money(fees[fees.length - 1].averageFee)} where it was charged.`,
+      `Those two move independently, so the total onboarding take can rise while the attach rate falls.`,
+    ], [
+      'The average is taken across customers who were charged, not across everyone, so it is not diluted by those who were not.',
+      'A setup fee is one-time and sits outside MRR, so none of this appears in any recurring figure on the page.',
+    ]);
+
+    const st = sx2.typeTotals;
+    const nonStandard = st.filter(x => ['shifted forward', 'waived', 'annual'].includes(x.type));
+    annotate('chart-start-type', [
+      `<strong>${nonStandard.reduce((s, x) => s + x.customers, 0)} of ${fmt.int(sx2.total)} customers did not start in the standard way</strong>, carrying ${fmt.money(nonStandard.reduce((s, x) => s + x.startingMrr, 0))} of starting MRR between them.`,
+      st.map(x => `${x.type} ${x.customers}`).join(', ') + '.',
+      `${sx2.paidBelow.customers} paid less in month one than their starting MRR, ${fmt.money(sx2.paidBelow.startingMrr)} of price, which is the gap between what is billed and what arrives.`,
+    ], [
+      'Start type is classified upstream by hand, one customer at a time, rather than inferred from the shape of the payments.',
+      'Annual customers are counted at twelve months in the month they sign, so a month carrying one reads high and is not comparable to its neighbours.',
+    ]);
+  }
+
+  const qc2 = quickCancellations(data);
+  if (qc2.cancelled.length) {
+    const biggest = qc2.clusters[0];
+    annotate('chart-quick-cancel', [
+      `<strong>${qc2.cancelled.length} customers signed and left inside ${qc2.withinDays} days</strong>, each counted as won at full rate in the month they signed.`,
+      biggest && biggest.count > 1 ? `${biggest.count} of them cancelled on ${biggest.date}, which is an account closing rather than ${biggest.count} decisions.` : null,
+      `They inflate acquisition and churn in the same quarter, which moves two numbers in opposite directions at once.`,
+    ], [
+      `Measured from the subscription lifetimes file, which covers ${fmt.int(qc2.totalWithLifetime)} customers rather than the whole book, so this is a floor.`,
+      'Counted by the month they signed rather than the month they left, so a cancellation appears against the cohort that was credited with winning it.',
+    ]);
+  }
 }
 
 const pp = v => (v >= 0 ? '+' : '') + v.toFixed(1) + ' points';
