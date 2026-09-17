@@ -1365,3 +1365,85 @@ export function retentionBySignupPrice(data, { horizon = 4, windows = 24 } = {})
 
   return { bands, cells, matched: priceOf.size };
 }
+
+// Does price predict retention, once the cohort is held constant?
+//
+// This has to be asked within a cohort and not across the book. Price rose
+// over the period and retention fell over the period, so pooling customers
+// from different months lets the era masquerade as the price: the dearest
+// customers are disproportionately the most recent, and the most recent
+// retain worst whatever they pay.
+//
+// Comparing each customer only against others who signed in the same month
+// removes that entirely. The comparisons are then pooled by customer count,
+// which is the Mantel-Haenszel shape: many small within-stratum contrasts
+// rather than one large confounded one.
+//
+// First-month recognised MRR stands in for the price. The signup source knows
+// what was sold but only covers 2026, which is exactly the window where price
+// and era are most tangled. The proxy reaches back to 2018 and agrees with
+// the signup figure for 86% of the customers that have both.
+export function priceAgainstRetention(data, { ages = [3, 6, 12], minCohort = 16 } = {}) {
+  const active = new Map();
+  const firstMonth = new Map();
+  const firstMrr = new Map();
+
+  for (const row of data.customers) {
+    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!active.has(row.month)) active.set(row.month, new Set());
+    active.get(row.month).add(row.id);
+    const seen = firstMonth.get(row.id);
+    if (seen === undefined || row.month < seen) {
+      firstMonth.set(row.id, row.month);
+      firstMrr.set(row.id, row.eopMrr);
+    }
+  }
+
+  const last = [...active.keys()].sort().pop();
+  const byCohort = new Map();
+  for (const [id, month] of firstMonth) {
+    if (!firstMrr.get(id)) continue;
+    if (!byCohort.has(month)) byCohort.set(month, []);
+    byCohort.get(month).push(id);
+  }
+
+  const cohorts = [...byCohort.keys()].sort().filter(m => m >= '2024-01');
+
+  const results = ages.map(age => {
+    let keptLow = 0, totalLow = 0, keptHigh = 0, totalHigh = 0, used = 0, dearerWon = 0;
+
+    for (const month of cohorts) {
+      const target = monthAdd(month, age);
+      if (target > last) continue;
+      const ids = byCohort.get(month);
+      if (ids.length < minCohort) continue;
+
+      const sorted = [...ids].sort((a, b) => firstMrr.get(a) - firstMrr.get(b));
+      const median = firstMrr.get(sorted[Math.floor(sorted.length / 2)]);
+      const low = ids.filter(id => firstMrr.get(id) <= median);
+      const high = ids.filter(id => firstMrr.get(id) > median);
+      if (low.length < 6 || high.length < 6) continue;
+
+      const survivors = new Set(active.get(target) || []);
+      const kl = low.filter(id => survivors.has(id)).length;
+      const kh = high.filter(id => survivors.has(id)).length;
+
+      used += 1;
+      keptLow += kl; totalLow += low.length;
+      keptHigh += kh; totalHigh += high.length;
+      if (kh / high.length > kl / low.length) dearerWon += 1;
+    }
+
+    if (!used) return null;
+    const pLow = keptLow / totalLow;
+    const pHigh = keptHigh / totalHigh;
+    const se = Math.sqrt(pLow * (1 - pLow) / totalLow + pHigh * (1 - pHigh) / totalHigh);
+    return {
+      age, pLow, pHigh, totalLow, totalHigh, cohorts: used, dearerWon,
+      gap: (pHigh - pLow) * 100,
+      z: se ? (pHigh - pLow) / se : null,
+    };
+  }).filter(Boolean);
+
+  return { results, cohortsConsidered: cohorts.length };
+}

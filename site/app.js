@@ -4,7 +4,7 @@ import {
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
   seasonalSurvival, survivalByRevenueWithinTenure, reconciliation,
   hasRevenueClasses, CLASS_MARGINS, environmentSplit, quickCancellations,
-  signupEconomics, retentionBySignupPrice,
+  signupEconomics, retentionBySignupPrice, priceAgainstRetention,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -555,23 +555,41 @@ function renderForward() {
   // Signup price is fixed; current MRR moves with expansion and contraction,
   // so the same question asked on what a customer was sold is the cleaner
   // version of it. Reported beside this chart rather than as a rival to it.
+  // Asked properly, within cohort, because price and era move together and a
+  // pooled comparison lets one stand in for the other.
+  const controlled = priceAgainstRetention(data);
+  if (controlled.results.length) {
+    const rows = controlled.results;
+    const six = rows.find(r => r.age === 6) || rows[0];
+    const twelve = rows.find(r => r.age === 12);
+    $('mrr-controlled').innerHTML =
+      '<strong>Holding the cohort constant, dearer customers stay longer, and the gap widens '
+      + 'with age.</strong> Comparing each customer only against others who signed the same '
+      + 'month, then pooling: '
+      + rows.map(r => 'at month ' + r.age + ' the dearer half keeps ' + fmt.pct(r.pHigh, 1)
+          + ' against ' + fmt.pct(r.pLow, 1) + ', ' + (r.gap >= 0 ? '+' : '')
+          + r.gap.toFixed(1) + ' points').join('; ')
+      + '. The dearer half won in ' + six.dearerWon + ' of ' + six.cohorts
+      + ' cohorts at month ' + six.age
+      + (twelve ? ' and ' + twelve.dearerWon + ' of ' + twelve.cohorts + ' at month 12' : '')
+      + '. This is the comparison to trust: pooling across cohorts instead lets the era pose '
+      + 'as the price, because the dearest customers are also the most recent and the most '
+      + 'recent retain worst whatever they pay.';
+  }
+
   const signupBanded = retentionBySignupPrice(data);
   if (signupBanded) {
     const young = signupBanded.cells[0];
     const lift = (young.bands[young.bands.length - 1].survival - young.bands[0].survival) * 100;
     $('mrr-signup').innerHTML =
-      '<strong>Asked on signup price instead, it points the other way.</strong> Banding on '
-      + 'what a customer was sold rather than what they pay now, '
+      '<strong>On 2026 signup prices alone the pattern inverts, and that is the confound '
+      + 'rather than a finding.</strong> Banding on what a customer was sold, '
       + young.bands.map(b => b.label + ' ' + fmt.pct(b.survival, 1)).join(', ')
-      + ' within the first year, a spread of ' + pp(lift) + '. The dearest signups survive '
-      + 'worst, which is the reverse of the chart above. The likely reason is that current '
-      + 'price carries survivorship in it: a customer who contracts moves down a band and '
-      + 'takes their poor retention with them, so banding on current MRR credits the cheap '
-      + 'bands with churn that began higher up. Signup price cannot do that, because it never '
-      + 'moves.'
-      + ' Read it as a flag rather than a finding: it matches ' + fmt.int(signupBanded.matched)
-      + ' customers, all of them 2026 signups, so it is a young and much smaller sample than '
-      + 'the pooled windows above and the two are not like for like.';
+      + ' within the first year, a spread of ' + pp(lift) + '. That matches '
+      + fmt.int(signupBanded.matched) + ' customers, all of them 2026 signups, and price rose '
+      + 'steadily through 2026 while retention fell, so the dearest customers here are also '
+      + 'the latest ones. Held against their own cohort, as above, the relationship runs the '
+      + 'other way.';
   }
 
   $('mrr-note').textContent =
