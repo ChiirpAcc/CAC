@@ -47,6 +47,33 @@ jobs:
           mkdir -p _site/data
           cp -r data/. _site/data/
           rm -f _site/data/README.md
+
+          # Stamp the commit onto every module and stylesheet reference.
+          #
+          # Pages caches JavaScript for several minutes but revalidates the
+          # HTML sooner, so a deploy can leave a browser running new markup
+          # against old modules. That fails silently and is hard to spot: the
+          # new figures are in the page, the code that fills them is not, and
+          # the charts come out empty with nothing in the console. Versioning
+          # the references makes a changed module a different URL, so the stale
+          # copy cannot be served.
+          VERSION="${GITHUB_SHA::12}"
+          python3 - "$VERSION" <<'PY'
+          import re, sys
+          from pathlib import Path
+
+          version = sys.argv[1]
+          for path in list(Path('_site').glob('*.js')) + [Path('_site/index.html')]:
+              if not path.exists():
+                  continue
+              text = path.read_text(encoding='utf-8')
+              text = re.sub(r"from '\./([\w-]+\.js)'", rf"from './\1?v={version}'", text)
+              text = re.sub(r'src="([\w-]+\.js)"', rf'src="\1?v={version}"', text)
+              text = re.sub(r'href="(styles\.css)"', rf'href="\1?v={version}"', text)
+              path.write_text(text, encoding='utf-8')
+          print(f'Stamped module references with {version}')
+          PY
+
           echo "Deploying:"
           find _site -type f | sort | sed 's/^/  /'
 
