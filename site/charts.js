@@ -226,7 +226,8 @@ export function lineChart(container, { labels, values, yFormat = fmt.int, descri
 // Several lines sharing an axis.
 export function multiLineChart(container, { labels, series, yFormat = fmt.int, describe,
                                             yMin = null, yMax = null, refs = [],
-                                            showLegend = true, xTitle = null }) {
+                                            showLegend = true, legendItems = null,
+                                            xTitle = null }) {
   const svg = makeSvg(container);
   const all = series.flatMap(s => s.values).filter(v => v !== null && Number.isFinite(v));
   if (!all.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
@@ -260,7 +261,10 @@ export function multiLineChart(container, { labels, series, yFormat = fmt.int, d
       .textContent = xTitle;
   }
   attachHover(svg, container, band, labels.length, describe);
-  if (showLegend) legend(container, series.map(s => ({ label: s.label, colour: s.colour })));
+  // A chart drawing dozens of faint lines needs a legend that names what they
+  // are, not one entry per line.
+  if (legendItems) legend(container, legendItems);
+  else if (showLegend) legend(container, series.map(s => ({ label: s.label, colour: s.colour })));
 }
 
 // Columns, optionally with reference lines. Nulls leave a gap rather than a

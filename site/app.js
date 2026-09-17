@@ -2,9 +2,9 @@ import {
   load, buildCohorts, cohortEconomics,
   blendedRetention, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
-  seasonalSurvival, survivalByRevenueWithinTenure,
-  hasRevenueClasses, CLASS_MARGINS, environmentSplit, quickCancellations,
-  signupEconomics, retentionBySignupPrice, priceAgainstRetention,
+  seasonalSurvival,
+  hasRevenueClasses, CLASS_MARGINS, environmentSplit,
+  signupEconomics, priceAgainstRetention,
   arrivalsAgainstChurn,
 } from './data.js';
 import {
@@ -41,7 +41,6 @@ function boot() {
     renderForward();
     renderSeasonal();
     renderSignups();
-    renderQuickCancellations();
     renderAnnotations();
     $('horizon').addEventListener('input', renderSeasonal);
     $('arrival-horizon').addEventListener('input', renderArrivals);
@@ -180,17 +179,6 @@ function renderStatic() {
     + `that age; only ${newest.reachedMonth6} have reached month 6, so its right hand end is `
     + 'thin and will move as more months land.';
 
-  // 9. Active logo base.
-  lineChart($('chart-base'), {
-    labels,
-    values: recent.map(r => r.activeLogos),
-    colour: INK.primary,
-    area: true,
-    describe: i => `<strong>${fmt.monthLabel(recent[i].month)}</strong>
-      <span>${fmt.int(recent[i].activeLogos)} active logos</span>
-      <span class="muted">${fmt.int(recent[i].newLogos)} new, ${fmt.int(recent[i].churnedLogos)} churned</span>`,
-  });
-
   // 10. Monthly logo flows.
   flowChart($('chart-flows'), {
     labels,
@@ -220,14 +208,14 @@ function renderAssumptionDependent() {
   // no denominator and would be 61 empty slots. Windowing to 24 on top of
   // that cut off the eight oldest cohorts with cost data, which are the most
   // mature and the best performing, and made the picture look worse than it is.
-  const withCost = cohortEconomics(data, cohorts, state).filter(c => c.costPerLogo !== null);
-  // Cohorts younger than six months are withheld rather than drawn low. The
-  // measure is realised profit, so their position says how old they are, not
-  // how good they are, and a reader will take the slope for decline.
-  const economics = withCost.filter(c => c.monthsObserved === undefined
-    ? c.maxOffset + 1 >= MIN_COHORT_AGE
-    : c.monthsObserved >= MIN_COHORT_AGE);
-  const tooYoung = withCost.length - economics.length;
+  // Every cohort with a cost, through to the trailing month. The youngest are
+  // drawn muted rather than withheld: the measure is realised profit, so a
+  // young cohort sits low because it has had less time, not because it is
+  // worse, and a reader who cannot see it at all has no way to judge that.
+  const economics = cohortEconomics(data, cohorts, state).filter(c => c.costPerLogo !== null);
+  const isYoung = c => (c.maxOffset + 1) < MIN_COHORT_AGE;
+  const tooYoung = economics.filter(isYoung).length;
+  const mute = (colour, c) => (isYoung(c) ? 'var(--series-3)' : colour);
   const labels = economics.map(c => fmt.monthLabel(c.month));
 
   // 1. LTV:CAC by cohort.
@@ -236,7 +224,7 @@ function renderAssumptionDependent() {
     labels,
     values: ltv,
     yFormat: v => v.toFixed(1) + 'x',
-    colourFor: v => (v >= 3 ? INK.positive : v >= 1 ? INK.tertiary : INK.negative),
+    colourFor: (v, i) => mute(v >= 3 ? INK.positive : v >= 1 ? INK.tertiary : INK.negative, economics[i]),
     refs: [
       { value: 3, label: '3.0x', variant: 'ref-goal' },
       { value: 1, label: '1.0x break-even', variant: 'ref-floor' },
@@ -256,8 +244,8 @@ function renderAssumptionDependent() {
     + `projected, so it is age-biased by construction and the rightmost columns will keep `
     + `rising. ${below} of ${ltv.filter(v => v !== null).length} cohorts `
     + `are below break-even. ${tooYoung} cohorts younger than ${MIN_COHORT_AGE} months are `
-    + `withheld, because a young cohort sits low for want of time rather than for want of `
-    + `quality. Cohorts before ${economics[0].month} are absent because acquisition cost is `
+    + `drawn in grey rather than withheld, because a young cohort sits low for want of time `
+    + `rather than for want of quality. Cohorts before ${economics[0].month} are absent because acquisition cost is `
     + `not recorded then, not because they performed badly.`
     + ` Cost and gross profit are divided by the same cohort `
     + `count, so the ratio compares like with like.`;
@@ -268,7 +256,7 @@ function renderAssumptionDependent() {
     labels,
     values: payback,
     yFormat: v => Math.round(v) + 'm',
-    colourFor: v => (v <= 12 ? INK.positive : INK.negative),
+    colourFor: (v, i) => mute(v <= 12 ? INK.positive : INK.negative, economics[i]),
     refs: [{ value: 12, label: '12 month goal', variant: 'ref-goal' }],
     describe: i => {
       const c = economics[i];
@@ -285,8 +273,8 @@ function renderAssumptionDependent() {
     `${unrecovered} of ${economics.length} cohorts have not recovered and may not. Those are `
     + `drawn as gaps rather than zeroes, because a zero would read as instant payback, the `
     + `opposite of what it means. Of the ${recovered.length} that did recover, ${withinGoal} `
-    + `did so inside the 12 month goal. ${tooYoung} cohorts younger than ${MIN_COHORT_AGE} `
-    + `months are withheld: realised payback cannot distinguish a young cohort from a bad `
+    + `did so inside the 12 month goal. The ${tooYoung} cohorts younger than ${MIN_COHORT_AGE} `
+    + `months are in grey: realised payback cannot yet distinguish a young cohort from a bad `
     + `one. The run starts at ${economics[0].month} because acquisition cost is not `
     + `recorded before then.`;
 
@@ -369,8 +357,21 @@ function renderAssumptionDependent() {
   // answers to what a logo costs.
   const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
   const months = data.waterfall.filter(r => cac.has(r.month) && cac.get(r.month) !== null);
-  const costPerLogo = months.map(r => (r.newLogos ? cac.get(r.month) / r.newLogos : null));
-  const revenuePerLogo = months.map(r => (r.newLogos ? r.newMrr / r.newLogos : null));
+  // A month whose new logo count has collapsed produces a cost per logo that
+  // is about the denominator rather than about the cost. August 2026 divides
+  // a normal month of spend by nine logos and lands three times higher than
+  // anything before it, which is the second Stripe environment not reaching
+  // the count rather than a real move. Those months are blanked rather than
+  // drawn, because a spike that large is read before any caveat under it.
+  const counts = months.map(r => r.newLogos).filter(Boolean).sort((a, b) => a - b);
+  const typical = counts.length ? counts[Math.floor(counts.length / 2)] : 0;
+  // A third of a typical month, not a half. July sits at 47% of typical and is
+  // a thin month rather than a broken one; August at 18% is the count failing.
+  const reliable = r => r.newLogos && r.newLogos >= typical * 0.35;
+  const suppressed = months.filter(r => !reliable(r));
+
+  const costPerLogo = months.map(r => (reliable(r) ? cac.get(r.month) / r.newLogos : null));
+  const revenuePerLogo = months.map(r => (reliable(r) ? r.newMrr / r.newLogos : null));
   const baseCost = costPerLogo.find(v => v !== null);
   const baseRevenue = revenuePerLogo.find(v => v !== null);
 
@@ -393,7 +394,13 @@ function renderAssumptionDependent() {
     'Both indexed to 100 at the first month with acquisition cost recorded, so the '
     + 'divergence reads without either absolute number needing to be right. Cost per '
     + 'logo divides the month acquisition cost by the new logos in the monthly '
-    + 'summary, one basis for the whole line.';
+    + 'summary, one basis for the whole line. '
+    + (suppressed.length
+        ? suppressed.map(r => fmt.monthLabel(r.month)).join(' and ')
+          + ' ' + (suppressed.length === 1 ? 'is' : 'are') + ' left blank: the new logo count '
+          + 'there is under a third of a typical month, so the ratio would be measuring the '
+          + 'denominator rather than the cost.'
+        : '');
 }
 
 // Forward survival. Independent of the split and the margin, so drawn once.
@@ -415,14 +422,20 @@ function renderForward() {
     labels,
     series: [
       ...starts.map(s => ({ label: s.month, colour: INK.tertiary, thin: true, values: s.curve })),
-      { label: 'Earlier average', colour: INK.primary, values: average(earlier) },
-      { label: 'Recent average', colour: INK.negative, values: average(recent) },
+      { label: `Average of the earlier ${earlier.length} windows`,
+        colour: INK.primary, values: average(earlier) },
+      { label: `Average of the latest ${recent.length}`,
+        colour: INK.negative, values: average(recent) },
     ],
     yFormat: v => fmt.pct(v),
     yMin: 0.6,
     yMax: 1,
     xTitle: 'Months after the starting month',
-    showLegend: false,
+    legendItems: [
+      { label: `One faint line per starting month, ${starts.length} of them`, colour: 'var(--series-3)' },
+      { label: `Average of the earlier ${earlier.length}`, colour: 'var(--series-1)' },
+      { label: `Average of the latest ${recent.length}`, colour: 'var(--series-neg)' },
+    ],
     describe: i => {
       const values = starts.map(s => s.curve[i]).sort((a, b) => a - b);
       return '<strong>' + (i ? i + ' month' + (i > 1 ? 's' : '') + ' on' : 'Starting month') + '</strong>'
@@ -463,87 +476,6 @@ function renderForward() {
   $('forward-trend-note').textContent =
     'One point per starting month. The decline is steady rather than a single bad month, '
     + 'which rules out a one-off billing or migration event as the whole explanation.';
-
-  // 13. Revenue band, held within a tenure band. Unstratified the cheapest
-  // band looks loyal and is only old, which left the chart arguing with its
-  // own caption.
-  const strat = survivalByRevenueWithinTenure(data);
-  const bandLabels = strat.revenueBands.map(b => b.label);
-  multiLineChart($('chart-by-mrr'), {
-    labels: bandLabels,
-    series: strat.cells.map((cell, i) => ({
-      label: cell.tenure,
-      colour: [INK.negative, INK.secondary, INK.primary][i],
-      values: cell.bands.map(b => b.survival),
-    })),
-    yFormat: v => fmt.pct(v),
-    yMin: 0.6,
-    yMax: 1,
-    xTitle: 'Monthly revenue at the starting month',
-    describe: i => '<strong>' + bandLabels[i] + '</strong>'
-      + strat.cells.map(cell =>
-          '<span>' + cell.tenure + ' ' + fmt.pct(cell.bands[i].survival, 1)
-          + ' <span class="muted">(n=' + fmt.int(cell.bands[i].n) + ')</span></span>').join(''),
-  });
-
-  const young = strat.cells[0];
-  const old = strat.cells[strat.cells.length - 1];
-  const youngLift = (young.bands[young.bands.length - 1].survival - young.bands[0].survival) * 100;
-  const oldLift = (old.bands[old.bands.length - 1].survival - old.bands[0].survival) * 100;
-  $('mrr-finding').innerHTML =
-    '<strong>Only in the first year.</strong> Among customers inside their first year, '
-    + 'survival rises ' + youngLift.toFixed(1) + ' points from the cheapest band to the '
-    + 'dearest, ' + fmt.pct(young.bands[0].survival, 1) + ' to '
-    + fmt.pct(young.bands[young.bands.length - 1].survival, 1) + '. Past two years the '
-    + 'effect is gone, ' + (oldLift >= 0 ? 'up ' : 'down ') + Math.abs(oldLift).toFixed(1)
-    + ' points. Price buys you time early and stops mattering once a customer is established.';
-  // Signup price is fixed; current MRR moves with expansion and contraction,
-  // so the same question asked on what a customer was sold is the cleaner
-  // version of it. Reported beside this chart rather than as a rival to it.
-  // Asked properly, within cohort, because price and era move together and a
-  // pooled comparison lets one stand in for the other.
-  const controlled = priceAgainstRetention(data);
-  if (controlled.results.length) {
-    const rows = controlled.results;
-    const six = rows.find(r => r.age === 6) || rows[0];
-    const twelve = rows.find(r => r.age === 12);
-    $('mrr-controlled').innerHTML =
-      '<strong>Holding the cohort constant, dearer customers stay longer, and the gap widens '
-      + 'with age.</strong> Comparing each customer only against others who signed the same '
-      + 'month, then pooling: '
-      + rows.map(r => 'at month ' + r.age + ' the dearer half keeps ' + fmt.pct(r.pHigh, 1)
-          + ' against ' + fmt.pct(r.pLow, 1) + ', ' + (r.gap >= 0 ? '+' : '')
-          + r.gap.toFixed(1) + ' points').join('; ')
-      + '. The dearer half won in ' + six.dearerWon + ' of ' + six.cohorts
-      + ' cohorts at month ' + six.age
-      + (twelve ? ' and ' + twelve.dearerWon + ' of ' + twelve.cohorts + ' at month 12' : '')
-      + '. This is the comparison to trust: pooling across cohorts instead lets the era pose '
-      + 'as the price, because the dearest customers are also the most recent and the most '
-      + 'recent retain worst whatever they pay.';
-  }
-
-  const signupBanded = retentionBySignupPrice(data);
-  if (signupBanded) {
-    const young = signupBanded.cells[0];
-    const lift = (young.bands[young.bands.length - 1].survival - young.bands[0].survival) * 100;
-    $('mrr-signup').innerHTML =
-      '<strong>On 2026 signup prices alone the pattern inverts, and that is the confound '
-      + 'rather than a finding.</strong> Banding on what a customer was sold, '
-      + young.bands.map(b => b.label + ' ' + fmt.pct(b.survival, 1)).join(', ')
-      + ' within the first year, a spread of ' + pp(lift) + '. That matches '
-      + fmt.int(signupBanded.matched) + ' customers, all of them 2026 signups, and price rose '
-      + 'steadily through 2026 while retention fell, so the dearest customers here are also '
-      + 'the latest ones. Held against their own cohort, as above, the relationship runs the '
-      + 'other way.';
-  }
-
-  $('mrr-note').textContent =
-    'Revenue measured at the starting month, pooled across ' + strat.starts + ' windows and '
-    + 'stratified by tenure so the two effects are separated rather than confused. '
-    + 'Unstratified, the cheapest band appears the most loyal because it is the oldest, '
-    + 'which is a property of who is in it rather than of what they pay. Smallest cell here '
-    + 'is ' + fmt.int(Math.min(...strat.cells.flatMap(c => c.bands.map(b => b.n))))
-    + ' observations.';
 
   // 17 and 18. Customer Success capacity, and whether either relationship is
   // moving. Neither is touched by the sliders: the split decides how much CS
@@ -835,13 +767,6 @@ const MEANS = {
     + 'The annual customers are worth watching separately: two of them carry enough to make '
     + 'the months holding them read high.',
 
-  'chart-quick-cancel':
-    'These customers were counted as won at full price and were gone before contributing. '
-    + 'They inflate both acquisition and churn in the same quarter, which is the worst kind of '
-    + 'noise because it moves two numbers in opposite directions. The same-day cluster is the '
-    + 'part to chase: six cancellations on one date is an account closing, not a retention '
-    + 'signal, and treating it as churn would point effort at the wrong problem.',
-
   'chart-ltv-cac':
     'The model works and has been proven to work. The 2024 cohorts returned three to six '
     + 'times what they cost at around $2,000 a logo. What has broken is the price of a '
@@ -893,11 +818,6 @@ const MEANS = {
     + 'something different, than it was two years ago. That is a go-to-market question rather '
     + 'than a customer success one.',
 
-  'chart-base':
-    'This is the number to govern to. Everything else on the page is an explanation of why it '
-    + 'moved. It carries no assumptions, so it cannot be argued with, and it is the figure to '
-    + 'put in front of anyone who needs one number rather than twenty one charts.',
-
   'chart-flows':
     'Churn is the side to act on. The new logo side cannot currently be read as demand, '
     + 'because the count is drawn almost entirely from the first Stripe environment while new '
@@ -932,11 +852,6 @@ const MEANS = {
     'A steady slide rather than a step means this is not a migration, a billing change or a '
     + 'bad month. Structural problems do not resolve themselves, and this one has been running '
     + 'long enough that it would already have stopped if it were going to.',
-
-  'chart-by-mrr':
-    'Discounting to win new business costs retention as well as margin, and only in the first '
-    + 'year does the price a customer pays predict whether they stay. That argues against '
-    + 'buying volume with discounts at exactly the moment the temptation to do so is highest.',
 
   'chart-capacity':
     'The apparent link between Customer Success spend and churn largely disappears once the '
@@ -1071,15 +986,6 @@ function renderAnnotations() {
     'A point is dropped once fewer than three cohorts in that year have reached that age, so the newest line is never drawn by its oldest member alone.',
   ]);
 
-  annotate('chart-base', [
-    `<strong>${fmt.int(latest.activeLogos)} active logos at ${fmt.monthLabel(latest.month)}</strong>, down from ${fmt.int(peak.activeLogos)} at ${fmt.monthLabel(peak.month)}.`,
-    `That is a fall of ${fmt.int(peak.activeLogos - latest.activeLogos)} logos, about ${fmt.pct((peak.activeLogos - latest.activeLogos) / peak.activeLogos, 0)} of the peak, in ${monthDiff(peak.month, latest.month)} months.`,
-    'The truest chart on the page. It needs no split, no margin and no cohort definition.',
-  ], [
-    'Active means carried revenue that month, so a customer who lapsed without cancelling drops out of this count.',
-    'The business reports a higher figure for the latest month than this chart shows, which points at exactly that lapse gap.',
-  ]);
-
   annotate('chart-flows', [
     `<strong>${fmt.int(churned)} logos out against ${fmt.int(acquired)} in, ${year} to date</strong>, a net loss of ${fmt.int(churned - acquired)}.`,
     `New logos have fallen from ${fmt.int(ytd[0].newLogos)} in ${fmt.monthLabel(ytd[0].month)} to ${fmt.int(latest.newLogos)} in ${fmt.monthLabel(latest.month)}.`,
@@ -1155,20 +1061,6 @@ function renderAnnotations() {
     ]);
   }
 
-  // 17 and 18, revenue and tenure.
-  const strat = survivalByRevenueWithinTenure(data);
-  const youngCells = strat.cells[0], oldCells = strat.cells[strat.cells.length - 1];
-  const youngLift = (youngCells.bands[youngCells.bands.length - 1].survival - youngCells.bands[0].survival) * 100;
-  const oldLift = (oldCells.bands[oldCells.bands.length - 1].survival - oldCells.bands[0].survival) * 100;
-  annotate('chart-by-mrr', [
-    `<strong>Price only buys retention in the first year</strong>: ${pp(youngLift)} from the cheapest band to the dearest among customers inside their first year.`,
-    `Past two years the effect is gone, ${pp(oldLift)}. Whatever keeps an established customer is not what they pay.`,
-    `Smallest cell here is ${fmt.int(Math.min(...strat.cells.flatMap(c => c.bands.map(b => b.n))))} observations, so the comparison holds up.`,
-  ], [
-    'Revenue is measured at the starting month, so a customer who contracts moves band between windows.',
-    'Stratifying by tenure is what makes this readable. Unstratified the cheapest band looks the most loyal, and it is only the <strong>oldest</strong>.',
-  ]);
-
   // 19, 20, 21.
   const cap = capacityAnalysis(data);
   const rc2 = cap.correlations;
@@ -1242,71 +1134,10 @@ function renderAnnotations() {
     ]);
   }
 
-  const qc2 = quickCancellations(data);
-  if (qc2.cancelled.length) {
-    const biggest = qc2.clusters[0];
-    annotate('chart-quick-cancel', [
-      `<strong>${qc2.cancelled.length} customers signed and left inside ${qc2.withinDays} days</strong>, each counted as won at full rate in the month they signed.`,
-      biggest && biggest.count > 1 ? `${biggest.count} of them cancelled on ${biggest.date}, which is an account closing rather than ${biggest.count} decisions.` : null,
-      `They inflate acquisition and churn in the same quarter, which moves two numbers in opposite directions at once.`,
-    ], [
-      `Measured from the subscription lifetimes file, which covers ${fmt.int(qc2.totalWithLifetime)} customers rather than the whole book, so this is a floor.`,
-      'Counted by the month they signed rather than the month they left, so a cancellation appears against the cohort that was credited with winning it.',
-    ]);
-  }
 }
 
 const pp = v => (v >= 0 ? '+' : '') + v.toFixed(1) + ' points';
 
-// 22. Signed and gone inside a month.
-function renderQuickCancellations() {
-  const qc = quickCancellations(data);
-  if (!qc.cancelled.length) {
-    $('chart-quick-cancel').innerHTML =
-      '<p class="empty">No subscription dates in this push to measure against.</p>';
-    return;
-  }
-
-  const months = [...qc.byMonth.keys()].sort();
-  const values = months.map(m => qc.byMonth.get(m));
-
-  columnChart($('chart-quick-cancel'), {
-    labels: months.map(m => fmt.monthLabel(m)),
-    values,
-    yFormat: v => Math.round(v),
-    colour: INK.negative,
-    describe: i => {
-      const rows = qc.cancelled.filter(c => c.month === months[i]);
-      const median = rows.map(r => r.days).sort((a, b) => a - b)[Math.floor(rows.length / 2)];
-      return '<strong>' + fmt.monthLabel(months[i]) + ' signups</strong>'
-        + '<span>' + rows.length + ' gone within ' + qc.withinDays + ' days</span>'
-        + '<span class="muted">median ' + median + ' days</span>';
-    },
-  });
-
-  const biggest = qc.clusters[0];
-  $('quick-cancel-finding').innerHTML =
-    '<strong>' + qc.cancelled.length + ' customers signed and cancelled inside '
-    + qc.withinDays + ' days.</strong> Each was counted as a new logo at full rate in the '
-    + 'month they signed and was gone before contributing anything. '
-    + (biggest && biggest.count > 1
-        ? biggest.count + ' of them cancelled on the same day, ' + biggest.date
-          + ', which looks like one account being closed rather than ' + biggest.count
-          + ' separate decisions. That is worth knowing before it is read as a churn trend.'
-        : '');
-
-  $('quick-cancel-note').textContent =
-    'Start and end dates from the subscription lifetimes file, which covers '
-    + fmt.int(qc.totalWithLifetime) + ' customers rather than the whole book, so this is a '
-    + 'floor. Counted by the month they signed, not the month they left. '
-    + (qc.clusters.length > 1
-        ? 'There are ' + qc.clusters.length + ' dates carrying more than one cancellation.'
-        : '')
-    + ' What cannot be shown yet is what they were worth: starting MRR arrives as an empty '
-    + 'column, so the revenue attached to these is not in the push.';
-}
-
-// 13, 14 and 15. What a customer was sold, as opposed to what they paid since.
 function renderSignups() {
   const sx = signupEconomics(data);
   if (!sx.months.length) {
