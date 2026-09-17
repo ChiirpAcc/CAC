@@ -188,39 +188,7 @@ export async function load() {
   };
 }
 
-// Acquisition cost by month, rebuilt from the P&L rather than read from the
-// CAC Monthly tab. The tab carries only a total at one fixed split, and the
-// whole point of the slider is that the split is not settled. Customer
-// Success and Partnerships sit in the SPLIT bucket precisely so their share
-// can be chosen here.
-export function cacByMonth(data, { csShare, partnershipsShare }) {
-  const totals = new Map();
-  const add = (month, amount) => totals.set(month, (totals.get(month) || 0) + amount);
 
-  for (const row of data.expenses) {
-    if (row.amount === null) continue;
-    if (row.bucket === 'CAC') {
-      add(row.month, row.amount);
-    } else if (row.bucket === 'SPLIT') {
-      if (row.account.includes('Customer Success')) add(row.month, row.amount * csShare);
-      else if (row.account.includes('Partnerships')) add(row.month, row.amount * partnershipsShare);
-    }
-  }
-  return totals;
-}
-
-export function splitTotals(data) {
-  let cac = 0, cs = 0, partnerships = 0;
-  for (const row of data.expenses) {
-    if (row.amount === null) continue;
-    if (row.bucket === 'CAC') cac += row.amount;
-    else if (row.bucket === 'SPLIT') {
-      if (row.account.includes('Customer Success')) cs += row.amount;
-      else if (row.account.includes('Partnerships')) partnerships += row.amount;
-    }
-  }
-  return { cac, cs, partnerships };
-}
 
 // Cohorts, derived from the per-customer waterfall.
 //
@@ -325,6 +293,24 @@ export function buildCohorts(data) {
 // LTV here is gross profit actually realised to date, not a projection. That
 // understates young cohorts, which is why the age of a cohort has to stay
 // visible wherever this is drawn.
+// The month a cohort covered its cost, using observed data only.
+//
+// Both the cohort table and the break-even projection need this, and when
+// each had its own copy they disagreed on 2025-09 by a month, because one
+// tested cumulative over cost against one and the other tested cumulative
+// against cost. Floating point makes those different questions at the
+// boundary. One implementation, one answer.
+export function observedPayback(cohort, cost, margin) {
+  if (!cost) return null;
+  let cumulative = 0;
+  for (let k = 0; k <= cohort.maxOffset; k += 1) {
+    const gp = cohort.profit ? cohort.profit[k] : cohort.revenue[k] * margin;
+    cumulative += gp / cohort.size;
+    if (cumulative >= cost) return k + 1;
+  }
+  return null;
+}
+
 export function cohortEconomics(data, cohorts, { margin }) {
   // The pipeline's own total, already carrying the settled splits.
   const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
@@ -365,10 +351,7 @@ export function cohortEconomics(data, cohorts, { margin }) {
       ? []
       : cumulativeGpPerLogo.map(gp => gp / costPerLogo);
 
-    let payback = null;
-    for (let offset = 0; offset < recovery.length; offset += 1) {
-      if (recovery[offset] >= 1) { payback = offset + 1; break; }
-    }
+    const payback = observedPayback(cohort, costPerLogo, margin);
 
     return {
       month: cohort.month,
@@ -419,33 +402,6 @@ export function blendedRetention(cohorts, { minCohorts = 20, maxMonths = 24 } = 
   return points;
 }
 
-export function retentionByEra(cohorts, { minCohortsPerPoint = 3 } = {}) {
-  const usable = cohorts.filter(c => c.logos[1] > 0);
-  const third = Math.ceil(usable.length / 3);
-  const eras = [
-    { label: 'Earliest third', members: usable.slice(0, third) },
-    { label: 'Middle third', members: usable.slice(third, third * 2) },
-    { label: 'Most recent third', members: usable.slice(third * 2) },
-  ];
-
-  return eras.map(era => {
-    const points = [];
-    for (let offset = 1; ; offset += 1) {
-      const inSample = era.members.filter(c => c.maxOffset >= offset);
-      // Below three cohorts an era is represented by its oldest members alone,
-      // and a flat curve then reads as improvement.
-      if (inSample.length < minCohortsPerPoint) break;
-      const base = inSample.reduce((sum, c) => sum + c.logos[1], 0);
-      points.push({
-        offset: offset + 1,
-        value: base ? inSample.reduce((s, c) => s + c.logos[offset], 0) / base : null,
-      });
-    }
-    return { ...era, points, span: era.members.length
-      ? `${era.members[0].month} to ${era.members[era.members.length - 1].month}`
-      : '' };
-  }).filter(era => era.points.length);
-}
 
 // Retention at a fixed age, one point per cohort. A cohort is only plotted
 // once that age is behind it, otherwise its last observed month doubles as
@@ -702,19 +658,29 @@ export function projectedBreakEven(data, cohorts, options) {
   for (const [k, den] of denominator) if (den > 0) pooled.set(k, numerator.get(k) / den);
   const pooledTerminal = terminalRate(pooled);
 
+  // Observed months use the same per class gross profit as the cohort table.
+  // Projected months have no class breakdown to work from, so they carry the
+  // cohort's own realised profit margin forward rather than a flat assumption,
+  // which keeps the two halves of a single curve on one definition.
   const monthsToCover = (cohort, cost, path, terminal) => {
+    const observedRevenue = cohort.revenue
+      .slice(0, cohort.maxOffset + 1).reduce((s, v) => s + v, 0);
+    const observedProfit = (cohort.profit || [])
+      .slice(0, cohort.maxOffset + 1).reduce((s, v) => s + v, 0);
+    const effective = observedRevenue > 0 ? observedProfit / observedRevenue : margin;
+
     let cumulative = 0;
     let projected = null;
     for (let k = 0; k < horizon; k += 1) {
-      let monthly;
+      let gp;
       if (k <= cohort.maxOffset) {
-        monthly = cohort.revenue[k];
+        gp = cohort.profit ? cohort.profit[k] : cohort.revenue[k] * margin;
       } else {
         const step = path.has(k) ? path.get(k) : terminal;
         projected = (projected === null ? cohort.revenue[cohort.maxOffset] : projected) * step;
-        monthly = projected;
+        gp = projected * effective;
       }
-      cumulative += (monthly * margin) / cohort.size;
+      cumulative += gp / cohort.size;
       if (cumulative >= cost) return k + 1;
     }
     return null;
@@ -731,13 +697,9 @@ export function projectedBreakEven(data, cohorts, options) {
       : ((spend === undefined || !acquired) ? null : spend / acquired);
     if (cost === null) return null;
 
-    // What actually happened, using only observed months.
-    let cumulative = 0;
-    let actual = null;
-    for (let k = 0; k <= cohort.maxOffset; k += 1) {
-      cumulative += (cohort.revenue[k] * margin) / cohort.size;
-      if (cumulative >= cost) { actual = k + 1; break; }
-    }
+    // What actually happened, using only observed months. Same function the
+    // cohort table uses, so the two cannot drift apart.
+    const actual = observedPayback(cohort, cost, margin);
 
     const base = {
       month: cohort.month, size: cohort.size, cost,

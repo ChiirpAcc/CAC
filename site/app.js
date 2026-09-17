@@ -1,6 +1,6 @@
 import {
-  load, cacByMonth, splitTotals, buildCohorts, cohortEconomics,
-  blendedRetention, retentionByEra, retentionByYear, retentionAtAge, mean, monthDiff,
+  load, buildCohorts, cohortEconomics,
+  blendedRetention, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
   seasonalSurvival, survivalByRevenueWithinTenure, reconciliation,
   hasRevenueClasses, CLASS_MARGINS,
@@ -367,8 +367,12 @@ function renderAssumptionDependent() {
     + 'chance of never covering their cost. Projection stops at ten years.';
 
   // 7. Cost per logo against revenue per logo, indexed to 100.
-  const cac = cacByMonth(data, state);
-  const months = data.waterfall.filter(r => cac.has(r.month));
+  // The pipeline's own acquisition cost, the same figure charts 1, 2 and 14
+  // divide by. Re-deriving it here from the expense lines produced a second
+  // implementation of one number, which is how the page ended up with three
+  // answers to what a logo costs.
+  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const months = data.waterfall.filter(r => cac.has(r.month) && cac.get(r.month) !== null);
   const costPerLogo = months.map(r => (r.newLogos ? cac.get(r.month) / r.newLogos : null));
   const revenuePerLogo = months.map(r => (r.newLogos ? r.newMrr / r.newLogos : null));
   const baseCost = costPerLogo.find(v => v !== null);
