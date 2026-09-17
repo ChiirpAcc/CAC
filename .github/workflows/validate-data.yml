@@ -1,0 +1,68 @@
+name: Validate data
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/**'
+      - 'scripts/validate_data.py'
+      - '.github/workflows/validate-data.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  # The workbook pushes one commit per tab, so only the last state is worth
+  # checking. Unlike the deploy, cancelling here loses nothing.
+  group: validate-data
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check the push
+        id: check
+        run: |
+          set +e
+          python scripts/validate_data.py
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+
+      # Deliberately not a failing job. The deploy runs regardless and the site
+      # publishes; this raises a flag rather than pulling the page down, because
+      # a site carrying a warning is more useful than no site.
+      - name: Open or update an issue
+        if: steps.check.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY_FILE=validation-report.md
+          {
+            echo ""
+            echo "---"
+            echo "Commit: \`${GITHUB_SHA}\`"
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "$BODY_FILE"
+
+          EXISTING=$(gh issue list --label data-validation --state open \
+            --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file "$BODY_FILE"
+            echo "Commented on issue #$EXISTING"
+          else
+            gh label create data-validation --color d93f0b \
+              --description "A data push did not validate" 2>/dev/null || true
+            gh issue create \
+              --title "Data push did not validate" \
+              --label data-validation \
+              --body-file "$BODY_FILE"
+          fi

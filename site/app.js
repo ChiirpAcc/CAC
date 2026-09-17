@@ -591,7 +591,7 @@ function renderForward() {
     + 'ran at ' + sign(live[0]) + ' over the earliest twelve month window and '
     + sign(live[live.length - 1]) + ' over the latest, so it has gone. The CS capacity link has '
     + 'barely moved, ' + sign(liveCap[0]) + ' to ' + sign(liveCap[liveCap.length - 1]) + '. '
-    + 'That is why chart 15 reads ' + sign(rc.arrivals) + ' overall: a real early relationship '
+    + 'That is why chart 21 reads ' + sign(rc.arrivals) + ' overall: a real early relationship '
     + 'and no recent one average out to nothing.';
 
   $('momentum-note').textContent =
@@ -630,7 +630,7 @@ function renderForward() {
     'Twenty four monthly observations, and no trend line is drawn through them on purpose: '
     + 'both series drift over the period, and two drifting series correlate whether or not '
     + 'they are related. '
-    + 'Charts 17 and 18 take this further: with Customer Success capacity held constant the '
+    + 'Charts 19 and 20 take this further: with Customer Success capacity held constant the '
     + 'association is ' + sign(rc.arrivalsGivenCapacity) + ' rather than ' + sign(rc.arrivals)
     + ', and it was real early in the window before fading to nothing. '
     + 'Churn does track time (' + (rTime >= 0 ? '+' : '') + rTime.toFixed(2)
@@ -734,7 +734,7 @@ function renderSeasonal() {
       + ' points of the loss a year ago and only ' + latestCushion.toFixed(1) + ' now.';
 
   $('seasonal-revenue-note').textContent =
-    'The same customers as chart 19, followed by what they pay rather than by whether they '
+    'The same customers as chart 11, followed by what they pay rather than by whether they '
     + 'are still there. No new customers enter it, so this is not net revenue retention for '
     + 'the business; it is what one fixed set did. Above the logo line means survivors grew '
     + 'and expansion is offsetting churn. Below it means the ones who stayed are also paying '

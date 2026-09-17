@@ -102,6 +102,32 @@
       <p class="note">New and reactivated above the axis, churned below. Net change is a line rather than a third column, because it is the sum of the other two and would otherwise read as an independent quantity.</p>
     </figure>
 
+    <div class="card wide control-card">
+      <div class="chart-control">
+        <label for="horizon">Charts 11 and 12: follow customers forward for</label>
+        <input type="range" id="horizon" min="1" max="12" step="1" value="4">
+        <output id="horizon-value">4 months</output>
+      </div>
+    </div>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>11. Logos kept, this year against last year</h3>
+      </figcaption>
+      <div class="plot" id="chart-seasonal"></div>
+      <p class="finding" id="seasonal-finding"></p>
+      <p class="note" id="seasonal-note"></p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>12. Revenue kept, same customers and same windows</h3>
+      </figcaption>
+      <div class="plot" id="chart-seasonal-revenue"></div>
+      <p class="finding" id="seasonal-revenue-finding"></p>
+      <p class="note" id="seasonal-revenue-note"></p>
+    </figure>
+
   </div>
 
   <div class="wrap section-break">
@@ -117,7 +143,7 @@
   <div class="wrap">
     <figure class="card wide" id="fig-recon">
       <figcaption>
-        <h3>21. Derived against reported new logos</h3>
+        <h3>13. Derived against reported new logos</h3>
       </figcaption>
       <div class="table-scroll">
         <table class="data-table" id="recon-table"></table>
@@ -140,7 +166,7 @@
   <div class="wrap">
     <figure class="card wide" id="fig-breakeven">
       <figcaption>
-        <h3>16. Break-even month by cohort</h3>
+        <h3>14. Break-even month by cohort</h3>
       </figcaption>
       <div class="table-scroll">
         <table class="data-table" id="breakeven-table"></table>
@@ -164,7 +190,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>11. Forward four months, from each of the last 24 starting months</h3>
+        <h3>15. Forward four months, from each of the last 24 starting months</h3>
       </figcaption>
       <div class="plot" id="chart-forward"></div>
       <p class="finding negative" id="forward-finding"></p>
@@ -173,7 +199,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>12. Four-month survival, by starting month</h3>
+        <h3>16. Four-month survival, by starting month</h3>
       </figcaption>
       <div class="plot" id="chart-forward-trend"></div>
       <p class="note" id="forward-trend-note"></p>
@@ -181,7 +207,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>13. Does paying more mean staying longer, at equal tenure?</h3>
+        <h3>17. Does paying more mean staying longer, at equal tenure?</h3>
       </figcaption>
       <div class="plot" id="chart-by-mrr"></div>
       <p class="finding" id="mrr-finding"></p>
@@ -190,42 +216,16 @@
 
     <figure class="card">
       <figcaption>
-        <h3>14. Where the hazard falls: survival by age</h3>
+        <h3>18. Where the hazard falls: survival by age</h3>
       </figcaption>
       <div class="plot" id="chart-by-tenure"></div>
       <p class="finding" id="tenure-finding"></p>
       <p class="note" id="tenure-note"></p>
     </figure>
 
-    <div class="card wide control-card">
-      <div class="chart-control">
-        <label for="horizon">Charts 19 and 20: follow customers forward for</label>
-        <input type="range" id="horizon" min="1" max="12" step="1" value="4">
-        <output id="horizon-value">4 months</output>
-      </div>
-    </div>
-
     <figure class="card wide">
       <figcaption>
-        <h3>19. Logos kept, this year against last year</h3>
-      </figcaption>
-      <div class="plot" id="chart-seasonal"></div>
-      <p class="finding" id="seasonal-finding"></p>
-      <p class="note" id="seasonal-note"></p>
-    </figure>
-
-    <figure class="card wide">
-      <figcaption>
-        <h3>20. Revenue kept, same customers and same windows</h3>
-      </figcaption>
-      <div class="plot" id="chart-seasonal-revenue"></div>
-      <p class="finding" id="seasonal-revenue-finding"></p>
-      <p class="note" id="seasonal-revenue-note"></p>
-    </figure>
-
-    <figure class="card wide">
-      <figcaption>
-        <h3>17. Customer Success capacity against churn</h3>
+        <h3>19. Customer Success capacity against churn</h3>
       </figcaption>
       <div class="plot" id="chart-capacity"></div>
       <p class="finding" id="capacity-finding"></p>
@@ -234,7 +234,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>18. Is either relationship moving?</h3>
+        <h3>20. Is either relationship moving?</h3>
       </figcaption>
       <div class="plot" id="chart-momentum"></div>
       <p class="finding" id="momentum-finding"></p>
@@ -243,7 +243,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>15. Does churn rise when fewer customers arrive?</h3>
+        <h3>21. Does churn rise when fewer customers arrive?</h3>
       </figcaption>
       <div class="plot" id="chart-new-vs-churn"></div>
       <p class="finding" id="newchurn-finding"></p>
