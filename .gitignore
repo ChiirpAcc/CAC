@@ -25,3 +25,6 @@ dist/
 # Written by scripts/validate_data.py when a check fails. A run artifact,
 # not something to keep.
 validation-report.md
+
+# Generated animations, regenerated from the data rather than kept.
+*.gif

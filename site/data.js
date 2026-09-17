@@ -71,8 +71,7 @@ async function readFile(name) {
 // new tabs have arrived unannounced more than once, and fetching every file
 // meant one bad or renamed file took the whole page down rather than one chart.
 const REQUIRED_TABS = ['Waterfall Summary', 'CAC Monthly', 'QB Expenses', 'Customer Waterfall'];
-const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'Migration Key',
-  'New Customer Cohorts'];
+const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Cohorts'];
 
 export async function load() {
   const index = await fetch(`${DATA_DIR}/index.json`, { cache: 'no-store' }).then(r => r.json());
@@ -213,18 +212,6 @@ export async function load() {
     }
   }
 
-  const migrationKey = new Map();
-  const keyTab = byTab['Migration Key'];
-  if (keyTab) {
-    const idKey = keyTab.columns.find(c => /customer_id/i.test(c || ''));
-    const acctKey = keyTab.columns.find(c => /^account$/i.test(c || ''));
-    if (idKey && acctKey) {
-      for (const row of keyTab.rows) {
-        if (row[idKey] && row[acctKey]) migrationKey.set(row[idKey], String(row[acctKey]));
-      }
-    }
-  }
-
   return {
     pushedAt: index.pushed_at || null,
     waterfall,
@@ -234,7 +221,6 @@ export async function load() {
     lifetimes,
     lifetimeRecords,
     signups,
-    migrationKey,
     missingTabs: missing,
     lastMonth: waterfall.length ? waterfall[waterfall.length - 1].month : null,
   };
