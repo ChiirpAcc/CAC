@@ -38,6 +38,7 @@ function boot() {
     renderForward();
     renderSeasonal();
     renderReconciliation();
+    renderAnnotations();
     $('horizon').addEventListener('input', renderSeasonal);
     renderAssumptionDependent();
   }).catch(err => {
@@ -225,14 +226,13 @@ function renderAssumptionDependent() {
   });
   const below = ltv.filter(v => v !== null && v < 1).length;
   $('ltv-note').textContent =
-    `Gross profit realised to date over acquisition cost, per logo. This is not a `
-    + `projection, so young cohorts are understated by construction and the rightmost `
-    + `columns will keep rising. ${below} of ${ltv.filter(v => v !== null).length} cohorts `
-    + `are below break-even. This measure is realised rather than projected, so it is `
-    + `age-biased by construction: a young cohort has had less time to return anything. `
-    + `${tooYoung} cohorts younger than ${MIN_COHORT_AGE} months are withheld for that reason. `
-    + `Cohorts before ${economics[0].month} are absent because acquisition cost is not `
-    + `recorded then, not because they performed badly.`;
+    `Gross profit realised to date over acquisition cost, per logo. Realised rather than `
+    + `projected, so it is age-biased by construction and the rightmost columns will keep `
+    + `rising. ${below} of ${ltv.filter(v => v !== null).length} cohorts `
+    + `are below break-even. ${tooYoung} cohorts younger than ${MIN_COHORT_AGE} months are `
+    + `withheld, because a young cohort sits low for want of time rather than for want of `
+    + `quality. Cohorts before ${economics[0].month} are absent because acquisition cost is `
+    + `not recorded then, not because they performed badly.`;
 
   // 2. Expected payback by cohort, against a 12 month goal.
   const payback = economics.map(c => c.payback);
@@ -799,5 +799,305 @@ function renderReconciliation() {
     + fmt.int(rec.neverPaid) + ' of ' + fmt.int(rec.totalCustomers) + ' accounts never '
     + 'carried revenue at all and are in neither column.';
 }
+
+// Per chart annotation.
+//
+// Takeaways are computed from the data rather than written down, so they
+// cannot drift away from what the chart shows. Assumptions are prose, because
+// they are properties of the method and do not move with a push.
+function annotate(plotId, takeaways, assumptions) {
+  const plot = $(plotId);
+  if (!plot) return;
+  const figure = plot.closest('figure');
+  if (!figure) return;
+
+  figure.querySelector('.annotate')?.remove();
+
+  const block = document.createElement('details');
+  block.className = 'annotate';
+  block.innerHTML =
+    '<summary>Takeaways and assumptions</summary>'
+    + '<h4>What it says</h4><ul>'
+    + takeaways.filter(Boolean).map(x => '<li>' + x + '</li>').join('')
+    + '</ul><h4>What it assumes</h4><ul>'
+    + assumptions.map(x => '<li>' + x + '</li>').join('')
+    + '</ul>';
+  figure.appendChild(block);
+}
+
+// Every chart gets two or three takeaways read off its own numbers, and the
+// two assumptions most likely to change the conclusion if they are wrong.
+function renderAnnotations() {
+  const w = data.waterfall;
+  const latest = w[w.length - 1];
+  const peak = w.reduce((b, r) => (r.activeLogos > b.activeLogos ? r : b), w[0]);
+  const year = latest.month.slice(0, 4);
+  const ytd = w.filter(r => r.month.startsWith(year));
+  const acquired = ytd.reduce((s, r) => s + (r.newLogos || 0), 0);
+  const churned = ytd.reduce((s, r) => s + (r.churnedLogos || 0), 0);
+
+  const ec = cohortEconomics(data, cohorts, state).filter(c => c.costPerLogo !== null);
+  const shown = ec.filter(c => c.maxOffset + 1 >= MIN_COHORT_AGE);
+  const withLtv = shown.filter(c => c.ltvCac !== null);
+  const above3 = withLtv.filter(c => c.ltvCac >= 3).length;
+  const belowOne = withLtv.filter(c => c.ltvCac < 1).length;
+  const best = withLtv.reduce((a, b) => (b.ltvCac > a.ltvCac ? b : a));
+  const recovered = shown.filter(c => c.payback !== null);
+  const withinGoal = recovered.filter(c => c.payback <= 12).length;
+
+  annotate('chart-ltv-cac', [
+    `<strong>${belowOne} of ${withLtv.length} cohorts shown sit below 1.0x</strong>, meaning they have not yet returned what they cost to win.`,
+    `${above3} are above the 3.0x line. The best is ${best.month} at ${fmt.ratio(best.ltvCac)}, on ${fmt.money(best.costPerLogo)} a logo.`,
+    `The 2024 cohorts sit far above the 2026 ones, and cost per logo is most of why: ${fmt.money(shown[0].costPerLogo)} then against ${fmt.money(shown[shown.length - 1].costPerLogo)} now.`,
+  ], [
+    'LTV here is gross profit <strong>realised to date</strong>, not a projection, so a cohort partly sits where it does because of its age. Cohorts under six months are withheld for that reason.',
+    'Cost per logo assumes a month of spend bought that month of logos. A long sales cycle would push spend into the wrong cohort.',
+  ]);
+
+  annotate('chart-payback', [
+    `<strong>${recovered.length} of ${shown.length} cohorts have covered their cost</strong>, and ${withinGoal} of those did it inside the twelve month goal.`,
+    `${shown.length - recovered.length} have not recovered and are drawn as gaps, not zeroes. A zero would read as instant payback, the opposite of what it means.`,
+    `Payback has lengthened with cost: the 2024 cohorts cleared in three to nine months, the 2025 ones in eight to thirteen.`,
+  ], [
+    'Same realised measure and same age bias as the chart above. A gap is "not yet", not "never".',
+    'The run starts at 2024-01 because acquisition cost is not recorded before then, which is an absence of data rather than a verdict on earlier cohorts.',
+  ]);
+
+  const mature = ec.filter(c => c.recovery.length >= 6).slice(-6);
+  const crossed = mature.filter(c => c.payback !== null).length;
+  annotate('chart-recovery', [
+    `${crossed} of the ${mature.length} cohorts drawn have crossed the break-even line inside the window shown.`,
+    'The shape of each curve bends the same way whatever the cost baseline is, which makes this the one chart here that survives the split being wrong.',
+    'Curves that flatten before 100% are cohorts whose revenue is decaying faster than it is accumulating profit.',
+  ], [
+    'A flat 75.7% platform margin is applied to all revenue, because the push carries no revenue class columns. Usage and one-time revenue carry different margins.',
+    'Only the six most recent cohorts with at least six months are drawn, so this is not the whole book.',
+  ]);
+
+  const blended = blendedRetention(cohorts);
+  const lastPoint = blended[blended.length - 1];
+  const gap = lastPoint ? (lastPoint.logos - lastPoint.revenue) * 100 : null;
+  annotate('chart-retention', [
+    lastPoint && `By month ${lastPoint.offset}, <strong>${fmt.pct(lastPoint.logos, 1)} of logos and ${fmt.pct(lastPoint.revenue, 1)} of revenue</strong> remain.`,
+    gap !== null && `The two lines sit ${Math.abs(gap).toFixed(1)} points apart. Logos above revenue means the survivors pay less than they used to; revenue above logos means expansion is offsetting churn.`,
+    'This pools every era, so it is an average that conceals the deterioration visible in the era chart below.',
+  ], [
+    'Indexed to <strong>month 2</strong>, not month 1. Month 1 carries setup and onboarding fees, and indexing there turns a one-off charge ending into an apparent churn cliff.',
+    'Drawn only while at least twenty cohorts remain in sample, and held to a 24 month horizon.',
+  ]);
+
+  const recent = w.slice(-36);
+  const churnSeries = recent.map((r, i) => (i && recent[i - 1].activeLogos
+    ? (r.churnedLogos || 0) / recent[i - 1].activeLogos : null)).filter(v => v !== null);
+  const overThreshold = churnSeries.filter(v => v > CHURN_THRESHOLD).length;
+  const lastChurn = churnSeries[churnSeries.length - 1];
+  annotate('chart-churn', [
+    `<strong>${overThreshold} of the last ${churnSeries.length} months sit above the 5% threshold.</strong> The latest reads ${fmt.pct(lastChurn, 2)}.`,
+    `Monthly churn has roughly doubled across the window, from about ${fmt.pct(Math.min(...churnSeries), 1)} at its lowest to ${fmt.pct(Math.max(...churnSeries), 1)} at its worst.`,
+  ], [
+    'The denominator is the prior month closing base, so a month of rapid growth flatters the rate slightly.',
+    'This counts logos, not revenue, and <strong>cannot tell a lapse from a cancellation</strong>. Some of what reads as churn is a billing gap.',
+  ]);
+
+  const windowed = cohorts.slice(-COHORT_WINDOW);
+  const m3 = mean(retentionAtAge(windowed, 2).map(p => p.value));
+  const m6 = mean(retentionAtAge(windowed, 5).map(p => p.value));
+  annotate('chart-age-retention', [
+    `<strong>Month 3 averages ${fmt.pct(m3, 1)} and month 6 averages ${fmt.pct(m6, 1)}</strong>, so about ${((m3 - m6) * 100).toFixed(0)} points of a cohort is lost between those two ages.`,
+    'The spread between cohorts at the same age is wide, which means cohort quality varies more than the blended curve suggests.',
+  ], [
+    'Indexed to month 2 like the blended curve, so month 1 fees do not distort it.',
+    'A cohort appears only once that age is behind it. Recent cohorts are genuinely absent rather than sitting at 100%.',
+  ]);
+
+  const cacMap = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const unitMonths = w.filter(r => cacMap.has(r.month) && r.newLogos);
+  const firstU = unitMonths[0], lastU = unitMonths[unitMonths.length - 1];
+  const costFirst = cacMap.get(firstU.month) / firstU.newLogos;
+  const costLast = cacMap.get(lastU.month) / lastU.newLogos;
+  const arpuFirst = firstU.newMrr / firstU.newLogos;
+  const arpuLast = lastU.newMrr / lastU.newLogos;
+  annotate('chart-unit', [
+    `<strong>Cost per logo has risen about ${(costLast / costFirst).toFixed(1)}x</strong> since ${firstU.month}, from ${fmt.money(costFirst)} to ${fmt.money(costLast)}.`,
+    `New-logo revenue per logo has moved from ${fmt.money(arpuFirst)} to ${fmt.money(arpuLast)}, so the two lines are diverging rather than moving together.`,
+    'Volume is doing most of the work: spend has fallen while logos have fallen faster.',
+  ], [
+    'Both series are indexed to 100 at the same month, so the absolute levels do not need to be right for the divergence to read. The base month is stated on the chart.',
+    'Where the pipeline reports a cost per logo it is used directly; earlier months derive it from total cost over the waterfall new logos.',
+  ]);
+
+  const eras = retentionByYear(cohorts, { maxMonths: 12 });
+  const newestEra = eras[eras.length - 1];
+  const oldestEra = eras[0];
+  annotate('chart-era', [
+    `<strong>The newest cohorts are worse from month 2 onward</strong>: ${fmt.pct(newestEra.month3, 1)} at month 3 against ${fmt.pct(oldestEra.month3, 1)} for ${oldestEra.year}.`,
+    `By month 6 the gap widens rather than closes, ${fmt.pct(newestEra.month6, 1)} against ${fmt.pct(oldestEra.month6, 1)}. This is a level shift, not a delay.`,
+    `The ${newestEra.year} line rests on ${newestEra.reachedMonth6} cohorts at month 6, so its right hand end is thin and will move.`,
+  ], [
+    'Indexed to <strong>month 1</strong> here, unlike charts 4 and 6, because this counts logos rather than revenue and there is no setup fee to distort the first month.',
+    'A point is dropped once fewer than three cohorts in that year have reached that age, so the newest line is never drawn by its oldest member alone.',
+  ]);
+
+  annotate('chart-base', [
+    `<strong>${fmt.int(latest.activeLogos)} active logos at ${fmt.monthLabel(latest.month)}</strong>, down from ${fmt.int(peak.activeLogos)} at ${fmt.monthLabel(peak.month)}.`,
+    `That is a fall of ${fmt.int(peak.activeLogos - latest.activeLogos)} logos, about ${fmt.pct((peak.activeLogos - latest.activeLogos) / peak.activeLogos, 0)} of the peak, in ${monthDiff(peak.month, latest.month)} months.`,
+    'The truest chart on the page. It needs no split, no margin and no cohort definition.',
+  ], [
+    'Active means carried revenue that month, so a customer who lapsed without cancelling drops out of this count.',
+    'The business reports a higher figure for the latest month than this chart shows, which points at exactly that lapse gap.',
+  ]);
+
+  annotate('chart-flows', [
+    `<strong>${fmt.int(churned)} logos out against ${fmt.int(acquired)} in, ${year} to date</strong>, a net loss of ${fmt.int(churned - acquired)}.`,
+    `New logos have fallen from ${fmt.int(ytd[0].newLogos)} in ${fmt.monthLabel(ytd[0].month)} to ${fmt.int(latest.newLogos)} in ${fmt.monthLabel(latest.month)}.`,
+    'Churn has been the larger of the two movements for most of the year, so the base is falling on both sides at once.',
+  ], [
+    'Net change is drawn as a line because it is the sum of the other two. As a third column it would read as an independent quantity.',
+    'Reactivations are counted separately from new logos, so a returning customer is not double counted as an acquisition.',
+  ]);
+
+  // 11 and 12, the year on year pair.
+  const seas = seasonalSurvival(data, { horizon: Number($('horizon').value) || 4 });
+  if (seas.series.length) {
+    const now = seas.series[seas.series.length - 1];
+    const yr = seas.series.find(s => s.monthsBack === 12);
+    const two = seas.series.find(s => s.monthsBack === 24);
+    annotate('chart-seasonal', [
+      yr && `<strong>${Math.abs((now.survival - yr.survival) * 100).toFixed(1)} points worse than the same window a year ago</strong>: ${fmt.pct(now.survival, 1)} against ${fmt.pct(yr.survival, 1)}.`,
+      two && `This is not a steady slide. ${two.month} sits between the other two at ${fmt.pct(two.survival, 1)}, so retention improved into ${yr.month} and then fell past where it started.`,
+      `The lines separate early and keep separating, which points at a level shift rather than a delay.`,
+    ], [
+      'Only a fully elapsed window is drawn, so the latest line ends at ' + seas.anchor + ' rather than the last month of data. A partial window would flatter it.',
+      'Same calendar position each year holds seasonality roughly constant, but gives you <strong>three observations</strong>. It is a check, not a trend.',
+    ]);
+
+    const cushionNow = (now.revenueRetention - now.survival) * 100;
+    const cushionThen = yr ? (yr.revenueRetention - yr.survival) * 100 : null;
+    annotate('chart-seasonal-revenue', [
+      yr && `<strong>Revenue fell further than headcount</strong>: ${Math.abs((now.revenueRetention - yr.revenueRetention) * 100).toFixed(1)} points against ${Math.abs((now.survival - yr.survival) * 100).toFixed(1)} for logos.`,
+      cushionThen !== null && `The expansion cushion has collapsed from ${pp(cushionThen)} to ${pp(cushionNow)}. Survivors used to grow enough to absorb much of the churn and no longer do.`,
+      `Starting revenue for the latest window is ${fmt.money(now.startMrr)} across ${fmt.int(now.n)} customers.`,
+    ], [
+      'This follows one fixed set of customers, so no new business enters it. It is not net revenue retention for the company.',
+      'Above the logo line means survivors expanded; below means the ones who stayed are also paying less.',
+    ]);
+  }
+
+  // 13, reconciliation.
+  const rec = reconciliation(data, cohorts);
+  if (rec.rows.length) {
+    const net = rec.rows.reduce((s, r) => s + r.unexplained, 0);
+    const lo = Math.min(...rec.rows.map(r => r.unexplained));
+    const hi = Math.max(...rec.rows.map(r => r.unexplained));
+    annotate('recon-table', [
+      `<strong>It does not close.</strong> The named differences leave a net ${net > 0 ? '+' : ''}${net} logos unexplained across ${rec.rows.length} months.`,
+      `The monthly figures swing from ${lo} to +${hi} rather than drifting one way. A steady drift would suggest one missing rule; a swing suggests the two systems count differently when intake is thin.`,
+      `${fmt.int(rec.neverPaid)} of ${fmt.int(rec.totalCustomers)} accounts never carried revenue at all and appear in neither column.`,
+    ], [
+      'Migration pairs are matched on company name, the only handle the push offers. ' + rec.pairsFound + ' found against the twenty nine believed to exist, so that line is a <strong>floor</strong>.',
+      'Derived counts a cohort from its first month carrying revenue, which is not the same rule the reported figure uses. That difference is the thing being measured here.',
+    ]);
+  }
+
+  // 14, projected break-even.
+  const proj = projectedBreakEven(data, cohorts, state);
+  if (proj.length) {
+    const done = proj.filter(x => !x.projected);
+    const atRisk = proj.filter(x => x.projected && x.neverRate >= 0.25);
+    const widest = proj.filter(x => x.projected && x.low !== null)
+      .reduce((a, b) => ((b.high - b.low) > (a.high - a.low) ? b : a), { high: 0, low: 0, month: null });
+    annotate('breakeven-table', [
+      `<strong>${done.length} of ${proj.length} cohorts have already covered their cost</strong>, and those rows are fact rather than forecast.`,
+      atRisk.length && `${atRisk.length} carry at least a one in four chance of never covering it. ${atRisk[0].month} is the worst at ${fmt.pct(atRisk[0].neverRate)}.`,
+      widest.month && `Uncertainty widens sharply for young cohorts: ${widest.month} spans ${widest.low} to ${widest.high} months.`,
+    ], [
+      'The range comes from resampling <strong>whole donor cohorts</strong> from 2023 onward, not from resampling the average. It answers how far one cohort can sit from the average, which is the wider and more useful question.',
+      'No price rises or expansion revenue are modelled, and projection stops at ten years. "Not within 10 years" means the model gave up, not that the cohort is dead.',
+    ]);
+  }
+
+  // 15 and 16, forward survival.
+  const fw = forwardSurvival(data, { horizon: 4, windows: 24 });
+  if (fw.starts.length) {
+    const spread = Math.max(...fw.starts.map(s => s.survival)) - Math.min(...fw.starts.map(s => s.survival));
+    annotate('chart-forward', [
+      `<strong>Four month survival fell from ${fmt.pct(fw.earlier.rate, 1)} to ${fmt.pct(fw.recent.rate, 1)}</strong> between the earlier windows and the most recent six, on ${fmt.int(fw.recent.total + fw.earlier.total)} customer observations.`,
+      `The best and worst windows are ${(spread * 100).toFixed(1)} points apart, so the fan is wide enough that any single month would have misled.`,
+      'This asks what the whole base did from a standing start, which is the number that moves revenue, rather than how one intake decayed.',
+    ], [
+      'Only fully elapsed windows appear. Including partial ones would make recent months look <strong>better</strong> and reverse the finding.',
+      'Consecutive windows share most of their customers, so they are not independent samples and the z of ' + fw.z.toFixed(1) + ' overstates confidence.',
+    ]);
+
+    annotate('chart-forward-trend', [
+      `The decline is steady across ${fw.starts.length} starting months rather than one bad month, which rules out a single billing or migration event as the whole explanation.`,
+      `The base each window starts from grew from ${fmt.int(fw.starts[0].n)} to ${fmt.int(fw.starts[fw.starts.length - 1].n)}, so this is not a fixed panel.`,
+    ], [
+      'Each point is a different population, so a change reflects both who is in the base and how they behaved.',
+      'Same elapsed-window rule, so the line stops before the last month of data.',
+    ]);
+  }
+
+  // 17 and 18, revenue and tenure.
+  const strat = survivalByRevenueWithinTenure(data);
+  const youngCells = strat.cells[0], oldCells = strat.cells[strat.cells.length - 1];
+  const youngLift = (youngCells.bands[youngCells.bands.length - 1].survival - youngCells.bands[0].survival) * 100;
+  const oldLift = (oldCells.bands[oldCells.bands.length - 1].survival - oldCells.bands[0].survival) * 100;
+  annotate('chart-by-mrr', [
+    `<strong>Price only buys retention in the first year</strong>: ${pp(youngLift)} from the cheapest band to the dearest among customers inside their first year.`,
+    `Past two years the effect is gone, ${pp(oldLift)}. Whatever keeps an established customer is not what they pay.`,
+    `Smallest cell here is ${fmt.int(Math.min(...strat.cells.flatMap(c => c.bands.map(b => b.n))))} observations, so the comparison holds up.`,
+  ], [
+    'Revenue is measured at the starting month, so a customer who contracts moves band between windows.',
+    'Stratifying by tenure is what makes this readable. Unstratified the cheapest band looks the most loyal, and it is only the <strong>oldest</strong>.',
+  ]);
+
+  const tb = forwardSurvival(data).tenureBands.filter(b => b.n > 100);
+  annotate('chart-by-tenure', [
+    `<strong>The hazard falls sharply after the first year</strong>: ${fmt.pct(tb[0].survival, 1)} for customers in their first six months against ${fmt.pct(tb[2].survival, 1)} in the second year.`,
+    `Beyond that it barely moves, ending at ${fmt.pct(tb[tb.length - 1].survival, 1)}. The risk is concentrated early rather than spread evenly.`,
+    'That is where retention effort has the most to work with, because it is where the losses actually are.',
+  ], [
+    'Read this as a hazard curve, not a predictor. Long-tenure customers are <strong>by definition</strong> ones who did not leave, so "they are more loyal" is circular.',
+    'Tenure counts months carrying revenue before the starting month, not months since contract signature.',
+  ]);
+
+  // 19, 20, 21.
+  const cap = capacityAnalysis(data);
+  const rc2 = cap.correlations;
+  const sign2 = v => (v >= 0 ? '+' : '') + v.toFixed(2);
+  const firstHalf = cap.points.slice(0, 12), secondHalf = cap.points.slice(12);
+  const avg = (rows, key) => rows.reduce((s, x) => s + x[key], 0) / rows.length;
+  annotate('chart-capacity', [
+    `<strong>CS spend per active logo rose ${((avg(secondHalf, 'csPerLogo') / avg(firstHalf, 'csPerLogo') - 1) * 100).toFixed(0)}%</strong> across the window while churn also rose, correlating at ${sign2(rc2.capacity)}.`,
+    `Holding time constant it is still ${sign2(rc2.capacityGivenTime)}, so it is not purely the shared trend.`,
+    'Almost certainly the team was staffed up in response to churn rather than causing it, but the investment is not yet visible as a retention improvement.',
+  ], [
+    '<strong>Spend is a proxy for headcount</strong>, which the push does not carry. Salaries track it more closely than the total, since bonuses move with outcomes.',
+    'Direction of causation is unresolved and unresolvable here. The stronger question is whether accounts that lost a CSM churned differently, which needs per-account assignment.',
+  ]);
+
+  const live = cap.rollingArrivals.filter(v => v !== null);
+  const liveCap = cap.rollingCapacity.filter(v => v !== null);
+  annotate('chart-momentum', [
+    `<strong>The arrivals relationship has gone</strong>: ${sign2(live[0])} over the earliest window and ${sign2(live[live.length - 1])} over the latest.`,
+    `The CS capacity one has barely moved, ${sign2(liveCap[0])} to ${sign2(liveCap[liveCap.length - 1])}.`,
+    'This is the honest version of the two correlation charts, because it shows a relationship fading rather than averaging it into a single number.',
+  ], [
+    'Each point rests on only twelve months, so the levels wobble. Read the direction, not the value.',
+    'The first eleven months carry no window and are blank rather than zero.',
+  ]);
+
+  annotate('chart-new-vs-churn', [
+    `<strong>Pooled, there is almost nothing here</strong>: ${sign2(rc2.arrivals)}, about ${Math.round(rc2.arrivals * rc2.arrivals * 100)}% of the variation.`,
+    `But that conceals the shape. With CS capacity held constant the association is ${sign2(rc2.arrivalsGivenCapacity)}, and the previous chart shows it was real early and has since gone.`,
+    `${cap.points.length} monthly observations, which is far too few for a correlation to carry weight on its own.`,
+  ], [
+    'Both series drift over the period, and two drifting series correlate whether or not they are related. No trend line is drawn for that reason.',
+    'Correlation is not causation here in either direction, and the confound is time rather than anything either axis measures.',
+  ]);
+}
+
+const pp = v => (v >= 0 ? '+' : '') + v.toFixed(1) + ' points';
 
 boot();

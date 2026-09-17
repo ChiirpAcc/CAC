@@ -422,3 +422,46 @@ figcaption { margin-bottom: .9rem; }
 .decisions strong { color: var(--ink); font-weight: 620; }
 
 .too-young { margin-top: .5rem; font-size: .8rem; color: var(--ink-soft); }
+
+/* Per chart annotation ---------------------------------------------------- */
+
+.annotate {
+  margin-top: .9rem;
+  border-top: 1px solid var(--rule);
+  padding-top: .6rem;
+}
+.annotate > summary {
+  cursor: pointer;
+  font-size: .82rem;
+  color: var(--ink-mid);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.annotate > summary::-webkit-details-marker { display: none; }
+.annotate > summary::before {
+  content: '+';
+  display: inline-block;
+  width: 1em;
+  font-weight: 620;
+  color: var(--ink-soft);
+}
+.annotate[open] > summary::before { content: '2'; }
+.annotate > summary:hover { color: var(--ink); }
+
+.annotate h4 {
+  margin: .9rem 0 .35rem;
+  font-size: .78rem;
+  font-weight: 620;
+  color: var(--ink-soft);
+}
+.annotate ul { margin: 0; padding-left: 1.1rem; }
+.annotate li {
+  font-size: .84rem;
+  line-height: 1.55;
+  color: var(--ink-mid);
+  margin-bottom: .3rem;
+  max-width: 80ch;
+}
+.annotate li strong { color: var(--ink); font-weight: 620; }
