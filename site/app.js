@@ -200,11 +200,29 @@ function renderStatic() {
       <span>Churned ${fmt.int(recent[i].churnedLogos)}</span>
       <span>Net ${recent[i].netLogoChange > 0 ? '+' : ''}${fmt.int(recent[i].netLogoChange)}</span>`,
   });
+  // Name the count rather than quoting one of three in prose. Charts 13 and 14
+  // carry the cohort and reported figures beside this one, and a reader moving
+  // between them should be told they are different measures, not left to
+  // discover it.
+  const reportedByMonth = new Map(
+    data.cacMonthly.filter(r => r.reportedNewLogos !== null)
+      .map(r => [r.month, r.reportedNewLogos]));
+  const latestMonth = w[w.length - 1];
+  const thisYear = w.filter(r => r.month.startsWith(latestMonth.month.slice(0, 4)));
+  const bothEnds = [thisYear[0], latestMonth]
+    .map(r => reportedByMonth.has(r.month)
+      ? `${fmt.monthLabel(r.month)} ${fmt.int(r.newLogos)} here against ${fmt.int(reportedByMonth.get(r.month))} reported`
+      : null)
+    .filter(Boolean);
+
   $('flows-note').textContent =
     'New and reactivated above the axis, churned below. Net change is a line rather than a '
     + 'third column, because it is the sum of the other two and would otherwise read as an '
-    + 'independent quantity. The counts here are the waterfall new logos, which is the '
-    + 'derived figure. The business reports a higher one, and chart 13 walks between them.';
+    + 'independent quantity. '
+    + 'These are waterfall new logos, one of three counts of the same thing on this page. '
+    + (bothEnds.length ? bothEnds.join(', and ') + '. ' : '')
+    + 'Charts 13 and 14 carry the cohort and reported figures beside this one. They disagree '
+    + 'in both directions, so none of the three is simply the others with something missing.';
 }
 
 // Cost and profit. Settled inputs, so this runs once like everything else.
