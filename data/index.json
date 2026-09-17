@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-09-17T13:51:33",
+  "pushed_at": "2026-09-17T13:59:30",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -35,6 +35,11 @@
       "tab": "Migration Key",
       "file": "migration_key.json",
       "rows": 1569
+    },
+    {
+      "tab": "New Customer Cohorts",
+      "file": "signup_pricing.json",
+      "rows": 314
     },
     {
       "tab": "Recognised MRR",
