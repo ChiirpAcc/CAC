@@ -3,7 +3,7 @@ import {
   blendedRetention, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
   seasonalSurvival, survivalByRevenueWithinTenure, reconciliation,
-  hasRevenueClasses, CLASS_MARGINS, environmentSplit,
+  hasRevenueClasses, CLASS_MARGINS, environmentSplit, quickCancellations,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -39,6 +39,7 @@ function boot() {
     renderForward();
     renderSeasonal();
     renderReconciliation();
+    renderQuickCancellations();
     renderAnnotations();
     $('horizon').addEventListener('input', renderSeasonal);
     renderAssumptionDependent();
@@ -244,7 +245,7 @@ function renderStatic() {
     + 'independent quantity. '
     + 'These are waterfall new logos, one of three counts of the same thing on this page. '
     + (bothEnds.length ? bothEnds.join(', and ') + '. ' : '')
-    + 'Charts 13 and 14 carry the cohort and reported figures beside this one. They disagree '
+    + 'Charts 14 and 15 carry the cohort and reported figures beside this one. They disagree '
     + 'in both directions, so none of the three is simply the others with something missing.';
 }
 
@@ -706,7 +707,7 @@ function renderForward() {
     + 'ran at ' + sign(live[0]) + ' over the earliest twelve month window and '
     + sign(live[live.length - 1]) + ' over the latest, so it has gone. The CS capacity link has '
     + 'barely moved, ' + sign(liveCap[0]) + ' to ' + sign(liveCap[liveCap.length - 1]) + '. '
-    + 'That is why chart 21 reads ' + sign(rc.arrivals) + ' overall: a real early relationship '
+    + 'That is why chart 22 reads ' + sign(rc.arrivals) + ' overall: a real early relationship '
     + 'and no recent one average out to nothing.';
 
   $('momentum-note').textContent =
@@ -745,7 +746,7 @@ function renderForward() {
     'Twenty four monthly observations, and no trend line is drawn through them on purpose: '
     + 'both series drift over the period, and two drifting series correlate whether or not '
     + 'they are related. '
-    + 'Charts 19 and 20 take this further: with Customer Success capacity held constant the '
+    + 'Charts 20 and 21 take this further: with Customer Success capacity held constant the '
     + 'association is ' + sign(rc.arrivalsGivenCapacity) + ' rather than ' + sign(rc.arrivals)
     + ', and it was real early in the window before fading to nothing. '
     + 'Churn does track time (' + (rTime >= 0 ? '+' : '') + rTime.toFixed(2)
@@ -1360,5 +1361,53 @@ function renderAnnotations() {
 }
 
 const pp = v => (v >= 0 ? '+' : '') + v.toFixed(1) + ' points';
+
+// 22. Signed and gone inside a month.
+function renderQuickCancellations() {
+  const qc = quickCancellations(data);
+  if (!qc.cancelled.length) {
+    $('chart-quick-cancel').innerHTML =
+      '<p class="empty">No subscription dates in this push to measure against.</p>';
+    return;
+  }
+
+  const months = [...qc.byMonth.keys()].sort();
+  const values = months.map(m => qc.byMonth.get(m));
+
+  columnChart($('chart-quick-cancel'), {
+    labels: months.map(m => fmt.monthLabel(m)),
+    values,
+    yFormat: v => Math.round(v),
+    colour: INK.negative,
+    describe: i => {
+      const rows = qc.cancelled.filter(c => c.month === months[i]);
+      const median = rows.map(r => r.days).sort((a, b) => a - b)[Math.floor(rows.length / 2)];
+      return '<strong>' + fmt.monthLabel(months[i]) + ' signups</strong>'
+        + '<span>' + rows.length + ' gone within ' + qc.withinDays + ' days</span>'
+        + '<span class="muted">median ' + median + ' days</span>';
+    },
+  });
+
+  const biggest = qc.clusters[0];
+  $('quick-cancel-finding').innerHTML =
+    '<strong>' + qc.cancelled.length + ' customers signed and cancelled inside '
+    + qc.withinDays + ' days.</strong> Each was counted as a new logo at full rate in the '
+    + 'month they signed and was gone before contributing anything. '
+    + (biggest && biggest.count > 1
+        ? biggest.count + ' of them cancelled on the same day, ' + biggest.date
+          + ', which looks like one account being closed rather than ' + biggest.count
+          + ' separate decisions. That is worth knowing before it is read as a churn trend.'
+        : '');
+
+  $('quick-cancel-note').textContent =
+    'Start and end dates from the subscription lifetimes file, which covers '
+    + fmt.int(qc.totalWithLifetime) + ' customers rather than the whole book, so this is a '
+    + 'floor. Counted by the month they signed, not the month they left. '
+    + (qc.clusters.length > 1
+        ? 'There are ' + qc.clusters.length + ' dates carrying more than one cancellation.'
+        : '')
+    + ' What cannot be shown yet is what they were worth: starting MRR arrives as an empty '
+    + 'column, so the revenue attached to these is not in the push.';
+}
 
 boot();

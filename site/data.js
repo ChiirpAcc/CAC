@@ -125,15 +125,31 @@ export async function load() {
   // Real Stripe subscription start dates. A customer with a record here has a
   // knowable cohort even when the revenue pivots start after they did.
   const lifetimes = new Map();
+  const lifetimeRecords = [];
   const lifetimeTab = byTab['Subscription Lifetimes'];
   if (lifetimeTab) {
-    const idKey = lifetimeTab.columns.find(c => /stripe customer id/i.test(c || ''));
-    const startKey = lifetimeTab.columns.find(c => /start date/i.test(c || ''));
+    const find = pattern => lifetimeTab.columns.find(c => pattern.test(c || ''));
+    const idKey = find(/stripe customer id/i);
+    const startKey = find(/start date/i);
+    const endKey = find(/end date/i);
+    const statusKey = find(/status/i);
+    const nameKey = find(/^account$/i);
+
     if (idKey && startKey) {
       for (const row of lifetimeTab.rows) {
         const id = row[idKey];
-        const start = String(row[startKey] || '').slice(0, 7);
-        if (id && /^\d{4}-\d{2}$/.test(start)) lifetimes.set(id, start);
+        if (!id) continue;
+        const startFull = String(row[startKey] || '').slice(0, 10);
+        const endFull = endKey ? String(row[endKey] || '').slice(0, 10) : '';
+        const start = startFull.slice(0, 7);
+        if (/^\d{4}-\d{2}$/.test(start)) lifetimes.set(id, start);
+        lifetimeRecords.push({
+          id,
+          start: startFull,
+          end: endFull,
+          status: statusKey ? row[statusKey] : null,
+          account: nameKey ? row[nameKey] : null,
+        });
       }
     }
   }
@@ -182,6 +198,7 @@ export async function load() {
     expenses,
     customers,
     lifetimes,
+    lifetimeRecords,
     migrationKey,
     missingTabs: missing,
     lastMonth: waterfall.length ? waterfall[waterfall.length - 1].month : null,
@@ -1144,4 +1161,49 @@ export function environmentSplit(data) {
   }
 
   return { byMonth, environments };
+}
+
+// Customers who cancelled within a month of signing.
+//
+// These are counted as new at full rate in the month they signed and are
+// gone before they ever contributed. Worth seeing on their own, and worth
+// seeing by end date rather than only by volume: several cancellations
+// landing on one day is usually one account being closed rather than several
+// independent decisions, and that is a different problem.
+export function quickCancellations(data, { withinDays = 30 } = {}) {
+  const parse = value => {
+    const text = String(value || '').slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(text + 'T00:00:00Z') : null;
+  };
+
+  const cancelled = [];
+  for (const record of data.lifetimeRecords || []) {
+    const start = parse(record.start);
+    const end = parse(record.end);
+    if (!start || !end) continue;
+    const days = Math.round((end - start) / 86400000);
+    if (days >= 0 && days <= withinDays) {
+      cancelled.push({ ...record, days, month: record.start.slice(0, 7) });
+    }
+  }
+
+  const byMonth = new Map();
+  for (const row of cancelled) {
+    byMonth.set(row.month, (byMonth.get(row.month) || 0) + 1);
+  }
+
+  // Same-day clusters, which are the tell that these are not independent.
+  const byEndDate = new Map();
+  for (const row of cancelled) {
+    if (!byEndDate.has(row.end)) byEndDate.set(row.end, []);
+    byEndDate.get(row.end).push(row);
+  }
+  const clusters = [...byEndDate.entries()]
+    .filter(([, rows]) => rows.length > 1)
+    .map(([date, rows]) => ({ date, count: rows.length }))
+    .sort((a, b) => b.count - a.count);
+
+  const totalWithLifetime = (data.lifetimeRecords || []).length;
+
+  return { cancelled, byMonth, clusters, withinDays, totalWithLifetime };
 }
