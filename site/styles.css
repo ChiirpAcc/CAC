@@ -485,3 +485,5 @@ figcaption { margin-bottom: .9rem; }
   border: 1px solid var(--rule);
   background: #fff;
 }
+
+.tick-y-right { text-anchor: start; }

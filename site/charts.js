@@ -10,7 +10,7 @@ const NS = 'http://www.w3.org/2000/svg';
 
 const W = 720;
 const H = 300;
-const PAD = { top: 18, right: 18, bottom: 34, left: 54 };
+const PAD = { top: 18, right: 56, bottom: 34, left: 54 };
 
 const plot = {
   x0: PAD.left,
@@ -370,6 +370,64 @@ export function flowChart(container, { labels, added, reactivated, churned, net,
     { label: 'Reactivated', colour: INK.tertiary },
     { label: 'Churned', colour: INK.negative },
     { label: 'Net change', colour: 'var(--ink)' },
+  ]);
+}
+
+
+// Two series on their own scales, left and right.
+//
+// A dual axis is normally a way to manufacture a crossing that means nothing,
+// because the two scales can be slid until the lines touch wherever you like.
+// It earns its place here only because the question is literally "what
+// happened to these two quantities at once" and both are wanted in their real
+// units rather than indexed. Each axis is coloured to its series so there is
+// no guessing which belongs to which, and neither is zero-suppressed.
+export function dualAxisChart(container, { labels, left, right, describe, refs = [] }) {
+  const svg = makeSvg(container);
+  const realLeft = left.values.filter(v => v !== null && Number.isFinite(v));
+  const realRight = right.values.filter(v => v !== null && Number.isFinite(v));
+  if (!realLeft.length || !realRight.length) {
+    container.innerHTML = '<p class="empty">Not enough data yet.</p>';
+    return;
+  }
+
+  const leftMax = niceCeil(Math.max(...realLeft));
+  const rightMax = niceCeil(Math.max(...realRight));
+  const ticks = 5;
+
+  for (let i = 0; i <= ticks; i += 1) {
+    const yy = plot.y1 - (plot.height * i) / ticks;
+    el('line', { x1: plot.x0, x2: plot.x1, y1: yy, y2: yy, class: 'grid' }, svg);
+    el('text', { x: plot.x0 - 8, y: yy + 4, class: 'tick tick-y', fill: left.colour }, svg)
+      .textContent = left.format((leftMax * i) / ticks);
+    el('text', { x: plot.x1 + 8, y: yy + 4, class: 'tick tick-y-right', fill: right.colour }, svg)
+      .textContent = right.format((rightMax * i) / ticks);
+  }
+
+  const band = bandScale(labels.length);
+  const x = i => band.centre(i);
+  const yLeft = v => plot.y1 - (v / leftMax) * plot.height;
+  const yRight = v => plot.y1 - (v / rightMax) * plot.height;
+
+  for (const ref of refs) referenceLine(svg, yLeft, ref.value, ref.label, ref.variant || '');
+
+  for (const [series, scale] of [[left, yLeft], [right, yRight]]) {
+    el('path', {
+      d: gappedPath(series.values, x, scale),
+      class: `line ${series.dashed ? 'line-dashed' : ''}`,
+      stroke: series.colour,
+    }, svg);
+    series.values.forEach((value, i) => {
+      if (value === null || !Number.isFinite(value)) return;
+      el('circle', { cx: x(i), cy: scale(value), r: 2.5, class: 'dot', fill: series.colour }, svg);
+    });
+  }
+
+  xLabels(svg, labels, band);
+  attachHover(svg, container, band, labels.length, describe);
+  legend(container, [
+    { label: `${left.label} (left)`, colour: left.colour },
+    { label: `${right.label} (right)`, colour: right.colour },
   ]);
 }
 

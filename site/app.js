@@ -9,7 +9,7 @@ import {
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
-  scatterXY, fmt, INK,
+  scatterXY, dualAxisChart, fmt, INK,
 } from './charts.js';
 
 // Settled, and applied in the pipeline rather than here. Kept as named
@@ -596,7 +596,7 @@ function renderForward() {
       + '<span>Forward churn ' + fmt.pct(cp[i].churn, 1) + '</span>',
   });
 
-  const firstHalf = cp.slice(0, 12), secondHalf = cp.slice(12);
+  const firstHalf = cap.measured.slice(0, 12), secondHalf = cap.measured.slice(12);
   const avg = (rows, key) => rows.reduce((s, x) => s + x[key], 0) / rows.length;
   const capGrowth = (avg(secondHalf, 'csPerLogo') / avg(firstHalf, 'csPerLogo') - 1) * 100;
 
@@ -627,8 +627,9 @@ function renderForward() {
     + sign(rc.arrivalsGivenCapacity) + ' rather than ' + sign(rc.arrivals) + '.';
 
   // 18. Rolling correlation, the momentum question.
+  const measuredLabels = cap.measured.map(p => fmt.monthLabel(p.month));
   multiLineChart($('chart-momentum'), {
-    labels: capLabels,
+    labels: measuredLabels,
     series: [
       { label: 'New arrivals against churn', colour: INK.primary, values: cap.rollingArrivals },
       { label: 'CS capacity against churn', colour: INK.secondary, values: cap.rollingCapacity },
@@ -637,7 +638,7 @@ function renderForward() {
     yMin: -1,
     yMax: 1,
     refs: [{ value: 0, label: 'no relationship', variant: 'ref-floor' }],
-    describe: i => '<strong>' + fmt.monthLabel(cp[i].month) + '</strong>'
+    describe: i => '<strong>' + measuredLabels[i] + '</strong>'
       + (cap.rollingArrivals[i] === null
           ? '<span class="muted">inside the first ' + cap.rollingWidth + ' months, no window yet</span>'
           : '<span>Arrivals ' + sign(cap.rollingArrivals[i]) + '</span>'
@@ -1212,23 +1213,28 @@ function renderSignups() {
 
   // 13. Volume, price and the product of the two, indexed so three quantities
   // in different units can share one axis.
-  const index = (values, base) => values.map(v => (v === null ? null : (v / base) * 100));
-  multiLineChart($('chart-price-volume'), {
+  // Two real scales rather than both indexed to 100. Indexing answered "how
+  // far has each moved", which hid the thing being asked: what a customer
+  // costs now against how many are arriving, in the units those are actually
+  // discussed in.
+  dualAxisChart($('chart-price-volume'), {
     labels,
-    series: [
-      { label: 'New logos', colour: INK.negative,
-        values: index(ms.map(r => r.count), first.count) },
-      { label: 'Average price at signup', colour: INK.primary,
-        values: index(ms.map(r => r.averagePrice), first.averagePrice) },
-      { label: 'New MRR added', colour: INK.secondary, dashed: true,
-        values: index(ms.map(r => r.startingMrr), first.startingMrr) },
-    ],
-    yFormat: v => Math.round(v),
-    refs: [{ value: 100, label: first.month + ' = 100', variant: 'ref-floor' }],
+    left: {
+      label: 'New logos',
+      colour: INK.negative,
+      values: ms.map(r => r.count),
+      format: v => Math.round(v),
+    },
+    right: {
+      label: 'Average price at signup',
+      colour: INK.primary,
+      values: ms.map(r => r.averagePrice),
+      format: v => '$' + Math.round(v).toLocaleString(),
+    },
     describe: i => '<strong>' + fmt.monthLabel(ms[i].month) + '</strong>'
       + '<span>' + fmt.int(ms[i].count) + ' new logos</span>'
       + '<span>Average ' + fmt.money(ms[i].averagePrice) + ' at signup</span>'
-      + '<span>' + fmt.money(ms[i].startingMrr) + ' of new MRR</span>',
+      + '<span class="muted">' + fmt.money(ms[i].startingMrr) + ' of new MRR added</span>',
   });
 
   const volumeChange = (last.count / first.count - 1) * 100;
@@ -1247,7 +1253,11 @@ function renderSignups() {
     + 'the business is.';
 
   $('price-volume-note').textContent =
-    'Starting MRR is platform plus upgrade at signup, from the new customer cohort source, '
+    'Two scales, volume on the left and price on the right, each coloured to its line. A dual '
+    + 'axis can be slid until two lines cross wherever you like, so read the shapes rather '
+    + 'than the crossing point. New MRR added, which is the product of the two, is on the '
+    + 'tooltip. '
+    + 'Starting MRR is platform plus upgrade at signup, from the new customer cohort source, '
     + 'which is what a customer was sold rather than what they have paid since. '
     + fmt.int(sx.total) + ' customers. The same S1 weighting applies here as everywhere else: '
     + 'the last month in this source carries only a handful of customers and is dropped, and '

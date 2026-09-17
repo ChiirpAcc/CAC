@@ -817,17 +817,23 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
   const months = [...activeByMonth.keys()].sort();
   const last = months[months.length - 1];
 
+  // Every month the spend covers, not only the ones with a full forward
+  // window. Capacity is known right up to the trailing month; it is the churn
+  // that cannot be measured for the last few, so that series carries nulls and
+  // the line stops while the spending line runs on. Truncating both to the
+  // shorter one threw away four months of the thing being asked about.
   const points = months
-    .filter(m => monthAdd(m, horizon) <= last && csTotal.has(m) && newLogos.get(m) != null)
-    .slice(-windows)
+    .filter(m => csTotal.has(m) && newLogos.get(m) != null)
+    .slice(-(windows + horizon))
     .map(month => {
       const base = activeByMonth.get(month);
-      const later = activeByMonth.get(monthAdd(month, horizon)) || new Set();
+      const complete = monthAdd(month, horizon) <= last;
+      const later = complete ? (activeByMonth.get(monthAdd(month, horizon)) || new Set()) : null;
       let kept = 0;
-      for (const id of base) if (later.has(id)) kept += 1;
+      if (later) for (const id of base) if (later.has(id)) kept += 1;
       return {
         month,
-        churn: 1 - kept / base.size,
+        churn: later ? 1 - kept / base.size : null,
         newLogos: newLogos.get(month),
         logos: base.size,
         csSpend: csTotal.get(month),
@@ -840,10 +846,13 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
       };
     });
 
-  const churn = points.map(p => p.churn);
-  const arrivals = points.map(p => p.newLogos);
-  const capacity = points.map(p => p.csPerLogo);
-  const wholeFunction = points.map(p => p.retentionPerLogo);
+  // Everything statistical below runs on the complete rows only. The partial
+  // tail is for drawing, not for measuring.
+  const measured = points.filter(p => p.churn !== null);
+  const churn = measured.map(p => p.churn);
+  const arrivals = measured.map(p => p.newLogos);
+  const capacity = measured.map(p => p.csPerLogo);
+  const wholeFunction = measured.map(p => p.retentionPerLogo);
   const clock = points.map((_, i) => i);
 
   const pair = (xs, ys) => correlate(xs.map((x, i) => [x, ys[i]]));
@@ -861,7 +870,7 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
   // Momentum: the same correlation computed over a moving window, so a
   // relationship that has faded shows as a line heading for zero rather than
   // hiding inside one pooled number.
-  const rolling = (xs, width = 12) => points.map((_, i) => {
+  const rolling = (xs, width = 12) => measured.map((_, i) => {
     if (i < width - 1) return null;
     const a = xs.slice(i - width + 1, i + 1);
     const b = churn.slice(i - width + 1, i + 1);
@@ -870,6 +879,7 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
 
   return {
     points,
+    measured,
     correlations: {
       arrivals: pair(arrivals, churn),
       capacity: pair(capacity, churn),
