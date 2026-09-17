@@ -26,5 +26,3 @@ dist/
 # not something to keep.
 validation-report.md
 
-# Generated animations, regenerated from the data rather than kept.
-*.gif

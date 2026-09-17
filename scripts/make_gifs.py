@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+"""Render the animated versions of chart 25 straight from data/.
+
+Three of them, and the third exists because the second was misleading.
+
+  arrivals_vs_churn.gif            one cloud, horizons 1 to 6
+  arrivals_vs_churn_by_price.gif   the same split by what customers pay
+  price_gap_by_month.gif           the paired difference, which is the honest
+                                   way to show the price effect
+
+The split version overlaps so heavily that it looks like nothing is there,
+and that reading is wrong: almost all the visible scatter is between months
+rather than between the two halves within a month. A paired test clears
+significance at every horizon. A scatter of two overlapping groups is simply
+the wrong picture for a paired comparison, so the third file plots the
+per-month difference, which is what the test actually looks at.
+
+Axes are fixed across every frame. If each frame rescaled to its own data the
+cloud would look much the same at every horizon and the movement would be
+invisible.
+
+Run: python scripts/make_gifs.py
+"""
+
+import json
+import math
+from collections import defaultdict
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+
+ROOT = Path(__file__).resolve().parent.parent
+DATA = ROOT / "data"
+
+INK = (28, 30, 34)
+SOFT = (122, 128, 136)
+RULE = (219, 222, 226)
+LOW = (168, 66, 58)
+HIGH = (31, 111, 139)
+BG = (255, 255, 255)
+
+W, H = 900, 660
+PAD = {"l": 96, "r": 40, "t": 110, "b": 132}
+HORIZONS = range(1, 7)
+WINDOWS = 24
+
+
+def load(name):
+    return json.loads((DATA / name).read_text(encoding="utf-8"))
+
+
+def number(value):
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace(",", "").replace("$", "")
+    if text in ("", "-", "--"):
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def month_add(month, offset):
+    year, m = map(int, month.split("-"))
+    total = year * 12 + (m - 1) + offset
+    return f"{total // 12}-{total % 12 + 1:02d}"
+
+
+def font(size, bold=False):
+    names = ("segoeuib.ttf", "arialbd.ttf") if bold else ("segoeui.ttf", "arial.ttf")
+    for name in names:
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+F_TITLE, F_LABEL, F_TICK, F_BIG = font(26, True), font(15), font(13), font(19, True)
+
+
+def read_months():
+    mrr = defaultdict(dict)
+    for row in load("customer_waterfall.json")["rows"]:
+        value = number(row.get("eop_mrr"))
+        if value and value > 0:
+            mrr[row["month"]][row["customer_id"]] = value
+
+    waterfall = {r["month"]: r for r in load("waterfall_summary.json")["rows"]}
+    last = max(mrr)
+
+    def eligible(horizon):
+        return [m for m in sorted(mrr)
+                if month_add(m, horizon) <= last
+                and waterfall.get(m, {}).get("new_logos") is not None]
+
+    # Every horizon uses the same starting months. Taking the most recent
+    # complete windows at each setting instead would slide the period backwards
+    # as the horizon grows, so the slider would change two things at once, and
+    # an effect that appeared at one month turned out to be carried entirely by
+    # the recent thin-intake months only the short horizons could reach.
+    anchor = set(eligible(max(HORIZONS))[-WINDOWS:])
+    return mrr, waterfall, last, eligible, anchor
+
+
+def fit(xs, ys):
+    """Slope expressed per ten FEWER arrivals, which is how the question is asked."""
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    syy = sum((y - my) ** 2 for y in ys)
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    b = sxy / sxx
+    r = sxy / math.sqrt(sxx * syy)
+    residual = sum((y - (my + b * (x - mx))) ** 2 for x, y in zip(xs, ys))
+    se = math.sqrt(residual / (n - 2) / sxx)
+    return r, -b * 10 * 100, 1.96 * se * 10 * 100
+
+
+def frame(title, subtitle, y_range, y_format, x_range=(0, 90), x_title="New logos in the starting month",
+          y_title="Churn", zero_line=False):
+    image = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(image)
+    y0, y1 = y_range
+    x0, x1 = x_range
+
+    px = lambda v: PAD["l"] + (v - x0) / (x1 - x0) * (W - PAD["l"] - PAD["r"])
+    py = lambda v: H - PAD["b"] - (v - y0) / (y1 - y0) * (H - PAD["t"] - PAD["b"])
+
+    draw.text((PAD["l"], 30), title, font=F_TITLE, fill=INK)
+    draw.text((PAD["l"], 66), subtitle, font=F_LABEL, fill=SOFT)
+
+    for i in range(6):
+        value = y0 + (y1 - y0) * i / 5
+        y = py(value)
+        draw.line([(PAD["l"], y), (W - PAD["r"], y)], fill=RULE)
+        draw.text((PAD["l"] - 14, y - 9), y_format(value), font=F_TICK, fill=SOFT, anchor="ra")
+    if zero_line and y0 < 0 < y1:
+        draw.line([(PAD["l"], py(0)), (W - PAD["r"], py(0))], fill=SOFT, width=2)
+
+    for i in range(6):
+        value = x0 + (x1 - x0) * i / 5
+        draw.text((px(value), H - PAD["b"] + 12), f"{value:.0f}", font=F_TICK, fill=SOFT, anchor="ma")
+
+    draw.text((PAD["l"] + (W - PAD["l"] - PAD["r"]) / 2, H - PAD["b"] + 40), x_title,
+              font=F_LABEL, fill=SOFT, anchor="ma")
+    draw.text((26, PAD["t"] + (H - PAD["t"] - PAD["b"]) / 2), y_title,
+              font=F_LABEL, fill=SOFT, anchor="mm")
+    return image, draw, px, py
+
+
+def dot(draw, cx, cy, colour, radius=7):
+    draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius],
+                 fill=colour, outline=BG, width=2)
+
+
+def save(frames, out):
+    # Bounce back rather than jumping, and hold long enough to read.
+    sequence = frames + frames[-2:0:-1]
+    sequence[0].save(out, save_all=True, append_images=sequence[1:],
+                     duration=[1100] * len(sequence), loop=0, optimize=True)
+    print(f"  {out.name}  {out.stat().st_size / 1024:.0f} KB")
+
+
+def build():
+    mrr, waterfall, last, eligible, anchor = read_months()
+
+    plain, split, gaps = [], [], []
+    for horizon in HORIZONS:
+        months = [m for m in eligible(horizon) if m in anchor]
+        xs, whole, low, high, diffs = [], [], [], [], []
+
+        for month in months:
+            base = mrr[month]
+            later = set(mrr[month_add(month, horizon)])
+            median = sorted(base.values())[len(base) // 2]
+            cheap = [c for c, v in base.items() if v <= median]
+            dear = [c for c, v in base.items() if v > median]
+
+            xs.append(waterfall[month]["new_logos"])
+            whole.append(1 - sum(1 for c in base if c in later) / len(base))
+            lo = 1 - sum(1 for c in cheap if c in later) / len(cheap)
+            hi = 1 - sum(1 for c in dear if c in later) / len(dear)
+            low.append(lo)
+            high.append(hi)
+            diffs.append((lo - hi) * 100)
+
+        n = len(diffs)
+        mean = sum(diffs) / n
+        sd = math.sqrt(sum((d - mean) ** 2 for d in diffs) / (n - 1))
+        plain.append({"h": horizon, "xs": xs, "ys": whole, "months": months,
+                      "fit": fit(xs, whole)})
+        split.append({"h": horizon, "xs": xs, "low": low, "high": high, "months": months,
+                      "gap": mean, "fit_low": fit(xs, low), "fit_high": fit(xs, high)})
+        gaps.append({"h": horizon, "months": months, "diffs": diffs, "mean": mean,
+                     "t": mean / (sd / math.sqrt(n)), "wins": sum(1 for d in diffs if d > 0), "n": n})
+
+    y_pct = lambda v: f"{v * 100:.0f}%"
+    span = lambda f: f"{f['months'][0]} to {f['months'][-1]}"
+
+    # 1. One cloud.
+    frames = []
+    for f in plain:
+        r, est, ci = f["fit"]
+        image, draw, px, py = frame(
+            "Does churn rise when fewer customers arrive?",
+            f"Churn measured over the following {f['h']} month{'' if f['h'] == 1 else 's'}"
+            f"   ·   same {len(f['months'])} starting months, {span(f)}",
+            (0, 0.35), y_pct)
+        for x, y in zip(f["xs"], f["ys"]):
+            dot(draw, px(x), py(y), HIGH)
+        draw.text((PAD["l"], H - PAD["b"] + 82),
+                  f"r = {r:+.2f}     {est:+.2f} points per 10 fewer arrivals"
+                  f"     95% [{est - abs(ci):+.2f}, {est + abs(ci):+.2f}]",
+                  font=F_LABEL, fill=SOFT)
+        measurable = (est - abs(ci)) * (est + abs(ci)) > 0
+        draw.text((W - PAD["r"], H - PAD["b"] + 56),
+                  "measurable" if measurable else "indistinguishable from nothing",
+                  font=F_BIG, fill=LOW if measurable else SOFT, anchor="ra")
+        frames.append(image)
+    save(frames, ROOT / "arrivals_vs_churn.gif")
+
+    # 2. Two clouds.
+    frames = []
+    for f in split:
+        image, draw, px, py = frame(
+            "Churn against arrivals, split by what customers pay",
+            f"Churn over the following {f['h']} month{'' if f['h'] == 1 else 's'}"
+            f"   ·   same {len(f['months'])} starting months, {span(f)}",
+            (0, 0.35), y_pct)
+        for x, y in zip(f["xs"], f["low"]):
+            dot(draw, px(x), py(y), LOW)
+        for x, y in zip(f["xs"], f["high"]):
+            dot(draw, px(x), py(y), HIGH)
+        lx = W - PAD["r"] - 250
+        dot(draw, lx + 6, 92, LOW, 6)
+        draw.text((lx + 20, 82), "pays below median", font=F_LABEL, fill=SOFT)
+        dot(draw, lx + 6, 114, HIGH, 6)
+        draw.text((lx + 20, 104), "pays above median", font=F_LABEL, fill=SOFT)
+        draw.text((PAD["l"], H - PAD["b"] + 82),
+                  f"per 10 fewer arrivals:  below median {f['fit_low'][1]:+.2f} ± {f['fit_low'][2]:.2f} pts"
+                  f"     above median {f['fit_high'][1]:+.2f} ± {f['fit_high'][2]:.2f} pts",
+                  font=F_LABEL, fill=SOFT)
+        draw.text((W - PAD["r"], H - PAD["b"] + 56),
+                  "the clouds overlap; see the paired view", font=F_BIG, fill=SOFT, anchor="ra")
+        frames.append(image)
+    save(frames, ROOT / "arrivals_vs_churn_by_price.gif")
+
+    # 3. The paired difference, which is what the test actually looks at.
+    limit = max(abs(d) for f in gaps for d in f["diffs"])
+    limit = math.ceil(limit)
+    frames = []
+    for f in gaps:
+        image, draw, px, py = frame(
+            "How much less do higher payers churn, month by month",
+            f"Over the following {f['h']} month{'' if f['h'] == 1 else 's'}"
+            f"   ·   same {f['n']} starting months, {f['months'][0]} to {f['months'][-1]}",
+            (-limit, limit), lambda v: f"{v:+.0f}", x_range=(0, f["n"] - 1),
+            x_title="Starting month, oldest to newest",
+            y_title="Gap", zero_line=True)
+        for i, d in enumerate(f["diffs"]):
+            dot(draw, px(i), py(d), HIGH if d > 0 else LOW)
+        draw.line([(PAD["l"], py(f["mean"])), (W - PAD["r"], py(f["mean"]))],
+                  fill=HIGH, width=2)
+        draw.text((PAD["l"] + 8, py(f["mean"]) - 22),
+                  f"mean {f['mean']:+.2f} points", font=F_LABEL, fill=HIGH)
+        draw.text((PAD["l"], H - PAD["b"] + 82),
+                  f"paired t = {f['t']:+.2f} on {f['n'] - 1} df"
+                  f"     higher payers churned less in {f['wins']} of {f['n']} months",
+                  font=F_LABEL, fill=SOFT)
+        draw.text((W - PAD["r"], H - PAD["b"] + 56),
+                  "clears significance" if abs(f["t"]) > 2.07 else "does not clear",
+                  font=F_BIG, fill=HIGH if abs(f["t"]) > 2.07 else SOFT, anchor="ra")
+        frames.append(image)
+    save(frames, ROOT / "price_gap_by_month.gif")
+
+    print("\n  horizon   mean gap   paired t   months won")
+    for f in gaps:
+        print(f"    {f['h']}mo     {f['mean']:+6.2f}    {f['t']:+6.2f}     {f['wins']} of {f['n']}")
+
+
+if __name__ == "__main__":
+    build()
