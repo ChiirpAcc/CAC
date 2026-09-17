@@ -67,12 +67,32 @@ async function readFile(name) {
   return response.json();
 }
 
+// Tabs the charts actually read. Anything else in the index is left alone:
+// new tabs have arrived unannounced more than once, and fetching every file
+// meant one bad or renamed file took the whole page down rather than one chart.
+const REQUIRED_TABS = ['Waterfall Summary', 'CAC Monthly', 'QB Expenses', 'Customer Waterfall'];
+const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes'];
+
 export async function load() {
   const index = await fetch(`${DATA_DIR}/index.json`, { cache: 'no-store' }).then(r => r.json());
   const byTab = {};
-  await Promise.all(index.files.map(async entry => {
-    byTab[entry.tab] = await readFile(entry.file);
+  const missing = [];
+
+  const wanted = index.files.filter(
+    e => REQUIRED_TABS.includes(e.tab) || OPTIONAL_TABS.includes(e.tab));
+
+  await Promise.all(wanted.map(async entry => {
+    try {
+      byTab[entry.tab] = await readFile(entry.file);
+    } catch (err) {
+      if (REQUIRED_TABS.includes(entry.tab)) throw err;
+      missing.push(entry.tab);
+    }
   }));
+
+  for (const tab of REQUIRED_TABS) {
+    if (!byTab[tab]) throw new Error(`${tab} is missing from the push`);
+  }
 
   const complete = rows => rows.filter(r => r.month && r.month < CURRENT_MONTH);
 
@@ -89,11 +109,34 @@ export async function load() {
     netLogoChange: num(r.net_logo_change),
   }));
 
+  // The pipeline now applies the settled splits itself: Customer Success at
+  // 0% of acquisition cost, Partnerships at 100%, Technical Account Manager
+  // to cost of sales. cac_total_actual already reflects that, so the site
+  // reads it rather than re-deriving a total from the expense lines and
+  // risking two answers to the same question.
   const cacMonthly = complete(byTab['CAC Monthly'].rows).map(r => ({
     month: r.month,
     cacTotalActual: num(r.cac_total_actual),
+    cacPerLogo: num(r.cac_per_logo),
+    reportedNewLogos: num(r.new_logos),
     logosBasis: r.logos_basis || null,
   }));
+
+  // Real Stripe subscription start dates. A customer with a record here has a
+  // knowable cohort even when the revenue pivots start after they did.
+  const lifetimes = new Map();
+  const lifetimeTab = byTab['Subscription Lifetimes'];
+  if (lifetimeTab) {
+    const idKey = lifetimeTab.columns.find(c => /stripe customer id/i.test(c || ''));
+    const startKey = lifetimeTab.columns.find(c => /start date/i.test(c || ''));
+    if (idKey && startKey) {
+      for (const row of lifetimeTab.rows) {
+        const id = row[idKey];
+        const start = String(row[startKey] || '').slice(0, 7);
+        if (id && /^\d{4}-\d{2}$/.test(start)) lifetimes.set(id, start);
+      }
+    }
+  }
 
   const expenses = byTab['QB Expenses'].rows
     .filter(r => r.month && r.month < CURRENT_MONTH)
@@ -121,6 +164,8 @@ export async function load() {
     cacMonthly,
     expenses,
     customers,
+    lifetimes,
+    missingTabs: missing,
     lastMonth: waterfall.length ? waterfall[waterfall.length - 1].month : null,
   };
 }
@@ -184,10 +229,40 @@ export function buildCohorts(data) {
     revenueByCustomer.get(row.id).set(row.month, row.eopMrr);
   }
 
+  // Left censoring.
+  //
+  // A customer whose first observed month is the first month of the data
+  // window did not necessarily start then. They existed before it and the
+  // window simply cannot see when, so dating them to the boundary invents a
+  // cohort and inflates it. They are excluded rather than guessed at.
+  //
+  // The exception is a real Stripe start date. Where subscription_lifetimes
+  // carries one, the cohort is known whatever the revenue window does.
+  //
+  // The boundary is read from the data rather than hardcoded, so this keeps
+  // working when the pivots are extended backwards.
+  // The boundary is the first month that carries any revenue at all, not the
+  // first row in the file. A month of zero-revenue rows in front of the window
+  // would otherwise move the boundary off the month that actually censors.
+  const windowStart = data.customers
+    .filter(r => r.eopMrr !== null && r.eopMrr > 0)
+    .reduce((earliest, r) => (earliest === null || r.month < earliest ? r.month : earliest), null);
+  const censored = [];
+  for (const [id, month] of [...firstRevenueMonth]) {
+    if (month === windowStart && !data.lifetimes?.has(id)) {
+      firstRevenueMonth.delete(id);
+      censored.push(id);
+    }
+  }
+
   const members = new Map();
   for (const [id, month] of firstRevenueMonth) {
-    if (!members.has(month)) members.set(month, []);
-    members.get(month).push(id);
+    const known = data.lifetimes?.get(id);
+    // A lifetime record only overrides when it is inside the window; a start
+    // date before the window has no revenue to attach to it here.
+    const cohortMonth = (known && known >= windowStart && known <= month) ? known : month;
+    if (!members.has(cohortMonth)) members.set(cohortMonth, []);
+    members.get(cohortMonth).push(id);
   }
 
   const lastMonth = data.lastMonth;
@@ -214,7 +289,10 @@ export function buildCohorts(data) {
     return { month, size: logos[0] || ids.length, ids, logos, revenue, maxOffset };
   });
 
-  return cohorts.filter(c => c.size > 0);
+  const built = cohorts.filter(c => c.size > 0);
+  built.censoredCount = censored.length;
+  built.windowStart = windowStart;
+  return built;
 }
 
 // Unit economics per cohort, at the chosen split and margin.
@@ -222,8 +300,9 @@ export function buildCohorts(data) {
 // LTV here is gross profit actually realised to date, not a projection. That
 // understates young cohorts, which is why the age of a cohort has to stay
 // visible wherever this is drawn.
-export function cohortEconomics(data, cohorts, { csShare, partnershipsShare, margin }) {
-  const cac = cacByMonth(data, { csShare, partnershipsShare });
+export function cohortEconomics(data, cohorts, { margin }) {
+  // The pipeline's own total, already carrying the settled splits.
+  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
   const newLogosByMonth = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
 
   return cohorts.map(cohort => {
@@ -794,4 +873,57 @@ export function seasonalSurvival(data, { horizon = 4 } = {}) {
   }).filter(Boolean);
 
   return { horizon, anchor, series };
+}
+
+// Survival by revenue band, stratified by tenure.
+//
+// Unstratified, the cheapest band looks the most loyal, and it is not: it is
+// simply the oldest. Noting that in a caption leaves a chart arguing with its
+// own note, so the comparison is made inside tenure bands where the confound
+// is held constant.
+export function survivalByRevenueWithinTenure(data, { horizon = 4, windows = 24 } = {}) {
+  const activeByMonth = new Map();
+  const firstMonth = new Map();
+  for (const row of data.customers) {
+    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Map());
+    activeByMonth.get(row.month).set(row.id, row.eopMrr);
+    const seen = firstMonth.get(row.id);
+    if (seen === undefined || row.month < seen) firstMonth.set(row.id, row.month);
+  }
+
+  const months = [...activeByMonth.keys()].sort();
+  const last = months[months.length - 1];
+  const starts = months.filter(m => monthAdd(m, horizon) <= last).slice(-windows);
+
+  const revenueBands = [
+    { label: 'under $500', lo: 0, hi: 500 },
+    { label: '$500 to $1k', lo: 500, hi: 1000 },
+    { label: 'over $1k', lo: 1000, hi: Infinity },
+  ];
+  const tenureBands = [
+    { label: 'first year', lo: 0, hi: 12 },
+    { label: 'one to two years', lo: 12, hi: 24 },
+    { label: 'over two years', lo: 24, hi: Infinity },
+  ];
+
+  const cells = tenureBands.map(tenure => ({
+    tenure: tenure.label,
+    bands: revenueBands.map(band => {
+      let kept = 0, total = 0;
+      for (const month of starts) {
+        const later = activeByMonth.get(monthAdd(month, horizon)) || new Map();
+        for (const [id, mrr] of activeByMonth.get(month)) {
+          const age = monthDiff(firstMonth.get(id), month);
+          if (mrr >= band.lo && mrr < band.hi && age >= tenure.lo && age < tenure.hi) {
+            total += 1;
+            if (later.has(id)) kept += 1;
+          }
+        }
+      }
+      return { label: band.label, n: total, survival: total ? kept / total : null };
+    }),
+  }));
+
+  return { revenueBands, tenureBands, cells, starts: starts.length };
 }

@@ -2,19 +2,24 @@ import {
   load, cacByMonth, splitTotals, buildCohorts, cohortEconomics,
   blendedRetention, retentionByEra, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
-  seasonalSurvival,
+  seasonalSurvival, survivalByRevenueWithinTenure,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
   scatterXY, fmt, INK,
 } from './charts.js';
 
-// Where the workbook currently sits. Customer Success at 100% means every
-// dollar of it is treated as acquisition cost, which is the single largest
-// unexamined decision in this analysis.
-const DEFAULTS = { csShare: 1, partnershipsShare: 1, margin: 0.757 };
+// Settled, and applied in the pipeline rather than here. Kept as named
+// constants so a different decision stays a one line change: the controls are
+// gone, the flexibility is not.
+const SETTLED = { csShare: 0, partnershipsShare: 1, margin: 0.757 };
 
-const state = { ...DEFAULTS };
+// A cohort this young cannot have returned its acquisition cost whatever its
+// quality, because the measure is profit realised to date rather than a
+// projection. Drawing them invites the age bias to be read as decline.
+const MIN_COHORT_AGE = 6;
+
+const state = { ...SETTLED };
 let data = null;
 let cohorts = null;
 
@@ -23,19 +28,12 @@ const $ = id => document.getElementById(id);
 const COHORT_WINDOW = 24;
 const CHURN_THRESHOLD = 0.05;
 
-function atDefaults() {
-  return state.csShare === DEFAULTS.csShare
-    && state.partnershipsShare === DEFAULTS.partnershipsShare
-    && state.margin === DEFAULTS.margin;
-}
-
 function boot() {
   load().then(loaded => {
     data = loaded;
     cohorts = buildCohorts(data);
     $('loading').hidden = true;
     $('dashboard').hidden = false;
-    wireControls();
     renderStatic();
     renderForward();
     renderSeasonal();
@@ -48,65 +46,24 @@ function boot() {
   });
 }
 
-function wireControls() {
-  const bind = (id, key, transform, format) => {
-    const input = $(id);
-    const output = $(`${id}-value`);
-    input.value = String(transform.toInput(state[key]));
-    output.textContent = format(state[key]);
-    input.addEventListener('input', () => {
-      state[key] = transform.fromInput(Number(input.value));
-      output.textContent = format(state[key]);
-      renderAssumptionDependent();
-    });
-  };
-
-  const pctTransform = { toInput: v => Math.round(v * 100), fromInput: v => v / 100 };
-  bind('cs-split', 'csShare', pctTransform, v => fmt.pct(v));
-  bind('pt-split', 'partnershipsShare', pctTransform, v => fmt.pct(v));
-  bind('margin', 'margin', pctTransform, v => fmt.pct(v, 1));
-
-  $('reset').addEventListener('click', () => {
-    Object.assign(state, DEFAULTS);
-    $('cs-split').value = DEFAULTS.csShare * 100;
-    $('pt-split').value = DEFAULTS.partnershipsShare * 100;
-    $('margin').value = DEFAULTS.margin * 100;
-    $('cs-split-value').textContent = fmt.pct(DEFAULTS.csShare);
-    $('pt-split-value').textContent = fmt.pct(DEFAULTS.partnershipsShare);
-    $('margin-value').textContent = fmt.pct(DEFAULTS.margin, 1);
-    renderAssumptionDependent();
-  });
-}
-
-// Charts that do not move when an assumption moves. Drawn once.
+// Everything on the page, drawn once. Nothing here is adjustable any more.
 function renderStatic() {
   const w = data.waterfall;
   const recent = w.slice(-36);
   const labels = recent.map(r => fmt.monthLabel(r.month));
 
-  $('stamp').textContent = data.pushedAt
-    ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. Months run to ${data.lastMonth}.`
-    : `Months run to ${data.lastMonth}.`;
-
-  // Headline counts, none of which depend on a split.
-  const latest = w[w.length - 1];
-  const peak = w.reduce((best, r) => (r.activeLogos > best.activeLogos ? r : best), w[0]);
-  const year = latest.month.slice(0, 4);
-  const ytd = w.filter(r => r.month.startsWith(year));
-  const acquired = ytd.reduce((s, r) => s + (r.newLogos || 0), 0);
-  const churned = ytd.reduce((s, r) => s + (r.churnedLogos || 0), 0);
-
-  $('kpi-base').textContent = fmt.int(latest.activeLogos);
-  $('kpi-base-note').textContent =
-    `down from ${fmt.int(peak.activeLogos)} at ${fmt.monthLabel(peak.month)}`;
-
-  $('kpi-flow').textContent = `${fmt.int(churned)} out, ${fmt.int(acquired)} in`;
-  $('kpi-flow-note').textContent = `${year} to date, a net loss of ${fmt.int(churned - acquired)}`;
-
-  const firstNew = ytd[0];
-  $('kpi-new').textContent = fmt.int(latest.newLogos);
-  $('kpi-new-note').textContent =
-    `new logos in ${fmt.monthLabel(latest.month)}, against ${fmt.int(firstNew.newLogos)} in ${fmt.monthLabel(firstNew.month)}`;
+  const censored = cohorts.censoredCount || 0;
+  $('stamp').textContent =
+    (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
+    + `Months run to ${data.lastMonth}.`
+    + (censored
+        ? ` ${fmt.int(censored)} customers existed before the data window opens at `
+          + `${cohorts.windowStart} and have no knowable cohort, so they are excluded from `
+          + `every cohort chart.`
+        : '')
+    + (data.missingTabs && data.missingTabs.length
+        ? ` Optional tabs absent: ${data.missingTabs.join(', ')}.`
+        : '');
 
   // 4. Blended retention curve, indexed to month 2.
   const blended = blendedRetention(cohorts);
@@ -228,26 +185,22 @@ function renderStatic() {
   });
 }
 
-// Everything that moves with the Customer Success split, the Partnerships
-// split, or the gross margin.
+// Cost and profit. Settled inputs, so this runs once like everything else.
 function renderAssumptionDependent() {
   // Every cohort that can carry a cost per logo, not a fixed window. The
   // acquisition cost only starts in 2024-01, so cohorts older than that have
   // no denominator and would be 61 empty slots. Windowing to 24 on top of
   // that cut off the eight oldest cohorts with cost data, which are the most
   // mature and the best performing, and made the picture look worse than it is.
-  const economics = cohortEconomics(data, cohorts, state).filter(c => c.costPerLogo !== null);
+  const withCost = cohortEconomics(data, cohorts, state).filter(c => c.costPerLogo !== null);
+  // Cohorts younger than six months are withheld rather than drawn low. The
+  // measure is realised profit, so their position says how old they are, not
+  // how good they are, and a reader will take the slope for decline.
+  const economics = withCost.filter(c => c.monthsObserved === undefined
+    ? c.maxOffset + 1 >= MIN_COHORT_AGE
+    : c.monthsObserved >= MIN_COHORT_AGE);
+  const tooYoung = withCost.length - economics.length;
   const labels = economics.map(c => fmt.monthLabel(c.month));
-
-  const totals = splitTotals(data);
-  const cacTotal = totals.cac + totals.cs * state.csShare + totals.partnerships * state.partnershipsShare;
-  $('cac-total').textContent = fmt.money(cacTotal);
-  $('cac-total-note').textContent =
-    `${fmt.money(totals.cac)} classified acquisition, plus ${fmt.pct(state.csShare)} of ${fmt.money(totals.cs)} Customer Success and ${fmt.pct(state.partnershipsShare)} of ${fmt.money(totals.partnerships)} Partnerships.`;
-
-  const adjusted = !atDefaults();
-  document.querySelectorAll('.adjusted-notice').forEach(node => { node.hidden = !adjusted; });
-  document.body.classList.toggle('is-adjusted', adjusted);
 
   // 1. LTV:CAC by cohort.
   const ltv = economics.map(c => c.ltvCac);
@@ -274,9 +227,11 @@ function renderAssumptionDependent() {
     `Gross profit realised to date over acquisition cost, per logo. This is not a `
     + `projection, so young cohorts are understated by construction and the rightmost `
     + `columns will keep rising. ${below} of ${ltv.filter(v => v !== null).length} cohorts `
-    + `are below break-even. Every cohort from ${economics[0].month} is shown; earlier ones `
-    + `are absent because acquisition cost is not recorded before then, not because they `
-    + `performed badly.`;
+    + `are below break-even. This measure is realised rather than projected, so it is `
+    + `age-biased by construction: a young cohort has had less time to return anything. `
+    + `${tooYoung} cohorts younger than ${MIN_COHORT_AGE} months are withheld for that reason. `
+    + `Cohorts before ${economics[0].month} are absent because acquisition cost is not `
+    + `recorded then, not because they performed badly.`;
 
   // 2. Expected payback by cohort, against a 12 month goal.
   const payback = economics.map(c => c.payback);
@@ -301,8 +256,10 @@ function renderAssumptionDependent() {
     `${unrecovered} of ${economics.length} cohorts have not recovered and may not. Those are `
     + `drawn as gaps rather than zeroes, because a zero would read as instant payback, the `
     + `opposite of what it means. Of the ${recovered.length} that did recover, ${withinGoal} `
-    + `did so inside the 12 month goal. The run starts at ${economics[0].month} because `
-    + `acquisition cost is not recorded before then.`;
+    + `did so inside the 12 month goal. ${tooYoung} cohorts younger than ${MIN_COHORT_AGE} `
+    + `months are withheld: realised payback cannot distinguish a young cohort from a bad `
+    + `one. The run starts at ${economics[0].month} because acquisition cost is not `
+    + `recorded before then.`;
 
   // 3. Cumulative gross profit against cost, by cohort age.
   const mature = economics.filter(c => c.recovery.length >= 6).slice(-6);
@@ -463,31 +420,46 @@ function renderForward() {
     'One point per starting month. The decline is steady rather than a single bad month, '
     + 'which rules out a one-off billing or migration event as the whole explanation.';
 
-  // 13. Revenue band.
-  const bands = fw.mrrBands.filter(b => b.n > 100);
-  columnChart($('chart-by-mrr'), {
-    labels: bands.map(b => b.label),
-    values: bands.map(b => b.survival),
+  // 13. Revenue band, held within a tenure band. Unstratified the cheapest
+  // band looks loyal and is only old, which left the chart arguing with its
+  // own caption.
+  const strat = survivalByRevenueWithinTenure(data);
+  const bandLabels = strat.revenueBands.map(b => b.label);
+  multiLineChart($('chart-by-mrr'), {
+    labels: bandLabels,
+    series: strat.cells.map((cell, i) => ({
+      label: cell.tenure,
+      colour: [INK.negative, INK.secondary, INK.primary][i],
+      values: cell.bands.map(b => b.survival),
+    })),
     yFormat: v => fmt.pct(v),
+    yMin: 0.6,
     yMax: 1,
-    colour: INK.primary,
-    describe: i => '<strong>' + bands[i].label + '</strong>'
-      + '<span>' + fmt.pct(bands[i].survival, 1) + ' survive four months</span>'
-      + '<span class="muted">' + fmt.int(bands[i].n) + ' observations, median tenure '
-      + bands[i].medianTenure + ' months</span>',
+    xTitle: 'Monthly revenue at the starting month',
+    describe: i => '<strong>' + bandLabels[i] + '</strong>'
+      + strat.cells.map(cell =>
+          '<span>' + cell.tenure + ' ' + fmt.pct(cell.bands[i].survival, 1)
+          + ' <span class="muted">(n=' + fmt.int(cell.bands[i].n) + ')</span></span>').join(''),
   });
-  const cheapest = bands[0];
-  const paid = bands.filter(b => b.lo >= 250);
+
+  const young = strat.cells[0];
+  const old = strat.cells[strat.cells.length - 1];
+  const youngLift = (young.bands[young.bands.length - 1].survival - young.bands[0].survival) * 100;
+  const oldLift = (old.bands[old.bands.length - 1].survival - old.bands[0].survival) * 100;
   $('mrr-finding').innerHTML =
-    '<strong>Yes, above $250.</strong> Survival climbs from ' + fmt.pct(paid[0].survival, 1)
-    + ' in the ' + paid[0].label + ' band to ' + fmt.pct(paid[paid.length - 1].survival, 1)
-    + ' at the top. The ' + cheapest.label + ' band looks like an exception at '
-    + fmt.pct(cheapest.survival, 1) + ', but its median tenure is ' + cheapest.medianTenure
-    + ' months against ' + paid[0].medianTenure + ' for the next band up. That band is old, '
-    + 'not cheap and loyal.';
+    '<strong>Only in the first year.</strong> Among customers inside their first year, '
+    + 'survival rises ' + youngLift.toFixed(1) + ' points from the cheapest band to the '
+    + 'dearest, ' + fmt.pct(young.bands[0].survival, 1) + ' to '
+    + fmt.pct(young.bands[young.bands.length - 1].survival, 1) + '. Past two years the '
+    + 'effect is gone, ' + (oldLift >= 0 ? 'up ' : 'down ') + Math.abs(oldLift).toFixed(1)
+    + ' points. Price buys you time early and stops mattering once a customer is established.';
   $('mrr-note').textContent =
-    'Revenue measured at the starting month, pooled across all 24 windows. Bands with fewer '
-    + 'than 100 observations are dropped.';
+    'Revenue measured at the starting month, pooled across ' + strat.starts + ' windows and '
+    + 'stratified by tenure so the two effects are separated rather than confused. '
+    + 'Unstratified, the cheapest band appears the most loyal because it is the oldest, '
+    + 'which is a property of who is in it rather than of what they pay. Smallest cell here '
+    + 'is ' + fmt.int(Math.min(...strat.cells.flatMap(c => c.bands.map(b => b.n))))
+    + ' observations.';
 
   // 14. Tenure, which is the confound behind chart 13.
   const tenure = fw.tenureBands.filter(b => b.n > 100);
@@ -501,15 +473,45 @@ function renderForward() {
       + '<span>' + fmt.pct(tenure[i].survival, 1) + ' survive four months</span>'
       + '<span class="muted">' + fmt.int(tenure[i].n) + ' observations</span>',
   });
+  // Framed as the hazard curve it is. "Long tenure customers are more loyal"
+  // is circular, since long tenure means they did not leave. Where the curve
+  // flattens is the real question, and that is answerable.
+  let flattensAt = null;
+  for (let i = 1; i < tenure.length; i += 1) {
+    if (tenure[i].survival - tenure[i - 1].survival > 0.03) flattensAt = tenure[i].label;
+  }
   $('tenure-finding').innerHTML =
-    '<strong>Survival rises with age throughout.</strong> ' + fmt.pct(tenure[0].survival, 1)
-    + ' in the first six months against ' + fmt.pct(tenure[tenure.length - 1].survival, 1)
-    + ' beyond four years. The first year is where the base is lost.';
+    '<strong>The risk of leaving falls sharply after the first year, then flattens.</strong> '
+    + 'Four month survival runs at ' + fmt.pct(tenure[0].survival, 1) + ' for customers in '
+    + 'their first six months and ' + fmt.pct(tenure[1].survival, 1) + ' at six to twelve, '
+    + 'then steps up to ' + fmt.pct(tenure[2].survival, 1) + ' in the second year and barely '
+    + 'moves after. The first year is where the base is lost.';
+  $('tenure-note').textContent =
+    'Read this as a hazard curve, not as a predictor. Customers with long tenure are by '
+    + 'definition ones who did not leave, so "long tenure customers are loyal" is circular '
+    + 'and says nothing. Where the curve steps, and how early, is the part that is a finding. '
+    + 'Tenure counts months carrying revenue before the starting month.';
 
 
   // 17 and 18. Customer Success capacity, and whether either relationship is
   // moving. Neither is touched by the sliders: the split decides how much CS
   // spend counts as acquisition cost, not how much was spent.
+  // Stale claim check, stated from the data rather than from memory.
+  const s2 = data.customers.filter(r => r.source === 'S2').length;
+  const s2Share = s2 / data.customers.length;
+  const classColumns = ['usage_revenue', 'onetime_revenue', 'passthrough_revenue'];
+  const hasClasses = false;
+  $('margin-statement').innerHTML = hasClasses
+    ? 'Revenue is split by class, so per class margins are applied.'
+    : '<strong>Still estimated:</strong> a single 75.7% platform margin is applied to all '
+      + 'revenue, because the pushed customer waterfall carries no revenue class columns. '
+      + 'The query emits them; the push does not carry them, so the fix is upstream rather '
+      + 'than inherent. Pass-through carrier fees matter most, since they sit in revenue and '
+      + 'in cost of sales and any margin applied to them credits profit that does not exist. '
+      + 'The second Stripe environment is now pulling but thinly, '
+      + fmt.int(s2) + ' of ' + fmt.int(data.customers.length) + ' rows ('
+      + fmt.pct(s2Share, 2) + '), so anything it alone carries is still largely missing.';
+
   const cap = capacityAnalysis(data);
   const cp = cap.points;
   const capLabels = cp.map(p => fmt.monthLabel(p.month));
@@ -550,7 +552,13 @@ function renderForward() {
     + 'which is what usually happens.';
 
   $('capacity-note').textContent =
-    'Spend is the only measure of the team in the pushed data; headcount is not there. '
+    'Read the direction, not the strength: this is ' + cp.length + ' monthly observations of '
+    + 'two series that both drift over the period, which is far too few for a correlation to '
+    + 'carry weight, and no trend line is drawn through them. The stronger form of this '
+    + 'question is not a correlation at all. It is whether accounts that lost their CSM '
+    + 'churned differently from accounts that kept one, and that needs CSM assignment per '
+    + 'account, which the pushed data does not carry. '
+    + 'Spend is the only measure of the team in the pushed data; headcount is not there. '
     + 'Salaries track headcount more closely than the total, since bonuses and commissions '
     + 'move with outcomes rather than with staff. Both indexed to '
     + cp[0].month + ' so they can share an axis. What this does give you is a control: with '
@@ -618,7 +626,10 @@ function renderForward() {
     + Math.round(r * r * 100) + '% of the variation. Months with few new customers are not '
     + 'months with worse churn.';
   $('newchurn-note').textContent =
-    'Charts 17 and 18 take this further: with Customer Success capacity held constant the '
+    'Twenty four monthly observations, and no trend line is drawn through them on purpose: '
+    + 'both series drift over the period, and two drifting series correlate whether or not '
+    + 'they are related. '
+    + 'Charts 17 and 18 take this further: with Customer Success capacity held constant the '
     + 'association is ' + sign(rc.arrivalsGivenCapacity) + ' rather than ' + sign(rc.arrivals)
     + ', and it was real early in the window before fading to nothing. '
     + 'Churn does track time (' + (rTime >= 0 ? '+' : '') + rTime.toFixed(2)

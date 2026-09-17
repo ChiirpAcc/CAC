@@ -415,3 +415,10 @@ figcaption { margin-bottom: .9rem; }
 
 .control-card { padding: .6rem .75rem; }
 .control-card .chart-control { margin: 0; }
+
+.decisions { display: grid; gap: .75rem; margin: 1rem 0 1.25rem; }
+.decisions dt { font-size: .82rem; color: var(--ink-soft); margin-bottom: .1rem; }
+.decisions dd { margin: 0; max-width: 74ch; color: var(--ink-mid); }
+.decisions strong { color: var(--ink); font-weight: 620; }
+
+.too-young { margin-top: .5rem; font-size: .8rem; color: var(--ink-soft); }

@@ -19,103 +19,27 @@
 
 <div id="dashboard" hidden>
 
-  <section class="wrap kpis" aria-label="Headline figures">
-    <div class="kpi">
-      <p class="kpi-label">Active logos</p>
-      <p class="kpi-value" id="kpi-base">--</p>
-      <p class="kpi-note" id="kpi-base-note"></p>
-    </div>
-    <div class="kpi">
-      <p class="kpi-label">Logo flow</p>
-      <p class="kpi-value" id="kpi-flow">--</p>
-      <p class="kpi-note" id="kpi-flow-note"></p>
-    </div>
-    <div class="kpi">
-      <p class="kpi-label">New logos, latest month</p>
-      <p class="kpi-value" id="kpi-new">--</p>
-      <p class="kpi-note" id="kpi-new-note"></p>
-    </div>
-  </section>
-
-  <section class="wrap panel" aria-labelledby="assumptions-heading">
-    <div class="panel-head">
-      <h2 id="assumptions-heading">Assumptions</h2>
-      <button type="button" id="reset" class="reset">Reset to workbook defaults</button>
-    </div>
-    <p class="panel-intro">
-      The figures below the first three cards depend on these settings. Customer
-      Success is the one that matters: ten CSMs, about a third of the Sales and
-      Marketing group, currently counted in full as a cost of acquiring
-      customers rather than of keeping them. Nobody has decided that. Move it
-      and watch what happens.
-    </p>
-
-    <div class="controls">
-      <label class="control">
-        <span class="control-label">Customer Success counted as acquisition</span>
-        <input type="range" id="cs-split" min="0" max="100" step="5">
-        <output id="cs-split-value" class="control-value">100%</output>
-      </label>
-
-      <label class="control">
-        <span class="control-label">Partnerships counted as acquisition</span>
-        <input type="range" id="pt-split" min="0" max="100" step="5">
-        <output id="pt-split-value" class="control-value">100%</output>
-      </label>
-
-      <label class="control">
-        <span class="control-label">Blended gross margin</span>
-        <input type="range" id="margin" min="40" max="95" step="0.5">
-        <output id="margin-value" class="control-value">75.7%</output>
-      </label>
-    </div>
-
-    <dl class="readout">
-      <div>
-        <dt>Acquisition cost, all months</dt>
-        <dd id="cac-total">--</dd>
-      </div>
-      <div class="readout-wide">
-        <dt>Composition</dt>
-        <dd id="cac-total-note" class="readout-prose">--</dd>
-      </div>
-    </dl>
-
-    <p class="caveat">
-      Platform margin of 75.7% comes from the P&amp;L. It is applied here to all
-      revenue, because the pushed data does not split revenue by class. Usage
-      and one-time revenue carry different margins, so this figure is an
-      estimate until QuickBooks cost of sales is split by class.
-    </p>
-  </section>
-
   <div class="wrap charts">
 
-    <figure class="card depends" id="fig-ltv">
+    <figure class="card" id="fig-ltv">
       <figcaption>
         <h3>1. LTV:CAC by cohort</h3>
-        <p class="register">Depends on the assumptions above</p>
-        <p class="adjusted-notice" hidden>Showing a setting you chose, not what the workbook currently produces.</p>
       </figcaption>
       <div class="plot" id="chart-ltv-cac"></div>
       <p class="note" id="ltv-note"></p>
     </figure>
 
-    <figure class="card depends" id="fig-payback">
+    <figure class="card" id="fig-payback">
       <figcaption>
         <h3>2. Expected payback by cohort</h3>
-        <p class="register">Depends on the assumptions above</p>
-        <p class="adjusted-notice" hidden>Showing a setting you chose, not what the workbook currently produces.</p>
       </figcaption>
       <div class="plot" id="chart-payback"></div>
       <p class="note" id="payback-note"></p>
     </figure>
 
-    <figure class="card depends wide" id="fig-recovery">
+    <figure class="card wide" id="fig-recovery">
       <figcaption>
         <h3>3. Cumulative gross profit against cost, by cohort age</h3>
-        <p class="register">Depends on the assumptions above</p>
-        <p class="adjusted-notice" hidden>Showing a setting you chose, not what the workbook currently produces.</p>
       </figcaption>
       <div class="plot" id="chart-recovery"></div>
       <p class="note" id="recovery-note"></p>
@@ -124,7 +48,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>4. Blended retention curve, logos against revenue</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-retention"></div>
       <p class="note" id="retention-note"></p>
@@ -133,7 +56,6 @@
     <figure class="card">
       <figcaption>
         <h3>5. Monthly logo churn rate</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-churn"></div>
       <p class="note">Churned logos over the prior month closing base.</p>
@@ -142,17 +64,14 @@
     <figure class="card">
       <figcaption>
         <h3>6. Retention at month 3 and month 6, by cohort</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-age-retention"></div>
       <p class="note">A cohort appears only once that age is behind it. Plotting it earlier would make every recent cohort read as perfect.</p>
     </figure>
 
-    <figure class="card depends wide" id="fig-unit">
+    <figure class="card wide" id="fig-unit">
       <figcaption>
         <h3>7. Cost per logo against revenue per logo</h3>
-        <p class="register">Depends on the assumptions above</p>
-        <p class="adjusted-notice" hidden>Showing a setting you chose, not what the workbook currently produces.</p>
       </figcaption>
       <div class="plot" id="chart-unit"></div>
       <p class="note" id="unit-note"></p>
@@ -161,7 +80,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>8. Retention curve by era</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-era"></div>
       <p class="finding negative" id="era-finding"></p>
@@ -171,7 +89,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>9. Active logo base by month</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-base"></div>
       <p class="note">The truest number on this page. It needs no split, no margin and no cohort definition.</p>
@@ -180,7 +97,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>10. Monthly logo flows</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-flows"></div>
       <p class="note">New and reactivated above the axis, churned below. Net change is a line rather than a third column, because it is the sum of the other two and would otherwise read as an independent quantity.</p>
@@ -199,11 +115,9 @@
   </div>
 
   <div class="wrap">
-    <figure class="card depends wide" id="fig-breakeven">
+    <figure class="card wide" id="fig-breakeven">
       <figcaption>
         <h3>16. Break-even month by cohort</h3>
-        <p class="register">Depends on the assumptions above</p>
-        <p class="adjusted-notice" hidden>Showing a setting you chose, not what the workbook currently produces.</p>
       </figcaption>
       <div class="table-scroll">
         <table class="data-table" id="breakeven-table"></table>
@@ -228,7 +142,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>11. Forward four months, from each of the last 24 starting months</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-forward"></div>
       <p class="finding negative" id="forward-finding"></p>
@@ -238,16 +151,14 @@
     <figure class="card wide">
       <figcaption>
         <h3>12. Four-month survival, by starting month</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-forward-trend"></div>
       <p class="note" id="forward-trend-note"></p>
     </figure>
 
-    <figure class="card">
+    <figure class="card wide">
       <figcaption>
-        <h3>13. Does paying more mean staying longer?</h3>
-        <p class="register solid">Independent of the assumptions</p>
+        <h3>13. Does paying more mean staying longer, at equal tenure?</h3>
       </figcaption>
       <div class="plot" id="chart-by-mrr"></div>
       <p class="finding" id="mrr-finding"></p>
@@ -256,12 +167,11 @@
 
     <figure class="card">
       <figcaption>
-        <h3>14. Four-month survival by tenure</h3>
-        <p class="register solid">Independent of the assumptions</p>
+        <h3>14. Where the hazard falls: survival by age</h3>
       </figcaption>
       <div class="plot" id="chart-by-tenure"></div>
       <p class="finding" id="tenure-finding"></p>
-      <p class="note">Months carrying revenue before the starting month. This is the stronger of the two effects, and it is what makes the cheapest revenue band look loyal.</p>
+      <p class="note" id="tenure-note"></p>
     </figure>
 
     <div class="card wide control-card">
@@ -275,7 +185,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>19. Logos kept, this year against last year</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-seasonal"></div>
       <p class="finding" id="seasonal-finding"></p>
@@ -285,7 +194,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>20. Revenue kept, same customers and same windows</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-seasonal-revenue"></div>
       <p class="finding" id="seasonal-revenue-finding"></p>
@@ -295,7 +203,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>17. Customer Success capacity against churn</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-capacity"></div>
       <p class="finding" id="capacity-finding"></p>
@@ -305,7 +212,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>18. Is either relationship moving?</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-momentum"></div>
       <p class="finding" id="momentum-finding"></p>
@@ -315,7 +221,6 @@
     <figure class="card wide">
       <figcaption>
         <h3>15. Does churn rise when fewer customers arrive?</h3>
-        <p class="register solid">Independent of the assumptions</p>
       </figcaption>
       <div class="plot" id="chart-new-vs-churn"></div>
       <p class="finding" id="newchurn-finding"></p>
@@ -323,6 +228,44 @@
     </figure>
 
   </div>
+
+  <section class="wrap site-footer" aria-labelledby="decisions-heading">
+    <h2 id="decisions-heading">What was decided, and what is still estimated</h2>
+    <p>
+      Three allocations used to be adjustable here. They are settled now, and
+      applied in the pipeline rather than on this page, so the numbers above
+      arrive already carrying them.
+    </p>
+    <dl class="decisions">
+      <div>
+        <dt>Customer Success</dt>
+        <dd>
+          <strong>0% of acquisition cost.</strong> It is retention work,
+          including its commissions, which are paid on retention. Counting it
+          as acquisition overstated acquisition cost by $1.87m across the
+          period, about 22%.
+        </dd>
+      </div>
+      <div>
+        <dt>Partnerships</dt>
+        <dd><strong>100% of acquisition cost.</strong> It sources customers.</dd>
+      </div>
+      <div>
+        <dt>Technical Account Manager</dt>
+        <dd>
+          <strong>Cost of sales, not acquisition.</strong> $1.06m, carried in
+          the open bucket and excluded from every cost figure on this page.
+        </dd>
+      </div>
+    </dl>
+    <p>
+      There is no control for these because deciding was the point. A slider
+      invites a reader to move a number until they like the answer. The
+      arithmetic is still parameterised in the code, so a different decision
+      is a one line change rather than a rebuild.
+    </p>
+    <p id="margin-statement"></p>
+  </section>
 
   <footer class="wrap site-footer">
     <h2>What is solid and what is not</h2>
