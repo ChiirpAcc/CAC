@@ -1686,10 +1686,15 @@ function renderArrivals() {
 
   $('newchurn-note').textContent =
     'Every point is one starting month: how many arrived, against how many of the base then '
-    + 'standing were gone ' + horizon + ' month' + (horizon === 1 ? '' : 's') + ' later. Only '
-    + 'fully elapsed windows are drawn, so a longer horizon means fewer and older months. No '
-    + 'trend line is drawn at any setting, because both series drift over the period and two '
-    + 'drifting series correlate whether or not they are related.';
+    + 'standing were gone ' + horizon + ' month' + (horizon === 1 ? '' : 's') + ' later. '
+    + 'The same ' + a.n + ' starting months, ' + a.points[0].month + ' to '
+    + a.points[a.points.length - 1].month + ', are used at every setting, so the slider '
+    + 'changes the horizon and nothing else. Taking the most recent complete windows at each '
+    + 'setting instead would slide the period backwards as the horizon lengthens, and an '
+    + 'effect that appeared at one month turned out to be carried by the recent thin months '
+    + 'that only the short horizons could reach. No trend line is drawn at any setting, '
+    + 'because both series drift and two drifting series correlate whether or not they are '
+    + 'related.';
 }
 
 boot();

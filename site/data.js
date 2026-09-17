@@ -1470,9 +1470,19 @@ export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
   const all = [...active.keys()].sort();
   const last = all[all.length - 1];
 
-  const months = all
-    .filter(m => monthAdd(m, horizon) <= last && arrivals.get(m) != null)
-    .slice(-windows);
+  // Anchor every horizon to the same starting months.
+  //
+  // A longer horizon needs more elapsed time, so taking "the last 24 complete
+  // windows" at each setting slides the period backwards as the slider moves:
+  // one month covers 2024-08 to 2026-07, six months covers 2024-03 to 2026-02.
+  // Moving the slider would then change the horizon and the period together,
+  // and the effect that appeared at one month turned out to be carried by the
+  // five recent thin-intake months that only the short horizons could see.
+  // Comparing like with like costs a few months of sample and is worth it.
+  const maxHorizon = 6;
+  const eligible = hz => all.filter(m => monthAdd(m, hz) <= last && arrivals.get(m) != null);
+  const anchor = new Set(eligible(maxHorizon).slice(-windows));
+  const months = eligible(horizon).filter(m => anchor.has(m));
 
   const points = months.map(month => {
     const base = active.get(month);
