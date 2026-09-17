@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-09-17T17:07:59",
+  "pushed_at": "2026-09-17T17:11:38",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -35,6 +35,11 @@
       "tab": "New Customer Cohorts",
       "file": "signup_pricing.json",
       "rows": 314
+    },
+    {
+      "tab": "Event Costs",
+      "file": "event_costs.json",
+      "rows": 36
     }
   ]
 }
