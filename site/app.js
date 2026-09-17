@@ -681,6 +681,53 @@ function renderSeasonal() {
     + 'of data. Same calendar position each year, so seasonality is held roughly constant '
     + 'rather than averaged away. Base sizes: '
     + s.series.map(r => fmt.monthLabel(r.month) + ' ' + fmt.int(r.n)).join(', ') + '.';
+
+  // 20. The same fixed sets, followed by revenue rather than by headcount.
+  // Where this sits above the logo line, the survivors are paying more than
+  // they were, and expansion is covering some of the loss.
+  multiLineChart($('chart-seasonal-revenue'), {
+    labels,
+    series: s.series.map((row, i) => ({
+      label: fmt.monthLabel(row.month) + (row.monthsBack ? ` (${row.monthsBack}mo ago)` : ' (latest)'),
+      colour: colours[i],
+      values: row.revenueCurve,
+    })),
+    yFormat: v => fmt.pct(v),
+    yMin: Math.max(0, Math.min(...s.series.map(r => r.revenueRetention ?? 1)) - 0.1),
+    yMax: 1,
+    xTitle: 'Months after the starting month',
+    describe: i => '<strong>' + (i ? i + ' month' + (i > 1 ? 's' : '') + ' on' : 'Starting month') + '</strong>'
+      + s.series.map(row =>
+          '<span>' + row.month + ' ' + fmt.pct(row.revenueCurve[i], 1)
+          + ' <span class="muted">(logos ' + fmt.pct(row.curve[i], 1) + ')</span></span>').join(''),
+  });
+
+  // The gap between the two lines is the expansion cushion: how much the
+  // survivors grew, offsetting the ones who left.
+  const cushion = row => (row.revenueRetention - row.survival) * 100;
+  const latestCushion = cushion(latest);
+  const yearAgoCushion = yearAgo ? cushion(yearAgo) : null;
+  const revGap = yearAgo ? (latest.revenueRetention - yearAgo.revenueRetention) * 100 : null;
+
+  $('seasonal-revenue-finding').innerHTML = revGap === null
+    ? '<strong>' + fmt.pct(latest.revenueRetention, 1) + ' of the revenue kept after '
+      + horizon + ' months.</strong>'
+    : '<strong>No, the trade is not better. Revenue fell further than headcount.</strong> '
+      + fmt.pct(latest.revenueRetention, 1) + ' of ' + fmt.monthLabel(latest.month)
+      + ' revenue survived ' + horizon + ' months, against '
+      + fmt.pct(yearAgo.revenueRetention, 1) + ' a year earlier, a drop of '
+      + Math.abs(revGap).toFixed(1) + ' points where logos fell '
+      + Math.abs((latest.survival - yearAgo.survival) * 100).toFixed(1) + '. '
+      + 'Expansion by the survivors covered ' + yearAgoCushion.toFixed(1)
+      + ' points of the loss a year ago and only ' + latestCushion.toFixed(1) + ' now.';
+
+  $('seasonal-revenue-note').textContent =
+    'The same customers as chart 19, followed by what they pay rather than by whether they '
+    + 'are still there. No new customers enter it, so this is not net revenue retention for '
+    + 'the business; it is what one fixed set did. Above the logo line means survivors grew '
+    + 'and expansion is offsetting churn. Below it means the ones who stayed are also paying '
+    + 'less. Starting revenue: '
+    + s.series.map(r => fmt.monthLabel(r.month) + ' ' + fmt.money(r.startMrr)).join(', ') + '.';
 }
 
 boot();

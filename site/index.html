@@ -264,19 +264,32 @@
       <p class="note">Months carrying revenue before the starting month. This is the stronger of the two effects, and it is what makes the cheapest revenue band look loyal.</p>
     </figure>
 
-    <figure class="card wide">
-      <figcaption>
-        <h3>19. This year against last year, same window</h3>
-        <p class="register solid">Independent of the assumptions</p>
-      </figcaption>
+    <div class="card wide control-card">
       <div class="chart-control">
-        <label for="horizon">Follow customers forward for</label>
+        <label for="horizon">Charts 19 and 20: follow customers forward for</label>
         <input type="range" id="horizon" min="1" max="12" step="1" value="4">
         <output id="horizon-value">4 months</output>
       </div>
+    </div>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>19. Logos kept, this year against last year</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
       <div class="plot" id="chart-seasonal"></div>
       <p class="finding" id="seasonal-finding"></p>
       <p class="note" id="seasonal-note"></p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>20. Revenue kept, same customers and same windows</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="plot" id="chart-seasonal-revenue"></div>
+      <p class="finding" id="seasonal-revenue-finding"></p>
+      <p class="note" id="seasonal-revenue-note"></p>
     </figure>
 
     <figure class="card wide">

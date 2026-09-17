@@ -302,11 +302,26 @@ export function columnChart(container, { labels, values, yFormat = fmt.int, desc
 export function flowChart(container, { labels, added, reactivated, churned, net, describe }) {
   const svg = makeSvg(container);
   const upper = added.map((v, i) => (v || 0) + (reactivated[i] || 0));
-  const hi = niceCeil(Math.max(...upper, 1));
-  const lo = -niceCeil(Math.max(...churned.map(v => Math.abs(v || 0)), 1));
+  const extent = niceCeil(Math.max(
+    Math.max(...upper, 1),
+    Math.max(...churned.map(v => Math.abs(v || 0)), 1),
+  ));
+  const hi = extent;
+  const lo = -extent;
 
-  const y = frame(svg, { yMin: lo, yMax: hi, yFormat: v => Math.abs(Math.round(v)).toLocaleString(), zeroLine: true });
+  // Tick the two halves separately so a tick lands exactly on zero. With a
+  // single run of ticks across an asymmetric domain, zero falls between two
+  // of them and the baseline the columns diverge about is never drawn.
+  const steps = 3;
+  const y = frame(svg, {
+    yMin: lo, yMax: hi, ticks: steps * 2,
+    yFormat: v => Math.abs(Math.round(v)).toLocaleString(),
+    zeroLine: true,
+  });
   const band = bandScale(labels.length);
+
+  // Draw the baseline explicitly rather than relying on a tick landing there.
+  el('line', { x1: plot.x0, x2: plot.x1, y1: y(0), y2: y(0), class: 'grid grid-zero' }, svg);
 
   labels.forEach((_, i) => {
     const a = added[i] || 0;

@@ -739,14 +739,14 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
 // churn evenly through the year, so March against March says more than March
 // against the average of everything.
 export function seasonalSurvival(data, { horizon = 4 } = {}) {
-  const activeByMonth = new Map();
+  const mrrByMonth = new Map();
   for (const row of data.customers) {
     if (row.eopMrr === null || row.eopMrr <= 0) continue;
-    if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Set());
-    activeByMonth.get(row.month).add(row.id);
+    if (!mrrByMonth.has(row.month)) mrrByMonth.set(row.month, new Map());
+    mrrByMonth.get(row.month).set(row.id, row.eopMrr);
   }
 
-  const months = [...activeByMonth.keys()].sort();
+  const months = [...mrrByMonth.keys()].sort();
   const last = months[months.length - 1];
 
   // Only a window that has fully elapsed can be drawn. Anything shorter would
@@ -758,23 +758,38 @@ export function seasonalSurvival(data, { horizon = 4 } = {}) {
 
   const series = [24, 12, 0].map(back => {
     const start = monthAdd(anchor, -back);
-    const base = activeByMonth.get(start);
+    const base = mrrByMonth.get(start);
     if (!base || !base.size) return null;
 
+    const startMrr = [...base.values()].reduce((s, v) => s + v, 0);
     const curve = [1];
+    const revenueCurve = [1];
+
     for (let k = 1; k <= horizon; k += 1) {
-      const later = activeByMonth.get(monthAdd(start, k));
-      if (!later) { curve.push(null); continue; }
+      const later = mrrByMonth.get(monthAdd(start, k));
+      if (!later) { curve.push(null); revenueCurve.push(null); continue; }
+
       let kept = 0;
-      for (const id of base) if (later.has(id)) kept += 1;
+      let keptMrr = 0;
+      for (const id of base.keys()) {
+        const now = later.get(id);
+        if (now !== undefined) { kept += 1; keptMrr += now; }
+      }
       curve.push(kept / base.size);
+      // Revenue of the same fixed set, so a survivor who expanded lifts this
+      // above the logo line. No new customers enter it.
+      revenueCurve.push(startMrr ? keptMrr / startMrr : null);
     }
+
     return {
       month: start,
       monthsBack: back,
       n: base.size,
+      startMrr,
       curve,
+      revenueCurve,
       survival: curve[horizon],
+      revenueRetention: revenueCurve[horizon],
     };
   }).filter(Boolean);
 

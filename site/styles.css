@@ -412,3 +412,6 @@ figcaption { margin-bottom: .9rem; }
 }
 .chart-control input[type="range"] { flex: 1 1 12rem; min-width: 8rem; accent-color: var(--series-1); }
 .chart-control output { font-weight: 600; color: var(--ink); min-width: 6em; }
+
+.control-card { padding: .6rem .75rem; }
+.control-card .chart-control { margin: 0; }
