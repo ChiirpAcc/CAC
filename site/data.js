@@ -1104,3 +1104,44 @@ export function grossProfit(row, margins = CLASS_MARGINS) {
 export function hasRevenueClasses(data) {
   return data.customers.some(r => r.usage || r.oneTime || r.passThrough);
 }
+
+// How much of the derived new logo count comes from each Stripe environment.
+//
+// The second environment is where new business has been moving, and its
+// customers are largely not reaching the cohort build: they appear in the
+// file and never register revenue. That makes any statement about new logo
+// volume a statement about the first environment, which is a different and
+// much gloomier claim than the one it looks like.
+export function environmentSplit(data) {
+  const firstRevenue = new Map();
+  const source = new Map();
+  const everRevenue = new Set();
+
+  for (const row of data.customers) {
+    if (row.source && !source.has(row.id)) source.set(row.id, row.source);
+    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    everRevenue.add(row.id);
+    const seen = firstRevenue.get(row.id);
+    if (seen === undefined || row.month < seen) firstRevenue.set(row.id, row.month);
+  }
+
+  const byMonth = new Map();
+  for (const [id, month] of firstRevenue) {
+    if (!byMonth.has(month)) byMonth.set(month, { S1: 0, S2: 0, other: 0 });
+    const bucket = byMonth.get(month);
+    const env = source.get(id);
+    if (env === 'S1') bucket.S1 += 1;
+    else if (env === 'S2') bucket.S2 += 1;
+    else bucket.other += 1;
+  }
+
+  const environments = new Map();
+  for (const [id, env] of source) {
+    if (!environments.has(env)) environments.set(env, { present: 0, withRevenue: 0 });
+    const e = environments.get(env);
+    e.present += 1;
+    if (everRevenue.has(id)) e.withRevenue += 1;
+  }
+
+  return { byMonth, environments };
+}

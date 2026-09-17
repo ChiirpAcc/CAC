@@ -3,7 +3,7 @@ import {
   blendedRetention, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
   seasonalSurvival, survivalByRevenueWithinTenure, reconciliation,
-  hasRevenueClasses, CLASS_MARGINS,
+  hasRevenueClasses, CLASS_MARGINS, environmentSplit,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -214,6 +214,29 @@ function renderStatic() {
       ? `${fmt.monthLabel(r.month)} ${fmt.int(r.newLogos)} here against ${fmt.int(reportedByMonth.get(r.month))} reported`
       : null)
     .filter(Boolean);
+
+  const env = environmentSplit(data);
+  const yearMonths = thisYear.map(r => r.month);
+  const envYtd = yearMonths.reduce((acc, m) => {
+    const b = env.byMonth.get(m);
+    if (b) { acc.S1 += b.S1; acc.S2 += b.S2; }
+    return acc;
+  }, { S1: 0, S2: 0 });
+  const s2 = env.environments.get('S2');
+
+  // The volume claim on this chart is a claim about one environment, and it
+  // should not be read as a claim about demand.
+  $('flows-caveat').innerHTML =
+    '<strong>Read the new logo line as first-environment only.</strong> Of the '
+    + fmt.int(envYtd.S1 + envYtd.S2) + ' new logos this build derives for '
+    + latestMonth.month.slice(0, 4) + ', ' + fmt.int(envYtd.S1) + ' are S1 and '
+    + fmt.int(envYtd.S2) + ' are S2. '
+    + (s2 ? 'The file carries ' + fmt.int(s2.present) + ' S2 customers and only '
+      + fmt.int(s2.withRevenue) + ' of them ever register revenue, so they do not reach the '
+      + 'cohort build at all. ' : '')
+    + 'New business has been moving to S2, so a falling derived count is partly a measurement '
+    + 'boundary rather than a fall in demand. The size of that effect cannot be stated from '
+    + 'what is pushed here; it needs the signup source that knows what was sold.';
 
   $('flows-note').textContent =
     'New and reactivated above the axis, churned below. Net change is a line rather than a '
@@ -972,10 +995,13 @@ const MEANS = {
     + 'is spent on the ones who were largely going to stay anyway.',
 
   'chart-unit':
-    'Cost per logo rising while revenue per logo stays flat is the signature of a channel that '
-    + 'has saturated or a target that has drifted, not of a pricing problem. Raising prices '
-    + 'against this curve would not close it and would likely make the retention picture worse. '
-    + 'The question to answer is what changed about where customers are coming from.',
+    'Treat the rise as an upper bound rather than a measurement. The denominator is a new '
+    + 'logo count drawn almost entirely from the first Stripe environment, and new business '
+    + 'has been moving to the second, so some of this curve is customers being won and not '
+    + 'counted rather than cost genuinely doubling. What can be said is that cost per logo has '
+    + 'not fallen. What cannot yet be said is by how much it rose, and no decision that '
+    + 'depends on the magnitude should be taken from this chart until the signup source is '
+    + 'joined in.',
 
   'chart-era':
     'A level shift rather than a delay points upstream of onboarding. If newer cohorts were '
@@ -990,9 +1016,12 @@ const MEANS = {
     + 'put in front of anyone who needs one number rather than twenty one charts.',
 
   'chart-flows':
-    'Both sides are moving the wrong way at once, which is why the base falls faster than '
-    + 'either side alone would suggest. It also means there is no single fix: halving churn or '
-    + 'doubling acquisition would each only stabilise the base rather than grow it.',
+    'Churn is the side to act on. The new logo side cannot currently be read as demand, '
+    + 'because the count is drawn almost entirely from the first Stripe environment while new '
+    + 'business has been moving to the second, so part of what looks like a collapse in '
+    + 'signups is a measurement boundary. Churn carries no such caveat: those customers are '
+    + 'in the file and they left. Treating the two halves as equally evidenced would put '
+    + 'effort into an acquisition problem that may be much smaller than it looks.',
 
   'chart-seasonal':
     'This is the chart that rules out the comfortable explanation. Trade businesses are '
