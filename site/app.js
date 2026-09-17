@@ -5,6 +5,7 @@ import {
   seasonalSurvival, survivalByRevenueWithinTenure, reconciliation,
   hasRevenueClasses, CLASS_MARGINS, environmentSplit, quickCancellations,
   signupEconomics, retentionBySignupPrice, priceAgainstRetention,
+  arrivalsAgainstChurn,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -44,6 +45,7 @@ function boot() {
     renderQuickCancellations();
     renderAnnotations();
     $('horizon').addEventListener('input', renderSeasonal);
+    $('arrival-horizon').addEventListener('input', renderArrivals);
     renderAssumptionDependent();
   }).catch(err => {
     $('loading').innerHTML =
@@ -765,36 +767,7 @@ function renderForward() {
     .filter(s => newByMonth.get(s.month) != null)
     .map(s => ({ x: newByMonth.get(s.month), y: 1 - s.survival, month: s.month }));
 
-  scatterXY($('chart-new-vs-churn'), {
-    points,
-    xLabel: 'New logos in the starting month',
-    yLabel: 'Four-month churn',
-    xFormat: v => Math.round(v),
-    yFormat: v => fmt.pct(v),
-    colour: INK.primary,
-    describe: i => '<strong>' + points[i].month + '</strong>'
-      + '<span>' + fmt.int(points[i].x) + ' new logos</span>'
-      + '<span>' + fmt.pct(points[i].y, 1) + ' churned within four months</span>',
-  });
-
-  const r = correlate(points.map(p => [p.x, p.y]));
-  const rTime = correlate(points.map((p, i) => [i, p.y]));
-  $('newchurn-finding').innerHTML =
-    '<strong>No. This one is not supported.</strong> The correlation between new arrivals and '
-    + 'forward churn is ' + (r >= 0 ? '+' : '') + r.toFixed(2) + ', which explains about '
-    + Math.round(r * r * 100) + '% of the variation. Months with few new customers are not '
-    + 'months with worse churn.';
-  $('newchurn-note').textContent =
-    'Twenty four monthly observations, and no trend line is drawn through them on purpose: '
-    + 'both series drift over the period, and two drifting series correlate whether or not '
-    + 'they are related. '
-    + 'Charts 20 and 21 take this further: with Customer Success capacity held constant the '
-    + 'association is ' + sign(rc.arrivalsGivenCapacity) + ' rather than ' + sign(rc.arrivals)
-    + ', and it was real early in the window before fading to nothing. '
-    + 'Churn does track time (' + (rTime >= 0 ? '+' : '') + rTime.toFixed(2)
-    + ' against window order), so both quantities drift over the period. That shared drift is '
-    + 'why a raw pairwise correlation here would mislead in either direction, and why this is '
-    + 'drawn as a cloud rather than as a trend line through it.';
+  renderArrivals();
 }
 
 // 19. The same window, this year against one and two years ago. Driven by its
@@ -1655,6 +1628,68 @@ function renderSignups() {
     + sx.paidBelow.customers + ' customers across the whole source paid less in month one than '
     + 'their starting MRR, ' + fmt.money(sx.paidBelow.startingMrr) + ' of price, which is the '
     + 'gap between what is billed and what arrives.';
+}
+
+// 25. Arrivals against forward churn, at whatever horizon is chosen.
+function renderArrivals() {
+  const horizon = Number($('arrival-horizon').value);
+  $('arrival-horizon-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');
+
+  const a = arrivalsAgainstChurn(data, { horizon });
+  if (!a.points.length) {
+    $('chart-new-vs-churn').innerHTML = '<p class="empty">Not enough complete windows.</p>';
+    return;
+  }
+
+  scatterXY($('chart-new-vs-churn'), {
+    points: a.points,
+    xLabel: 'New logos in the starting month',
+    yLabel: 'Forward churn',
+    xFormat: v => Math.round(v),
+    yFormat: v => fmt.pct(v),
+    colour: INK.primary,
+    describe: i => '<strong>' + a.points[i].month + '</strong>'
+      + '<span>' + fmt.int(a.points[i].x) + ' new logos</span>'
+      + '<span>' + fmt.pct(a.points[i].y, 1) + ' churned within ' + horizon + ' month'
+      + (horizon === 1 ? '' : 's') + '</span>'
+      + '<span class="muted">' + fmt.int(a.points[i].base) + ' active at the start</span>',
+  });
+
+  // Every horizon at once, so the slider shows a shape rather than a number.
+  const across = [1, 2, 3, 4, 5, 6]
+    .map(hz => ({ hz, ...arrivalsAgainstChurn(data, { horizon: hz }) }))
+    .filter(x => x.r !== null);
+
+  const sign = v => (v >= 0 ? '+' : '') + v.toFixed(2);
+  const detectable = across.filter(x => x.significant).map(x => x.hz);
+
+  $('arrival-estimate').innerHTML =
+    '<strong>' + (a.significant
+        ? 'At ' + horizon + ' month' + (horizon === 1 ? '' : 's') + ' there is a measurable effect: '
+          + 'ten fewer arrivals goes with ' + a.slope.toFixed(2) + ' points more churn.'
+        : 'At ' + horizon + ' month' + (horizon === 1 ? '' : 's') + ' this is indistinguishable from nothing.')
+    + '</strong> '
+    + 'Estimate ' + (a.slope >= 0 ? '+' : '') + a.slope.toFixed(2) + ' points per ten fewer '
+    + 'arrivals, 95% interval ' + a.low.toFixed(2) + ' to ' + a.high.toFixed(2)
+    + ', correlation ' + sign(a.r) + ' on ' + a.n + ' months. '
+    + (a.significant
+        ? 'The interval excludes zero, so something is there at this window.'
+        : 'The interval spans zero, so the honest reading is that no effect has been measured.')
+    + ' Across every horizon the correlation runs '
+    + across.map(x => x.hz + 'mo ' + sign(x.r)).join(', ')
+    + (detectable.length
+        ? '. Only the ' + detectable.map(h2 => h2 + ' month').join(' and ') + ' window clears zero, '
+          + 'which is the shape of something immediate rather than something lasting: a thin '
+          + 'month and a bad month tend to be the same month, and the association does not '
+          + 'survive being asked over a longer window.'
+        : '. None of them clears zero.');
+
+  $('newchurn-note').textContent =
+    'Every point is one starting month: how many arrived, against how many of the base then '
+    + 'standing were gone ' + horizon + ' month' + (horizon === 1 ? '' : 's') + ' later. Only '
+    + 'fully elapsed windows are drawn, so a longer horizon means fewer and older months. No '
+    + 'trend line is drawn at any setting, because both series drift over the period and two '
+    + 'drifting series correlate whether or not they are related.';
 }
 
 boot();

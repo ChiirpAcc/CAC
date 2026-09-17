@@ -1447,3 +1447,65 @@ export function priceAgainstRetention(data, { ages = [3, 6, 12], minCohort = 16 
 
   return { results, cohortsConsidered: cohorts.length };
 }
+
+// New arrivals against forward churn, at a chosen horizon.
+//
+// The horizon is the whole question here. A thin month and a bad month can be
+// the same month for reasons that have nothing to do with each other, and
+// whether that shows up depends entirely on how far forward you look. Asking
+// it at one fixed window and reporting a single number hides that.
+//
+// The slope is reported per ten fewer arrivals with a 95% interval, because a
+// correlation coefficient on two dozen points is easy to over-read and an
+// interval that straddles zero says plainly that nothing has been measured.
+export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
+  const active = new Map();
+  for (const row of data.customers) {
+    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!active.has(row.month)) active.set(row.month, new Set());
+    active.get(row.month).add(row.id);
+  }
+
+  const arrivals = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+  const all = [...active.keys()].sort();
+  const last = all[all.length - 1];
+
+  const months = all
+    .filter(m => monthAdd(m, horizon) <= last && arrivals.get(m) != null)
+    .slice(-windows);
+
+  const points = months.map(month => {
+    const base = active.get(month);
+    const later = active.get(monthAdd(month, horizon)) || new Set();
+    let kept = 0;
+    for (const id of base) if (later.has(id)) kept += 1;
+    return { month, x: arrivals.get(month), y: 1 - kept / base.size, base: base.size };
+  });
+
+  const n = points.length;
+  if (n < 4) return { horizon, points, n, r: null, slope: null, low: null, high: null };
+
+  const mx = points.reduce((s, p) => s + p.x, 0) / n;
+  const my = points.reduce((s, p) => s + p.y, 0) / n;
+  const sxx = points.reduce((s, p) => s + (p.x - mx) ** 2, 0);
+  const syy = points.reduce((s, p) => s + (p.y - my) ** 2, 0);
+  const sxy = points.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
+
+  const r = (sxx && syy) ? sxy / Math.sqrt(sxx * syy) : null;
+  const b = sxx ? sxy / sxx : 0;
+  const residual = points.reduce((s, p) => s + (p.y - (my + b * (p.x - mx))) ** 2, 0);
+  const se = (n > 2 && sxx) ? Math.sqrt(residual / (n - 2) / sxx) : 0;
+
+  // Expressed as the churn effect of ten FEWER arrivals, which is the
+  // direction the question is actually asked in.
+  const perTenFewer = -b * 10 * 100;
+  const half = 1.96 * se * 10 * 100;
+
+  return {
+    horizon, points, n, r,
+    slope: perTenFewer,
+    low: perTenFewer - Math.abs(half),
+    high: perTenFewer + Math.abs(half),
+    significant: (perTenFewer - Math.abs(half)) * (perTenFewer + Math.abs(half)) > 0,
+  };
+}

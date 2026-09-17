@@ -285,7 +285,13 @@
       <figcaption>
         <h3>25. Does churn rise when fewer customers arrive?</h3>
       </figcaption>
+      <div class="chart-control">
+        <label for="arrival-horizon">Measure churn over the following</label>
+        <input type="range" id="arrival-horizon" min="1" max="6" step="1" value="4">
+        <output id="arrival-horizon-value">4 months</output>
+      </div>
       <div class="plot" id="chart-new-vs-churn"></div>
+      <p class="finding" id="arrival-estimate"></p>
       <p class="finding" id="newchurn-finding"></p>
       <p class="note" id="newchurn-note"></p>
     </figure>
