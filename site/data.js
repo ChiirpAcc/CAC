@@ -13,6 +13,21 @@ export const DATA_DIR = 'data';
 // a credit posted before the month's spend has landed.
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
 
+// Nothing reaches a chart from more than two years back. A hard limit rather
+// than a per chart window, applied once where the data is read, so no chart
+// can quietly reach further: several of the findings on this page turned on
+// exactly that, where a longer reach pulled in an era that behaved
+// differently and the extra months did the work.
+const MONTHS_OF_HISTORY = 24;
+
+function earliestMonth(reference = CURRENT_MONTH) {
+  const [year, month] = reference.split('-').map(Number);
+  const total = year * 12 + (month - 1) - MONTHS_OF_HISTORY;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
+}
+
+export const HISTORY_STARTS = earliestMonth();
+
 export function num(value) {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -94,7 +109,10 @@ export async function load() {
     if (!byTab[tab]) throw new Error(`${tab} is missing from the push`);
   }
 
-  const complete = rows => rows.filter(r => r.month && r.month < CURRENT_MONTH);
+  // One gate for every tab: after the window opens, before the month that is
+  // still accruing.
+  const inWindow = month => month && month >= HISTORY_STARTS && month < CURRENT_MONTH;
+  const complete = rows => rows.filter(r => inWindow(r.month));
 
   const waterfall = complete(byTab['Waterfall Summary'].rows).map(r => ({
     month: r.month,
@@ -109,16 +127,17 @@ export async function load() {
     netLogoChange: num(r.net_logo_change),
   }));
 
-  // The pipeline now applies the settled splits itself: Customer Success at
-  // 0% of acquisition cost, Partnerships at 100%, Technical Account Manager
-  // to cost of sales. cac_total_actual already reflects that, so the site
-  // reads it rather than re-deriving a total from the expense lines and
-  // risking two answers to the same question.
+  // The pipeline applies the settled splits itself: Customer Success at 0% of
+  // acquisition cost, Partnerships at 100%, Technical Account Manager to cost
+  // of sales. cac_total_actual already reflects that, so the site reads it
+  // rather than re-deriving a total from the expense lines.
+  //
+  // Only the cost is taken from here. The logo counts on this tab are a second
+  // definition of the same thing and are deliberately not read: there is one
+  // count now, derived from when a customer actually started.
   const cacMonthly = complete(byTab['CAC Monthly'].rows).map(r => ({
     month: r.month,
     cacTotalActual: num(r.cac_total_actual),
-    cacPerLogo: num(r.cac_per_logo),
-    reportedNewLogos: num(r.new_logos),
     logosBasis: r.logos_basis || null,
   }));
 
@@ -142,7 +161,7 @@ export async function load() {
         const startFull = String(row[startKey] || '').slice(0, 10);
         const endFull = endKey ? String(row[endKey] || '').slice(0, 10) : '';
         const start = startFull.slice(0, 7);
-        if (/^\d{4}-\d{2}$/.test(start)) lifetimes.set(id, start);
+        if (/^\d{4}-\d{2}$/.test(start) && inWindow(start)) lifetimes.set(id, start);
         lifetimeRecords.push({
           id,
           start: startFull,
@@ -155,7 +174,7 @@ export async function load() {
   }
 
   const expenses = byTab['QB Expenses'].rows
-    .filter(r => r.month && r.month < CURRENT_MONTH)
+    .filter(r => inWindow(r.month))
     .map(r => ({
       account: r.account,
       section: r.section,
@@ -165,7 +184,7 @@ export async function load() {
     }));
 
   const customers = byTab['Customer Waterfall'].rows
-    .filter(r => r.month && r.month < CURRENT_MONTH)
+    .filter(r => inWindow(r.month))
     .map(r => ({
       id: r.customer_id,
       name: r.company_name || null,
@@ -193,7 +212,7 @@ export async function load() {
     };
     for (const row of signupTab.rows) {
       const month = monthOf(row.cohort_month);
-      if (!month || !row.customer_id) continue;
+      if (!month || !row.customer_id || !inWindow(month)) continue;
       signups.push({
         id: row.customer_id,
         name: row.customer_name || null,
@@ -214,6 +233,7 @@ export async function load() {
 
   return {
     pushedAt: index.pushed_at || null,
+    historyStarts: HISTORY_STARTS,
     waterfall,
     cacMonthly,
     expenses,
@@ -352,29 +372,19 @@ export function observedPayback(cohort, cost, margin) {
 export function cohortEconomics(data, cohorts, { margin }) {
   // The pipeline's own total, already carrying the settled splits.
   const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
-  const newLogosByMonth = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
-  // Where the pipeline reports a cost per logo it is preferred outright: it
-  // uses the SaaS dashboard's own logo count, which is the figure the business
-  // reports. That only covers 2026, so earlier months fall back to the total
-  // over the waterfall's new logos rather than being blanked, because blanking
-  // them would remove every cohort old enough to have paid back.
-  const reportedPerLogo = new Map(
-    data.cacMonthly.filter(r => r.cacPerLogo !== null).map(r => [r.month, r.cacPerLogo]));
-  const reportedLogosByMonth = new Map(
-    data.cacMonthly.filter(r => r.reportedNewLogos !== null)
-      .map(r => [r.month, r.reportedNewLogos]));
+  // One denominator, used on both halves of the ratio. The cohort is what this
+  // build can see starting in a month, and the same count divides the cost and
+  // the gross profit, so multiplying the two returns the spend rather than a
+  // number nobody spent. Earlier versions divided cost by one count and profit
+  // by another, which is how three different answers to what a logo costs
+  // ended up on one page.
 
   return cohorts.map(cohort => {
     const spend = cac.get(cohort.month);
-    const acquired = newLogosByMonth.get(cohort.month);
 
-    // Cost per logo needs a real denominator. A cohort month with no recorded
-    // new logos has no cost per logo, and forcing one would invent a number.
-    const reported = reportedPerLogo.get(cohort.month);
-    const costPerLogo = reported !== undefined
-      ? reported
-      : ((spend === undefined || !acquired) ? null : spend / acquired);
-    const costBasis = reported !== undefined ? 'reported' : 'derived';
+    // A cohort month with no recorded spend has no cost per logo, and forcing
+    // one would invent a number.
+    const costPerLogo = (spend === undefined || !cohort.size) ? null : spend / cohort.size;
 
     let running = 0;
     // Per class where the push carries the classes, flat margin otherwise.
@@ -396,13 +406,7 @@ export function cohortEconomics(data, cohorts, { margin }) {
       size: cohort.size,
       maxOffset: cohort.maxOffset,
       costPerLogo,
-      costBasis,
-      // Three counts of the same thing, carried together so no chart can
-      // silently divide by one while labelling another.
       cohortLogos: cohort.size,
-      waterfallLogos: acquired ?? null,
-      reportedLogos: reportedLogosByMonth.get(cohort.month) ?? null,
-      costDivisor: reportedLogosByMonth.has(cohort.month) ? 'reported' : 'waterfall',
       cumulativeGpPerLogo,
       recovery,
       payback,
@@ -670,12 +674,6 @@ function terminalRate(path, depth = 6) {
 export function projectedBreakEven(data, cohorts, options) {
   const { csShare, partnershipsShare, margin, replicates = 300, horizon = 120 } = options;
   const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
-  const reportedPerLogo = new Map(
-    data.cacMonthly.filter(r => r.cacPerLogo !== null).map(r => [r.month, r.cacPerLogo]));
-  const reportedLogosByMonth = new Map(
-    data.cacMonthly.filter(r => r.reportedNewLogos !== null)
-      .map(r => [r.month, r.reportedNewLogos]));
-  const newLogos = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
 
   // Donors need enough history to lend a trajectory, and recent enough to be
   // lending one from the same regime.
@@ -726,13 +724,9 @@ export function projectedBreakEven(data, cohorts, options) {
 
   return cohorts.map(cohort => {
     const spend = cac.get(cohort.month);
-    const acquired = newLogos.get(cohort.month);
     // The same rule as cohortEconomics. Two cost-per-logo figures on one page
     // was how a third denominator appeared out of nowhere.
-    const reported = reportedPerLogo.get(cohort.month);
-    const cost = reported !== undefined
-      ? reported
-      : ((spend === undefined || !acquired) ? null : spend / acquired);
+    const cost = (spend === undefined || !cohort.size) ? null : spend / cohort.size;
     if (cost === null) return null;
 
     // What actually happened, using only observed months. Same function the
@@ -742,9 +736,6 @@ export function projectedBreakEven(data, cohorts, options) {
     const base = {
       month: cohort.month, size: cohort.size, cost,
       cohortLogos: cohort.size,
-      waterfallLogos: acquired ?? null,
-      reportedLogos: reportedLogosByMonth.get(cohort.month) ?? null,
-      costDivisor: reported !== undefined ? 'reported' : 'waterfall',
       monthsObserved: cohort.maxOffset + 1, actual,
     };
     if (actual !== null) {
@@ -1018,179 +1009,6 @@ export function survivalByRevenueWithinTenure(data, { horizon = 4, windows = 24 
   return { revenueBands, tenureBands, cells, starts: starts.length };
 }
 
-// Reconciliation, rebuilt from what the Logo Evidence tab used to carry.
-//
-// Walks from what this build derives to what the business reports, naming
-// each difference rather than plugging it. The unexplained line is stated. A
-// large one is worth more than a matching total, because it means something
-// neither system knows about has been found.
-export function reconciliation(data, cohorts) {
-  const firstSeen = new Map();
-  const firstRevenue = new Map();
-  const companyName = new Map();
-  const source = new Map();
-
-  for (const row of data.customers) {
-    const seen = firstSeen.get(row.id);
-    if (seen === undefined || row.month < seen) firstSeen.set(row.id, row.month);
-    if (row.eopMrr !== null && row.eopMrr > 0) {
-      const rev = firstRevenue.get(row.id);
-      if (rev === undefined || row.month < rev) firstRevenue.set(row.id, row.month);
-    }
-    if (row.name) companyName.set(row.id, row.name.trim().toLowerCase());
-    if (row.source && !source.has(row.id)) source.set(row.id, row.source);
-  }
-
-  // A customer signed but sitting at zero for a while: the month they first
-  // carried revenue is later than the month they first appear.
-  const lagByMonth = new Map();
-  for (const [id, revMonth] of firstRevenue) {
-    if (firstSeen.get(id) < revMonth) {
-      lagByMonth.set(revMonth, (lagByMonth.get(revMonth) || 0) + 1);
-    }
-  }
-
-  // One business carried across both Stripe environments is one relationship,
-  // not a churn plus a new logo. Matched on company name, which is the only
-  // handle the pushed data offers and is therefore a floor rather than a count.
-  const byName = new Map();
-  for (const [id, name] of companyName) {
-    if (!name || !firstRevenue.has(id)) continue;
-    if (!byName.has(name)) byName.set(name, []);
-    byName.get(name).push(id);
-  }
-  const pairByMonth = new Map();
-  let pairsFound = 0;
-  for (const ids of byName.values()) {
-    if (ids.length < 2) continue;
-    if (new Set(ids.map(i => source.get(i))).size < 2) continue;
-    pairsFound += 1;
-    const starts = ids.map(i => firstRevenue.get(i)).sort();
-    for (const later of starts.slice(1)) {
-      pairByMonth.set(later, (pairByMonth.get(later) || 0) + 1);
-    }
-  }
-
-  const neverPaidIds = [...firstSeen.keys()].filter(id => !firstRevenue.has(id));
-  const neverPaid = neverPaidIds.length;
-  const neverPaidWithSubscription = neverPaidIds.filter(id => data.lifetimes?.has(id)).length;
-
-  const derivedByMonth = new Map();
-  for (const cohort of cohorts) derivedByMonth.set(cohort.month, cohort.size);
-  const waterfallByMonth = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
-
-  const censoredByMonth = cohorts.windowStart
-    ? new Map([[cohorts.windowStart, cohorts.censoredCount || 0]])
-    : new Map();
-
-  const rows = data.cacMonthly
-    .filter(r => r.reportedNewLogos !== null)
-    .map(r => {
-      const derived = derivedByMonth.get(r.month) || 0;
-      const censored = censoredByMonth.get(r.month) || 0;
-      const pairs = pairByMonth.get(r.month) || 0;
-      const lag = lagByMonth.get(r.month) || 0;
-      const walked = derived - censored - pairs + lag;
-      return {
-        month: r.month,
-        derived,
-        waterfall: waterfallByMonth.get(r.month) ?? null,
-        censored,
-        pairs,
-        lag,
-        walked,
-        reported: r.reportedNewLogos,
-        unexplained: r.reportedNewLogos - walked,
-      };
-    });
-
-  return { rows, neverPaid, neverPaidWithSubscription, pairsFound, totalCustomers: firstSeen.size };
-}
-
-// Gross profit by revenue class.
-//
-// Pass-through is carrier fees. They sit in revenue and in cost of sales at
-// once, so any margin applied to them credits profit that does not exist.
-// Recognised-elsewhere is a buyout or prepayment whose monthly value is
-// already carried by a couponed subscription, so counting it again double
-// counts.
-//
-// The identified classes are carved out of recognised MRR and the remainder
-// is treated as platform. One-time revenue is not MRR, so it is added rather
-// than carved out. That decomposition is an inference from the shape of the
-// data, not something the push states, and it is written on the page so it
-// can be corrected rather than assumed.
-export const CLASS_MARGINS = {
-  platform: 0.757,
-  usage: 0.60,
-  oneTime: 0.90,
-  passThrough: 0,
-  recognisedElsewhere: 0,
-};
-
-export function grossProfit(row, margins = CLASS_MARGINS) {
-  const mrr = row.eopMrr || 0;
-  const carved = (row.usage || 0) + (row.passThrough || 0) + (row.recognisedElsewhere || 0);
-  const platform = Math.max(0, mrr - carved);
-  return platform * margins.platform
-    + (row.usage || 0) * margins.usage
-    + (row.oneTime || 0) * margins.oneTime
-    + (row.passThrough || 0) * margins.passThrough
-    + (row.recognisedElsewhere || 0) * margins.recognisedElsewhere;
-}
-
-export function hasRevenueClasses(data) {
-  return data.customers.some(r => r.usage || r.oneTime || r.passThrough);
-}
-
-// How much of the derived new logo count comes from each Stripe environment.
-//
-// The second environment is where new business has been moving, and its
-// customers are largely not reaching the cohort build: they appear in the
-// file and never register revenue. That makes any statement about new logo
-// volume a statement about the first environment, which is a different and
-// much gloomier claim than the one it looks like.
-export function environmentSplit(data) {
-  const firstRevenue = new Map();
-  const source = new Map();
-  const everRevenue = new Set();
-
-  for (const row of data.customers) {
-    if (row.source && !source.has(row.id)) source.set(row.id, row.source);
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
-    everRevenue.add(row.id);
-    const seen = firstRevenue.get(row.id);
-    if (seen === undefined || row.month < seen) firstRevenue.set(row.id, row.month);
-  }
-
-  const byMonth = new Map();
-  for (const [id, month] of firstRevenue) {
-    if (!byMonth.has(month)) byMonth.set(month, { S1: 0, S2: 0, other: 0 });
-    const bucket = byMonth.get(month);
-    const env = source.get(id);
-    if (env === 'S1') bucket.S1 += 1;
-    else if (env === 'S2') bucket.S2 += 1;
-    else bucket.other += 1;
-  }
-
-  const environments = new Map();
-  for (const [id, env] of source) {
-    if (!environments.has(env)) environments.set(env, { present: 0, withRevenue: 0 });
-    const e = environments.get(env);
-    e.present += 1;
-    if (everRevenue.has(id)) e.withRevenue += 1;
-  }
-
-  return { byMonth, environments };
-}
-
-// Customers who cancelled within a month of signing.
-//
-// These are counted as new at full rate in the month they signed and are
-// gone before they ever contributed. Worth seeing on their own, and worth
-// seeing by end date rather than only by volume: several cancellations
-// landing on one day is usually one account being closed rather than several
-// independent decisions, and that is a different problem.
 export function quickCancellations(data, { withinDays = 30 } = {}) {
   const parse = value => {
     const text = String(value || '').slice(0, 10);
@@ -1504,4 +1322,81 @@ export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
     high: perTenFewer + Math.abs(half),
     significant: (perTenFewer - Math.abs(half)) * (perTenFewer + Math.abs(half)) > 0,
   };
+}
+
+// Gross profit by revenue class.
+//
+// Pass-through is carrier fees. They sit in revenue and in cost of sales at
+// once, so any margin applied to them credits profit that does not exist.
+// Recognised-elsewhere is a buyout or prepayment whose monthly value is
+// already carried by a couponed subscription, so counting it again double
+// counts.
+//
+// The identified classes are carved out of recognised MRR and the remainder
+// is treated as platform. One-time revenue is not MRR, so it is added rather
+// than carved out. That decomposition is inferred from the shape of the data
+// rather than stated by the push, and it is written on the page so it can be
+// corrected rather than assumed.
+export const CLASS_MARGINS = {
+  platform: 0.757,
+  usage: 0.60,
+  oneTime: 0.90,
+  passThrough: 0,
+  recognisedElsewhere: 0,
+};
+
+export function grossProfit(row, margins = CLASS_MARGINS) {
+  const mrr = row.eopMrr || 0;
+  const carved = (row.usage || 0) + (row.passThrough || 0) + (row.recognisedElsewhere || 0);
+  const platform = Math.max(0, mrr - carved);
+  return platform * margins.platform
+    + (row.usage || 0) * margins.usage
+    + (row.oneTime || 0) * margins.oneTime
+    + (row.passThrough || 0) * margins.passThrough
+    + (row.recognisedElsewhere || 0) * margins.recognisedElsewhere;
+}
+
+export function hasRevenueClasses(data) {
+  return data.customers.some(r => r.usage || r.oneTime || r.passThrough);
+}
+
+// How much of the derived new logo count comes from each Stripe environment.
+//
+// New business has been moving to the second environment and its customers
+// are largely not reaching the cohort build: they appear in the file and
+// never register revenue. That makes any statement about new logo volume a
+// statement about the first environment, which is a different and much
+// gloomier claim than the one it looks like.
+export function environmentSplit(data) {
+  const firstRevenue = new Map();
+  const source = new Map();
+  const everRevenue = new Set();
+
+  for (const row of data.customers) {
+    if (row.source && !source.has(row.id)) source.set(row.id, row.source);
+    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    everRevenue.add(row.id);
+    const seen = firstRevenue.get(row.id);
+    if (seen === undefined || row.month < seen) firstRevenue.set(row.id, row.month);
+  }
+
+  const byMonth = new Map();
+  for (const [id, month] of firstRevenue) {
+    if (!byMonth.has(month)) byMonth.set(month, { S1: 0, S2: 0, other: 0 });
+    const bucket = byMonth.get(month);
+    const env = source.get(id);
+    if (env === 'S1') bucket.S1 += 1;
+    else if (env === 'S2') bucket.S2 += 1;
+    else bucket.other += 1;
+  }
+
+  const environments = new Map();
+  for (const [id, env] of source) {
+    if (!environments.has(env)) environments.set(env, { present: 0, withRevenue: 0 });
+    const e = environments.get(env);
+    e.present += 1;
+    if (everRevenue.has(id)) e.withRevenue += 1;
+  }
+
+  return { byMonth, environments };
 }
