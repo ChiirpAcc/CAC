@@ -37,6 +37,18 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Redraw the animations
+        # These are rendered from data/, so a data push makes a committed copy
+        # stale immediately. Rebuilding them here means what the site serves is
+        # always drawn from the same push as everything else on the page.
+        run: |
+          python -m pip install --quiet pillow
+          python scripts/make_gifs.py site/media
+
       - name: Assemble the site
         # There is no build step. The site is vanilla HTML, CSS and JavaScript,
         # and it reads the JSON straight out of data/, so the two directories

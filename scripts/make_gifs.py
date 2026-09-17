@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the animated versions of chart 25 straight from data/.
+"""Render the animated versions of the arrivals chart straight from data/.
 
 Three of them, and the third exists because the second was misleading.
 
@@ -19,11 +19,15 @@ Axes are fixed across every frame. If each frame rescaled to its own data the
 cloud would look much the same at every horizon and the movement would be
 invisible.
 
-Run: python scripts/make_gifs.py
+Output goes to site/media/ so the deploy serves it, and the build regenerates
+these on every data push rather than trusting a committed copy to be current.
+
+Run: python scripts/make_gifs.py [output_dir]
 """
 
 import json
 import math
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -31,6 +35,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
+OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "site" / "media"
 
 INK = (28, 30, 34)
 SOFT = (122, 128, 136)
@@ -42,7 +47,7 @@ BG = (255, 255, 255)
 W, H = 900, 660
 PAD = {"l": 96, "r": 40, "t": 110, "b": 132}
 HORIZONS = range(1, 7)
-WINDOWS = 24
+WINDOWS = 24          # the same two year limit the site applies
 
 
 def load(name):
@@ -164,6 +169,7 @@ def save(frames, out):
 
 
 def build():
+    OUT.mkdir(parents=True, exist_ok=True)
     mrr, waterfall, last, eligible, anchor = read_months()
 
     plain, split, gaps = [], [], []
@@ -219,7 +225,7 @@ def build():
                   "measurable" if measurable else "indistinguishable from nothing",
                   font=F_BIG, fill=LOW if measurable else SOFT, anchor="ra")
         frames.append(image)
-    save(frames, ROOT / "arrivals_vs_churn.gif")
+    save(frames, OUT / "arrivals_vs_churn.gif")
 
     # 2. Two clouds.
     frames = []
@@ -245,7 +251,7 @@ def build():
         draw.text((W - PAD["r"], H - PAD["b"] + 56),
                   "the clouds overlap; see the paired view", font=F_BIG, fill=SOFT, anchor="ra")
         frames.append(image)
-    save(frames, ROOT / "arrivals_vs_churn_by_price.gif")
+    save(frames, OUT / "arrivals_vs_churn_by_price.gif")
 
     # 3. The paired difference, which is what the test actually looks at.
     limit = max(abs(d) for f in gaps for d in f["diffs"])
@@ -273,7 +279,7 @@ def build():
                   "clears significance" if abs(f["t"]) > 2.07 else "does not clear",
                   font=F_BIG, fill=HIGH if abs(f["t"]) > 2.07 else SOFT, anchor="ra")
         frames.append(image)
-    save(frames, ROOT / "price_gap_by_month.gif")
+    save(frames, OUT / "price_gap_by_month.gif")
 
     print("\n  horizon   mean gap   paired t   months won")
     for f in gaps:
