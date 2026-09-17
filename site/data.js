@@ -794,13 +794,31 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
     activeByMonth.get(row.month).add(row.id);
   }
 
+  // Customer Success is only part of the function that keeps customers.
+  // Technical Account Manager and Support sit beside it, and they have moved
+  // in different directions, so measuring Customer Success alone measures
+  // roughly half the department and reads the trend of that half as the
+  // trend of the whole.
+  const RETENTION_TEAMS = ['Customer Success', 'Technical Account Manager', 'Support'];
   const csTotal = new Map();
   const csSalaries = new Map();
+  const teamTotals = new Map(RETENTION_TEAMS.map(name => [name, new Map()]));
+  const retentionTotal = new Map();
+
   for (const row of data.expenses) {
-    if (row.amount === null || !row.account.includes('Customer Success')) continue;
-    csTotal.set(row.month, (csTotal.get(row.month) || 0) + row.amount);
-    if (row.account.includes('Salaries')) {
-      csSalaries.set(row.month, (csSalaries.get(row.month) || 0) + row.amount);
+    if (row.amount === null) continue;
+    const team = RETENTION_TEAMS.find(name => row.account.includes(name));
+    if (!team) continue;
+
+    const bucket = teamTotals.get(team);
+    bucket.set(row.month, (bucket.get(row.month) || 0) + row.amount);
+    retentionTotal.set(row.month, (retentionTotal.get(row.month) || 0) + row.amount);
+
+    if (team === 'Customer Success') {
+      csTotal.set(row.month, (csTotal.get(row.month) || 0) + row.amount);
+      if (row.account.includes('Salaries')) {
+        csSalaries.set(row.month, (csSalaries.get(row.month) || 0) + row.amount);
+      }
     }
   }
 
@@ -824,12 +842,17 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
         csSpend: csTotal.get(month),
         csPerLogo: csTotal.get(month) / base.size,
         salariesPerLogo: (csSalaries.get(month) || 0) / base.size,
+        retentionSpend: retentionTotal.get(month) || 0,
+        retentionPerLogo: (retentionTotal.get(month) || 0) / base.size,
+        teams: Object.fromEntries(RETENTION_TEAMS.map(name =>
+          [name, teamTotals.get(name).get(month) || 0])),
       };
     });
 
   const churn = points.map(p => p.churn);
   const arrivals = points.map(p => p.newLogos);
   const capacity = points.map(p => p.csPerLogo);
+  const wholeFunction = points.map(p => p.retentionPerLogo);
   const clock = points.map((_, i) => i);
 
   const pair = (xs, ys) => correlate(xs.map((x, i) => [x, ys[i]]));
@@ -859,6 +882,8 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
     correlations: {
       arrivals: pair(arrivals, churn),
       capacity: pair(capacity, churn),
+      wholeFunction: pair(wholeFunction, churn),
+      wholeFunctionGivenTime: partial(wholeFunction, churn, clock),
       salaries: pair(points.map(p => p.salariesPerLogo), churn),
       time: pair(clock, churn),
       arrivalsGivenCapacity: partial(arrivals, churn, capacity),
@@ -866,8 +891,10 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
       arrivalsGivenTime: partial(arrivals, churn, clock),
       capacityGivenTime: partial(capacity, churn, clock),
     },
+    teams: RETENTION_TEAMS,
     rollingArrivals: rolling(arrivals),
     rollingCapacity: rolling(capacity),
+    rollingWholeFunction: rolling(wholeFunction),
     rollingWidth: 12,
   };
 }
@@ -1044,7 +1071,9 @@ export function reconciliation(data, cohorts) {
     }
   }
 
-  const neverPaid = [...firstSeen.keys()].filter(id => !firstRevenue.has(id)).length;
+  const neverPaidIds = [...firstSeen.keys()].filter(id => !firstRevenue.has(id));
+  const neverPaid = neverPaidIds.length;
+  const neverPaidWithSubscription = neverPaidIds.filter(id => data.lifetimes?.has(id)).length;
 
   const derivedByMonth = new Map();
   for (const cohort of cohorts) derivedByMonth.set(cohort.month, cohort.size);
@@ -1075,7 +1104,7 @@ export function reconciliation(data, cohorts) {
       };
     });
 
-  return { rows, neverPaid, pairsFound, totalCustomers: firstSeen.size };
+  return { rows, neverPaid, neverPaidWithSubscription, pairsFound, totalCustomers: firstSeen.size };
 }
 
 // Gross profit by revenue class.

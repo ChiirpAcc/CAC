@@ -562,17 +562,18 @@ function renderForward() {
       + 'recognised MRR is inferred rather than stated by the push: the identified classes are '
       + 'carved out and the remainder treated as platform, with one-time added rather than '
       + 'carved out because it is not recurring. '
-      + 'The second Stripe environment is now pulling but thinly, '
-      + fmt.int(s2) + ' of ' + fmt.int(data.customers.length) + ' rows ('
-      + fmt.pct(s2Share, 2) + ').'
+      + 'The second Stripe environment carries ' + fmt.int(s2) + ' of '
+      + fmt.int(data.customers.length) + ' customer months, ' + fmt.pct(s2Share, 2)
+      + '. That is a young environment rather than a broken feed: it is pulling, and there is '
+      + 'simply not much in it yet.'
     : '<strong>Still estimated:</strong> a single 75.7% platform margin is applied to all '
       + 'revenue, because the pushed customer waterfall carries no revenue class columns. '
       + 'The query emits them; the push does not carry them, so the fix is upstream rather '
       + 'than inherent. Pass-through carrier fees matter most, since they sit in revenue and '
       + 'in cost of sales and any margin applied to them credits profit that does not exist. '
-      + 'The second Stripe environment is now pulling but thinly, '
-      + fmt.int(s2) + ' of ' + fmt.int(data.customers.length) + ' rows ('
-      + fmt.pct(s2Share, 2) + '), so anything it alone carries is still largely missing.';
+      + 'The second Stripe environment carries ' + fmt.int(s2) + ' of '
+      + fmt.int(data.customers.length) + ' customer months, ' + fmt.pct(s2Share, 2)
+      + '. That is a young environment rather than a broken feed.';
 
   const cap = capacityAnalysis(data);
   const cp = cap.points;
@@ -583,10 +584,13 @@ function renderForward() {
   // Indexed so two quantities in different units can share an axis.
   const baseChurn = cp[0].churn;
   const baseCap = cp[0].csPerLogo;
+  const baseWhole = cp[0].retentionPerLogo;
   multiLineChart($('chart-capacity'), {
     labels: capLabels,
     series: [
-      { label: 'CS spend per active logo', colour: INK.secondary,
+      { label: 'Retention function per logo (CS, TAM, Support)', colour: INK.primary,
+        values: cp.map(p => (p.retentionPerLogo / baseWhole) * 100) },
+      { label: 'Customer Success alone', colour: INK.secondary, dashed: true,
         values: cp.map(p => (p.csPerLogo / baseCap) * 100) },
       { label: 'Forward four-month churn', colour: INK.negative,
         values: cp.map(p => (p.churn / baseChurn) * 100) },
@@ -594,8 +598,11 @@ function renderForward() {
     yFormat: v => Math.round(v),
     refs: [{ value: 100, label: cp[0].month + ' = 100', variant: 'ref-floor' }],
     describe: i => '<strong>' + fmt.monthLabel(cp[i].month) + '</strong>'
-      + '<span>CS spend ' + fmt.money(cp[i].csSpend) + '</span>'
-      + '<span>Per logo ' + fmt.money(cp[i].csPerLogo) + ' across ' + fmt.int(cp[i].logos) + '</span>'
+      + '<span>Retention function ' + fmt.money(cp[i].retentionSpend) + '</span>'
+      + '<span class="muted">CS ' + fmt.money(cp[i].teams['Customer Success'])
+      + ', TAM ' + fmt.money(cp[i].teams['Technical Account Manager'])
+      + ', Support ' + fmt.money(cp[i].teams['Support']) + '</span>'
+      + '<span>Per logo ' + fmt.money(cp[i].retentionPerLogo) + ' across ' + fmt.int(cp[i].logos) + '</span>'
       + '<span>Forward churn ' + fmt.pct(cp[i].churn, 1) + '</span>',
   });
 
@@ -603,15 +610,17 @@ function renderForward() {
   const avg = (rows, key) => rows.reduce((s, x) => s + x[key], 0) / rows.length;
   const capGrowth = (avg(secondHalf, 'csPerLogo') / avg(firstHalf, 'csPerLogo') - 1) * 100;
 
+  const csShare = avg(cp, 'csPerLogo') / avg(cp, 'retentionPerLogo');
   $('capacity-finding').innerHTML =
-    '<strong>They rose together, which is almost certainly the team responding to churn '
-    + 'rather than causing it.</strong> CS spend per active logo is up '
-    + Math.round(capGrowth) + '% between the first and second halves of this window, and it '
-    + 'correlates with forward churn at ' + sign(rc.capacity) + ' (salaries alone, '
-    + sign(rc.salaries) + '). Holding time constant it is still ' + sign(rc.capacityGivenTime)
-    + ', so it is not only the shared trend. Read the direction with care: nothing here can '
-    + 'separate capacity driving churn, which would be perverse, from churn driving hiring, '
-    + 'which is what usually happens.';
+    '<strong>Measured across the whole retention function the relationship is much weaker '
+    + 'than Customer Success alone suggests.</strong> Customer Success correlates with '
+    + 'forward churn at ' + sign(rc.capacity) + '; adding Technical Account Manager and '
+    + 'Support, which together are the other ' + fmt.pct(1 - csShare) + ' of the spend, takes '
+    + 'it to ' + sign(rc.wholeFunction) + ', and ' + sign(rc.wholeFunctionGivenTime)
+    + ' with time held constant. The three teams have not moved together, so a measure of one '
+    + 'of them was reading its own trend as the department\'s. Nothing here separates capacity '
+    + 'driving churn, which would be perverse, from churn driving hiring, which is what '
+    + 'usually happens.';
 
   $('capacity-note').textContent =
     'Read the direction, not the strength: this is ' + cp.length + ' monthly observations of '
@@ -864,7 +873,14 @@ function renderReconciliation() {
     + 'a floor rather than a count. Zero-revenue lag adds customers who signed earlier and '
     + 'sat at nothing until the month they first billed. '
     + fmt.int(rec.neverPaid) + ' of ' + fmt.int(rec.totalCustomers) + ' accounts never '
-    + 'carried revenue at all and are in neither column.';
+    + 'carried revenue at all and appear in neither column, which is '
+    + fmt.pct(rec.neverPaid / rec.totalCustomers) + ' of the file. '
+    + fmt.int(rec.neverPaidWithSubscription) + ' of those have a subscription record and '
+    + fmt.int(rec.neverPaid - rec.neverPaidWithSubscription) + ' do not, and every one of them '
+    + 'received some cash at some point. They are most likely first-bill failures, internal '
+    + 'and test accounts, and trials that never converted, mixed together. None of those is '
+    + 'churn, because there was never revenue to lose, but the group is the same order of '
+    + 'magnitude as the unexplained line above and nobody has looked inside it.';
 }
 
 // Per chart annotation.
@@ -1000,11 +1016,13 @@ const MEANS = {
     + 'rate suggests, and that the two halves of the book should not be managed the same way.',
 
   'chart-capacity':
-    'A large investment in Customer Success is not yet visible as retention, which is worth '
-    + 'knowing and is not the same as it having failed. Judging it needs CSM assignment per '
-    + 'account so that accounts which lost a CSM can be compared with accounts that kept one. '
-    + 'Until that exists this question cannot be answered, and the chart should not be used to '
-    + 'argue either way.',
+    'The apparent link between Customer Success spend and churn largely disappears once the '
+    + 'whole retention function is measured and time is held constant. That matters because '
+    + 'the narrow version of this chart would support cutting or defending a team on evidence '
+    + 'that does not hold. Judging the investment needs CSM assignment per account, so that '
+    + 'accounts which lost a CSM can be compared with accounts that kept one. Until that '
+    + 'exists the question cannot be answered, and this chart should not be used to argue '
+    + 'either way in either direction.',
 
   'chart-momentum':
     'One relationship has gone and one has not, which is a reason to stop managing to the first. '
