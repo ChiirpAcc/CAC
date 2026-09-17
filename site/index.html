@@ -263,6 +263,72 @@
     <p id="margin-statement"></p>
   </section>
 
+  <div class="wrap section-break">
+    <h2>The same questions, animated</h2>
+    <p class="section-intro">
+      Three of the charts above have a dimension that will not fit in one
+      frame. These hold both axes fixed and move only the thing being varied,
+      so a point that shifts has really shifted rather than being rescaled.
+      They are redrawn from the data on every push, so they cannot fall behind
+      the page.
+    </p>
+  </div>
+
+  <div class="wrap charts">
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>21. Churn against arrivals, one to six months</h3>
+      </figcaption>
+      <img class="animation" src="media/arrivals_vs_churn.gif" loading="lazy"
+           alt="Animated scatter of forward churn against new logos, stepping the horizon from one to six months. The cloud rises as the horizon lengthens and does not tilt.">
+      <p class="note">
+        The cloud lifts as the horizon lengthens and never tilts. Churn
+        accumulates, and it accumulates about equally across the whole range of
+        intake volumes. On axes that rescaled each frame every panel would look
+        much the same and none of that would be visible.
+      </p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>22. The same, split by what customers pay</h3>
+      </figcaption>
+      <img class="animation" src="media/arrivals_vs_churn_by_price.gif" loading="lazy"
+           alt="The same animation with each month split into the half of the base paying above its median and the half below.">
+      <p class="note">
+        Splitting by price separates the clouds vertically and leaves the
+        horizontal story just as flat. This one is included because it reads as
+        though nothing is there, and that reading is wrong: nearly all the
+        visible scatter is between months rather than between the two halves
+        within a month. The chart below is the honest picture of the same
+        comparison.
+      </p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>23. How much less higher payers churn, month by month</h3>
+      </figcaption>
+      <img class="animation" src="media/price_gap_by_month.gif" loading="lazy"
+           alt="The per-month difference in churn between higher and lower paying halves of the base, at horizons from one to six months, with the mean and a paired t statistic.">
+      <p class="finding">
+        <strong>The paired difference clears significance at every horizon</strong>,
+        from t = +2.36 at one month to t = +4.14 at six, and the gap widens the
+        longer you look. Higher payers churned less in fifteen to nineteen
+        months of twenty four depending on the window.
+      </p>
+      <p class="note">
+        A scatter of two overlapping groups is the wrong picture for a paired
+        comparison: it shows the noise the comparison conditions out. Plotting
+        the per-month difference instead shows what the test actually looks at.
+        Blue is a month where higher payers churned less, red where they churned
+        more.
+      </p>
+    </figure>
+
+  </div>
+
   <footer class="wrap site-footer">
     <h2>What is solid and what is not</h2>
     <p>

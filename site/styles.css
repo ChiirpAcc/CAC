@@ -475,3 +475,13 @@ figcaption { margin-bottom: .9rem; }
   border-left: 2px solid var(--rule-strong);
   padding-left: .75rem;
 }
+
+/* Animations ------------------------------------------------------------- */
+
+.animation {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--rule);
+  background: #fff;
+}
