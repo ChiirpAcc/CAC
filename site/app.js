@@ -2,7 +2,7 @@ import {
   load, cacByMonth, splitTotals, buildCohorts, cohortEconomics,
   blendedRetention, retentionByEra, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
-  seasonalSurvival, survivalByRevenueWithinTenure,
+  seasonalSurvival, survivalByRevenueWithinTenure, reconciliation,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -37,6 +37,7 @@ function boot() {
     renderStatic();
     renderForward();
     renderSeasonal();
+    renderReconciliation();
     $('horizon').addEventListener('input', renderSeasonal);
     renderAssumptionDependent();
   }).catch(err => {
@@ -739,6 +740,64 @@ function renderSeasonal() {
     + 'and expansion is offsetting churn. Below it means the ones who stayed are also paying '
     + 'less. Starting revenue: '
     + s.series.map(r => fmt.monthLabel(r.month) + ' ' + fmt.money(r.startMrr)).join(', ') + '.';
+}
+
+// 21. Reconciliation.
+function renderReconciliation() {
+  const rec = reconciliation(data, cohorts);
+  if (!rec.rows.length) {
+    $('recon-table').innerHTML = '';
+    $('recon-note').textContent =
+      'No month in the push carries a reported new logo count, so there is nothing to '
+      + 'reconcile against yet.';
+    return;
+  }
+
+  const cell = (v, signed) => '<td class="n">'
+    + (v === 0 ? '<span class="range none">0</span>'
+               : (signed && v > 0 ? '+' : '') + fmt.int(v)) + '</td>';
+
+  $('recon-table').innerHTML =
+    '<thead><tr><th>Month</th><th class="n">Derived</th><th class="n">Censored</th>'
+    + '<th class="n">Migration pairs</th><th class="n">Zero-revenue lag</th>'
+    + '<th class="n">Walked</th><th class="n">Reported</th><th class="n">Unexplained</th></tr></thead>'
+    + '<tbody>' + rec.rows.map(r =>
+        '<tr><td>' + r.month + '</td>'
+        + cell(r.derived)
+        + cell(-r.censored, true)
+        + cell(-r.pairs, true)
+        + cell(r.lag, true)
+        + cell(r.walked)
+        + cell(r.reported)
+        + '<td class="n">' + (Math.abs(r.unexplained) >= 10
+            ? '<span class="tag risk">' + (r.unexplained > 0 ? '+' : '') + r.unexplained + '</span>'
+            : (r.unexplained > 0 ? '+' : '') + r.unexplained) + '</td></tr>').join('')
+    + '</tbody>';
+
+  const worst = rec.rows.reduce((a, b) =>
+    Math.abs(b.unexplained) > Math.abs(a.unexplained) ? b : a);
+  const net = rec.rows.reduce((s, r) => s + r.unexplained, 0);
+  const big = rec.rows.filter(r => Math.abs(r.unexplained) >= 10).length;
+
+  $('recon-finding').innerHTML =
+    '<strong>It does not close, and that is the finding.</strong> Across '
+    + rec.rows.length + ' months the named differences leave a net '
+    + (net > 0 ? '+' : '') + net + ' logos unexplained, but the monthly figures swing both '
+    + 'ways rather than drifting one, from ' + Math.min(...rec.rows.map(r => r.unexplained))
+    + ' to +' + Math.max(...rec.rows.map(r => r.unexplained)) + '. '
+    + worst.month + ' is the widest at ' + (worst.unexplained > 0 ? '+' : '')
+    + worst.unexplained + '. ' + big + ' months are out by ten or more, which is too large '
+    + 'to be rounding and points at a definition neither system has written down.';
+
+  $('recon-note').textContent =
+    'Derived counts cohorts by first month carrying revenue. Censored removes customers who '
+    + 'existed before the window opened. Migration pairs removes the second half of one '
+    + 'business carried across both Stripe environments, matched on company name, which is '
+    + 'the only handle the pushed data offers: ' + rec.pairsFound + ' found, so treat that as '
+    + 'a floor rather than a count. Zero-revenue lag adds customers who signed earlier and '
+    + 'sat at nothing until the month they first billed. '
+    + fmt.int(rec.neverPaid) + ' of ' + fmt.int(rec.totalCustomers) + ' accounts never '
+    + 'carried revenue at all and are in neither column.';
 }
 
 boot();

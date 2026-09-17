@@ -304,6 +304,13 @@ export function cohortEconomics(data, cohorts, { margin }) {
   // The pipeline's own total, already carrying the settled splits.
   const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
   const newLogosByMonth = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+  // Where the pipeline reports a cost per logo it is preferred outright: it
+  // uses the SaaS dashboard's own logo count, which is the figure the business
+  // reports. That only covers 2026, so earlier months fall back to the total
+  // over the waterfall's new logos rather than being blanked, because blanking
+  // them would remove every cohort old enough to have paid back.
+  const reportedPerLogo = new Map(
+    data.cacMonthly.filter(r => r.cacPerLogo !== null).map(r => [r.month, r.cacPerLogo]));
 
   return cohorts.map(cohort => {
     const spend = cac.get(cohort.month);
@@ -311,7 +318,11 @@ export function cohortEconomics(data, cohorts, { margin }) {
 
     // Cost per logo needs a real denominator. A cohort month with no recorded
     // new logos has no cost per logo, and forcing one would invent a number.
-    const costPerLogo = (spend === undefined || !acquired) ? null : spend / acquired;
+    const reported = reportedPerLogo.get(cohort.month);
+    const costPerLogo = reported !== undefined
+      ? reported
+      : ((spend === undefined || !acquired) ? null : spend / acquired);
+    const costBasis = reported !== undefined ? 'reported' : 'derived';
 
     let running = 0;
     const cumulativeGpPerLogo = cohort.revenue.map(mrr => {
@@ -333,6 +344,7 @@ export function cohortEconomics(data, cohorts, { margin }) {
       size: cohort.size,
       maxOffset: cohort.maxOffset,
       costPerLogo,
+      costBasis,
       cumulativeGpPerLogo,
       recovery,
       payback,
@@ -926,4 +938,89 @@ export function survivalByRevenueWithinTenure(data, { horizon = 4, windows = 24 
   }));
 
   return { revenueBands, tenureBands, cells, starts: starts.length };
+}
+
+// Reconciliation, rebuilt from what the Logo Evidence tab used to carry.
+//
+// Walks from what this build derives to what the business reports, naming
+// each difference rather than plugging it. The unexplained line is stated. A
+// large one is worth more than a matching total, because it means something
+// neither system knows about has been found.
+export function reconciliation(data, cohorts) {
+  const firstSeen = new Map();
+  const firstRevenue = new Map();
+  const companyName = new Map();
+  const source = new Map();
+
+  for (const row of data.customers) {
+    const seen = firstSeen.get(row.id);
+    if (seen === undefined || row.month < seen) firstSeen.set(row.id, row.month);
+    if (row.eopMrr !== null && row.eopMrr > 0) {
+      const rev = firstRevenue.get(row.id);
+      if (rev === undefined || row.month < rev) firstRevenue.set(row.id, row.month);
+    }
+    if (row.name) companyName.set(row.id, row.name.trim().toLowerCase());
+    if (row.source && !source.has(row.id)) source.set(row.id, row.source);
+  }
+
+  // A customer signed but sitting at zero for a while: the month they first
+  // carried revenue is later than the month they first appear.
+  const lagByMonth = new Map();
+  for (const [id, revMonth] of firstRevenue) {
+    if (firstSeen.get(id) < revMonth) {
+      lagByMonth.set(revMonth, (lagByMonth.get(revMonth) || 0) + 1);
+    }
+  }
+
+  // One business carried across both Stripe environments is one relationship,
+  // not a churn plus a new logo. Matched on company name, which is the only
+  // handle the pushed data offers and is therefore a floor rather than a count.
+  const byName = new Map();
+  for (const [id, name] of companyName) {
+    if (!name || !firstRevenue.has(id)) continue;
+    if (!byName.has(name)) byName.set(name, []);
+    byName.get(name).push(id);
+  }
+  const pairByMonth = new Map();
+  let pairsFound = 0;
+  for (const ids of byName.values()) {
+    if (ids.length < 2) continue;
+    if (new Set(ids.map(i => source.get(i))).size < 2) continue;
+    pairsFound += 1;
+    const starts = ids.map(i => firstRevenue.get(i)).sort();
+    for (const later of starts.slice(1)) {
+      pairByMonth.set(later, (pairByMonth.get(later) || 0) + 1);
+    }
+  }
+
+  const neverPaid = [...firstSeen.keys()].filter(id => !firstRevenue.has(id)).length;
+
+  const derivedByMonth = new Map();
+  for (const cohort of cohorts) derivedByMonth.set(cohort.month, cohort.size);
+
+  const censoredByMonth = cohorts.windowStart
+    ? new Map([[cohorts.windowStart, cohorts.censoredCount || 0]])
+    : new Map();
+
+  const rows = data.cacMonthly
+    .filter(r => r.reportedNewLogos !== null)
+    .map(r => {
+      const derived = derivedByMonth.get(r.month) || 0;
+      const censored = censoredByMonth.get(r.month) || 0;
+      const pairs = pairByMonth.get(r.month) || 0;
+      const lag = lagByMonth.get(r.month) || 0;
+      const walked = derived - censored - pairs + lag;
+      return {
+        month: r.month,
+        derived,
+        censored,
+        pairs,
+        lag,
+        walked,
+        reported: r.reportedNewLogos,
+        unexplained: r.reportedNewLogos - walked,
+      };
+    });
+
+  return { rows, neverPaid, pairsFound, totalCustomers: firstSeen.size };
 }
