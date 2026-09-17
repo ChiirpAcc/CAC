@@ -813,17 +813,142 @@ function annotate(plotId, takeaways, assumptions) {
 
   figure.querySelector('.annotate')?.remove();
 
+  const meaning = MEANS[plotId];
   const block = document.createElement('details');
   block.className = 'annotate';
   block.innerHTML =
-    '<summary>Takeaways and assumptions</summary>'
+    '<summary>What it says, what it assumes, what it means</summary>'
     + '<h4>What it says</h4><ul>'
     + takeaways.filter(Boolean).map(x => '<li>' + x + '</li>').join('')
     + '</ul><h4>What it assumes</h4><ul>'
     + assumptions.map(x => '<li>' + x + '</li>').join('')
-    + '</ul>';
+    + '</ul>'
+    + (meaning ? '<h4>What it means for the business</h4><p class="means">' + meaning + '</p>' : '');
   figure.appendChild(block);
 }
+
+// The reading, rather than the reading off. Prose because it is a judgement
+// about what to do, not a number, and it should not silently change when a
+// push moves a decimal.
+const MEANS = {
+  'chart-ltv-cac':
+    'The model works and has been proven to work. The 2024 cohorts returned three to six '
+    + 'times what they cost at around $2,000 a logo. What has broken is the price of a '
+    + 'customer, not the value of one. At $10,000 a logo the same retention curve cannot '
+    + 'clear the bar, so the lever here is acquisition cost, not upsell or pricing.',
+
+  'chart-payback':
+    'Payback lengthening from six months to twenty changes how the business is financed, not '
+    + 'just how it looks. A cohort that pays back in six months funds the next one inside the '
+    + 'year; one that takes twenty does not fund anything within a planning cycle. Growth at '
+    + 'current unit economics has to be paid for out of the base rather than out of itself.',
+
+  'chart-recovery':
+    'This is the chart to judge a cohort on before it is old enough for the others to be '
+    + 'fair. A curve that is already flattening below the line will not cross it later, which '
+    + 'means a cohort can be called early rather than waited out for another year.',
+
+  'chart-retention':
+    'The distance between the two lines is the question of whether the customers who stay are '
+    + 'worth more or less than they were. Expansion covering churn is a very different '
+    + 'business from expansion failing to, and it decides whether retention work or upsell '
+    + 'work is the better use of the same headcount.',
+
+  'chart-churn':
+    'Sustained churn above the threshold sets a floor on how much acquisition is needed just '
+    + 'to stand still. At the current rate the base needs roughly fifty new logos a month to '
+    + 'hold flat, and it is winning nine. No plausible improvement in conversion closes that '
+    + 'gap; it has to come from the churn side.',
+
+  'chart-age-retention':
+    'Most of what a cohort loses, it loses between months three and six. That is a narrow and '
+    + 'specific window, which makes it actionable: onboarding and the first ninety days are '
+    + 'where retention effort has something to save. Effort spent on customers past that point '
+    + 'is spent on the ones who were largely going to stay anyway.',
+
+  'chart-unit':
+    'Cost per logo rising while revenue per logo stays flat is the signature of a channel that '
+    + 'has saturated or a target that has drifted, not of a pricing problem. Raising prices '
+    + 'against this curve would not close it and would likely make the retention picture worse. '
+    + 'The question to answer is what changed about where customers are coming from.',
+
+  'chart-era':
+    'A level shift rather than a delay points upstream of onboarding. If newer cohorts were '
+    + 'being onboarded badly they would start level and fall away; starting lower and staying '
+    + 'lower suggests the business is selling to a different kind of customer, or selling them '
+    + 'something different, than it was two years ago. That is a go-to-market question rather '
+    + 'than a customer success one.',
+
+  'chart-base':
+    'This is the number to govern to. Everything else on the page is an explanation of why it '
+    + 'moved. It carries no assumptions, so it cannot be argued with, and it is the figure to '
+    + 'put in front of anyone who needs one number rather than twenty one charts.',
+
+  'chart-flows':
+    'Both sides are moving the wrong way at once, which is why the base falls faster than '
+    + 'either side alone would suggest. It also means there is no single fix: halving churn or '
+    + 'doubling acquisition would each only stabilise the base rather than grow it.',
+
+  'chart-seasonal':
+    'This is the chart that rules out the comfortable explanation. Trade businesses are '
+    + 'seasonal and a bad quarter is often just a season, but the same window a year earlier '
+    + 'was materially better. Whatever is happening is not the calendar.',
+
+  'chart-seasonal-revenue':
+    'Revenue falling faster than headcount means the customers being lost are not the small '
+    + 'ones, and the ones who stay are not making up the difference. That rules out treating '
+    + 'this as attrition at the bottom of the book, which is the version of the story that '
+    + 'would be survivable.',
+
+  'recon-table':
+    'Two systems disagreeing by up to twenty logos in a month is a reporting risk before it is '
+    + 'an analytical one. Whichever figure goes to a board or an investor, someone can produce '
+    + 'the other. Agreeing a single definition of a new logo is worth more than closing the '
+    + 'gap arithmetically.',
+
+  'breakeven-table':
+    'The cohorts with a high chance of never recovering are a write-off decision rather than a '
+    + 'patience decision. Knowing which ones they are changes what to do about them now: they '
+    + 'are candidates for a retention intervention while they still exist, not candidates for '
+    + 'waiting to see.',
+
+  'chart-forward':
+    'Cohort charts describe intakes; this describes the whole book. Deterioration visible from '
+    + 'a standing start means the problem is not confined to newly won customers, so a fix '
+    + 'aimed only at onboarding would leave most of it untouched.',
+
+  'chart-forward-trend':
+    'A steady slide rather than a step means this is not a migration, a billing change or a '
+    + 'bad month. Structural problems do not resolve themselves, and this one has been running '
+    + 'long enough that it would already have stopped if it were going to.',
+
+  'chart-by-mrr':
+    'Discounting to win new business costs retention as well as margin, and only in the first '
+    + 'year does the price a customer pays predict whether they stay. That argues against '
+    + 'buying volume with discounts at exactly the moment the temptation to do so is highest.',
+
+  'chart-by-tenure':
+    'The risk is concentrated in the first year, so that is where retention spend has something '
+    + 'to work with. It also means the established base is more durable than the headline churn '
+    + 'rate suggests, and that the two halves of the book should not be managed the same way.',
+
+  'chart-capacity':
+    'A large investment in Customer Success is not yet visible as retention, which is worth '
+    + 'knowing and is not the same as it having failed. Judging it needs CSM assignment per '
+    + 'account so that accounts which lost a CSM can be compared with accounts that kept one. '
+    + 'Until that exists this question cannot be answered, and the chart should not be used to '
+    + 'argue either way.',
+
+  'chart-momentum':
+    'One relationship has gone and one has not, which is a reason to stop managing to the first. '
+    + 'It also shows why a single pooled correlation is a poor way to run anything: the number '
+    + 'that looked like nothing was a real effect and its disappearance, averaged together.',
+
+  'chart-new-vs-churn':
+    'Thin acquisition months are not causing churn, so the two problems need separate owners '
+    + 'and separate fixes. The intuitive story, that a quiet pipeline distracts the team into '
+    + 'losing customers, is not supported and following it would waste the effort.',
+};
 
 // Every chart gets two or three takeaways read off its own numbers, and the
 // two assumptions most likely to change the conclusion if they are wrong.

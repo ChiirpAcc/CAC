@@ -465,3 +465,13 @@ figcaption { margin-bottom: .9rem; }
   max-width: 80ch;
 }
 .annotate li strong { color: var(--ink); font-weight: 620; }
+
+.annotate .means {
+  margin: 0;
+  font-size: .84rem;
+  line-height: 1.6;
+  color: var(--ink-mid);
+  max-width: 80ch;
+  border-left: 2px solid var(--rule-strong);
+  padding-left: .75rem;
+}
