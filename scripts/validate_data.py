@@ -140,6 +140,68 @@ def check_zero_for_blank(doc, tab, columns):
                    f"observation and means the opposite of missing.")
 
 
+def check_presence_is_not_payment(waterfall, customers):
+    """Catch presence being decided by whether cash arrived.
+
+    A customer who is billed but misses a payment drops to zero, reads as
+    churned, and reads as a reactivation when they pay again. Presence and
+    payment are different questions, and treating them as one inflates both
+    sides of the funnel while the base drifts down.
+
+    Neither check below looks at a single month, because a single month never
+    breaches a sensible threshold. The signature is a rate that stays high.
+    """
+    rows = [r for r in waterfall.get("rows", []) if MONTH.match(str(r.get("month", "")))]
+    rows.sort(key=lambda r: r["month"])
+
+    # A base does not reactivate a large share of itself every year. Twelve
+    # months smooths out a seasonal return and still catches a standing rate.
+    window = rows[-13:]
+    if len(window) >= 13:
+        reactivated = sum(number(r.get("reactivated_logos")) or 0 for r in window[1:])
+        bases = [number(r.get("active_logos")) or 0 for r in window[:-1]]
+        average = sum(bases) / len(bases) if bases else 0
+        if average >= 200 and reactivated / average > 0.15:
+            report("error", "Waterfall Summary",
+                   f"{reactivated:,.0f} reactivations over the last twelve months against an "
+                   f"average base of {average:,.0f}, {reactivated / average:.0%}. A base does "
+                   f"not reactivate that share of itself in a year. This is the signature of "
+                   f"presence being decided by whether a payment arrived: a billed customer "
+                   f"who misses a month reads as churned and reads as reactivated when they "
+                   f"pay again. Churn and acquisition are both inflated and the base drifts "
+                   f"down.")
+
+    # The same fault seen per customer rather than in the totals.
+    if not customers:
+        return
+    by_customer = {}
+    for row in customers.get("rows", []):
+        amount = number(row.get("eop_mrr"))
+        by_customer.setdefault(row.get("customer_id"), {})[row.get("month")] = amount or 0
+
+    gapped = 0
+    paying = 0
+    for months in by_customer.values():
+        keys = sorted(k for k in months if k)
+        if not any(months[k] > 0 for k in keys):
+            continue
+        paying += 1
+        live = [i for i, k in enumerate(keys) if months[k] > 0]
+        if not live:
+            continue
+        first, last = live[0], live[-1]
+        if any(months[keys[i]] == 0 for i in range(first, last)):
+            gapped += 1
+
+    if paying and gapped / paying > 0.05:
+        report("error", "Customer Waterfall",
+               f"{gapped:,} of {paying:,} paying customers ({gapped / paying:.0%}) have a "
+               f"zero month with revenue on both sides of it. Each of those reads as a churn "
+               f"followed by a reactivation. A customer who was there in March and there in "
+               f"May did not leave in April, so presence is being read from payment rather "
+               f"than from a subscription or a base membership.")
+
+
 def main():
     index = load("index.json")
     if index is None:
@@ -170,6 +232,7 @@ def main():
     waterfall = load("waterfall_summary.json")
     if waterfall:
         check_zero_for_blank(waterfall, "Waterfall Summary", ["new_mrr", "churn_mrr"])
+        check_presence_is_not_payment(waterfall, load("customer_waterfall.json"))
 
         # The base count is the one number that needs no interpretation, so a
         # sharp move in it is worth a look even when nothing is malformed.
