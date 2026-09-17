@@ -3,6 +3,7 @@ import {
   blendedRetention, retentionByEra, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
   seasonalSurvival, survivalByRevenueWithinTenure, reconciliation,
+  hasRevenueClasses, CLASS_MARGINS,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -140,15 +141,29 @@ function renderStatic() {
       `<span>${era.year} ${fmt.pct(era.points[i], 1)}</span>`).join(''),
   });
 
+  // The headline is read off the numbers rather than asserted, so it cannot
+  // keep claiming a direction the data has stopped supporting.
+  const ranked = [...eras].filter(e => e.month6 !== null).sort((a, b) => b.month6 - a.month6);
+  const bestYear = ranked[0];
+  const worstYear = ranked[ranked.length - 1];
   const newest = eras[eras.length - 1];
-  const older = eras.slice(0, -1);
-  $('era-finding').innerHTML =
-    `<strong>The newest cohorts are worse from month 2 onward, and they stay worse.</strong> `
-    + `At month 3 the ${newest.year} cohorts hold ${fmt.pct(newest.month3, 1)} against `
-    + older.map(e => `${fmt.pct(e.month3, 1)} for ${e.year}`).join(' and ')
-    + `. By month 6 the gap has widened rather than closed: ${fmt.pct(newest.month6, 1)} `
-    + `against ${older.map(e => fmt.pct(e.month6, 1)).join(' and ')}. `
-    + `The lines do not converge.`;
+  const spread6 = ((bestYear.month6 - worstYear.month6) * 100).toFixed(1);
+  const monotonic = eras.every((e, i) => i === 0 || e.month6 <= eras[i - 1].month6);
+
+  $('era-finding').innerHTML = monotonic
+    ? `<strong>Each year is worse than the one before it at six months.</strong> `
+      + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)}`).join(', ')
+      + `. A steady decline rather than one bad year.`
+    : `<strong>${bestYear.year} was the good year, and both sides of it are worse.</strong> `
+      + `At month 6, ${eras.map(e => `${e.year} holds ${fmt.pct(e.month6, 1)}`).join(', ')}`
+      + `, a spread of ${spread6} points. `
+      + (newest.month3 > eras[0].month3
+          ? `The ${newest.year} cohorts actually start better than ${eras[0].year} at month 3, `
+            + `${fmt.pct(newest.month3, 1)} against ${fmt.pct(eras[0].month3, 1)}, and give it `
+            + `back by month 6. `
+          : '')
+      + `The question that follows is what was different about ${bestYear.year}, which nothing `
+      + `else on this page asks.`;
 
   $('era-note').textContent =
     'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
@@ -185,6 +200,11 @@ function renderStatic() {
       <span>Churned ${fmt.int(recent[i].churnedLogos)}</span>
       <span>Net ${recent[i].netLogoChange > 0 ? '+' : ''}${fmt.int(recent[i].netLogoChange)}</span>`,
   });
+  $('flows-note').textContent =
+    'New and reactivated above the axis, churned below. Net change is a line rather than a '
+    + 'third column, because it is the sum of the other two and would otherwise read as an '
+    + 'independent quantity. The counts here are the waterfall new logos, which is the '
+    + 'derived figure. The business reports a higher one, and chart 13 walks between them.';
 }
 
 // Cost and profit. Settled inputs, so this runs once like everything else.
@@ -232,7 +252,11 @@ function renderAssumptionDependent() {
     + `are below break-even. ${tooYoung} cohorts younger than ${MIN_COHORT_AGE} months are `
     + `withheld, because a young cohort sits low for want of time rather than for want of `
     + `quality. Cohorts before ${economics[0].month} are absent because acquisition cost is `
-    + `not recorded then, not because they performed badly.`;
+    + `not recorded then, not because they performed badly.`
+    + ` Denominators differ between the two halves of this ratio: gross profit is divided by `
+    + `the cohort this build can observe, cost by the logo count the business reports. Where `
+    + `those two diverge the ratio compares unlike populations, and they diverge most in `
+    + `months where intake is thin.`;
 
   // 2. Expected payback by cohort, against a 12 month goal.
   const payback = economics.map(c => c.payback);
@@ -297,10 +321,13 @@ function renderAssumptionDependent() {
       ? (p.neverRate >= 0.25 ? '<span class="tag risk">at risk</span>'
                              : '<span class="tag projected">projected</span>')
       : '<span class="tag actual">actual</span>';
+    const divisorNote = p.costDivisor === 'reported' ? 'reported' : 'waterfall';
     return '<tr>'
       + '<td>' + p.month + '</td>'
-      + '<td class="n">' + fmt.int(p.size) + '</td>'
-      + '<td class="n">' + fmt.money(p.cost) + '</td>'
+      + '<td class="n">' + fmt.int(p.cohortLogos) + '</td>'
+      + '<td class="n">' + (p.waterfallLogos === null ? '--' : fmt.int(p.waterfallLogos)) + '</td>'
+      + '<td class="n">' + (p.reportedLogos === null ? '--' : fmt.int(p.reportedLogos)) + '</td>'
+      + '<td class="n">' + fmt.money(p.cost) + ' <span class="range none">/' + divisorNote + '</span></td>'
       + '<td class="n">' + p.monthsObserved + '</td>'
       + '<td>' + tag + '</td>'
       + '<td class="n">' + label + '</td>'
@@ -310,13 +337,26 @@ function renderAssumptionDependent() {
   }).join('');
 
   $('breakeven-table').innerHTML =
-    '<thead><tr><th>Cohort</th><th class="n">Logos</th><th class="n">Cost per logo</th>'
+    '<thead><tr><th>Cohort</th><th class="n">Observed</th><th class="n">Waterfall</th>'
+    + '<th class="n">Reported</th><th class="n">Cost per logo</th>'
     + '<th class="n">Months observed</th><th>Basis</th><th class="n">Break-even</th>'
     + '<th>90% range</th><th class="n">Risk of never</th></tr></thead><tbody>'
     + rows + '</tbody>';
 
   const done = projection.filter(p => !p.projected).length;
   const atRisk = projection.filter(p => p.projected && p.neverRate >= 0.25).length;
+  const divergent = projection.filter(p =>
+    p.reportedLogos !== null && p.cohortLogos && Math.abs(p.reportedLogos - p.cohortLogos) / p.cohortLogos > 0.5).length;
+  $('breakeven-divisor').innerHTML =
+    '<strong>Three counts of a new logo, and they disagree in both directions.</strong> The '
+    + 'cohort column is what this build can observe, the waterfall column is what the monthly '
+    + 'summary reports, the reported column is the business figure. Cost per logo divides by '
+    + 'the one named beside it, which is the reported count wherever the pipeline supplies one. '
+    + 'Gross profit divides by the cohort column, so where those two diverge the ratio compares '
+    + 'unlike populations, and it does so on ' + divergent + ' of ' + projection.length
+    + ' cohorts. That is a definition problem rather than a data gap: in some months derived '
+    + 'is higher than reported and in others lower, which no amount of missing lapsed '
+    + 'customers can explain.';
   $('breakeven-note').textContent =
     done + ' of ' + projection.length + ' cohorts have already covered their cost, and those '
     + 'rows report the month it happened rather than a forecast. The rest are projected from '
@@ -349,8 +389,18 @@ function renderAssumptionDependent() {
       <span>Revenue per logo ${fmt.money(revenuePerLogo[i])}</span>
       <span class="muted">${fmt.int(months[i].newLogos)} new logos</span>`,
   });
+  const reportedMonths = data.cacMonthly.filter(r => r.cacPerLogo !== null).length;
   $('unit-note').textContent =
-    'Both indexed to 100 at the first month with acquisition cost recorded, so the divergence reads without either absolute number needing to be right. Cost per logo is rebuilt from the P&L rather than read from the CAC Monthly tab, which arrived without a usable per-logo figure.';
+    'Both indexed to 100 at the first month with acquisition cost recorded, so the divergence '
+    + 'reads without either absolute number needing to be right. '
+    + (reportedMonths
+        ? `Cost per logo uses the pipeline's own figure for the ${reportedMonths} months that `
+          + 'carry one, which divides total acquisition cost by the reported new logo count. '
+          + 'Earlier months divide the same cost by the waterfall derived count, which is a '
+          + 'different and usually smaller denominator, so the two halves of this line are not '
+          + 'strictly comparable.'
+        : 'Cost per logo divides total acquisition cost by the waterfall derived new logo '
+          + 'count, which is smaller than the reported count.');
 }
 
 // Forward survival. Independent of the split and the margin, so drawn once.
@@ -500,10 +550,21 @@ function renderForward() {
   // Stale claim check, stated from the data rather than from memory.
   const s2 = data.customers.filter(r => r.source === 'S2').length;
   const s2Share = s2 / data.customers.length;
-  const classColumns = ['usage_revenue', 'onetime_revenue', 'passthrough_revenue'];
-  const hasClasses = false;
+  const hasClasses = hasRevenueClasses(data);
   $('margin-statement').innerHTML = hasClasses
-    ? 'Revenue is split by class, so per class margins are applied.'
+    ? '<strong>Margins are applied per revenue class.</strong> Platform '
+      + fmt.pct(CLASS_MARGINS.platform, 1) + ', usage ' + fmt.pct(CLASS_MARGINS.usage)
+      + ', one-time ' + fmt.pct(CLASS_MARGINS.oneTime) + ', and pass-through and '
+      + 'recognised-elsewhere at zero. Pass-through is carrier fees, which sit in revenue and '
+      + 'in cost of sales at once, so any margin on them would credit profit that does not '
+      + 'exist. Recognised-elsewhere is a buyout or prepayment already carried by a couponed '
+      + 'subscription, so counting it again would double count. How the classes divide '
+      + 'recognised MRR is inferred rather than stated by the push: the identified classes are '
+      + 'carved out and the remainder treated as platform, with one-time added rather than '
+      + 'carved out because it is not recurring. '
+      + 'The second Stripe environment is now pulling but thinly, '
+      + fmt.int(s2) + ' of ' + fmt.int(data.customers.length) + ' rows ('
+      + fmt.pct(s2Share, 2) + ').'
     : '<strong>Still estimated:</strong> a single 75.7% platform margin is applied to all '
       + 'revenue, because the pushed customer waterfall carries no revenue class columns. '
       + 'The query emits them; the push does not carry them, so the fix is upstream rather '
@@ -758,12 +819,14 @@ function renderReconciliation() {
                : (signed && v > 0 ? '+' : '') + fmt.int(v)) + '</td>';
 
   $('recon-table').innerHTML =
-    '<thead><tr><th>Month</th><th class="n">Derived</th><th class="n">Censored</th>'
+    '<thead><tr><th>Month</th><th class="n">Derived</th><th class="n">Waterfall</th>'
+    + '<th class="n">Censored</th>'
     + '<th class="n">Migration pairs</th><th class="n">Zero-revenue lag</th>'
     + '<th class="n">Walked</th><th class="n">Reported</th><th class="n">Unexplained</th></tr></thead>'
     + '<tbody>' + rec.rows.map(r =>
         '<tr><td>' + r.month + '</td>'
         + cell(r.derived)
+        + '<td class="n">' + (r.waterfall === null ? '--' : fmt.int(r.waterfall)) + '</td>'
         + cell(-r.censored, true)
         + cell(-r.pairs, true)
         + cell(r.lag, true)
@@ -786,8 +849,12 @@ function renderReconciliation() {
     + 'ways rather than drifting one, from ' + Math.min(...rec.rows.map(r => r.unexplained))
     + ' to +' + Math.max(...rec.rows.map(r => r.unexplained)) + '. '
     + worst.month + ' is the widest at ' + (worst.unexplained > 0 ? '+' : '')
-    + worst.unexplained + '. ' + big + ' months are out by ten or more, which is too large '
-    + 'to be rounding and points at a definition neither system has written down.';
+    + worst.unexplained + '. ' + big + ' months are out by ten or more. '
+    + 'The direction is the telling part: in some months this build finds <em>more</em> new '
+    + 'logos than the business reports. Missing lapsed customers can only ever make the '
+    + 'derived figure too low, so an inversion cannot be explained that way. Something is '
+    + 'being counted as a new logo by one system and not the other, which is a definition '
+    + 'that nobody has written down rather than a gap in the data.';
 
   $('recon-note').textContent =
     'Derived counts cohorts by first month carrying revenue. Censored removes customers who '

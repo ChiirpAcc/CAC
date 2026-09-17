@@ -71,7 +71,7 @@ async function readFile(name) {
 // new tabs have arrived unannounced more than once, and fetching every file
 // meant one bad or renamed file took the whole page down rather than one chart.
 const REQUIRED_TABS = ['Waterfall Summary', 'CAC Monthly', 'QB Expenses', 'Customer Waterfall'];
-const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes'];
+const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'Migration Key'];
 
 export async function load() {
   const index = await fetch(`${DATA_DIR}/index.json`, { cache: 'no-store' }).then(r => r.json());
@@ -154,9 +154,26 @@ export async function load() {
       id: r.customer_id,
       name: r.company_name || null,
       source: r.source || null,
+      canonicalId: r.canonical_id || null,
       month: r.month,
       eopMrr: num(r.eop_mrr),
+      usage: num(r.usage_revenue) || 0,
+      oneTime: num(r.onetime_revenue) || 0,
+      passThrough: num(r.passthrough_revenue) || 0,
+      recognisedElsewhere: num(r.recognised_elsewhere_revenue) || 0,
     }));
+
+  const migrationKey = new Map();
+  const keyTab = byTab['Migration Key'];
+  if (keyTab) {
+    const idKey = keyTab.columns.find(c => /customer_id/i.test(c || ''));
+    const acctKey = keyTab.columns.find(c => /^account$/i.test(c || ''));
+    if (idKey && acctKey) {
+      for (const row of keyTab.rows) {
+        if (row[idKey] && row[acctKey]) migrationKey.set(row[idKey], String(row[acctKey]));
+      }
+    }
+  }
 
   return {
     pushedAt: index.pushed_at || null,
@@ -165,6 +182,7 @@ export async function load() {
     expenses,
     customers,
     lifetimes,
+    migrationKey,
     missingTabs: missing,
     lastMonth: waterfall.length ? waterfall[waterfall.length - 1].month : null,
   };
@@ -214,6 +232,7 @@ export function buildCohorts(data) {
   const firstRevenueMonth = new Map();
   const activeByCustomer = new Map();
   const revenueByCustomer = new Map();
+  const rowByCustomerMonth = new Map();
 
   for (const row of data.customers) {
     if (row.eopMrr === null || row.eopMrr <= 0) continue;
@@ -227,6 +246,7 @@ export function buildCohorts(data) {
     }
     activeByCustomer.get(row.id).add(row.month);
     revenueByCustomer.get(row.id).set(row.month, row.eopMrr);
+    rowByCustomerMonth.set(row.id + '|' + row.month, row);
   }
 
   // Left censoring.
@@ -272,21 +292,26 @@ export function buildCohorts(data) {
 
     const logos = [];
     const revenue = [];
+    const profit = [];
     for (let offset = 0; offset <= maxOffset; offset += 1) {
       const at = monthAdd(month, offset);
       let live = 0;
       let mrr = 0;
+      let gp = 0;
       for (const id of ids) {
         if (activeByCustomer.get(id).has(at)) {
           live += 1;
-          mrr += revenueByCustomer.get(id).get(at) || 0;
+          const row = rowByCustomerMonth.get(id + '|' + at);
+          mrr += row ? (row.eopMrr || 0) : 0;
+          gp += row ? grossProfit(row) : 0;
         }
       }
       logos.push(live);
       revenue.push(mrr);
+      profit.push(gp);
     }
 
-    return { month, size: logos[0] || ids.length, ids, logos, revenue, maxOffset };
+    return { month, size: logos[0] || ids.length, ids, logos, revenue, profit, maxOffset };
   });
 
   const built = cohorts.filter(c => c.size > 0);
@@ -311,6 +336,9 @@ export function cohortEconomics(data, cohorts, { margin }) {
   // them would remove every cohort old enough to have paid back.
   const reportedPerLogo = new Map(
     data.cacMonthly.filter(r => r.cacPerLogo !== null).map(r => [r.month, r.cacPerLogo]));
+  const reportedLogosByMonth = new Map(
+    data.cacMonthly.filter(r => r.reportedNewLogos !== null)
+      .map(r => [r.month, r.reportedNewLogos]));
 
   return cohorts.map(cohort => {
     const spend = cac.get(cohort.month);
@@ -325,8 +353,11 @@ export function cohortEconomics(data, cohorts, { margin }) {
     const costBasis = reported !== undefined ? 'reported' : 'derived';
 
     let running = 0;
-    const cumulativeGpPerLogo = cohort.revenue.map(mrr => {
-      running += (mrr * margin) / cohort.size;
+    // Per class where the push carries the classes, flat margin otherwise.
+    const monthly = cohort.profit && cohort.profit.length ? cohort.profit : null;
+    const cumulativeGpPerLogo = cohort.revenue.map((mrr, i) => {
+      const gp = monthly ? monthly[i] : mrr * margin;
+      running += gp / cohort.size;
       return running;
     });
 
@@ -345,6 +376,12 @@ export function cohortEconomics(data, cohorts, { margin }) {
       maxOffset: cohort.maxOffset,
       costPerLogo,
       costBasis,
+      // Three counts of the same thing, carried together so no chart can
+      // silently divide by one while labelling another.
+      cohortLogos: cohort.size,
+      waterfallLogos: acquired ?? null,
+      reportedLogos: reportedLogosByMonth.get(cohort.month) ?? null,
+      costDivisor: reportedLogosByMonth.has(cohort.month) ? 'reported' : 'waterfall',
       cumulativeGpPerLogo,
       recovery,
       payback,
@@ -638,7 +675,12 @@ function terminalRate(path, depth = 6) {
 
 export function projectedBreakEven(data, cohorts, options) {
   const { csShare, partnershipsShare, margin, replicates = 300, horizon = 120 } = options;
-  const cac = cacByMonth(data, { csShare, partnershipsShare });
+  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const reportedPerLogo = new Map(
+    data.cacMonthly.filter(r => r.cacPerLogo !== null).map(r => [r.month, r.cacPerLogo]));
+  const reportedLogosByMonth = new Map(
+    data.cacMonthly.filter(r => r.reportedNewLogos !== null)
+      .map(r => [r.month, r.reportedNewLogos]));
   const newLogos = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
 
   // Donors need enough history to lend a trajectory, and recent enough to be
@@ -681,7 +723,12 @@ export function projectedBreakEven(data, cohorts, options) {
   return cohorts.map(cohort => {
     const spend = cac.get(cohort.month);
     const acquired = newLogos.get(cohort.month);
-    const cost = (spend === undefined || !acquired) ? null : spend / acquired;
+    // The same rule as cohortEconomics. Two cost-per-logo figures on one page
+    // was how a third denominator appeared out of nowhere.
+    const reported = reportedPerLogo.get(cohort.month);
+    const cost = reported !== undefined
+      ? reported
+      : ((spend === undefined || !acquired) ? null : spend / acquired);
     if (cost === null) return null;
 
     // What actually happened, using only observed months.
@@ -694,6 +741,10 @@ export function projectedBreakEven(data, cohorts, options) {
 
     const base = {
       month: cohort.month, size: cohort.size, cost,
+      cohortLogos: cohort.size,
+      waterfallLogos: acquired ?? null,
+      reportedLogos: reportedLogosByMonth.get(cohort.month) ?? null,
+      costDivisor: reported !== undefined ? 'reported' : 'waterfall',
       monthsObserved: cohort.maxOffset + 1, actual,
     };
     if (actual !== null) {
@@ -997,6 +1048,7 @@ export function reconciliation(data, cohorts) {
 
   const derivedByMonth = new Map();
   for (const cohort of cohorts) derivedByMonth.set(cohort.month, cohort.size);
+  const waterfallByMonth = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
 
   const censoredByMonth = cohorts.windowStart
     ? new Map([[cohorts.windowStart, cohorts.censoredCount || 0]])
@@ -1013,6 +1065,7 @@ export function reconciliation(data, cohorts) {
       return {
         month: r.month,
         derived,
+        waterfall: waterfallByMonth.get(r.month) ?? null,
         censored,
         pairs,
         lag,
@@ -1023,4 +1076,40 @@ export function reconciliation(data, cohorts) {
     });
 
   return { rows, neverPaid, pairsFound, totalCustomers: firstSeen.size };
+}
+
+// Gross profit by revenue class.
+//
+// Pass-through is carrier fees. They sit in revenue and in cost of sales at
+// once, so any margin applied to them credits profit that does not exist.
+// Recognised-elsewhere is a buyout or prepayment whose monthly value is
+// already carried by a couponed subscription, so counting it again double
+// counts.
+//
+// The identified classes are carved out of recognised MRR and the remainder
+// is treated as platform. One-time revenue is not MRR, so it is added rather
+// than carved out. That decomposition is an inference from the shape of the
+// data, not something the push states, and it is written on the page so it
+// can be corrected rather than assumed.
+export const CLASS_MARGINS = {
+  platform: 0.757,
+  usage: 0.60,
+  oneTime: 0.90,
+  passThrough: 0,
+  recognisedElsewhere: 0,
+};
+
+export function grossProfit(row, margins = CLASS_MARGINS) {
+  const mrr = row.eopMrr || 0;
+  const carved = (row.usage || 0) + (row.passThrough || 0) + (row.recognisedElsewhere || 0);
+  const platform = Math.max(0, mrr - carved);
+  return platform * margins.platform
+    + (row.usage || 0) * margins.usage
+    + (row.oneTime || 0) * margins.oneTime
+    + (row.passThrough || 0) * margins.passThrough
+    + (row.recognisedElsewhere || 0) * margins.recognisedElsewhere;
+}
+
+export function hasRevenueClasses(data) {
+  return data.customers.some(r => r.usage || r.oneTime || r.passThrough);
 }
