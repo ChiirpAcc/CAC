@@ -71,7 +71,8 @@ async function readFile(name) {
 // new tabs have arrived unannounced more than once, and fetching every file
 // meant one bad or renamed file took the whole page down rather than one chart.
 const REQUIRED_TABS = ['Waterfall Summary', 'CAC Monthly', 'QB Expenses', 'Customer Waterfall'];
-const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'Migration Key'];
+const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'Migration Key',
+  'New Customer Cohorts'];
 
 export async function load() {
   const index = await fetch(`${DATA_DIR}/index.json`, { cache: 'no-store' }).then(r => r.json());
@@ -179,6 +180,39 @@ export async function load() {
       recognisedElsewhere: num(r.recognised_elsewhere_revenue) || 0,
     }));
 
+  // What a customer was sold, as opposed to what they have paid since. The
+  // three columns this was meant to denormalise into the waterfall arrive
+  // empty, so it is joined on customer_id instead.
+  const signups = [];
+  const signupTab = byTab['New Customer Cohorts'];
+  if (signupTab) {
+    const monthOf = value => {
+      const text = String(value || '').trim();
+      const slashed = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (slashed) return `${slashed[3]}-${String(slashed[1]).padStart(2, '0')}`;
+      return /^\d{4}-\d{2}/.test(text) ? text.slice(0, 7) : null;
+    };
+    for (const row of signupTab.rows) {
+      const month = monthOf(row.cohort_month);
+      if (!month || !row.customer_id) continue;
+      signups.push({
+        id: row.customer_id,
+        name: row.customer_name || null,
+        month,
+        startingMrr: num(row.starting_mrr) || 0,
+        platformMrr: num(row.platform_mrr) || 0,
+        upgradeMrr: num(row.upgrade_mrr) || 0,
+        firstPayment: num(row.first_payment) || 0,
+        nonMrr: num(row.non_mrr_amount) || 0,
+        setupFee: num(row.setup_fee) || 0,
+        startType: String(row.start_type || '').trim().toLowerCase() || null,
+        status: row.subscription_status || null,
+        state: row.current_state || null,
+        canceledAt: row.canceled_at || null,
+      });
+    }
+  }
+
   const migrationKey = new Map();
   const keyTab = byTab['Migration Key'];
   if (keyTab) {
@@ -199,6 +233,7 @@ export async function load() {
     customers,
     lifetimes,
     lifetimeRecords,
+    signups,
     migrationKey,
     missingTabs: missing,
     lastMonth: waterfall.length ? waterfall[waterfall.length - 1].month : null,
@@ -1206,4 +1241,127 @@ export function quickCancellations(data, { withinDays = 30 } = {}) {
   const totalWithLifetime = (data.lifetimeRecords || []).length;
 
   return { cancelled, byMonth, clusters, withinDays, totalWithLifetime };
+}
+
+// Price at signup against volume.
+//
+// The page has been telling the volume half of this as though it were the
+// whole story. Fewer customers at a higher price is a different business from
+// fewer customers, and only one of those is a demand problem.
+export function signupEconomics(data, { dropTrailing = true } = {}) {
+  const rows = data.signups || [];
+  if (!rows.length) return { months: [], startTypes: [], total: 0 };
+
+  const byMonth = new Map();
+  for (const row of rows) {
+    if (!byMonth.has(row.month)) byMonth.set(row.month, []);
+    byMonth.get(row.month).push(row);
+  }
+
+  let months = [...byMonth.keys()].sort();
+  // The last month is thin enough to be a partial pull rather than a fall.
+  if (dropTrailing && months.length > 1) {
+    const last = byMonth.get(months[months.length - 1]);
+    const previous = byMonth.get(months[months.length - 2]);
+    if (last.length < previous.length * 0.4) months = months.slice(0, -1);
+  }
+
+  const series = months.map(month => {
+    const group = byMonth.get(month);
+    const startingMrr = group.reduce((s, r) => s + r.startingMrr, 0);
+    const withFee = group.filter(r => r.setupFee > 0);
+    const feeTotal = withFee.reduce((s, r) => s + r.setupFee, 0);
+    const paidBelow = group.filter(r => r.firstPayment < r.startingMrr).length;
+    return {
+      month,
+      count: group.length,
+      startingMrr,
+      averagePrice: group.length ? startingMrr / group.length : null,
+      attachRate: group.length ? withFee.length / group.length : null,
+      averageFee: withFee.length ? feeTotal / withFee.length : null,
+      feeTotal,
+      firstPayment: group.reduce((s, r) => s + r.firstPayment, 0),
+      paidBelow,
+      byType: group.reduce((acc, r) => {
+        const key = r.startType || 'unclassified';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {}),
+    };
+  });
+
+  const startTypes = [...new Set(rows.map(r => r.startType || 'unclassified'))];
+  const typeTotals = startTypes.map(type => {
+    const group = rows.filter(r => (r.startType || 'unclassified') === type);
+    return {
+      type,
+      customers: group.length,
+      startingMrr: group.reduce((s, r) => s + r.startingMrr, 0),
+    };
+  }).sort((a, b) => b.customers - a.customers);
+
+  const below = rows.filter(r => r.firstPayment < r.startingMrr);
+
+  return {
+    months: series,
+    startTypes,
+    typeTotals,
+    total: rows.length,
+    paidBelow: { customers: below.length, startingMrr: below.reduce((s, r) => s + r.startingMrr, 0) },
+  };
+}
+
+// Signup price is fixed; current MRR moves with expansion and contraction, so
+// banding on what a customer was sold is a cleaner question than banding on
+// what they pay now. Still stratified by tenure, because tenure is the
+// stronger effect and would otherwise do the work.
+export function retentionBySignupPrice(data, { horizon = 4, windows = 24 } = {}) {
+  const priceOf = new Map((data.signups || []).map(r => [r.id, r.startingMrr]));
+  if (!priceOf.size) return null;
+
+  const activeByMonth = new Map();
+  const firstMonth = new Map();
+  for (const row of data.customers) {
+    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Set());
+    activeByMonth.get(row.month).add(row.id);
+    const seen = firstMonth.get(row.id);
+    if (seen === undefined || row.month < seen) firstMonth.set(row.id, row.month);
+  }
+
+  const months = [...activeByMonth.keys()].sort();
+  const last = months[months.length - 1];
+  const starts = months.filter(m => monthAdd(m, horizon) <= last).slice(-windows);
+
+  const bands = [
+    { label: 'under $750', lo: 0, hi: 750 },
+    { label: '$750 to $1.5k', lo: 750, hi: 1500 },
+    { label: 'over $1.5k', lo: 1500, hi: Infinity },
+  ];
+  const tenures = [
+    { label: 'first year', lo: 0, hi: 12 },
+    { label: 'over a year', lo: 12, hi: Infinity },
+  ];
+
+  const cells = tenures.map(tenure => ({
+    tenure: tenure.label,
+    bands: bands.map(band => {
+      let kept = 0, total = 0;
+      for (const month of starts) {
+        const later = activeByMonth.get(monthAdd(month, horizon)) || new Set();
+        for (const id of activeByMonth.get(month)) {
+          const price = priceOf.get(id);
+          if (price === undefined) continue;
+          const age = monthDiff(firstMonth.get(id), month);
+          if (price >= band.lo && price < band.hi && age >= tenure.lo && age < tenure.hi) {
+            total += 1;
+            if (later.has(id)) kept += 1;
+          }
+        }
+      }
+      return { label: band.label, n: total, survival: total ? kept / total : null };
+    }),
+  }));
+
+  return { bands, cells, matched: priceOf.size };
 }

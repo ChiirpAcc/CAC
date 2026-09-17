@@ -131,7 +131,34 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>13. Cancelled within 30 days of signing</h3>
+        <h3>13. Price at signup against volume</h3>
+      </figcaption>
+      <div class="plot" id="chart-price-volume"></div>
+      <p class="finding" id="price-volume-finding"></p>
+      <p class="note" id="price-volume-note"></p>
+    </figure>
+
+    <figure class="card">
+      <figcaption>
+        <h3>14. Onboarding: how many are charged, and how much</h3>
+      </figcaption>
+      <div class="plot" id="chart-onboarding"></div>
+      <p class="finding" id="onboarding-finding"></p>
+      <p class="note" id="onboarding-note"></p>
+    </figure>
+
+    <figure class="card">
+      <figcaption>
+        <h3>15. How a month starts: start type mix</h3>
+      </figcaption>
+      <div class="plot" id="chart-start-type"></div>
+      <p class="finding" id="start-type-finding"></p>
+      <p class="note" id="start-type-note"></p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>16. Cancelled within 30 days of signing</h3>
       </figcaption>
       <div class="plot" id="chart-quick-cancel"></div>
       <p class="finding negative" id="quick-cancel-finding"></p>
@@ -153,7 +180,7 @@
   <div class="wrap">
     <figure class="card wide" id="fig-recon">
       <figcaption>
-        <h3>14. Derived against reported new logos</h3>
+        <h3>17. Derived against reported new logos</h3>
       </figcaption>
       <div class="table-scroll">
         <table class="data-table" id="recon-table"></table>
@@ -176,7 +203,7 @@
   <div class="wrap">
     <figure class="card wide" id="fig-breakeven">
       <figcaption>
-        <h3>15. Break-even month by cohort</h3>
+        <h3>18. Break-even month by cohort</h3>
       </figcaption>
       <p class="finding" id="breakeven-divisor"></p>
       <div class="table-scroll">
@@ -201,7 +228,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>16. Forward four months, from each of the last 24 starting months</h3>
+        <h3>19. Forward four months, from each of the last 24 starting months</h3>
       </figcaption>
       <div class="plot" id="chart-forward"></div>
       <p class="finding negative" id="forward-finding"></p>
@@ -210,7 +237,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>17. Four-month survival, by starting month</h3>
+        <h3>20. Four-month survival, by starting month</h3>
       </figcaption>
       <div class="plot" id="chart-forward-trend"></div>
       <p class="note" id="forward-trend-note"></p>
@@ -218,16 +245,17 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>18. Does paying more mean staying longer, at equal tenure?</h3>
+        <h3>21. Does paying more mean staying longer, at equal tenure?</h3>
       </figcaption>
       <div class="plot" id="chart-by-mrr"></div>
       <p class="finding" id="mrr-finding"></p>
+      <p class="finding" id="mrr-signup"></p>
       <p class="note" id="mrr-note"></p>
     </figure>
 
     <figure class="card">
       <figcaption>
-        <h3>19. Where the hazard falls: survival by age</h3>
+        <h3>22. Where the hazard falls: survival by age</h3>
       </figcaption>
       <div class="plot" id="chart-by-tenure"></div>
       <p class="finding" id="tenure-finding"></p>
@@ -236,7 +264,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>20. Customer Success capacity against churn</h3>
+        <h3>23. Customer Success capacity against churn</h3>
       </figcaption>
       <div class="plot" id="chart-capacity"></div>
       <p class="finding" id="capacity-finding"></p>
@@ -245,7 +273,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>21. Is either relationship moving?</h3>
+        <h3>24. Is either relationship moving?</h3>
       </figcaption>
       <div class="plot" id="chart-momentum"></div>
       <p class="finding" id="momentum-finding"></p>
@@ -254,7 +282,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>22. Does churn rise when fewer customers arrive?</h3>
+        <h3>25. Does churn rise when fewer customers arrive?</h3>
       </figcaption>
       <div class="plot" id="chart-new-vs-churn"></div>
       <p class="finding" id="newchurn-finding"></p>

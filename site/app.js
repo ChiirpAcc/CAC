@@ -4,6 +4,7 @@ import {
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
   seasonalSurvival, survivalByRevenueWithinTenure, reconciliation,
   hasRevenueClasses, CLASS_MARGINS, environmentSplit, quickCancellations,
+  signupEconomics, retentionBySignupPrice,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -39,6 +40,7 @@ function boot() {
     renderForward();
     renderSeasonal();
     renderReconciliation();
+    renderSignups();
     renderQuickCancellations();
     renderAnnotations();
     $('horizon').addEventListener('input', renderSeasonal);
@@ -550,6 +552,28 @@ function renderForward() {
     + fmt.pct(young.bands[young.bands.length - 1].survival, 1) + '. Past two years the '
     + 'effect is gone, ' + (oldLift >= 0 ? 'up ' : 'down ') + Math.abs(oldLift).toFixed(1)
     + ' points. Price buys you time early and stops mattering once a customer is established.';
+  // Signup price is fixed; current MRR moves with expansion and contraction,
+  // so the same question asked on what a customer was sold is the cleaner
+  // version of it. Reported beside this chart rather than as a rival to it.
+  const signupBanded = retentionBySignupPrice(data);
+  if (signupBanded) {
+    const young = signupBanded.cells[0];
+    const lift = (young.bands[young.bands.length - 1].survival - young.bands[0].survival) * 100;
+    $('mrr-signup').innerHTML =
+      '<strong>Asked on signup price instead, it points the other way.</strong> Banding on '
+      + 'what a customer was sold rather than what they pay now, '
+      + young.bands.map(b => b.label + ' ' + fmt.pct(b.survival, 1)).join(', ')
+      + ' within the first year, a spread of ' + pp(lift) + '. The dearest signups survive '
+      + 'worst, which is the reverse of the chart above. The likely reason is that current '
+      + 'price carries survivorship in it: a customer who contracts moves down a band and '
+      + 'takes their poor retention with them, so banding on current MRR credits the cheap '
+      + 'bands with churn that began higher up. Signup price cannot do that, because it never '
+      + 'moves.'
+      + ' Read it as a flag rather than a finding: it matches ' + fmt.int(signupBanded.matched)
+      + ' customers, all of them 2026 signups, so it is a young and much smaller sample than '
+      + 'the pooled windows above and the two are not like for like.';
+  }
+
   $('mrr-note').textContent =
     'Revenue measured at the starting month, pooled across ' + strat.starts + ' windows and '
     + 'stratified by tenure so the two effects are separated rather than confused. '
@@ -1408,6 +1432,132 @@ function renderQuickCancellations() {
         : '')
     + ' What cannot be shown yet is what they were worth: starting MRR arrives as an empty '
     + 'column, so the revenue attached to these is not in the push.';
+}
+
+// 13, 14 and 15. What a customer was sold, as opposed to what they paid since.
+function renderSignups() {
+  const sx = signupEconomics(data);
+  if (!sx.months.length) {
+    for (const id of ['chart-price-volume', 'chart-onboarding', 'chart-start-type']) {
+      const node = $(id);
+      if (node) node.innerHTML = '<p class="empty">No signup pricing in this push.</p>';
+    }
+    return;
+  }
+
+  const ms = sx.months;
+  const labels = ms.map(r => fmt.monthLabel(r.month));
+  const first = ms[0];
+  const last = ms[ms.length - 1];
+
+  // 13. Volume, price and the product of the two, indexed so three quantities
+  // in different units can share one axis.
+  const index = (values, base) => values.map(v => (v === null ? null : (v / base) * 100));
+  multiLineChart($('chart-price-volume'), {
+    labels,
+    series: [
+      { label: 'New logos', colour: INK.negative,
+        values: index(ms.map(r => r.count), first.count) },
+      { label: 'Average price at signup', colour: INK.primary,
+        values: index(ms.map(r => r.averagePrice), first.averagePrice) },
+      { label: 'New MRR added', colour: INK.secondary, dashed: true,
+        values: index(ms.map(r => r.startingMrr), first.startingMrr) },
+    ],
+    yFormat: v => Math.round(v),
+    refs: [{ value: 100, label: first.month + ' = 100', variant: 'ref-floor' }],
+    describe: i => '<strong>' + fmt.monthLabel(ms[i].month) + '</strong>'
+      + '<span>' + fmt.int(ms[i].count) + ' new logos</span>'
+      + '<span>Average ' + fmt.money(ms[i].averagePrice) + ' at signup</span>'
+      + '<span>' + fmt.money(ms[i].startingMrr) + ' of new MRR</span>',
+  });
+
+  const volumeChange = (last.count / first.count - 1) * 100;
+  const priceChange = (last.averagePrice / first.averagePrice - 1) * 100;
+  const mrrChange = (last.startingMrr / first.startingMrr - 1) * 100;
+
+  $('price-volume-finding').innerHTML =
+    '<strong>Fewer customers at a higher price, and the price is not covering the volume.</strong> '
+    + 'Between ' + first.month + ' and ' + last.month + ' the count fell '
+    + Math.abs(volumeChange).toFixed(0) + '% while the average price at signup rose '
+    + priceChange.toFixed(0) + '%, from ' + fmt.money(first.averagePrice) + ' to '
+    + fmt.money(last.averagePrice) + '. New MRR added went from ' + fmt.money(first.startingMrr)
+    + ' to ' + fmt.money(last.startingMrr) + ', '
+    + (mrrChange < 0 ? 'down ' : 'up ') + Math.abs(mrrChange).toFixed(0) + '%. '
+    + 'Neither number tells that on its own, and the volume line alone reads far worse than '
+    + 'the business is.';
+
+  $('price-volume-note').textContent =
+    'Starting MRR is platform plus upgrade at signup, from the new customer cohort source, '
+    + 'which is what a customer was sold rather than what they have paid since. '
+    + fmt.int(sx.total) + ' customers. The same S1 weighting applies here as everywhere else: '
+    + 'the last month in this source carries only a handful of customers and is dropped, and '
+    + 'the months before it are still drawn mostly from the first Stripe environment, so read '
+    + 'the volume line as a floor.';
+
+  // 14. Attach rate and fee are two different movements.
+  multiLineChart($('chart-onboarding'), {
+    labels,
+    series: [
+      { label: 'Share charged a setup fee', colour: INK.primary,
+        values: ms.map(r => (r.attachRate === null ? null : r.attachRate * 100)) },
+    ],
+    yFormat: v => Math.round(v) + '%',
+    yMin: 0,
+    describe: i => '<strong>' + fmt.monthLabel(ms[i].month) + '</strong>'
+      + '<span>' + fmt.pct(ms[i].attachRate, 1) + ' charged a setup fee</span>'
+      + '<span>Average ' + fmt.money(ms[i].averageFee) + ' where charged</span>'
+      + '<span class="muted">' + fmt.money(ms[i].feeTotal) + ' in total</span>',
+  });
+
+  const attachEnds = ms.filter(r => r.attachRate !== null);
+  const feeEnds = ms.filter(r => r.averageFee !== null);
+  $('onboarding-finding').innerHTML =
+    '<strong>Two separate movements, worth not confusing.</strong> The share of customers '
+    + 'charged a setup fee went from ' + fmt.pct(attachEnds[0].attachRate, 1) + ' to '
+    + fmt.pct(attachEnds[attachEnds.length - 1].attachRate, 1)
+    + ', and the fee itself from ' + fmt.money(feeEnds[0].averageFee) + ' to '
+    + fmt.money(feeEnds[feeEnds.length - 1].averageFee)
+    + '. More customers charged, and charged more, are different decisions with different '
+    + 'effects on conversion.';
+  $('onboarding-note').textContent =
+    'Attach rate is the share of the month with a setup fee above zero. The average is taken '
+    + 'across those charged, not across everyone, because including the unfeed customers would '
+    + 'blend the two movements back together.';
+
+  // 15. How much of a month is not a standard start.
+  const types = sx.typeTotals.map(x => x.type);
+  const palette = [INK.tertiary, INK.primary, INK.secondary, INK.negative, INK.positive];
+  multiLineChart($('chart-start-type'), {
+    labels,
+    series: types.map((type, i) => ({
+      label: type,
+      colour: palette[i % palette.length],
+      values: ms.map(r => ((r.byType[type] || 0) / r.count) * 100),
+    })),
+    yFormat: v => Math.round(v) + '%',
+    yMin: 0,
+    describe: i => '<strong>' + fmt.monthLabel(ms[i].month) + '</strong>'
+      + types.map(type => '<span>' + type + ' ' + fmt.int(ms[i].byType[type] || 0) + '</span>').join(''),
+  });
+
+  const shifted = sx.typeTotals.find(x => x.type === 'shifted forward');
+  const waived = sx.typeTotals.find(x => x.type === 'waived');
+  const annual = sx.typeTotals.find(x => x.type === 'annual');
+  $('start-type-finding').innerHTML =
+    '<strong>Not every month starts the same way, and three of these break a different '
+    + 'number.</strong> '
+    + (shifted ? shifted.customers + ' customers are shifted forward, '
+        + fmt.money(shifted.startingMrr) + ', which is the left censoring problem already '
+        + 'classified by hand rather than inferred. ' : '')
+    + (waived ? waived.customers + ' were waived, ' + fmt.money(waived.startingMrr)
+        + ', counting as MRR while contributing no cash. ' : '')
+    + (annual ? annual.customers + ' are annual, ' + fmt.money(annual.startingMrr)
+        + ' counted at twelve months, which makes the months carrying them read high.' : '');
+  $('start-type-note').textContent =
+    'Share of each month by how the subscription started. '
+    + sx.paidBelow.customers + ' customers across the whole source paid less in month one than '
+    + 'their starting MRR, ' + fmt.money(sx.paidBelow.startingMrr) + ' of price, which is the '
+    + 'gap between what is billed and what arrives.';
 }
 
 boot();
