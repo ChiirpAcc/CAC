@@ -266,6 +266,21 @@
 
     <figure class="card wide">
       <figcaption>
+        <h3>19. This year against last year, same window</h3>
+        <p class="register solid">Independent of the assumptions</p>
+      </figcaption>
+      <div class="chart-control">
+        <label for="horizon">Follow customers forward for</label>
+        <input type="range" id="horizon" min="1" max="12" step="1" value="4">
+        <output id="horizon-value">4 months</output>
+      </div>
+      <div class="plot" id="chart-seasonal"></div>
+      <p class="finding" id="seasonal-finding"></p>
+      <p class="note" id="seasonal-note"></p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
         <h3>17. Customer Success capacity against churn</h3>
         <p class="register solid">Independent of the assumptions</p>
       </figcaption>

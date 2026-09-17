@@ -729,3 +729,54 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
     rollingWidth: 12,
   };
 }
+
+// The same window, this year against one and two years ago.
+//
+// Take everybody active in a month and follow that exact set forward. Do it
+// for the most recent month whose window has fully elapsed, then for the same
+// month twelve and twenty four months earlier. Comparing like calendar
+// positions keeps seasonality out of the answer: a trade business does not
+// churn evenly through the year, so March against March says more than March
+// against the average of everything.
+export function seasonalSurvival(data, { horizon = 4 } = {}) {
+  const activeByMonth = new Map();
+  for (const row of data.customers) {
+    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Set());
+    activeByMonth.get(row.month).add(row.id);
+  }
+
+  const months = [...activeByMonth.keys()].sort();
+  const last = months[months.length - 1];
+
+  // Only a window that has fully elapsed can be drawn. Anything shorter would
+  // flatter the most recent line, because its losses have not happened yet.
+  const complete = months.filter(m => monthAdd(m, horizon) <= last);
+  if (!complete.length) return { horizon, anchor: null, series: [] };
+
+  const anchor = complete[complete.length - 1];
+
+  const series = [24, 12, 0].map(back => {
+    const start = monthAdd(anchor, -back);
+    const base = activeByMonth.get(start);
+    if (!base || !base.size) return null;
+
+    const curve = [1];
+    for (let k = 1; k <= horizon; k += 1) {
+      const later = activeByMonth.get(monthAdd(start, k));
+      if (!later) { curve.push(null); continue; }
+      let kept = 0;
+      for (const id of base) if (later.has(id)) kept += 1;
+      curve.push(kept / base.size);
+    }
+    return {
+      month: start,
+      monthsBack: back,
+      n: base.size,
+      curve,
+      survival: curve[horizon],
+    };
+  }).filter(Boolean);
+
+  return { horizon, anchor, series };
+}

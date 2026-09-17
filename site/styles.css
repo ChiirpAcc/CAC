@@ -396,3 +396,19 @@ figcaption { margin-bottom: .9rem; }
 
 .range { color: var(--ink-mid); }
 .range.none { color: var(--ink-soft); }
+
+/* A view control that belongs to one chart, kept visually distinct from the
+   assumptions panel so it does not read as another modelling choice. */
+.chart-control {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+  padding: .5rem .75rem;
+  background: var(--surface-sunk);
+  font-size: .85rem;
+  color: var(--ink-mid);
+}
+.chart-control input[type="range"] { flex: 1 1 12rem; min-width: 8rem; accent-color: var(--series-1); }
+.chart-control output { font-weight: 600; color: var(--ink); min-width: 6em; }

@@ -2,6 +2,7 @@ import {
   load, cacByMonth, splitTotals, buildCohorts, cohortEconomics,
   blendedRetention, retentionByEra, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
+  seasonalSurvival,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -37,6 +38,8 @@ function boot() {
     wireControls();
     renderStatic();
     renderForward();
+    renderSeasonal();
+    $('horizon').addEventListener('input', renderSeasonal);
     renderAssumptionDependent();
   }).catch(err => {
     $('loading').innerHTML =
@@ -622,6 +625,62 @@ function renderForward() {
     + ' against window order), so both quantities drift over the period. That shared drift is '
     + 'why a raw pairwise correlation here would mislead in either direction, and why this is '
     + 'drawn as a cloud rather than as a trend line through it.';
+}
+
+// 19. The same window, this year against one and two years ago. Driven by its
+// own slider rather than by the assumptions, because the horizon is a way of
+// looking rather than a modelling choice.
+function renderSeasonal() {
+  const horizon = Number($('horizon').value);
+  $('horizon-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');
+
+  const s = seasonalSurvival(data, { horizon });
+  if (!s.series.length) {
+    $('chart-seasonal').innerHTML = '<p class="empty">Not enough history for that window.</p>';
+    return;
+  }
+
+  const labels = Array.from({ length: horizon + 1 }, (_, i) => (i ? '+' + i : 'start'));
+  const colours = [INK.tertiary, INK.secondary, INK.negative];
+
+  multiLineChart($('chart-seasonal'), {
+    labels,
+    series: s.series.map((row, i) => ({
+      label: fmt.monthLabel(row.month) + (row.monthsBack ? ` (${row.monthsBack}mo ago)` : ' (latest)'),
+      colour: colours[i],
+      values: row.curve,
+    })),
+    yFormat: v => fmt.pct(v),
+    yMin: Math.max(0, Math.min(...s.series.map(r => r.survival ?? 1)) - 0.1),
+    yMax: 1,
+    xTitle: 'Months after the starting month',
+    describe: i => '<strong>' + (i ? i + ' month' + (i > 1 ? 's' : '') + ' on' : 'Starting month') + '</strong>'
+      + s.series.map(row =>
+          '<span>' + row.month + ' ' + fmt.pct(row.curve[i], 1) + '</span>').join(''),
+  });
+
+  const latest = s.series[s.series.length - 1];
+  const yearAgo = s.series.find(r => r.monthsBack === 12);
+  const twoYears = s.series.find(r => r.monthsBack === 24);
+
+  const gap = yearAgo ? (latest.survival - yearAgo.survival) * 100 : null;
+  $('seasonal-finding').innerHTML = gap === null
+    ? '<strong>' + fmt.pct(latest.survival, 1) + ' still active after ' + horizon + ' months.</strong>'
+    : '<strong>' + Math.abs(gap).toFixed(1) + ' points '
+      + (gap < 0 ? 'worse' : 'better') + ' than the same window a year ago.</strong> '
+      + 'Of everyone active in ' + fmt.monthLabel(latest.month) + ', '
+      + fmt.pct(latest.survival, 1) + ' were still there ' + horizon + ' months later, against '
+      + fmt.pct(yearAgo.survival, 1) + ' for ' + fmt.monthLabel(yearAgo.month)
+      + (twoYears ? ' and ' + fmt.pct(twoYears.survival, 1) + ' for ' + fmt.monthLabel(twoYears.month) : '')
+      + '.';
+
+  $('seasonal-note').textContent =
+    'Everyone active in the starting month, followed forward as one fixed set. The latest '
+    + 'line is the most recent month whose full ' + horizon + ' month window has elapsed, '
+    + 'which is why it ends at ' + fmt.monthLabel(s.anchor) + ' rather than at the last month '
+    + 'of data. Same calendar position each year, so seasonality is held roughly constant '
+    + 'rather than averaged away. Base sizes: '
+    + s.series.map(r => fmt.monthLabel(r.month) + ' ' + fmt.int(r.n)).join(', ') + '.';
 }
 
 boot();
