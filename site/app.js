@@ -251,32 +251,89 @@ function renderAssumptionDependent() {
     + `count, so the ratio compares like with like.`;
 
   // 2. Expected payback by cohort, against a 12 month goal.
-  const payback = economics.map(c => c.payback);
+  //
+  // A cohort that has not covered its cost yet used to leave a gap, and ten
+  // gaps in a row read as collapse when they are mostly just the calendar: a
+  // cohort one month old cannot have paid back. The projection fills them in a
+  // different colour, so the chart says "expected at month 19" rather than
+  // saying nothing at all.
+  const projections = new Map(
+    projectedBreakEven(data, cohorts, state).map(p => [p.month, p]));
+
+  const paybackCeiling = 20;
+  const bars = economics.map(c => {
+    if (c.payback !== null) return { value: c.payback, projected: false, never: 0 };
+    const p = projections.get(c.month);
+    return {
+      value: p && p.central !== null ? p.central : null,
+      projected: true,
+      never: p ? p.neverRate : 0,
+      low: p ? p.low : null,
+      high: p ? p.high : null,
+    };
+  });
+  const clipped = bars.filter(b => b.value !== null && b.value > paybackCeiling).length;
+  const offTheEnd = bars.filter(b => b.projected && b.value === null).length;
+  const paybackAtRisk = bars.filter(b => b.projected && b.never >= 0.25).length;
+
   columnChart($('chart-payback'), {
     labels,
-    values: payback,
+    values: bars.map(b => b.value),
     yFormat: v => Math.round(v) + 'm',
-    colourFor: (v, i) => mute(v <= 12 ? INK.positive : INK.negative, economics[i]),
+    yMax: paybackCeiling,
+    colourFor: (v, i) => (bars[i].projected
+      ? (bars[i].never >= 0.25 ? 'var(--series-2)' : 'var(--depends)')
+      : mute(v <= 12 ? INK.positive : INK.negative, economics[i])),
     refs: [{ value: 12, label: '12 month goal', variant: 'ref-goal' }],
+    legendItems: [
+      { label: 'Recovered inside the goal', colour: 'var(--series-pos)' },
+      ...(bars.some(b => !b.projected && b.value > 12)
+        ? [{ label: 'Recovered past it', colour: 'var(--series-neg)' }] : []),
+      { label: 'Projected', colour: 'var(--depends)' },
+      ...(bars.some(b => b.projected && b.never >= 0.25 && b.value !== null)
+        ? [{ label: 'Projected, one in four chance of never', colour: 'var(--series-2)' }] : []),
+    ],
     describe: i => {
       const c = economics[i];
-      return `<strong>${c.month} cohort</strong>
-        <span>Payback ${fmt.months(c.payback)}</span>
-        <span>Cost per logo ${fmt.money(c.costPerLogo)}</span>
-        <span class="muted">${c.maxOffset + 1} months observed</span>`;
+      const b = bars[i];
+      if (!b.projected) {
+        return `<strong>${c.month} cohort</strong>
+          <span>Recovered at month ${c.payback}</span>
+          <span>Cost per logo ${fmt.money(c.costPerLogo)}</span>
+          <span class="muted">${c.maxOffset + 1} months observed</span>`;
+      }
+      const back = c.recovery[c.recovery.length - 1] || 0;
+      return `<strong>${c.month} cohort</strong>`
+        + `<span>Not recovered yet, ${fmt.pct(back)} of cost back</span>`
+        + `<span>Projected month ${b.value === null ? 'beyond ten years' : b.value}`
+        + (b.low !== null ? `, 90% ${b.low} to ${b.high}` : '') + `</span>`
+        + (b.never > 0 ? `<span>Chance of never recovering ${fmt.pct(b.never)}</span>` : '')
+        + `<span class="muted">${c.maxOffset + 1} months observed</span>`;
     },
   });
   const unrecovered = economics.filter(c => c.payback === null).length;
   const recovered = economics.filter(c => c.payback !== null);
   const withinGoal = recovered.filter(c => c.payback <= 12).length;
   $('payback-note').textContent =
-    `${unrecovered} of ${economics.length} cohorts have not recovered and may not. Those are `
-    + `drawn as gaps rather than zeroes, because a zero would read as instant payback, the `
-    + `opposite of what it means. Of the ${recovered.length} that did recover, ${withinGoal} `
-    + `did so inside the 12 month goal. The ${tooYoung} cohorts younger than ${MIN_COHORT_AGE} `
-    + `months are in grey: realised payback cannot yet distinguish a young cohort from a bad `
-    + `one. The run starts at ${economics[0].month} because acquisition cost is not `
-    + `recorded before then.`;
+    `${recovered.length} of ${economics.length} cohorts have covered their cost, ${withinGoal} `
+    + `of them inside the 12 month goal. The other ${unrecovered} are projected rather than `
+    + `left blank, because most have simply not had time: the run ends at the trailing month `
+    + `and a cohort one month old cannot have paid back. `
+    + (clipped
+        ? `${clipped} projections run past the ${paybackCeiling} month ceiling and are drawn `
+          + `to the top with a caret rather than rescaling the axis, which one sixty month bar `
+          + `would otherwise flatten. `
+        : '')
+    + (offTheEnd
+        ? `${offTheEnd} ${offTheEnd === 1 ? 'does' : 'do'} not recover inside ten years and `
+          + `${offTheEnd === 1 ? 'stays' : 'stay'} blank. `
+        : '')
+    + (paybackAtRisk
+        ? `${paybackAtRisk} ${paybackAtRisk === 1 ? 'carries' : 'carry'} better than a one in `
+          + `four chance of never recovering. `
+        : '')
+    + `The run starts at ${economics[0].month} because acquisition cost is not recorded `
+    + `before then.`;
 
   // 3. Cumulative gross profit against cost, by cohort age.
   const mature = economics.filter(c => c.recovery.length >= 6).slice(-6);

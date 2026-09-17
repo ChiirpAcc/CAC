@@ -271,7 +271,7 @@ export function multiLineChart(container, { labels, series, yFormat = fmt.int, d
 // zero-height bar sitting on the axis.
 export function columnChart(container, { labels, values, yFormat = fmt.int, describe,
                                          colour = INK.primary, refs = [], yMax = null,
-                                         colourFor = null }) {
+                                         colourFor = null, legendItems = null }) {
   const svg = makeSvg(container);
   const real = values.filter(v => v !== null && Number.isFinite(v));
   if (!real.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
@@ -283,21 +283,40 @@ export function columnChart(container, { labels, values, yFormat = fmt.int, desc
 
   values.forEach((value, i) => {
     if (value === null || !Number.isFinite(value)) return;
-    const top = Math.min(y(value), y(0));
+
+    // A value past the top is drawn to the ceiling and marked, rather than
+    // being allowed to rescale the axis. One bar at sixty months would push
+    // every real one into the bottom sixth of the chart and make the part
+    // anybody cares about unreadable.
+    const clipped = value > hi;
+    const drawn = clipped ? hi : value;
+    const top = Math.min(y(drawn), y(0));
+
     el('rect', {
       x: band.centre(i) - band.width / 2,
       y: top,
       width: band.width,
-      height: Math.max(Math.abs(y(value) - y(0)), 1),
+      height: Math.max(Math.abs(y(drawn) - y(0)), 1),
       class: 'bar',
       fill: colourFor ? colourFor(value, i) : colour,
     }, svg);
+
+    if (clipped) {
+      const cx = band.centre(i);
+      const w = Math.min(band.width / 2, 7);
+      el('path', {
+        d: `M${cx - w},${top + 1}L${cx},${top - 6}L${cx + w},${top + 1}Z`,
+        class: 'clip-marker',
+        fill: colourFor ? colourFor(value, i) : colour,
+      }, svg);
+    }
   });
 
   for (const ref of refs) referenceLine(svg, y, ref.value, ref.label, ref.variant || '');
 
   xLabels(svg, labels, band);
   attachHover(svg, container, band, labels.length, describe);
+  if (legendItems) legend(container, legendItems);
 }
 
 // New and reactivated stack upward, churned is drawn downward, and net is a
