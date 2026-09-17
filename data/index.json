@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-09-17T11:43:21",
+  "pushed_at": "2026-09-17T12:32:59",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -39,7 +39,7 @@
     {
       "tab": "Recognised MRR",
       "file": "recognised_mrr.json",
-      "rows": 1459
+      "rows": 1457
     },
     {
       "tab": "Active Logos",
