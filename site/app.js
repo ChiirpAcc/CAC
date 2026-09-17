@@ -5,7 +5,7 @@ import {
   seasonalSurvival,
   hasRevenueClasses, CLASS_MARGINS, environmentSplit,
   signupEconomics, priceAgainstRetention,
-  arrivalsAgainstChurn,
+  arrivalsAgainstChurn, HISTORY_STARTS,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -16,6 +16,41 @@ import {
 // constants so a different decision stays a one line change: the controls are
 // gone, the flexibility is not.
 const SETTLED = { csShare: 0, partnershipsShare: 1, margin: 0.757 };
+
+
+// Ranges quoted by calendar era, recomputed rather than written down.
+//
+// Both of these replaced sentences that were true when typed and silently
+// false afterwards: a payback range that no longer matched any cohort, and a
+// cost comparison between two endpoints that had converged until the sentence
+// asserted a gap its own figures denied.
+function byEra(rows, pick) {
+  const eras = new Map();
+  for (const row of rows) {
+    const year = row.month.slice(0, 4);
+    if (!eras.has(year)) eras.set(year, []);
+    eras.get(year).push(pick(row));
+  }
+  return [...eras.entries()].sort();
+}
+
+function paybackByEra(recovered) {
+  const eras = byEra(recovered.filter(c => c.payback !== null), c => c.payback);
+  if (eras.length < 2) return 'Too few recovered cohorts to compare eras.';
+  const part = eras.map(([year, v]) =>
+    `${year} in ${Math.min(...v)} to ${Math.max(...v)}`).join(', ');
+  return `Payback by the year a cohort started, counting only those that have recovered: ${part} months.`;
+}
+
+function costByEra(shown) {
+  const eras = byEra(shown.filter(c => c.costPerLogo !== null), c => c.costPerLogo);
+  if (eras.length < 2) return 'Too few cohorts to compare eras.';
+  const avg = eras.map(([year, v]) => [year, v.reduce((s, x) => s + x, 0) / v.length]);
+  const first = avg[0], last = avg[avg.length - 1];
+  return `Cost per logo has risen across the eras shown, averaging `
+    + `${fmt.money(first[1])} for ${first[0]} against ${fmt.money(last[1])} for ${last[0]}`
+    + `, which is most of why the older cohorts sit higher.`;
+}
 
 // A cohort this young cannot have returned its acquisition cost whatever its
 // quality, because the measure is profit realised to date rather than a
@@ -652,7 +687,7 @@ function renderForward() {
     + 'ran at ' + sign(live[0]) + ' over the earliest twelve month window and '
     + sign(live[live.length - 1]) + ' over the latest, so it has gone. The CS capacity link has '
     + 'barely moved, ' + sign(liveCap[0]) + ' to ' + sign(liveCap[liveCap.length - 1]) + '. '
-    + 'That is why chart 23 reads ' + sign(rc.arrivals) + ' overall: a real early relationship '
+    + 'That is why chart 20 reads close to nothing overall: a real early relationship '
     + 'and no recent one average out to nothing.';
 
   $('momentum-note').textContent =
@@ -766,7 +801,7 @@ function renderSeasonal() {
       + ' points of the loss a year ago and only ' + latestCushion.toFixed(1) + ' now.';
 
   $('seasonal-revenue-note').textContent =
-    'The same customers as chart 11, followed by what they pay rather than by whether they '
+    'The same customers as chart 10, followed by what they pay rather than by whether they '
     + 'are still there. No new customers enter it, so this is not net revenue retention for '
     + 'the business; it is what one fixed set did. Above the logo line means survivors grew '
     + 'and expansion is offsetting churn. Below it means the ones who stayed are also paying '
@@ -826,16 +861,19 @@ const MEANS = {
     + 'the months holding them read high.',
 
   'chart-ltv-cac':
-    'The model works and has been proven to work. The 2024 cohorts returned three to six '
-    + 'times what they cost at around $2,000 a logo. What has broken is the price of a '
-    + 'customer, not the value of one. At $10,000 a logo the same retention curve cannot '
-    + 'clear the bar, so the lever here is acquisition cost, not upsell or pricing.',
+    'The model works and has been proven to work. The earliest cohorts in the window returned '
+    + 'two to four and a half times what they cost, on roughly half the acquisition cost of the '
+    + 'recent ones. What has broken is the price of a customer, not the value of one: at the '
+    + 'cost per logo the newest cohorts carry, the same retention curve cannot clear the bar. '
+    + 'The lever here is acquisition cost, not upsell or pricing.',
 
   'chart-payback':
-    'Payback lengthening from six months to twenty changes how the business is financed, not '
-    + 'just how it looks. A cohort that pays back in six months funds the next one inside the '
-    + 'year; one that takes twenty does not fund anything within a planning cycle. Growth at '
-    + 'current unit economics has to be paid for out of the base rather than out of itself.',
+    'Payback lengthening changes how the business is financed, not just how it looks. The '
+    + 'cohorts that have recovered did so between four and eleven months; the ones still '
+    + 'running are projected well past that, several beyond the twenty month ceiling. A cohort '
+    + 'that pays back in six months funds the next one inside the year; one that takes twenty '
+    + 'does not fund anything within a planning cycle. Growth at current unit economics has to '
+    + 'be paid for out of the base rather than out of itself.',
 
   'chart-recovery':
     'This is the chart to judge a cohort on before it is old enough for the others to be '
@@ -851,8 +889,8 @@ const MEANS = {
   'chart-churn':
     'Sustained churn above the threshold sets a floor on how much acquisition is needed just '
     + 'to stand still. At the current rate the base needs roughly fifty new logos a month to '
-    + 'hold flat, and it is winning nine. No plausible improvement in conversion closes that '
-    + 'gap; it has to come from the churn side.',
+    + 'hold flat, and the last months it can count properly ran between twenty and thirty-five. '
+    + 'No plausible improvement in conversion closes that gap; it has to come from the churn side.',
 
   'chart-age-retention':
     'Most of what a cohort loses, it loses between months three and six. That is a narrow and '
@@ -936,6 +974,13 @@ const MEANS = {
 function renderAnnotations() {
   const w = data.waterfall;
   const latest = w[w.length - 1];
+  // The trailing month's new logo count is drawn almost entirely from the
+  // first Stripe environment and collapses when new business does not reach
+  // it. Quoting it as the end of a trend states a measurement gap as a fact.
+  const flowCounts = w.map(r => r.newLogos).filter(Boolean).sort((a, b) => a - b);
+  const flowTypical = flowCounts.length ? flowCounts[Math.floor(flowCounts.length / 2)] : 0;
+  const reliableFlow = w.filter(r => r.newLogos >= flowTypical * 0.35);
+  const lastReliable = reliableFlow[reliableFlow.length - 1] || latest;
   const peak = w.reduce((b, r) => (r.activeLogos > b.activeLogos ? r : b), w[0]);
   const year = latest.month.slice(0, 4);
   const ytd = w.filter(r => r.month.startsWith(year));
@@ -953,20 +998,23 @@ function renderAnnotations() {
 
   annotate('chart-ltv-cac', [
     `<strong>${belowOne} of ${withLtv.length} cohorts shown sit below 1.0x</strong>, meaning they have not yet returned what they cost to win.`,
-    `${above3} are above the 3.0x line. The best is ${best.month} at ${fmt.ratio(best.ltvCac)}, on ${fmt.money(best.costPerLogo)} a logo.`,
-    `The 2024 cohorts sit far above the 2026 ones, and cost per logo is most of why: ${fmt.money(shown[0].costPerLogo)} then against ${fmt.money(shown[shown.length - 1].costPerLogo)} now.`,
+    `${above3} ${above3 === 1 ? 'is' : 'are'} above the 3.0x line. The best is ${best.month} at ${fmt.ratio(best.ltvCac)}, on ${fmt.money(best.costPerLogo)} a logo.`,
+    costByEra(shown),
   ], [
     'LTV here is gross profit <strong>realised to date</strong>, not a projection, so a cohort partly sits where it does because of its age. Cohorts under six months are withheld for that reason.',
     'Cost per logo assumes a month of spend bought that month of logos. A long sales cycle would push spend into the wrong cohort.',
   ]);
 
   annotate('chart-payback', [
-    `<strong>${recovered.length} of ${shown.length} cohorts have covered their cost</strong>, and ${withinGoal} of those did it inside the twelve month goal.`,
-    `${shown.length - recovered.length} have not recovered and are drawn as gaps, not zeroes. A zero would read as instant payback, the opposite of what it means.`,
-    `Payback has lengthened with cost: the 2024 cohorts cleared in three to nine months, the 2025 ones in eight to thirteen.`,
+    `<strong>${recovered.length} of ${shown.length} cohorts have covered their cost</strong>, `
+      + (withinGoal === recovered.length
+        ? 'and every one of them did it inside the twelve month goal. Nothing has recovered late; cohorts either clear the bar or are still running.'
+        : `and ${withinGoal} of those did it inside the twelve month goal.`),
+    `${shown.length - recovered.length} of those shown have not recovered and are drawn as projections in a separate colour, not as zeroes or gaps. A zero would read as instant payback, the opposite of what it means.`,
+    paybackByEra(recovered),
   ], [
     'Same realised measure and same age bias as the chart above. A gap is "not yet", not "never".',
-    'The run starts at 2024-01 because acquisition cost is not recorded before then, which is an absence of data rather than a verdict on earlier cohorts.',
+    `The run starts at ${HISTORY_STARTS} because acquisition cost is not recorded before then, which is an absence of data rather than a verdict on earlier cohorts.`,
   ]);
 
   const mature = ec.filter(c => c.recovery.length >= 6).slice(-6);
@@ -976,7 +1024,7 @@ function renderAnnotations() {
     'The shape of each curve bends the same way whatever the cost baseline is, which makes this the one chart here that survives the split being wrong.',
     'Curves that flatten before 100% are cohorts whose revenue is decaying faster than it is accumulating profit.',
   ], [
-    'A flat 75.7% platform margin is applied to all revenue, because the push carries no revenue class columns. Usage and one-time revenue carry different margins.',
+    'Margins are applied per revenue class where the push carries them, which it now does: platform 75.7%, usage 60%, one-time 90%, pass-through and recognised-elsewhere at zero. How the classes divide recognised MRR is inferred rather than stated.',
     'Only the six most recent cohorts with at least six months are drawn, so this is not the whole book.',
   ]);
 
@@ -1017,16 +1065,24 @@ function renderAnnotations() {
   ]);
 
   const cacMap = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
-  const unitMonths = w.filter(r => cacMap.has(r.month) && r.newLogos);
+  // Same reliability rule the chart itself applies. Reading the endpoint off
+  // an unfiltered list quoted 2026-08 at $33,627, a month the chart blanks
+  // precisely because its denominator has failed.
+  const unitAll = w.filter(r => cacMap.has(r.month) && r.newLogos);
+  const unitCounts = unitAll.map(r => r.newLogos).sort((a, b) => a - b);
+  const unitTypical = unitCounts.length ? unitCounts[Math.floor(unitCounts.length / 2)] : 0;
+  const unitMonths = unitAll.filter(r => r.newLogos >= unitTypical * 0.35);
   const firstU = unitMonths[0], lastU = unitMonths[unitMonths.length - 1];
   const costFirst = cacMap.get(firstU.month) / firstU.newLogos;
   const costLast = cacMap.get(lastU.month) / lastU.newLogos;
   const arpuFirst = firstU.newMrr / firstU.newLogos;
   const arpuLast = lastU.newMrr / lastU.newLogos;
+  const spendChange = (cacMap.get(lastU.month) / cacMap.get(firstU.month) - 1) * 100;
+  const logoChange = (lastU.newLogos / firstU.newLogos - 1) * 100;
   annotate('chart-unit', [
     `<strong>Cost per logo has risen about ${(costLast / costFirst).toFixed(1)}x</strong> since ${firstU.month}, from ${fmt.money(costFirst)} to ${fmt.money(costLast)}.`,
-    `New-logo revenue per logo has moved from ${fmt.money(arpuFirst)} to ${fmt.money(arpuLast)}, so the two lines are diverging rather than moving together.`,
-    'Volume is doing most of the work: spend has fallen while logos have fallen faster.',
+    `New-logo revenue per logo has moved from ${fmt.money(arpuFirst)} to ${fmt.money(arpuLast)}, so the gap between the lines is cost opening up rather than revenue falling away.`,
+    `Both halves moved the wrong way: spend ${spendChange >= 0 ? 'rose' : 'fell'} ${Math.abs(spendChange).toFixed(0)}% while countable logos fell ${Math.abs(logoChange).toFixed(0)}%. It is not a volume story with flat spend behind it.`,
   ], [
     'Both series are indexed to 100 at the same month, so the absolute levels do not need to be right for the divergence to read. The base month is stated on the chart.',
     'Where the pipeline reports a cost per logo it is used directly; earlier months derive it from total cost over the waterfall new logos.',
@@ -1046,7 +1102,7 @@ function renderAnnotations() {
 
   annotate('chart-flows', [
     `<strong>${fmt.int(churned)} logos out against ${fmt.int(acquired)} in, ${year} to date</strong>, a net loss of ${fmt.int(churned - acquired)}.`,
-    `New logos have fallen from ${fmt.int(ytd[0].newLogos)} in ${fmt.monthLabel(ytd[0].month)} to ${fmt.int(latest.newLogos)} in ${fmt.monthLabel(latest.month)}.`,
+    `New logos have fallen from ${fmt.int(ytd[0].newLogos)} in ${fmt.monthLabel(ytd[0].month)} to ${fmt.int(lastReliable.newLogos)} in ${fmt.monthLabel(lastReliable.month)}. ${fmt.monthLabel(latest.month)} reads ${fmt.int(latest.newLogos)}, too far below a typical month to be read as demand.`,
     'Churn has been the larger of the two movements for most of the year, so the base is falling on both sides at once.',
   ], [
     'Net change is drawn as a line because it is the sum of the other two. As a third column it would read as an independent quantity.',
@@ -1127,7 +1183,7 @@ function renderAnnotations() {
   const avg = (rows, key) => rows.reduce((s, x) => s + x[key], 0) / rows.length;
   annotate('chart-capacity', [
     `<strong>CS spend per active logo rose ${((avg(secondHalf, 'csPerLogo') / avg(firstHalf, 'csPerLogo') - 1) * 100).toFixed(0)}%</strong> across the window while churn also rose, correlating at ${sign2(rc2.capacity)}.`,
-    `Holding time constant it is still ${sign2(rc2.capacityGivenTime)}, so it is not purely the shared trend.`,
+    `Customer Success alone holds up with time controlled, ${sign2(rc2.capacityGivenTime)}. The whole retention function does not: ${sign2(rc2.wholeFunctionGivenTime)}. The narrow measure was reading one team's trend as the department's.`,
     'Almost certainly the team was staffed up in response to churn rather than causing it, but the investment is not yet visible as a retention improvement.',
   ], [
     '<strong>Spend is a proxy for headcount</strong>, which the push does not carry. Salaries track it more closely than the total, since bonuses move with outcomes.',
@@ -1146,9 +1202,9 @@ function renderAnnotations() {
   ]);
 
   annotate('chart-new-vs-churn', [
-    `<strong>Pooled, there is almost nothing here</strong>: ${sign2(rc2.arrivals)}, about ${Math.round(rc2.arrivals * rc2.arrivals * 100)}% of the variation.`,
+    `<strong>Pooled, there is almost nothing here.</strong> Over the ${cap.points.length} months the capacity series covers the correlation is ${sign2(rc2.arrivals)}, under 1% of the variation. The chart above, drawn on the months where a full forward window has elapsed, gives its own figure in the finding.`,
     `But that conceals the shape. With CS capacity held constant the association is ${sign2(rc2.arrivalsGivenCapacity)}, and the previous chart shows it was real early and has since gone.`,
-    `${cap.points.length} monthly observations, which is far too few for a correlation to carry weight on its own.`,
+    `Either way it rests on around two dozen monthly observations, which is far too few for a correlation to carry weight on its own.`,
   ], [
     'Both series drift over the period, and two drifting series correlate whether or not they are related. No trend line is drawn for that reason.',
     'Correlation is not causation here in either direction, and the confound is time rather than anything either axis measures.',
@@ -1165,7 +1221,7 @@ function renderAnnotations() {
     annotate('chart-price-volume', [
       `<strong>Volume fell ${Math.abs((z.count / a.count - 1) * 100).toFixed(0)}% while the price at signup rose ${((z.averagePrice / a.averagePrice - 1) * 100).toFixed(0)}%</strong>, ${fmt.money(a.averagePrice)} to ${fmt.money(z.averagePrice)}.`,
       `New MRR added fell ${Math.abs((z.startingMrr / a.startingMrr - 1) * 100).toFixed(0)}%, ${fmt.money(a.startingMrr)} to ${fmt.money(z.startingMrr)}, which is less than the fall in count because each signup is worth more.`,
-      `The two lines cross, so the revenue effect is smaller than the volume line alone suggests.`,
+      `The revenue effect is smaller than the volume line alone suggests, because each remaining signup is worth more. Read that from the two rates of change, not from where the lines cross: on a dual axis the crossing point can be slid anywhere.`,
     ], [
       'Starting MRR is what a customer was sold, not what they have paid since, so this is a price measure rather than a revenue one.',
       'The same S1 weighting applies. The last month of this source carries a handful of customers and is dropped rather than drawn.',
@@ -1287,8 +1343,10 @@ function renderSignups() {
     + fmt.pct(attachEnds[attachEnds.length - 1].attachRate, 1)
     + ', and the fee itself from ' + fmt.money(feeEnds[0].averageFee) + ' to '
     + fmt.money(feeEnds[feeEnds.length - 1].averageFee)
-    + '. More customers charged, and charged more, are different decisions with different '
-    + 'effects on conversion.';
+    + '. The attach rate has fallen while the fee has risen, so the two are moving in '
+    + 'opposite directions: fewer customers are charged, and those who are pay more. They are '
+    + 'different decisions with different effects on conversion, and reading them as one '
+    + 'movement hides which lever was pulled.';
   $('onboarding-note').textContent =
     'Attach rate is the share of the month with a setup fee above zero. The average is taken '
     + 'across those charged, not across everyone, because including the unfeed customers would '
