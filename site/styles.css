@@ -17,6 +17,9 @@
   --series-3: #7a8794;
   --series-pos: #2e7d5b;
   --series-neg: #a8423a;
+  /* A sixth series, for the pricing comparison, which runs six strategies
+     against five colours and was quietly drawing two of them the same grey. */
+  --series-4: #6b4f9e;
 
   --ramp-1: #123f52;
   --ramp-2: #1f6f8b;
@@ -45,6 +48,7 @@
     --series-3: #93a0ac;
     --series-pos: #4fae82;
     --series-neg: #d2665c;
+    --series-4: #a68bd8;
 
     --ramp-1: #cfe3e5;
     --ramp-2: #a6cdd2;

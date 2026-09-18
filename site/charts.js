@@ -182,6 +182,7 @@ const INK = {
   tertiary: 'var(--series-3)',
   positive: 'var(--series-pos)',
   negative: 'var(--series-neg)',
+  accent: 'var(--series-4)',
 };
 
 // A single line over months.

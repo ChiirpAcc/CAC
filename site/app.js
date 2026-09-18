@@ -1,6 +1,5 @@
 import {
   policySignals,
-  equilibrium,
   load, buildCohorts, cohortEconomics,
   blendedRetention, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
@@ -438,123 +437,6 @@ const CHURN_THRESHOLD = 0.05;
 // acquisition cost. The winner is marked in every column, because the point
 // of the table is that the ranking does not depend on the elasticity anyone
 // believes.
-// 27 and 28. Where this settles if today goes on being today.
-//
-// A base with a steady intake and a steady loss rate converges on arrivals
-// divided by loss rate. That target is worth more than the base itself,
-// because the base is a slow average of two years of trading while the target
-// is what the current month is actually worth. The two can point in opposite
-// directions for a long time, and here they do.
-//
-// Drawn as three lines rather than two. The observed series says what
-// happened. The target series says where each month, judged on its own, was
-// pointing: it moves, and watching it move is the finding. The projection says
-// where the latest month leads if nothing changes, which is a conditional
-// rather than a forecast and is labelled as one.
-function renderSettles(data) {
-  if (!$('chart-settle-logos')) return;
-  const model = equilibrium(data, { trailing: 6, project: 18 });
-  if (!model) return;
-
-  const history = model.rows.filter(r => r.logoTarget !== null).slice(-18);
-  const labels = history.map(r => r.month).concat(model.path.map(r => r.month));
-  const pad = new Array(history.length - 1).fill(null);
-
-  const draw = (node, { observed, target, projected, yFormat, colour }) => {
-    multiLineChart($(node), {
-      labels: labels.map(m => fmt.monthLabel(m)),
-      series: [
-        { label: 'Actual', colour: INK.primary,
-          values: observed.concat(new Array(model.path.length).fill(null)) },
-        { label: 'Where that month pointed', colour,
-          values: target.concat(new Array(model.path.length).fill(null)) },
-        { label: 'If nothing changes from here', colour: INK.tertiary,
-          // Anchored on the last observed point so the line joins the series
-          // it continues rather than floating away from it.
-          values: pad.concat([observed[observed.length - 1]], projected) },
-      ],
-      yFormat,
-      xTitle: 'Month',
-      describe: i => `<strong>${fmt.monthLabel(labels[i])}</strong>`
-        + (i < history.length
-          ? `<span>Actual ${yFormat(observed[i])}</span>`
-            + `<span>Points to ${yFormat(target[i])}</span>`
-          : `<span>Projected ${yFormat(projected[i - history.length])}</span>`),
-    });
-  };
-
-  draw('chart-settle-logos', {
-    observed: history.map(r => r.logos),
-    target: history.map(r => r.logoTarget),
-    projected: model.path.map(r => r.logos),
-    yFormat: v => fmt.int(v),
-    colour: INK.negative,
-  });
-
-  draw('chart-settle-mrr', {
-    observed: history.map(r => r.mrr),
-    target: history.map(r => r.mrrTarget),
-    projected: model.path.map(r => r.mrr),
-    yFormat: v => '$' + Math.round(v / 1000) + 'k',
-    colour: INK.positive,
-  });
-
-  const now = model.latest;
-  const then = model.yearBack;
-  const endL = model.path[model.path.length - 1];
-
-  $('settle-logos-finding').innerHTML =
-    `<strong>A year ago the customer base was heading up. It is now heading `
-    + `down, to about ${fmt.int(now.logoTarget)}.</strong> On the six months to `
-    + `${fmt.monthLabel(then.month)}, ${then.arrivalsL.toFixed(0)} arrivals a month against `
-    + `${fmt.pct(then.lossRateL, 2)} leaving pointed at a base of ${fmt.int(then.logoTarget)}, `
-    + `well above the ${fmt.int(then.logos)} actually on the books. On the six months to `
-    + `${fmt.monthLabel(now.month)} it points at ${fmt.int(now.logoTarget)}, well below `
-    + `today's ${fmt.int(now.logos)}. Arrivals barely moved, `
-    + `${then.arrivalsL.toFixed(0)} a month then against ${now.arrivalsL.toFixed(0)} now. `
-    + `What moved is the loss rate, ${fmt.pct(then.lossRateL, 2)} to `
-    + `${fmt.pct(now.lossRateL, 2)}. The base has already crossed its own target and is `
-    + `falling toward it at a half life of ${model.halfLifeLogos.toFixed(0)} months, reaching `
-    + `about ${fmt.int(endL.logos)} by ${fmt.monthLabel(endL.month)}.`;
-
-  $('settle-logos-note').textContent =
-    `Arrivals and loss rate are both trailing ${model.trailing} month means, because a single `
-    + `month's loss rate runs between 2.2% and 8.1% in this file and dividing by a number that `
-    + `noisy moves the target by a factor of four for reasons that are not about the business. `
-    + `The most recent month is dropped entirely: its arrivals are still landing and its `
-    + `departures are only half recorded. A customer is counted as present on the same rule as `
-    + `everywhere else on this page, which means one booked down to zero MRR is still a `
-    + `customer here. The projection holds the latest window fixed and is a conditional, not a `
-    + `forecast: it says where this ends up if nothing changes, which is the one thing that `
-    + `will not happen.`;
-
-  const mrrRising = (now.mrrTarget || 0) > now.mrr;
-  const endM = model.path[model.path.length - 1];
-  $('settle-mrr-finding').innerHTML =
-    `<strong>The money points the other way: fewer customers, but each worth `
-    + `more.</strong> Recurring revenue settles at about `
-    + `${'$' + Math.round((now.mrrTarget || 0) / 1000) + 'k'} a month against `
-    + `${'$' + Math.round(now.mrr / 1000) + 'k'} today, so it drifts `
-    + `${mrrRising ? 'up' : 'down'} while the head count falls. That is `
-    + `${fmt.money((now.mrrTarget || 0) / (now.logoTarget || 1))} per customer at the target `
-    + `against ${fmt.money(now.mrr / now.logos)} today. The business this is heading toward is `
-    + `materially smaller in customers and roughly the same size in revenue, carried by dearer `
-    + `accounts. Note what that does not fix: the same intake has to cover acquisition cost `
-    + `against ${fmt.int(now.arrivalsL)} logos a month, and it is cost per logo, not revenue, `
-    + `that broke the unit economics.`;
-
-  $('settle-mrr-note').textContent =
-    `Net revenue churn, so expansion among the customers who stay is credited against `
-    + `departures and downgrades. It has to be netted here, because the question is what the `
-    + `base does as a whole rather than how much any one cohort keeps. On the latest window `
-    + `departures alone take ${fmt.pct(now.grossLossRateM, 2)} of revenue a month while the net `
-    + `rate is ${fmt.pct(now.lossRateM, 2)}, so most of what is lost is lost from customers who `
-    + `are still here. New revenue runs `
-    + `${'$' + Math.round(now.arrivalsM / 1000) + 'k'} a month. Same trailing window, same `
-    + `dropped final month, and the same conditional as the chart above.`;
-}
-
-
 function renderPricing(data) {
   const node = $('pricing-table');
   if (!node) return;
@@ -616,7 +498,8 @@ function renderPricing(data) {
       + `line is the thin end of the evidence. ${s.everAboveCeiling} customers have ever started `
       + `above ${fmt.money(s.fitCeiling)} and only ${s.aboveCeiling} of them have a full `
       + `${s.horizon} months behind them, which is too few to read either way. The `
-      + `recommendation stops at the edge of what has been tested.`;
+      + `recommendation deliberately goes past this edge, which is why it is put as a test to `
+      + `run rather than a change to make.`;
   }
   if ($('control-extrapolation') && s.capsAtPrice) {
     $('control-extrapolation').innerHTML =
@@ -648,36 +531,82 @@ function renderPricing(data) {
     });
     const lowest = s.bands[0];
     const highest = s.bands[s.bands.length - 1];
+    // How much of the value gap is the price and how much is the extra months.
+    // Worth splitting, because the two carry different advice. If tenure drove
+    // it, cheap customers would be worth refusing; it does not, so they are
+    // not, and the case for charging more is simply that you are charged more.
+    const MARGIN = 0.757;
+    const valueRatio = (highest.price * highest.paid) / (lowest.price * lowest.paid);
+    const priceShare = Math.log(highest.price / lowest.price) / Math.log(valueRatio);
+    const worth = band => band.price * band.paid * MARGIN;
+    const clears = s.bands.filter(b => worth(b) >= s.cac);
+    const floor = clears.length ? clears[0] : null;
+    // The same fit the scenarios run on, rebuilt from the bands the data layer
+    // exposes: months paid is a straight line through them, so the break-even
+    // price is where price times months paid times margin first covers a logo.
+    const meanPrice = s.bands.reduce((a, b) => a + b.price, 0) / s.bands.length;
+    const meanPaid = s.bands.reduce((a, b) => a + b.paid, 0) / s.bands.length;
+    const paidAt = price =>
+      Math.max(1, Math.min(s.horizon, meanPaid + s.slope * (price - meanPrice)));
+    let breakEven = null;
+    for (let price = 50; price <= 5000; price += 5) {
+      if (price * paidAt(price) * MARGIN >= s.cac) { breakEven = price; break; }
+    }
+
     $('price-months-finding').innerHTML =
-      `<strong>A cheaper customer is a shorter customer.</strong> Of the first `
-      + `${s.horizon} months, the ${fmt.money(lowest.price)} band pays for `
-      + `${lowest.paid.toFixed(1)} of them and the ${fmt.money(highest.price)} band for `
-      + `${highest.paid.toFixed(1)}. Fitted across the bands that is `
-      + `${(s.slope * 1000).toFixed(1)} more months paid per extra $1,000 of monthly price. `
-      + `So a low price loses twice: less per month, and fewer months of it. That is the `
-      + `whole reason skimming loses below, because the customers a skim picks up on the way `
-      + `down are exactly these.`;
+      `<strong>Dearer customers do stay longer, but only just, and it is not the `
+      + `reason to charge more.</strong> Across a price range of `
+      + `${(highest.price / lowest.price).toFixed(1)} times, from `
+      + `${fmt.money(lowest.price)} to ${fmt.money(highest.price)}, months paid moves from `
+      + `${lowest.paid.toFixed(1)} to ${highest.paid.toFixed(1)} out of ${s.horizon}. That is `
+      + `${(highest.paid - lowest.paid).toFixed(1)} months, or `
+      + `${(s.slope * 1000).toFixed(1)} per extra $1,000 of monthly price. Split the `
+      + `${valueRatio.toFixed(1)} times difference in what the two bands are worth and about `
+      + `${(priceShare * 100).toFixed(0)}% of it is the price itself and only about `
+      + `${((1 - priceShare) * 100).toFixed(0)}% is the extra time. `
+      + (floor
+        ? `<strong>So cheaper customers are worth selling to.</strong> Every band from `
+          + `${fmt.money(floor.price)} up clears acquisition cost, at `
+          + `${(worth(floor) / s.cac).toFixed(1)} times for that one and `
+          + `${(worth(highest) / s.cac).toFixed(1)} times at the top. `
+          + (worth(lowest) < s.cac
+            ? `Only the ${fmt.money(lowest.price)} band fails, returning `
+              + `${(worth(lowest) / s.cac).toFixed(2)} times what it costs to win. `
+              + `The break-even price is about ${fmt.money(breakEven)} a month, and that, `
+              + `rather than the retention curve, is the real floor.`
+            : `Nothing in the observed range fails to cover it.`)
+        : '');
+
     $('price-months-note').textContent =
       `Price is each customer's MRR in their second month, clean of the first-month charge `
       + `that was booked as MRR until mid-2025. Only customers with a full ${s.horizon} months `
       + `behind them are counted, so none of the bands is flattered by being young, and a band `
-      + `is dropped below twelve customers. This is a comparison between customers, not a `
-      + `prediction about one: a customer paying more is usually a larger business rather than `
-      + `the same business charged more, which is the control that cannot be applied here.`;
+      + `is dropped below twelve customers, which leaves the top band resting on `
+      + `${highest.n} against ${lowest.n} in the lowest. Worth per customer is `
+      + `${s.horizon} months of price at the ${(MARGIN * 100).toFixed(1)}% platform gross `
+      + `margin, against ${fmt.money(s.cac)} to acquire. This is a comparison between `
+      + `customers, not a prediction about one: a customer paying more is usually a larger `
+      + `business rather than the same business charged more. That matters for what you can do `
+      + `with it. It says the customers you win at higher prices are better; it does not say `
+      + `that talking a given customer up would make them stay longer.`;
   }
 
   // The answer itself, drawn rather than tabulated, because the point is that
   // the ordering does not change as elasticity worsens. A table makes a reader
   // check that column by column; lines that do not cross say it at a glance.
   if ($('chart-price-strategies')) {
-    // Only the plans the data can speak to are drawn. An extrapolated plan
-    // belongs in the table, where it can be marked, and not on a chart where
-    // it would both take the top of the axis and flatten everything the
-    // argument actually rests on into the bottom third of it.
-    const drawn = pool;
-    // The one that actually happened is drawn in the negative colour and the
-    // one that wins in the positive one, so the chart reads before the legend.
-    const palette = [INK.tertiary, INK.negative, INK.secondary, INK.positive, INK.primary];
+    // Every plan is drawn, the extrapolated one included, because it is now
+    // the recommendation and a recommendation that is not on its own chart is
+    // not really being put forward. It costs some vertical room: its line sits
+    // well above the rest and presses them together. That is itself worth
+    // seeing, since the size of the gap is the size of the assumption.
+    const drawn = s.plans;
+    // Six plans, six colours: with five they wrapped and the recommendation
+    // came out the same grey as the do-nothing line. The path actually taken
+    // is drawn in the negative colour, and the recommendation in the accent,
+    // so the chart reads before the legend does.
+    const palette = [INK.tertiary, INK.negative, INK.secondary, INK.positive,
+      INK.primary, INK.accent];
     const winner = drawn.reduce((a, b) => (
       b.byElasticity[b.byElasticity.length - 1].net > a.byElasticity[a.byElasticity.length - 1].net
         ? b : a));
@@ -713,17 +642,30 @@ function renderPricing(data) {
     const skimRanks = s.elasticities.map((_, i) => rankOf(skim, i));
     const skimSteady = skimRanks.every(r => r === skimRanks[0]);
 
+    // The recommended plan is the high skim, which is also the extrapolated
+    // one. The finding says so and says what it rests on in the same breath,
+    // rather than reporting the number and burying the condition in a note.
+    const atOrAbove = price => s.startPrices.filter(p => p >= price).length;
+    const top = s.plans.reduce((a, b) => (
+      b.byElasticity[last].net > a.byElasticity[last].net ? b : a));
+    const bestSupported = pool.reduce((a, b) => (
+      b.byElasticity[last].net > a.byElasticity[last].net ? b : a));
     $('price-strategies-finding').innerHTML =
-      `<strong>${winner.label} wins${alwaysFirst ? ' at every elasticity tested' : ''}, and the `
-      + `lines never cross.</strong> That is the part that matters: the ranking does not depend `
-      + `on a price sensitivity nobody can measure from this data. At the most sensitive case `
-      + `tested, ${s.elasticities[last].toFixed(2)}, it returns ${m(winner, last)} against `
-      + `${m(actual, last)} for what actually happened. `
-      + `Skimming is not the villain here: it comes ${skimSteady ? place(skimRanks[0])
-        : 'second or third'} throughout at ${m(skim, last)}, ahead of the path that was taken. `
-      + `It loses to a flat high price because every month it spends coming down locks in a `
-      + `cohort at the lower price, and cohorts do not re-rate. The genuinely bad option is `
-      + `${worst.label.toLowerCase()}, last at ${m(worst, last)}.`;
+      `<strong>The high skim scores highest at every elasticity tested, and no two lines `
+      + `cross.</strong> ${top.label} returns ${m(top, 0)} at zero elasticity and `
+      + `${m(top, last)} at ${s.elasticities[last].toFixed(2)}, against ${m(bestSupported, last)} `
+      + `for ${bestSupported.label.toLowerCase()} and ${m(actual, last)} for what actually `
+      + `happened. The ranking holding across the whole sweep is the useful part: it does not `
+      + `depend on a price sensitivity nobody can measure from this data. `
+      + `<strong>The top of that path is thinly sold and the very top is not sold at all.</strong> `
+      + `Of ${fmt.int(s.startPrices.length)} customers ever started, ${fmt.int(atOrAbove(2000))} `
+      + `began at $2,000 or more and exactly ${fmt.int(atOrAbove(2500))} at $2,500 or more. So `
+      + `the opening price is not fantasy, it is the thin end of what is already being sold, `
+      + `but nothing tests the close rate up there. Above ${fmt.money(s.capsAtPrice)} the `
+      + `months-paid line is extrapolated and credits every extra dollar against a customer `
+      + `assumed not to leave inside the ${s.horizon} months. If a $2,500 ask closes at `
+      + `anything like the rate a $1,200 ask does, this is right by a wide margin. If it halves `
+      + `the close rate, it is not. That is the experiment, and it is cheap.`;
     $('price-strategies-note').textContent =
       `Each line is total gross over ${s.horizon} months per customer won, less acquisition `
       + `cost at ${fmt.money(s.cac)} a logo, summed across ${s.months} months of intake. `
@@ -735,32 +677,27 @@ function renderPricing(data) {
       + `well past anything the data suggests, and the ordering holds across all of it. The `
       + `horizontal axis is the four cases tested set side by side, not a continuous scale, so `
       + `the spacing between them carries no meaning; only the order of the lines does.`
-      + (s.plans.length > drawn.length
-        ? ` The ${s.plans.length - drawn.length === 1 ? 'one strategy'
-          : `${s.plans.length - drawn.length} strategies`} priced above `
-          + `${fmt.money(s.fitCeiling)} is left off this chart and kept in the table below, `
-          + `marked. It scores higher than anything here, but only because the months-paid fit `
-          + `has already run out of data at that price, so drawing it would put an assumption `
-          + `at the top of the axis and press the rest of the argument into the floor.`
-        : '');
+      + ` The strategies priced above ${fmt.money(s.fitCeiling)} are drawn with the rest but `
+      + `marked in the table below, because above that price both the months-paid line and the `
+      + `volume response are extrapolations rather than observations.`;
   }
 }
 
 
-// 8. Retention by era, in logos or in money.
+// 8 and 9. Retention by era, in logos and in money.
 //
 // The same cohorts measured two ways, because they do not say the same thing.
 // On logos the three years sit within a few points of each other and the era
-// looks settled. On revenue they separate sharply: the 2024 cohorts hold
-// essentially all of their money for a year while the later ones do not, so
-// the expansion that used to cover churn has stopped covering it. Reading only
-// the logo line would have closed a question that the revenue line reopens.
+// looks settled. Capped at what each customer arrived on, the years pull
+// apart and 2026 pulls furthest, because a head count cannot see a customer
+// who stays and stops paying. Reading only the logo line would close a
+// question the money line reopens.
 //
-// Both charts run from month 1. The money one weights each customer by what
-// they were paying in their second month rather than their first, because
-// until mid-2025 the first carried a joining charge booked as MRR and
-// reversed the month after; indexing on it would turn that fee dropping out
-// into a cliff in the early eras.
+// Chart 8 runs from month 1 and chart 9 from month 2, which is where its own
+// base is set: until mid-2025 the first month carried a joining charge booked
+// as MRR and reversed the month after, and a part-billed first month leaves a
+// customer under the rate they arrive on. The logo figures quoted next to the
+// money ones are reindexed to month 2 to match.
 function renderEra() {
   // The same cohorts drawn twice, because logos and money do not say the same
   // thing about them. On logos the three years sit within a few points of each
@@ -920,9 +857,8 @@ function renderEra() {
 //
 // Each figure remembers where it came from, so returning it puts it back in
 // its numbered position rather than at the end of the page.
-const STORY_FIGURES = ['fig-era', 'fig-era-revenue',
-  'fig-arrivals-months', 'fig-arrivals-horizons', 'fig-ltv',
-  'fig-settle-logos', 'fig-settle-mrr'];
+const STORY_FIGURES = ['fig-era', 'fig-arrivals-months',
+  'fig-arrivals-horizons', 'fig-ltv'];
 const homes = new Map();
 
 function rememberHomes() {
@@ -983,7 +919,6 @@ function boot() {
     renderSettledTotals(data);
     renderAnnotations();
     renderPricing(data);
-    renderSettles(data);
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
