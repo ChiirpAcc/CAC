@@ -394,14 +394,21 @@ function renderCostTable(data) {
     + `to ${money(Math.max(...c.costPerLogo.filter(v => v !== null)))}, so a single month is a `
     + `poor summary of it.`;
 
-  $('cost-note').textContent =
+  const drift12 = drift.reduce((s, v) => s + (v || 0), 0);
+  $('cost-note').innerHTML =
     'Categories are matched from the account name, so a renamed account falls into Other '
-    + 'rather than disappearing. The total is built from the expense lines here rather than '
-    + 'read from the pipeline, which is a check on both: the two agree to within '
-    + money(Math.abs(worst)) + ' in the worst month. New logos are the monthly summary count, '
-    + 'the same one the cohort charts use, so cost per logo here is on the same basis as '
-    + 'everywhere else on this page rather than the cac_per_logo the workbook publishes, '
-    + 'which divides by a larger count.';
+    + 'rather than disappearing, and they sum to the total underneath them. '
+    + '<strong>This total is the one every other chart divides by.</strong> Cost per logo, '
+    + 'LTV:CAC, payback and break-even all take acquisition cost from these same lines, so the '
+    + 'categories here account for the whole of it and nothing on the page is dividing by a '
+    + 'number you cannot see broken out. '
+    + 'The pipeline publishes its own figure in CAC Monthly, and the two do not agree: it is '
+    + money(Math.abs(drift12)) + ' ' + (drift12 < 0 ? 'higher' : 'lower') + ' over these twelve '
+    + 'months, and ' + money(Math.abs(worst)) + ' apart in the worst single month. Almost all '
+    + 'of that sits in two months where Customer Success appears to reach acquisition despite '
+    + 'being settled at zero. The lines win here because each one is an account that can be '
+    + 'checked; the published figure is carried alongside so the gap stays visible. '
+    + 'New logos are the monthly summary count, the same one the cohort charts use.';
 }
 
 // A cohort this young cannot have returned its acquisition cost whatever its

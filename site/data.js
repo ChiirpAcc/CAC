@@ -143,9 +143,32 @@ export async function load() {
   // Only the cost is taken from here. The logo counts on this tab are a second
   // definition of the same thing and are deliberately not read: there is one
   // count now, derived from when a customer actually started.
+  const expenses = byTab['QB Expenses'].rows
+    .filter(r => inWindow(r.month))
+    .map(r => ({
+      account: r.account,
+      section: r.section,
+      month: r.month,
+      amount: num(r.amount),
+      bucket: r.bucket,
+    }));
+
+  // Acquisition cost is built from the expense lines rather than read from
+  // CAC Monthly. See isAcquisition for why. The pipeline's own figure is kept
+  // alongside as `reported` so the two can be compared on the page.
+  const acquisitionByMonth = new Map();
+  for (const row of expenses) {
+    if (!isAcquisition(row)) continue;
+    acquisitionByMonth.set(row.month, (acquisitionByMonth.get(row.month) || 0) + (row.amount || 0));
+  }
+
   const cacMonthly = complete(byTab['CAC Monthly'].rows).map(r => ({
     month: r.month,
-    cacTotalActual: num(r.cac_total_actual),
+    cacTotalActual: acquisitionByMonth.has(r.month)
+      ? acquisitionByMonth.get(r.month)
+      : num(r.cac_total_actual),
+    reported: num(r.cac_total_actual),
+    derived: acquisitionByMonth.has(r.month),
     logosBasis: r.logos_basis || null,
   }));
 
@@ -180,16 +203,6 @@ export async function load() {
       }
     }
   }
-
-  const expenses = byTab['QB Expenses'].rows
-    .filter(r => inWindow(r.month))
-    .map(r => ({
-      account: r.account,
-      section: r.section,
-      month: r.month,
-      amount: num(r.amount),
-      bucket: r.bucket,
-    }));
 
   const customers = byTab['Customer Waterfall'].rows
     .filter(r => inWindow(r.month))
@@ -470,6 +483,29 @@ export function cohortEconomics(data, cohorts, { margin }) {
   });
 }
 
+
+
+// The one rule for what counts as acquisition spend.
+//
+// Everything that divides by a cost per logo goes through this, and so does
+// the cost table, so the categories on that table always sum to the number
+// every other chart divides by. They did not before: the table read the
+// expense lines while the ratios read cac_total_actual from CAC Monthly, and
+// the two ran $114,624 apart over twelve months, almost all of it in two
+// months where Customer Success appears to have been counted as acquisition
+// despite being settled at 0%.
+//
+// The expense lines win because they are the ones that can be checked. Each
+// category on the table is an account you can point at, and they add up.
+// cac_total_actual is still read and carried as `reported`, so the gap stays
+// visible rather than being quietly resolved.
+export function isAcquisition(expense) {
+  if (expense.bucket === 'CAC') return true;
+  // Partnerships is the one split line that reaches acquisition, at 100%.
+  // Customer Success is settled at 0% and Technical Account Manager sits in
+  // cost of sales, so neither does.
+  return expense.bucket === 'SPLIT' && /Partnerships/i.test(expense.account || '');
+}
 
 // Departures counted from the file rather than taken from the summary.
 //
@@ -793,8 +829,7 @@ export const COST_CATEGORIES = [
 ];
 
 export function acquisitionCosts(data, { months = 12 } = {}) {
-  const rows = data.expenses.filter(e =>
-    e.bucket === 'CAC' || (e.bucket === 'SPLIT' && /Partnerships/i.test(e.account || '')));
+  const rows = data.expenses.filter(isAcquisition);
 
   const all = [...new Set(rows.map(e => e.month))].sort();
   const window = all.slice(-months);
@@ -812,7 +847,7 @@ export function acquisitionCosts(data, { months = 12 } = {}) {
   }
 
   const logos = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
-  const reported = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const reported = new Map(data.cacMonthly.map(r => [r.month, r.reported]));
 
   const categories = COST_CATEGORIES.map(c => ({
     key: c.key,
