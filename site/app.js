@@ -739,8 +739,9 @@ function renderAssumptionDependent() {
   const recovered = economics.filter(c => c.payback !== null);
   const withinGoal = recovered.filter(c => c.payback <= 12).length;
   $('payback-note').textContent =
-    `${recovered.length} of ${economics.length} cohorts have covered their cost, ${withinGoal} `
-    + `of them inside the 12 month goal. The other ${unrecovered} are projected rather than `
+    `${recovered.length} of ${economics.length} cohorts have covered their cost, `
+    + (withinGoal === recovered.length ? 'every one of them ' : `${withinGoal} of them `)
+    + `inside the 12 month goal. The other ${unrecovered} are projected rather than `
     + `left blank, because most have simply not had time: the run ends at the trailing month `
     + `and a cohort one month old cannot have paid back. `
     + (clipped
@@ -1336,12 +1337,12 @@ const MEANS = {
     + 'which is what rules out the calendar as the explanation.',
 
   'chart-payback':
-    'Payback lengthening changes how the business is financed, not just how it looks. The '
-    + 'cohorts that have recovered did so between four and eleven months; the ones still '
-    + 'running are projected well past that, several beyond the twenty month ceiling. A cohort '
-    + 'that pays back in six months funds the next one inside the year; one that takes twenty '
-    + 'does not fund anything within a planning cycle. Growth at current unit economics has to '
-    + 'be paid for out of the base rather than out of itself.',
+    'Payback is what decides whether growth pays for itself. A cohort that clears its cost in '
+    + 'six months funds the next one inside the year; one that takes eighteen does not fund '
+    + 'anything inside a planning cycle, however healthy it looks eventually. Read the '
+    + 'projected bars as the question rather than the answer: they say when today’s '
+    + 'churn rate would get a cohort there, and the cohorts still running are the ones carrying '
+    + 'the higher cost per logo, so they have further to go than any that came before them.',
 
   'chart-recovery':
     'This is the chart to judge a cohort on before it is old enough for the others to be '
@@ -1479,7 +1480,9 @@ function renderAnnotations() {
     `${shown.length - recovered.length} of those shown have not recovered and are drawn as projections in a separate colour, not as zeroes or gaps. A zero would read as instant payback, the opposite of what it means.`,
     paybackByEra(recovered),
   ], [
-    'Same realised measure and same age bias as the chart above. A gap is "not yet", not "never".',
+    `A bar is either what happened or a projection of what will, never a blank: ${recovered.length} of these are the month a cohort actually crossed its cost and ${shown.length - recovered.length} are projected. A gap would read as "never", and what it means is "not yet".`,
+    `The projection is the same one chart 1 draws hatched, so the two cannot disagree: the pooled month-on-month revenue path of the cohorts with a year of history, which is mostly churn because revenue per surviving customer is roughly flat after the first month. Measured at the month this chart predicts, chart 1 reads 1.0x for the same cohort. The difference between them is the question, not the model: this one asks when a cohort crosses its cost, that one asks where it stands at a fixed age.`,
+    `The range around each projection comes from resampling whole donor cohorts rather than resampling the average, so it answers how far one cohort could sit from the typical path rather than how well the typical path is known.`,
     `The run starts at ${HISTORY_STARTS} because acquisition cost is not recorded before then, which is an absence of data rather than a verdict on earlier cohorts.`,
   ]);
 
