@@ -52,6 +52,25 @@ HORIZONS = range(1, 7)
 WINDOWS = 24          # the same two year limit the site applies
 
 
+def history_starts(reference=None):
+    """The month the site's window opens, derived the same way it derives it.
+
+    Taking the last 24 eligible starting months instead reached six months
+    further back than the site allows, because eligibility shrinks with the
+    horizon: at six months the newest eligible start is 2026-02, so the last
+    24 of them began in 2024-03. The animation and the chart it animates then
+    reported different correlations for the same question, +0.11 against
+    -0.18 at four months, with nothing on either to say why.
+    """
+    from datetime import date
+    today = reference or date.today()
+    total = today.year * 12 + (today.month - 1) - WINDOWS
+    return f"{total // 12}-{total % 12 + 1:02d}"
+
+
+HISTORY_STARTS = history_starts()
+
+
 def load(name):
     return json.loads((DATA / name).read_text(encoding="utf-8"))
 
@@ -115,7 +134,8 @@ def read_months():
     # as the horizon grows, so the slider would change two things at once, and
     # an effect that appeared at one month turned out to be carried entirely by
     # the recent thin-intake months only the short horizons could reach.
-    anchor = set(eligible(max(HORIZONS))[-WINDOWS:])
+    # Inside the window, not merely the most recent 24 that qualify.
+    anchor = set(m for m in eligible(max(HORIZONS)) if m >= HISTORY_STARTS)
     return mrr, waterfall, last, eligible, anchor
 
 
