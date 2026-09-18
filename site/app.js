@@ -760,8 +760,9 @@ function renderEra() {
     + `each other at month 6.</strong> `
     + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
     + `. That is a narrow spread on thin samples, so on this measure there is no clear `
-    + `difference between the eras. The chart below asks the same question in money, and `
-    + `there the years separate.`;
+    + `difference between the eras. Chart 9 asks the same question in money, weighting each `
+    + `customer by what they arrived on, and there the years separate: at month 6 it reads `
+    + `2024 78.3%, 2025 77.9% and 2026 60.4%.`;
 
   // Both read at month 6 off the month 2 base, so the gap between them is
   // downgrades and departures rather than a difference in indexing.
@@ -829,9 +830,10 @@ function renderEra() {
     + `${rateNote}, while the share of new customers whose second month books no MRR at all `
     + `has gone from ${fmt.pct(free.before, 0)} to ${fmt.pct(free.after, 0)}. Those are free `
     + `periods, not cheaper subscriptions.</p>`
-    + `<p>This is the reconciliation between this chart and the one below. Read the head `
-    + `count alone and 2026 looks like the best year here; read the money and it is the `
-    + `worst. Both are true, and the difference between them is the policy.</p>`;
+    + `<p>This is the reconciliation between the head count here and the revenue in chart 9. `
+    + `Read the head count alone and 2026 looks like the best year here; read the money and it `
+    + `is the worst, 60.4% kept at month 6 against about 78% for both earlier years. Both are `
+    + `true, and the difference between them is the policy.</p>`;
   $('era-revenue-note').textContent = shared
     + ' Gross revenue retention: every customer is capped at what they were paying in their '
     + 'second month, so this falls both when a customer leaves and when one stays on less than '
@@ -1814,8 +1816,8 @@ const MEANS = {
 
   'chart-ltv-cac':
     'Read the two averages under the chart together and the diagnosis is in them. Cut at the '
-    + 'same age, what a customer returns has barely moved between the earlier cohorts and the '
-    + 'later ones. What one costs has roughly doubled. That is the whole of the deterioration '
+    + 'same age, what a customer returns has risen a little between the earlier cohorts and the '
+    + 'later ones. What one costs has risen about four times as fast. That is the whole of the deterioration '
     + 'here, and it points at acquisition rather than at retention or pricing: the same '
     + 'retention curve clears the bar at the older cohorts’ cost per logo and does not at '
     + 'the newer ones’. Move the slider and the gap holds at every age both halves reach, '
@@ -1866,8 +1868,8 @@ const MEANS = {
     + 'about as one won in 2024 did, and early on it decays rather less, so money spent '
     + 'rebuilding onboarding on the theory that new customers have got worse would be spent '
     + 'against a problem this chart does not show. That does not close the question, because '
-    + 'a head count treats a $200 account and a $2,000 account as the same event. The chart '
-    + 'below weights them, and the answer changes.',
+    + 'a head count treats a $200 account and a $2,000 account as the same event. Chart 9 '
+    + 'weights them, and the answer changes.',
 
   'chart-era-revenue':
     'This is the version to act on, and it says the retention problem is larger than the logo '
