@@ -613,6 +613,20 @@ figcaption { margin-bottom: .9rem; }
   color: var(--series-pos); margin-left: 6px;
 }
 .story-close td.emphasis { font-weight: 600; }
+.story-close tr.untested td { color: var(--ink-soft); font-style: italic; }
+.story-close .flag {
+  display: inline-block;
+  margin-left: .4rem;
+  padding: .05rem .35rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  font-size: .68rem;
+  font-style: normal;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  vertical-align: middle;
+}
 .story-close tfoot td {
   border-top: 1px solid var(--rule); padding-top: 10px;
   font-size: 0.86rem; color: var(--ink-soft); text-align: left;

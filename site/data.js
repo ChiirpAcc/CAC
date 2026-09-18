@@ -994,7 +994,8 @@ export function pricingScenarios(data, { months = 23, horizon = 12 } = {}) {
   }
 
   const matured = starts.filter(s => monthAdd(s.month, horizon - 1) <= last);
-  const bands = [[0, 600], [600, 800], [800, 1100], [1100, 1500]]
+  const BANDS = [[0, 600], [600, 800], [800, 1100], [1100, 1500]];
+  const bands = BANDS
     .map(([lo, hi]) => {
       const g = matured.filter(s => s.price >= lo && s.price < hi);
       if (g.length < 12) return null;
@@ -1005,8 +1006,19 @@ export function pricingScenarios(data, { months = 23, horizon = 12 } = {}) {
         }
         return sum + k;
       }, 0) / g.length;
-      return { price: g.reduce((s, x) => s + x.price, 0) / g.length, paid, n: g.length };
+      return { lo, hi, price: g.reduce((s, x) => s + x.price, 0) / g.length,
+               paid, n: g.length };
     }).filter(Boolean);
+
+  // How far the months-paid fit is actually supported. Beyond the top of the
+  // highest band that survived the twelve customer minimum, the line below is
+  // an extrapolation and nothing in this file tests it. Plans that price above
+  // this are flagged rather than silently scored, because the fit keeps
+  // returning a number long after it has stopped having evidence behind it.
+  const fitCeiling = bands.length ? bands[bands.length - 1].hi : null;
+  const aboveCeiling = fitCeiling ? matured.filter(s => s.price >= fitCeiling) : [];
+  const everAboveCeiling = fitCeiling ? starts.filter(s => s.price >= fitCeiling) : [];
+  const topBand = bands.length ? bands[bands.length - 1] : null;
 
   // Straight line through the bands: months paid as a function of price.
   const mp = bands.reduce((s, b) => s + b.price, 0) / bands.length;
@@ -1014,6 +1026,17 @@ export function pricingScenarios(data, { months = 23, horizon = 12 } = {}) {
   const slope = bands.reduce((s, b) => s + (b.price - mp) * (b.paid - mm), 0)
     / bands.reduce((s, b) => s + (b.price - mp) ** 2, 0);
   const paidAt = p => Math.max(1, Math.min(horizon, mm + slope * (p - mp)));
+
+  // The price at which the fit stops discriminating. Above it the line asks
+  // for more months than the horizon has, so every plan is credited with a
+  // customer who never leaves inside the window and the only thing left
+  // pushing back on price is the elasticity. Any scenario priced above this
+  // is being scored on an assumption rather than on the data, and the number
+  // is carried out so the page can say where that starts.
+  let capsAtPrice = null;
+  for (let price = 100; price <= 10000; price += 10) {
+    if (mm + slope * (price - mp) >= horizon) { capsAtPrice = price; break; }
+  }
 
   // The base: the eleven months before any rise, and the window's cost per logo.
   const early = data.waterfall.filter(w => w.month < '2025-08');
@@ -1032,6 +1055,8 @@ export function pricingScenarios(data, { months = 23, horizon = 12 } = {}) {
     { label: 'Fixed at $930 from month one', at: () => 930 },
     { label: 'Fixed at $1,200', at: () => 1200 },
     { label: 'Skim, $1,300 down to $800', at: t => Math.max(800, 1300 - 500 * t / (months - 1)) },
+    { label: 'Skim, $2,500 down to $1,200',
+      at: t => Math.max(1200, 2500 - 1300 * t / (months - 1)) },
   ];
 
   const run = (at, elasticity) => {
@@ -1049,10 +1074,26 @@ export function pricingScenarios(data, { months = 23, horizon = 12 } = {}) {
   return {
     baseP, baseQ, cac, horizon, months, bands, slope,
     elasticities,
-    plans: plans.map(pl => ({
-      label: pl.label,
-      byElasticity: elasticities.map(e => ({ elasticity: e, ...run(pl.at, e) })),
-    })),
+    fitCeiling,
+    capsAtPrice,
+    topBand,
+    aboveCeiling: aboveCeiling.length,
+    everAboveCeiling: everAboveCeiling.length,
+    plans: plans.map(pl => {
+      // The highest price the plan ever asks for, against the highest price
+      // the fit was built on. A plan that opens above the ceiling is scored
+      // the same way as the others and then marked, so a reader can see which
+      // numbers rest on observed behaviour and which on a straight line drawn
+      // past the end of it.
+      let peak = 0;
+      for (let t = 0; t < months; t += 1) peak = Math.max(peak, pl.at(t));
+      return {
+        label: pl.label,
+        peak,
+        extrapolated: fitCeiling ? peak > fitCeiling : false,
+        byElasticity: elasticities.map(e => ({ elasticity: e, ...run(pl.at, e) })),
+      };
+    }),
   };
 }
 

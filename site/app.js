@@ -443,15 +443,26 @@ function renderPricing(data) {
   const s = pricingScenarios(data);
   const money = v => '$' + (v / 1e6).toFixed(2) + 'm';
 
+  // Best among the plans the data can actually speak to. A plan priced above
+  // the top of the fit will always win, because the fitted line goes on
+  // rewarding price after the evidence for it has run out, and crowning it
+  // would be reporting the extrapolation rather than the finding.
+  const supported = s.plans.filter(p => !p.extrapolated);
+  const pool = supported.length ? supported : s.plans;
   const best = s.elasticities.map((_, i) =>
-    s.plans.reduce((a, b) => (b.byElasticity[i].net > a.byElasticity[i].net ? b : a)).label);
+    pool.reduce((a, b) => (b.byElasticity[i].net > a.byElasticity[i].net ? b : a)).label);
 
   const head = '<thead><tr><th>Strategy</th>'
     + s.elasticities.map(e => `<th class="n">elasticity ${e.toFixed(2)}</th>`).join('')
     + '</tr></thead>';
 
-  const body = s.plans.map(p => '<tr>'
-    + `<td>${p.label}</td>`
+  const body = s.plans.map(p => `<tr${p.extrapolated ? ' class="untested"' : ''}>`
+    + `<td>${p.label}`
+    + (p.extrapolated
+      ? ` <span class="flag" title="Prices above ${fmt.money(s.fitCeiling)}, where the `
+        + `months-paid fit has no data behind it">untested range</span>`
+      : '')
+    + '</td>'
     + p.byElasticity.map((x, i) => {
       const win = best[i] === p.label;
       return `<td class="n${win ? ' emphasis' : ''}">${money(x.net)}`
@@ -465,7 +476,42 @@ function renderPricing(data) {
     + `${fmt.money(s.cac)} a logo, summed across ${s.months} months of intake at `
     + `${s.baseQ.toFixed(0)} logos a month before any price response. Months paid rises `
     + `${(s.slope * 1000).toFixed(1)} per $1,000 of price, fitted across the observed bands.`
+    + (s.fitCeiling ? ` Rows marked untested price above ${fmt.money(s.fitCeiling)}, which is `
+      + `the top of the highest band with enough customers to fit. Only ${s.aboveCeiling} `
+      + `customers have ever started above it, so for those rows both the months-paid line and `
+      + `the volume response are extrapolations, and they are excluded from the best-of marking `
+      + `for that reason. They are shown because the question was asked, not because the data `
+      + `answers it.` : '')
     + '</td></tr></tfoot>';
+
+  // The two controls that depend on the fit's own limits, written from the
+  // numbers so they cannot go stale. The first of them used to say the sample
+  // above $1,500 was 17 customers; it is 46 starts, of which 6 have a full
+  // year behind them.
+  if ($('control-range') && s.bands.length) {
+    const lowest = s.bands[0];
+    const top = s.topBand;
+    $('control-range').innerHTML =
+      `<strong>Only prices actually charged are observed</strong>, roughly `
+      + `${fmt.money(lowest.price)} to ${fmt.money(s.fitCeiling)}. The top band the fit rests `
+      + `on holds ${top.n} customers against ${lowest.n} in the lowest, so the upper end of the `
+      + `line is the thin end of the evidence. ${s.everAboveCeiling} customers have ever started `
+      + `above ${fmt.money(s.fitCeiling)} and only ${s.aboveCeiling} of them have a full `
+      + `${s.horizon} months behind them, which is too few to read either way. The `
+      + `recommendation stops at the edge of what has been tested.`;
+  }
+  if ($('control-extrapolation') && s.capsAtPrice) {
+    $('control-extrapolation').innerHTML =
+      `<strong>Above ${fmt.money(s.capsAtPrice)} the model stops arguing with you.</strong> `
+      + `Months paid is fitted as a straight line in price, and at `
+      + `${fmt.money(s.capsAtPrice)} it already asks for the whole ${s.horizon} month horizon. `
+      + `Past that point every extra dollar is credited in full against a customer assumed `
+      + `never to leave inside the window, and the only thing pushing back is the elasticity. `
+      + `That is why the $2,500 skim scores as it does, and why it is marked untested rather `
+      + `than treated as the answer: it is not a finding about high prices, it is the shape of `
+      + `the assumption. Nothing here should be read as evidence for pricing above `
+      + `${fmt.money(s.fitCeiling)}.`;
+  }
 
   // The mechanism, before the arithmetic that rests on it. The whole case for
   // a fixed high price is that a dearer customer is also a longer one, so it
@@ -506,16 +552,20 @@ function renderPricing(data) {
   // the ordering does not change as elasticity worsens. A table makes a reader
   // check that column by column; lines that do not cross say it at a glance.
   if ($('chart-price-strategies')) {
-    // Five plans, five series colours. The one that actually happened is drawn
-    // in the negative colour and the one that wins in the positive one, so the
-    // chart reads before the legend does.
+    // Only the plans the data can speak to are drawn. An extrapolated plan
+    // belongs in the table, where it can be marked, and not on a chart where
+    // it would both take the top of the axis and flatten everything the
+    // argument actually rests on into the bottom third of it.
+    const drawn = pool;
+    // The one that actually happened is drawn in the negative colour and the
+    // one that wins in the positive one, so the chart reads before the legend.
     const palette = [INK.tertiary, INK.negative, INK.secondary, INK.positive, INK.primary];
-    const winner = s.plans.reduce((a, b) => (
+    const winner = drawn.reduce((a, b) => (
       b.byElasticity[b.byElasticity.length - 1].net > a.byElasticity[a.byElasticity.length - 1].net
         ? b : a));
     multiLineChart($('chart-price-strategies'), {
       labels: s.elasticities.map(e => e.toFixed(2)),
-      series: s.plans.map((plan, i) => ({
+      series: drawn.map((plan, i) => ({
         label: plan.label,
         colour: palette[i % palette.length],
         values: plan.byElasticity.map(x => x.net / 1e6),
@@ -523,7 +573,7 @@ function renderPricing(data) {
       yFormat: v => '$' + v.toFixed(1) + 'm',
       xTitle: 'Price elasticity assumed (0 = nobody minds, −1.0 = very sensitive)',
       describe: i => `<strong>Elasticity ${s.elasticities[i].toFixed(2)}</strong>`
-        + s.plans.map(plan =>
+        + drawn.map(plan =>
           `<span>${plan.label} $${(plan.byElasticity[i].net / 1e6).toFixed(2)}m</span>`).join(''),
     });
     // Ranks read off the numbers at every elasticity, not asserted. Written
@@ -532,13 +582,13 @@ function renderPricing(data) {
     // otherwise in front of the people who ran that path would be the kind of
     // error that costs the rest of the argument its credibility.
     const last = s.elasticities.length - 1;
-    const rankOf = (plan, i) => [...s.plans]
+    const rankOf = (plan, i) => [...drawn]
       .sort((x, y) => y.byElasticity[i].net - x.byElasticity[i].net)
       .findIndex(p => p.label === plan.label) + 1;
     const alwaysFirst = s.elasticities.every((_, i) => rankOf(winner, i) === 1);
-    const skim = s.plans.find(p => /skim/i.test(p.label));
-    const actual = s.plans.find(p => /happened/i.test(p.label));
-    const worst = s.plans.reduce((x, y) => (
+    const skim = drawn.find(p => /skim/i.test(p.label));
+    const actual = drawn.find(p => /happened/i.test(p.label));
+    const worst = drawn.reduce((x, y) => (
       y.byElasticity[last].net < x.byElasticity[last].net ? y : x));
     const m = (plan, i) => '$' + (plan.byElasticity[i].net / 1e6).toFixed(2) + 'm';
     const place = n => ['first', 'second', 'third', 'fourth', 'fifth'][n - 1] || `${n}th`;
@@ -566,7 +616,15 @@ function renderPricing(data) {
       + `does not clear significance, and adding a time trend flips the sign. The sweep runs `
       + `well past anything the data suggests, and the ordering holds across all of it. The `
       + `horizontal axis is the four cases tested set side by side, not a continuous scale, so `
-      + `the spacing between them carries no meaning; only the order of the lines does.`;
+      + `the spacing between them carries no meaning; only the order of the lines does.`
+      + (s.plans.length > drawn.length
+        ? ` The ${s.plans.length - drawn.length === 1 ? 'one strategy'
+          : `${s.plans.length - drawn.length} strategies`} priced above `
+          + `${fmt.money(s.fitCeiling)} is left off this chart and kept in the table below, `
+          + `marked. It scores higher than anything here, but only because the months-paid fit `
+          + `has already run out of data at that price, so drawing it would put an assumption `
+          + `at the top of the axis and press the rest of the argument into the floor.`
+        : '');
   }
 }
 
