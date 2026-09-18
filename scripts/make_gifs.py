@@ -323,8 +323,15 @@ def build_arrivals_by_month(mrr, waterfall, eligible, anchor):
     The axes are the same in every frame, set from the full series before any
     of it is drawn. Rescaling per frame would put the first point in the
     middle of an empty chart and make every month look alike.
+
+    One month later, not four. This animation exists to show how the scatter
+    beside it is built, so the shorter horizon is the easier one to follow:
+    each frame is one month's arrivals against what had gone by the next
+    month, which a reader can hold in their head. Whether the answer survives
+    a longer wait is the next chart's question, and it is asked there across
+    all six horizons at once.
     """
-    HORIZON = 4
+    HORIZON = 1
     months = [m for m in eligible(HORIZON) if m in anchor]
     xs, ys = [], []
     for month in months:
@@ -350,7 +357,8 @@ def build_arrivals_by_month(mrr, waterfall, eligible, anchor):
             "Does churn rise when fewer customers arrive?",
             f"Starting months {months[0]} to {months[i]}. {verdict}",
             (y_lo, y_hi), lambda v: f"{v * 100:.0f}%", x_range=(0, x_hi),
-            y_title=f"Share gone {HORIZON} months later")
+            y_title="Share gone one month later" if HORIZON == 1
+                    else f"Share gone {HORIZON} months later")
 
         for j in range(i + 1):
             newest = j == i

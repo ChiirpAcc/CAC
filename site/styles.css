@@ -352,6 +352,32 @@ figcaption { margin-bottom: .9rem; }
 .finding strong { font-weight: 620; }
 .finding.negative { border-left-color: var(--series-neg); }
 
+/* A callout carries something the data cannot know on its own: a change the
+   business made, named by someone who was there. Marked differently from a
+   finding so a reader can tell which is which at a glance. */
+.callout {
+  margin: .85rem 0 0;
+  padding: .7rem .85rem .7rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-left: 3px solid var(--ink-soft);
+  border-radius: 3px;
+  font-size: .86rem;
+  line-height: 1.55;
+  max-width: 78ch;
+}
+.callout h4 {
+  margin: 0 0 .45rem;
+  font-size: .72rem;
+  font-weight: 640;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.callout p { margin: 0 0 .55rem; }
+.callout p:last-child { margin-bottom: 0; }
+.callout strong { font-weight: 620; }
+
 .section-break { margin: 2.75rem auto 1.25rem; padding-top: 1.75rem; border-top: 1px solid var(--rule-strong); }
 .section-break h2 { margin: 0 0 .4rem; font-size: 1.15rem; font-weight: 620; letter-spacing: -0.01em; }
 .section-intro { margin: 0; max-width: 68ch; color: var(--ink-mid); }
@@ -576,6 +602,11 @@ figcaption { margin-bottom: .9rem; }
 .story-lead-plain { font-size: 1.06rem; }
 .story-controls { max-width: 46rem; color: var(--ink-mid); padding-left: 20px; }
 .story-controls li { margin-bottom: 10px; }
+.story-close .story-figure { margin: 22px 0 26px; }
+.story-close .story-figure h3 { margin: 0 0 4px; }
+.story-close .story-figure p { max-width: 78ch; margin: 0; }
+.story-close .story-figure .finding { margin-top: .85rem; }
+.story-close .story-figure .note { margin-top: .85rem; color: var(--ink-soft); }
 .story-close .table-scroll { margin: 20px 0 6px; }
 .story-close .best {
   font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase;

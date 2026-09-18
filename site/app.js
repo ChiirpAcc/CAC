@@ -1,4 +1,5 @@
 import {
+  policySignals,
   load, buildCohorts, cohortEconomics,
   blendedRetention, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
@@ -465,6 +466,108 @@ function renderPricing(data) {
     + `${s.baseQ.toFixed(0)} logos a month before any price response. Months paid rises `
     + `${(s.slope * 1000).toFixed(1)} per $1,000 of price, fitted across the observed bands.`
     + '</td></tr></tfoot>';
+
+  // The mechanism, before the arithmetic that rests on it. The whole case for
+  // a fixed high price is that a dearer customer is also a longer one, so it
+  // is worth drawing that on its own rather than leaving it inside a slope
+  // quoted in a table footnote.
+  if ($('chart-price-months') && s.bands.length) {
+    const bandLabels = s.bands.map(b => fmt.money(b.price));
+    columnChart($('chart-price-months'), {
+      labels: bandLabels,
+      values: s.bands.map(b => b.paid),
+      yFormat: v => `${v.toFixed(1)}`,
+      colour: INK.secondary,
+      describe: i => `<strong>${bandLabels[i]} a month</strong>`
+        + `<span>${s.bands[i].paid.toFixed(1)} of ${s.horizon} months paid</span>`
+        + `<span class="muted">${s.bands[i].n} customers</span>`,
+    });
+    const lowest = s.bands[0];
+    const highest = s.bands[s.bands.length - 1];
+    $('price-months-finding').innerHTML =
+      `<strong>A cheaper customer is a shorter customer.</strong> Of the first `
+      + `${s.horizon} months, the ${fmt.money(lowest.price)} band pays for `
+      + `${lowest.paid.toFixed(1)} of them and the ${fmt.money(highest.price)} band for `
+      + `${highest.paid.toFixed(1)}. Fitted across the bands that is `
+      + `${(s.slope * 1000).toFixed(1)} more months paid per extra $1,000 of monthly price. `
+      + `So a low price loses twice: less per month, and fewer months of it. That is the `
+      + `whole reason skimming loses below, because the customers a skim picks up on the way `
+      + `down are exactly these.`;
+    $('price-months-note').textContent =
+      `Price is each customer's MRR in their second month, clean of the first-month charge `
+      + `that was booked as MRR until mid-2025. Only customers with a full ${s.horizon} months `
+      + `behind them are counted, so none of the bands is flattered by being young, and a band `
+      + `is dropped below twelve customers. This is a comparison between customers, not a `
+      + `prediction about one: a customer paying more is usually a larger business rather than `
+      + `the same business charged more, which is the control that cannot be applied here.`;
+  }
+
+  // The answer itself, drawn rather than tabulated, because the point is that
+  // the ordering does not change as elasticity worsens. A table makes a reader
+  // check that column by column; lines that do not cross say it at a glance.
+  if ($('chart-price-strategies')) {
+    // Five plans, five series colours. The one that actually happened is drawn
+    // in the negative colour and the one that wins in the positive one, so the
+    // chart reads before the legend does.
+    const palette = [INK.tertiary, INK.negative, INK.secondary, INK.positive, INK.primary];
+    const winner = s.plans.reduce((a, b) => (
+      b.byElasticity[b.byElasticity.length - 1].net > a.byElasticity[a.byElasticity.length - 1].net
+        ? b : a));
+    multiLineChart($('chart-price-strategies'), {
+      labels: s.elasticities.map(e => e.toFixed(2)),
+      series: s.plans.map((plan, i) => ({
+        label: plan.label,
+        colour: palette[i % palette.length],
+        values: plan.byElasticity.map(x => x.net / 1e6),
+      })),
+      yFormat: v => '$' + v.toFixed(1) + 'm',
+      xTitle: 'Price elasticity assumed (0 = nobody minds, −1.0 = very sensitive)',
+      describe: i => `<strong>Elasticity ${s.elasticities[i].toFixed(2)}</strong>`
+        + s.plans.map(plan =>
+          `<span>${plan.label} $${(plan.byElasticity[i].net / 1e6).toFixed(2)}m</span>`).join(''),
+    });
+    // Ranks read off the numbers at every elasticity, not asserted. Written
+    // this way after the first draft called skimming last: it is second
+    // everywhere, and it beats the path the business actually took. Saying
+    // otherwise in front of the people who ran that path would be the kind of
+    // error that costs the rest of the argument its credibility.
+    const last = s.elasticities.length - 1;
+    const rankOf = (plan, i) => [...s.plans]
+      .sort((x, y) => y.byElasticity[i].net - x.byElasticity[i].net)
+      .findIndex(p => p.label === plan.label) + 1;
+    const alwaysFirst = s.elasticities.every((_, i) => rankOf(winner, i) === 1);
+    const skim = s.plans.find(p => /skim/i.test(p.label));
+    const actual = s.plans.find(p => /happened/i.test(p.label));
+    const worst = s.plans.reduce((x, y) => (
+      y.byElasticity[last].net < x.byElasticity[last].net ? y : x));
+    const m = (plan, i) => '$' + (plan.byElasticity[i].net / 1e6).toFixed(2) + 'm';
+    const place = n => ['first', 'second', 'third', 'fourth', 'fifth'][n - 1] || `${n}th`;
+    const skimRanks = s.elasticities.map((_, i) => rankOf(skim, i));
+    const skimSteady = skimRanks.every(r => r === skimRanks[0]);
+
+    $('price-strategies-finding').innerHTML =
+      `<strong>${winner.label} wins${alwaysFirst ? ' at every elasticity tested' : ''}, and the `
+      + `lines never cross.</strong> That is the part that matters: the ranking does not depend `
+      + `on a price sensitivity nobody can measure from this data. At the most sensitive case `
+      + `tested, ${s.elasticities[last].toFixed(2)}, it returns ${m(winner, last)} against `
+      + `${m(actual, last)} for what actually happened. `
+      + `Skimming is not the villain here: it comes ${skimSteady ? place(skimRanks[0])
+        : 'second or third'} throughout at ${m(skim, last)}, ahead of the path that was taken. `
+      + `It loses to a flat high price because every month it spends coming down locks in a `
+      + `cohort at the lower price, and cohorts do not re-rate. The genuinely bad option is `
+      + `${worst.label.toLowerCase()}, last at ${m(worst, last)}.`;
+    $('price-strategies-note').textContent =
+      `Each line is total gross over ${s.horizon} months per customer won, less acquisition `
+      + `cost at ${fmt.money(s.cac)} a logo, summed across ${s.months} months of intake. `
+      + `Volume responds to price through the elasticity on the horizontal axis and months paid `
+      + `through the fit in the chart above; acquisition cost is held flat, because cost per `
+      + `logo has no relationship to price in this data. Elasticity is swept rather than `
+      + `estimated because it is not identified here: volume against price gives −0.20, which `
+      + `does not clear significance, and adding a time trend flips the sign. The sweep runs `
+      + `well past anything the data suggests, and the ordering holds across all of it. The `
+      + `horizontal axis is the four cases tested set side by side, not a continuous scale, so `
+      + `the spacing between them carries no meaning; only the order of the lines does.`;
+  }
 }
 
 
@@ -578,6 +681,43 @@ function renderEra() {
 
   $('era-note').textContent = shared
     + ' Indexed to month 1, where nothing distorts the count.';
+
+  // Why the 2026 line is flat, from the business rather than from the file,
+  // with the file checked against it. Both changes keep a customer in this
+  // chart and take their money out of chart 9, which is the gap between them.
+  const signals = policySignals(data);
+  const pol = signals.stopPaying;
+  const free = signals.freeStart;
+  // Said whichever way the rate actually moved. It has risen, which makes the
+  // point more strongly than a flat rate would: the list price is going up
+  // while the free periods multiply, so these are not cheaper subscriptions.
+  const rateBefore = signals.medianStart.before;
+  const rateAfter = signals.medianStart.after;
+  const rateMoved = rateBefore && rateAfter
+    && Math.abs(rateAfter - rateBefore) / rateBefore > 0.02;
+  const rateNote = !rateBefore || !rateAfter
+    ? 'the rate customers start on has not moved'
+    : rateMoved
+      ? `the median rate a customer starts on has ${rateAfter > rateBefore ? 'risen' : 'fallen'} `
+        + `to ${fmt.money(rateAfter)} from ${fmt.money(rateBefore)}`
+      : `the median rate a customer starts on has held at ${fmt.money(rateAfter)}`;
+  $('era-callout').innerHTML =
+    '<h4>Two changes behind the 2026 line</h4>'
+    + `<p>Going into 2026 the business began <strong>requiring customers to serve out their `
+    + `next billing period before a cancellation takes effect</strong>, and began `
+    + `<strong>offering coupons more freely</strong>. Both keep a customer in this chart `
+    + `after their revenue has stopped, so some of the flatness in the 2026 line is a change `
+    + `in what counts as leaving rather than a change in who leaves.</p>`
+    + `<p>The file agrees on both. Among customers who were present and paying the month `
+    + `before, the share whose revenue drops to nothing while they stay on the books runs at `
+    + `${fmt.pct(pol.after, 1)} a month from ${fmt.monthLabel(signals.split)}, against `
+    + `${fmt.pct(pol.before, 1)} before it. And the coupons are not discounts off the rate: `
+    + `${rateNote}, while the share of new customers whose second month books no MRR at all `
+    + `has gone from ${fmt.pct(free.before, 0)} to ${fmt.pct(free.after, 0)}. Those are free `
+    + `periods, not cheaper subscriptions.</p>`
+    + `<p>This is the reconciliation between this chart and the one below. Read the head `
+    + `count alone and 2026 looks like the best year here; read the money and it is the `
+    + `worst. Both are true, and the difference between them is the policy.</p>`;
   $('era-revenue-note').textContent = shared
     + ' Gross revenue retention: every customer is capped at what they were paying in their '
     + 'second month, so this falls both when a customer leaves and when one stays on less than '

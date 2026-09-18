@@ -76,9 +76,10 @@
     <div class="story-step" data-figure="fig-arrivals-months">
       <p class="story-lead"><span class="story-num">3</span>
         <strong>It is not that thin months are poisoning the base.</strong>
-        Adding the starting months one at a time, the recent ones land inside
-        the same cloud as the early ones. Nothing about the relationship moved
-        across the two years.</p>
+        Each frame is one starting month: how many customers arrived, against
+        the share of the base gone a month later. Watch it build and the recent
+        months land inside the same cloud as the early ones. Nothing about the
+        relationship moved across the two years.</p>
     </div>
     <div class="story-means">
       <h3>What this means</h3>
@@ -129,19 +130,42 @@
         down. That holds at every level of price sensitivity worth testing,
         including ones far more elastic than anything in the data.</p>
 
+      <figure class="card wide story-figure">
+        <figcaption>
+          <h3>What a price buys you, besides the price</h3>
+        </figcaption>
+        <div class="plot" id="chart-price-months"></div>
+        <p class="finding" id="price-months-finding"></p>
+        <p class="note" id="price-months-note"></p>
+      </figure>
+
+      <figure class="card wide story-figure">
+        <figcaption>
+          <h3>Every strategy, at every price sensitivity worth testing</h3>
+        </figcaption>
+        <div class="plot" id="chart-price-strategies"></div>
+        <p class="finding" id="price-strategies-finding"></p>
+        <p class="note" id="price-strategies-note"></p>
+      </figure>
+
       <div class="table-scroll">
         <table class="data-table" id="pricing-table"></table>
       </div>
 
-      <h3>Why skimming loses here</h3>
-      <p>Skimming assumes the customers you pick up later, at the lower price,
-        are worth having on their own terms. In this data they are not: they pay
-        less <em>and</em> leave sooner. Months paid rises with price, about
-        2.3 months more over a year for every extra $1,000 of monthly
-        subscription, so a cheap customer is a short customer twice over. The
-        same logic is why the gradual climb underperforms a flat high price:
-        every month spent at the lower price locks in a cohort at that price,
-        and cohorts do not re-rate.</p>
+      <h3>Why skimming comes second rather than first</h3>
+      <p>Skimming is not a bad strategy in this data. Starting at $1,300 and
+        working down beats the gradual climb that actually happened, at every
+        elasticity tested, because it collects the high price from the
+        customers who would have paid it. It loses to a flat high price for one
+        reason: every month it spends coming down locks in a cohort at the
+        lower price, and cohorts do not re-rate. The customers it picks up on
+        the way down pay less <em>and</em> leave sooner, about 2.3 months
+        sooner over a year for every $1,000 of price given up, so the later
+        half of a skim is buying the worst customers at the worst price.</p>
+      <p>The clear loser is the opposite move. Never raising the price at all
+        finishes last at every elasticity, and by a wide margin. Whatever else
+        is arguable here, the decision to raise price was right; the argument
+        is only about how fast and how far.</p>
 
       <h3>What has to be true, and what we controlled for</h3>
       <ul class="story-controls">
@@ -264,6 +288,7 @@
       <div class="plot" id="chart-era"></div>
       <p class="finding negative" id="era-finding"></p>
       <p class="note" id="era-note"></p>
+      <div class="callout" id="era-callout"></div>
     </figure>
 
     <figure class="card wide" id="fig-era-revenue">
@@ -552,15 +577,22 @@
            alt="The arrivals against churn scatter built one starting month at a time, on fixed axes, with each new month marked as it lands.">
       <p class="finding" id="arrivals-month-finding">
         <strong>The recent months land inside the same cloud as the early
-        ones.</strong> Chart 21 draws every month at once, so nothing on it says
-        which came first and a relationship that had changed would be invisible.
-        Adding them one at a time shows that none of the last two years'
-        starting months sits apart from the rest.
+        ones.</strong> This is also the chart that shows how the scatter is
+        built: one frame per starting month, each point being that month's
+        arrivals against the share of its customers gone one month later.
+        Chart 21 draws every month at once, so nothing on it says which came
+        first and a relationship that had changed would be invisible. Adding
+        them one at a time shows that none of the last two years' starting
+        months sits apart from the rest.
       </p>
       <p class="note">
         One frame per starting month, each new point marked and the ones before
-        it faded by age. Churn is measured over the four months after each
-        starting month. The axes are set once from every point and never move,
+        it faded by age. Churn is measured over the single month after each
+        starting month, which is the shortest and most legible version of the
+        question: this animation is here to show how the scatter is assembled,
+        and one step is easier to follow than four. Chart 23 asks whether the
+        answer survives a longer wait, across all six horizons at once. The
+        axes are set once from every point and never move,
         so a point that looks extreme is extreme against the whole period rather
         than against the handful drawn so far. The correlation in the subtitle
         is recomputed on the months drawn, which is why it wanders early and

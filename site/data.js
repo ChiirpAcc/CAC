@@ -591,6 +591,85 @@ export function isAcquisition(expense) {
 //
 // Over the last six months the summary books 240 and the file loses 399, so
 // the reported figure understates departures by about two thirds. The
+// Two operational changes the business made going into 2026 leave the same
+// fingerprint in this file, and it is the fingerprint that separates the logo
+// curve from the revenue curve.
+//
+// The first is requiring a customer to serve out their next billing period
+// before a cancellation takes effect. That customer has decided to leave, but
+// they sit in the count for another period with their revenue already stopped.
+// It shows up as a rising share of present, previously paying customers whose
+// MRR drops to zero while they stay on the books.
+//
+// The second is offering coupons more freely. These are not discounts off the
+// rate: the median rate a customer starts on has held. They are free periods,
+// so they show up as new customers whose second month books no MRR at all.
+//
+// Both keep a customer in the head count and take their revenue out of it,
+// which is exactly the gap between charts 8 and 9. Computed rather than
+// asserted, so the callout moves if the behaviour does.
+export function policySignals(data, { split = '2026-01', from = '2025-01' } = {}) {
+  const byCustomer = new Map();
+  for (const row of data.customers) {
+    if (!byCustomer.has(row.id)) byCustomer.set(row.id, []);
+    byCustomer.get(row.id).push(row);
+  }
+
+  let beforeLive = 0, beforeZero = 0, afterLive = 0, afterZero = 0;
+  const startRates = { before: [], after: [] };
+  let beforeNew = 0, beforeFree = 0, afterNew = 0, afterFree = 0;
+
+  for (const [, rows] of byCustomer) {
+    rows.sort((a, b) => (a.month < b.month ? -1 : 1));
+
+    // Paying last month, still present this month, now at nothing.
+    for (let i = 1; i < rows.length; i += 1) {
+      const previous = rows[i - 1];
+      const current = rows[i];
+      if (current.month < from) continue;
+      if (!previous.active || !current.active || !(previous.eopMrr > 0)) continue;
+      const stopped = !(current.eopMrr > 0);
+      if (current.month < split) { beforeLive += 1; if (stopped) beforeZero += 1; }
+      else { afterLive += 1; if (stopped) afterZero += 1; }
+    }
+
+    // A new customer's second month, which is where a free period shows.
+    const first = rows.find(r => r.eventType === 'new');
+    if (!first || first.month < from) continue;
+    const second = rows[rows.indexOf(first) + 1];
+    if (!second || !second.active) continue;
+    const rate = second.eopMrr || 0;
+    const side = first.month < split ? 'before' : 'after';
+    if (rate > 0) startRates[side].push(rate);
+    if (side === 'before') { beforeNew += 1; if (!(rate > 0)) beforeFree += 1; }
+    else { afterNew += 1; if (!(rate > 0)) afterFree += 1; }
+  }
+
+  const median = values => {
+    if (!values.length) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  };
+
+  return {
+    split,
+    stopPaying: {
+      before: beforeLive ? beforeZero / beforeLive : null,
+      after: afterLive ? afterZero / afterLive : null,
+      beforeMonths: beforeLive,
+      afterMonths: afterLive,
+    },
+    freeStart: {
+      before: beforeNew ? beforeFree / beforeNew : null,
+      after: afterNew ? afterFree / afterNew : null,
+      beforeCustomers: beforeNew,
+      afterCustomers: afterNew,
+    },
+    medianStart: { before: median(startRates.before), after: median(startRates.after) },
+  };
+}
+
+
 // difference decides whether the base is growing or shrinking, so both are
 // carried and the charts say which they are using.
 export function departures(data) {
