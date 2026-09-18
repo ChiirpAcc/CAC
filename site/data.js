@@ -696,6 +696,141 @@ export function departures(data) {
 
 
 
+// Where the base settles if the current month goes on being the current month.
+//
+// A subscription base with a steady intake and a steady loss rate converges on
+// arrivals divided by loss rate, and it converges whatever it starts from. That
+// number is worth more than the base itself, because the base is a slow average
+// of the last two years while the equilibrium is what today is actually worth.
+// A business can be growing and already be heading somewhere smaller.
+//
+// Both are computed: logos, and the recurring revenue underneath them. They do
+// not agree, and the disagreement is the point. A customer booked down to zero
+// MRR still counts as present, so the logo equilibrium is the flattering one.
+//
+// Everything is read on a trailing window rather than a single month. A single
+// month's loss rate swings between 2.2% and 8.1% in this file, and dividing by
+// a number that noisy produces an equilibrium that swings by a factor of four
+// for reasons that are not about the business.
+export function equilibrium(data, { trailing = 6, project = 24 } = {}) {
+  const live = new Map();
+  const mrr = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!live.has(row.month)) { live.set(row.month, new Set()); mrr.set(row.month, new Map()); }
+    live.get(row.month).add(row.id);
+    mrr.get(row.month).set(row.id, row.eopMrr || 0);
+  }
+  const months = [...live.keys()].sort();
+  if (months.length < trailing + 2) return null;
+
+  // The last month is dropped. Its arrivals are still landing and its
+  // departures are half recorded, and it is the single month with the most
+  // leverage over a rate that everything else divides by.
+  const usable = months.slice(0, -1);
+
+  const steps = [];
+  for (let i = 1; i < usable.length; i += 1) {
+    const month = usable[i];
+    const before = live.get(usable[i - 1]);
+    const now = live.get(month);
+    const beforeMrr = mrr.get(usable[i - 1]);
+    const nowMrr = mrr.get(month);
+
+    let leftLogos = 0;
+    let departedMrr = 0;
+    let retainedDelta = 0;
+    let baseMrr = 0;
+    for (const id of before) {
+      const was = beforeMrr.get(id) || 0;
+      baseMrr += was;
+      if (!now.has(id)) { leftLogos += 1; departedMrr += was; continue; }
+      // Signed, and both directions counted. An earlier version subtracted
+      // downgrades without adding upgrades, which is not a churn rate at all:
+      // it put the revenue equilibrium at less than half the base while the
+      // base was rising, and a model that says a growing number is heading
+      // somewhere much smaller should be suspected of exactly this.
+      retainedDelta += (nowMrr.get(id) || 0) - was;
+    }
+    // Net revenue churn: what the existing base gives up after its own
+    // expansion is credited. This is the rate new revenue has to cover.
+    const netLostMrr = departedMrr - retainedDelta;
+    let arrivedLogos = 0;
+    let arrivedMrr = 0;
+    for (const id of now) {
+      if (before.has(id)) continue;
+      arrivedLogos += 1;
+      arrivedMrr += nowMrr.get(id) || 0;
+    }
+
+    steps.push({
+      month,
+      logos: now.size,
+      mrr: [...nowMrr.values()].reduce((s, v) => s + v, 0),
+      arrivedLogos,
+      arrivedMrr,
+      lossLogos: before.size ? leftLogos / before.size : null,
+      lossMrr: baseMrr ? netLostMrr / baseMrr : null,
+      grossLossMrr: baseMrr ? departedMrr / baseMrr : null,
+    });
+  }
+
+  // Trailing means, so a month is compared with a window rather than a spike.
+  const rows = steps.map((step, i) => {
+    if (i < trailing - 1) return { ...step, logoTarget: null, mrrTarget: null };
+    const window = steps.slice(i - trailing + 1, i + 1);
+    const mean = pick => window.reduce((s, x) => s + (x[pick] || 0), 0) / window.length;
+    const lossL = mean('lossLogos');
+    const lossM = mean('lossMrr');
+    const grossM = mean('grossLossMrr');
+    return {
+      ...step,
+      arrivalsL: mean('arrivedLogos'),
+      arrivalsM: mean('arrivedMrr'),
+      lossRateL: lossL,
+      lossRateM: lossM,
+      grossLossRateM: grossM,
+      logoTarget: lossL > 0 ? mean('arrivedLogos') / lossL : null,
+      // Only meaningful while the base is net shrinking. If expansion covers
+      // departures the rate goes to zero or negative and there is no finite
+      // level to settle at, which is a real answer and not a missing one.
+      mrrTarget: lossM > 0 ? mean('arrivedMrr') / lossM : null,
+    };
+  });
+
+  // The glide path from here, on the latest trailing window held fixed. Not a
+  // forecast of what the business will do, which would need assumptions about
+  // what it changes. It is the answer to a narrower question: if nothing moves
+  // from here, where does this end up and how long does it take.
+  const latest = rows[rows.length - 1];
+  const path = [];
+  let logos = latest.logos;
+  let revenue = latest.mrr;
+  for (let k = 1; k <= project; k += 1) {
+    logos = logos * (1 - latest.lossRateL) + latest.arrivalsL;
+    revenue = Math.max(0, revenue * (1 - latest.lossRateM) + latest.arrivalsM);
+    path.push({ month: monthAdd(latest.month, k), logos, mrr: revenue });
+  }
+
+  // How long to close half the distance to the target, which is the honest way
+  // to say "when". The approach is geometric, so it never quite arrives and a
+  // date for arrival would be invented.
+  const halfLife = rate => (rate > 0 && rate < 1 ? Math.log(2) / -Math.log(1 - rate) : null);
+
+  const yearBack = rows.length > 12 ? rows[rows.length - 13] : null;
+
+  return {
+    trailing,
+    rows,
+    path,
+    latest,
+    yearBack,
+    halfLifeLogos: halfLife(latest.lossRateL),
+    halfLifeMrr: halfLife(latest.lossRateM),
+  };
+}
+
+
 // What the projected part of a cohort bar rests on.
 //
 // The hatched section of chart 1 is a model, and a reader is entitled to know

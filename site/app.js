@@ -1,5 +1,6 @@
 import {
   policySignals,
+  equilibrium,
   load, buildCohorts, cohortEconomics,
   blendedRetention, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
@@ -437,6 +438,123 @@ const CHURN_THRESHOLD = 0.05;
 // acquisition cost. The winner is marked in every column, because the point
 // of the table is that the ranking does not depend on the elasticity anyone
 // believes.
+// 27 and 28. Where this settles if today goes on being today.
+//
+// A base with a steady intake and a steady loss rate converges on arrivals
+// divided by loss rate. That target is worth more than the base itself,
+// because the base is a slow average of two years of trading while the target
+// is what the current month is actually worth. The two can point in opposite
+// directions for a long time, and here they do.
+//
+// Drawn as three lines rather than two. The observed series says what
+// happened. The target series says where each month, judged on its own, was
+// pointing: it moves, and watching it move is the finding. The projection says
+// where the latest month leads if nothing changes, which is a conditional
+// rather than a forecast and is labelled as one.
+function renderSettles(data) {
+  if (!$('chart-settle-logos')) return;
+  const model = equilibrium(data, { trailing: 6, project: 18 });
+  if (!model) return;
+
+  const history = model.rows.filter(r => r.logoTarget !== null).slice(-18);
+  const labels = history.map(r => r.month).concat(model.path.map(r => r.month));
+  const pad = new Array(history.length - 1).fill(null);
+
+  const draw = (node, { observed, target, projected, yFormat, colour }) => {
+    multiLineChart($(node), {
+      labels: labels.map(m => fmt.monthLabel(m)),
+      series: [
+        { label: 'Actual', colour: INK.primary,
+          values: observed.concat(new Array(model.path.length).fill(null)) },
+        { label: 'Where that month pointed', colour,
+          values: target.concat(new Array(model.path.length).fill(null)) },
+        { label: 'If nothing changes from here', colour: INK.tertiary,
+          // Anchored on the last observed point so the line joins the series
+          // it continues rather than floating away from it.
+          values: pad.concat([observed[observed.length - 1]], projected) },
+      ],
+      yFormat,
+      xTitle: 'Month',
+      describe: i => `<strong>${fmt.monthLabel(labels[i])}</strong>`
+        + (i < history.length
+          ? `<span>Actual ${yFormat(observed[i])}</span>`
+            + `<span>Points to ${yFormat(target[i])}</span>`
+          : `<span>Projected ${yFormat(projected[i - history.length])}</span>`),
+    });
+  };
+
+  draw('chart-settle-logos', {
+    observed: history.map(r => r.logos),
+    target: history.map(r => r.logoTarget),
+    projected: model.path.map(r => r.logos),
+    yFormat: v => fmt.int(v),
+    colour: INK.negative,
+  });
+
+  draw('chart-settle-mrr', {
+    observed: history.map(r => r.mrr),
+    target: history.map(r => r.mrrTarget),
+    projected: model.path.map(r => r.mrr),
+    yFormat: v => '$' + Math.round(v / 1000) + 'k',
+    colour: INK.positive,
+  });
+
+  const now = model.latest;
+  const then = model.yearBack;
+  const endL = model.path[model.path.length - 1];
+
+  $('settle-logos-finding').innerHTML =
+    `<strong>A year ago the customer base was heading up. It is now heading `
+    + `down, to about ${fmt.int(now.logoTarget)}.</strong> On the six months to `
+    + `${fmt.monthLabel(then.month)}, ${then.arrivalsL.toFixed(0)} arrivals a month against `
+    + `${fmt.pct(then.lossRateL, 2)} leaving pointed at a base of ${fmt.int(then.logoTarget)}, `
+    + `well above the ${fmt.int(then.logos)} actually on the books. On the six months to `
+    + `${fmt.monthLabel(now.month)} it points at ${fmt.int(now.logoTarget)}, well below `
+    + `today's ${fmt.int(now.logos)}. Arrivals barely moved, `
+    + `${then.arrivalsL.toFixed(0)} a month then against ${now.arrivalsL.toFixed(0)} now. `
+    + `What moved is the loss rate, ${fmt.pct(then.lossRateL, 2)} to `
+    + `${fmt.pct(now.lossRateL, 2)}. The base has already crossed its own target and is `
+    + `falling toward it at a half life of ${model.halfLifeLogos.toFixed(0)} months, reaching `
+    + `about ${fmt.int(endL.logos)} by ${fmt.monthLabel(endL.month)}.`;
+
+  $('settle-logos-note').textContent =
+    `Arrivals and loss rate are both trailing ${model.trailing} month means, because a single `
+    + `month's loss rate runs between 2.2% and 8.1% in this file and dividing by a number that `
+    + `noisy moves the target by a factor of four for reasons that are not about the business. `
+    + `The most recent month is dropped entirely: its arrivals are still landing and its `
+    + `departures are only half recorded. A customer is counted as present on the same rule as `
+    + `everywhere else on this page, which means one booked down to zero MRR is still a `
+    + `customer here. The projection holds the latest window fixed and is a conditional, not a `
+    + `forecast: it says where this ends up if nothing changes, which is the one thing that `
+    + `will not happen.`;
+
+  const mrrRising = (now.mrrTarget || 0) > now.mrr;
+  const endM = model.path[model.path.length - 1];
+  $('settle-mrr-finding').innerHTML =
+    `<strong>The money points the other way: fewer customers, but each worth `
+    + `more.</strong> Recurring revenue settles at about `
+    + `${'$' + Math.round((now.mrrTarget || 0) / 1000) + 'k'} a month against `
+    + `${'$' + Math.round(now.mrr / 1000) + 'k'} today, so it drifts `
+    + `${mrrRising ? 'up' : 'down'} while the head count falls. That is `
+    + `${fmt.money((now.mrrTarget || 0) / (now.logoTarget || 1))} per customer at the target `
+    + `against ${fmt.money(now.mrr / now.logos)} today. The business this is heading toward is `
+    + `materially smaller in customers and roughly the same size in revenue, carried by dearer `
+    + `accounts. Note what that does not fix: the same intake has to cover acquisition cost `
+    + `against ${fmt.int(now.arrivalsL)} logos a month, and it is cost per logo, not revenue, `
+    + `that broke the unit economics.`;
+
+  $('settle-mrr-note').textContent =
+    `Net revenue churn, so expansion among the customers who stay is credited against `
+    + `departures and downgrades. It has to be netted here, because the question is what the `
+    + `base does as a whole rather than how much any one cohort keeps. On the latest window `
+    + `departures alone take ${fmt.pct(now.grossLossRateM, 2)} of revenue a month while the net `
+    + `rate is ${fmt.pct(now.lossRateM, 2)}, so most of what is lost is lost from customers who `
+    + `are still here. New revenue runs `
+    + `${'$' + Math.round(now.arrivalsM / 1000) + 'k'} a month. Same trailing window, same `
+    + `dropped final month, and the same conditional as the chart above.`;
+}
+
+
 function renderPricing(data) {
   const node = $('pricing-table');
   if (!node) return;
@@ -803,7 +921,8 @@ function renderEra() {
 // Each figure remembers where it came from, so returning it puts it back in
 // its numbered position rather than at the end of the page.
 const STORY_FIGURES = ['fig-era', 'fig-era-revenue',
-  'fig-arrivals-months', 'fig-arrivals-horizons', 'fig-ltv'];
+  'fig-arrivals-months', 'fig-arrivals-horizons', 'fig-ltv',
+  'fig-settle-logos', 'fig-settle-mrr'];
 const homes = new Map();
 
 function rememberHomes() {
@@ -864,6 +983,7 @@ function boot() {
     renderSettledTotals(data);
     renderAnnotations();
     renderPricing(data);
+    renderSettles(data);
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
