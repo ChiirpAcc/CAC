@@ -1844,9 +1844,11 @@ const MEANS = {
 
   'chart-churn':
     'Sustained churn above the threshold sets a floor on how much acquisition is needed just '
-    + 'to stand still. At the current rate the base needs roughly fifty new logos a month to '
-    + 'hold flat, and the last months it can count properly ran between twenty and thirty-five. '
-    + 'No plausible improvement in conversion closes that gap; it has to come from the churn side.',
+    + 'to stand still, and the gap between that floor and what arrives is stated above. '
+    + 'Acquisition has been running flat while the rate has roughly doubled, so no plausible '
+    + 'improvement in conversion closes the gap on its own; it has to come from the churn side. '
+    + 'Note also which line to plan against. The booked figure is the one most reports quote '
+    + 'and it is the one that understates the problem.',
 
   'chart-age-retention':
     'Most of what a cohort loses, it loses between months three and six. That is a narrow and '
@@ -2007,13 +2009,36 @@ function renderAnnotations() {
   ]);
 
   const recent = w.slice(-36);
-  const churnSeries = recent.map((r, i) => (i && recent[i - 1].activeLogos
+  // Read off the solid line, which is every customer who stopped appearing.
+  //
+  // This panel used to quote the dashed line instead, the subset the push
+  // books as a churn event. That is the line the note directly above it calls
+  // a floor, and reading it gave the chart a headline of no months above the
+  // threshold and a latest rate of 3.51% while the measure the chart exists to
+  // show was above the threshold in four of the last twelve and reading 6.38%.
+  // A churn chart understating churn by nearly half is the worst version of
+  // this mistake, so both lines are now quoted and the rate comes first.
+  const departureRate = new Map(departures(data).map(d => [d.month, d.rate]));
+  const bookedSeries = recent.map((r, i) => (i && recent[i - 1].activeLogos
     ? (r.churnedLogos || 0) / recent[i - 1].activeLogos : null)).filter(v => v !== null);
+  const churnSeries = recent.map(r => departureRate.get(r.month) ?? null).filter(v => v !== null);
   const overThreshold = churnSeries.filter(v => v > CHURN_THRESHOLD).length;
   const lastChurn = churnSeries[churnSeries.length - 1];
+  const lastBooked = bookedSeries[bookedSeries.length - 1];
+  const holdFlat = lastChurn * (recent[recent.length - 1].activeLogos || 0);
+  const arrivals = recent.slice(-6).map(r => r.newLogos).filter(Boolean);
+  const arrivalMean = arrivals.length
+    ? arrivals.reduce((s, v) => s + v, 0) / arrivals.length : null;
   annotate('chart-churn', [
     `<strong>${overThreshold} of the last ${churnSeries.length} months sit above the 5% threshold.</strong> The latest reads ${fmt.pct(lastChurn, 2)}.`,
+    `That is the solid line, every customer present one month and absent the next. The dashed `
+      + `line, the part booked as a churn event, reads ${fmt.pct(lastBooked, 2)} for the same `
+      + `month, so reading the booked figure alone understates the rate by about `
+      + `${lastBooked ? (lastChurn / lastBooked).toFixed(1) : '--'} times.`,
     `Monthly churn has risen about ${(Math.max(...churnSeries) / Math.min(...churnSeries)).toFixed(1)}x across the window, from ${fmt.pct(Math.min(...churnSeries), 1)} at its lowest to ${fmt.pct(Math.max(...churnSeries), 1)} at its worst.`,
+    arrivalMean ? `At that rate the base needs about ${fmt.int(holdFlat)} new logos a month to `
+      + `hold flat. Arrivals have averaged ${fmt.int(arrivalMean)} over the last six months, so `
+      + `the base is short by roughly ${fmt.int(holdFlat - arrivalMean)} a month.` : null,
   ], [
     'The denominator is the prior month closing base, so a month of rapid growth flatters the rate slightly.',
     'This counts logos, not revenue, and <strong>cannot tell a lapse from a cancellation</strong>. Some of what reads as churn is a billing gap.',
@@ -2108,11 +2133,51 @@ function renderAnnotations() {
     'A point is dropped once fewer than three cohorts in that year have reached that age, so the newest line is never drawn by its oldest member alone.',
   ]);
 
+  // The booked flows do not add up to what the base did, and saying so is the
+  // point of this panel.
+  //
+  // It used to read the churn column alone and report the year as a net gain
+  // of 42 logos, while the base fell by 112 over the same months. Both cannot
+  // be true. The booked churn column misses every customer who drops out of
+  // the export without generating a churn event, so the flows it shows are the
+  // floor rather than the movement, exactly as on chart 5.
+  const liveByMonth = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!liveByMonth.has(row.month)) liveByMonth.set(row.month, new Set());
+    liveByMonth.get(row.month).add(row.id);
+  }
+  const flowMonths = [...liveByMonth.keys()].sort();
+  let trueIn = 0;
+  let trueOut = 0;
+  for (let i = 1; i < flowMonths.length; i += 1) {
+    if (!flowMonths[i].startsWith(String(year))) continue;
+    const now = liveByMonth.get(flowMonths[i]);
+    const before = liveByMonth.get(flowMonths[i - 1]);
+    for (const id of now) if (!before.has(id)) trueIn += 1;
+    for (const id of before) if (!now.has(id)) trueOut += 1;
+  }
+  // The closing base of the month before the year starts, because the first
+  // transition counted is December into January. Taking January's own base
+  // instead dropped a month of losses and missed the reconciliation by nine.
+  const firstOfYear = flowMonths.findIndex(m => m.startsWith(String(year)));
+  const opening = firstOfYear > 0 ? liveByMonth.get(flowMonths[firstOfYear - 1]) : null;
+  const closing = liveByMonth.get(flowMonths[flowMonths.length - 1]);
+
   annotate('chart-flows', [
-    `<strong>${fmt.int(churned)} logos out against ${fmt.int(acquired)} in, ${year} to date</strong>, a net loss of ${fmt.int(churned - acquired)}.`,
+    `<strong>Counting every customer who stopped appearing, ${fmt.int(trueOut)} went out `
+      + `against ${fmt.int(trueIn)} in, ${year} to date, a net loss of `
+      + `${fmt.int(trueOut - trueIn)}.</strong>`
+      + (opening && closing ? ` The base moved from ${fmt.int(opening.size)} to `
+        + `${fmt.int(closing.size)} over those months, which is the same number.` : ''),
+    `The columns drawn here are the booked flows, ${fmt.int(churned)} out against `
+      + `${fmt.int(acquired)} in, which would make the year a net gain of `
+      + `${fmt.int(acquired - churned)}. That is the floor rather than the movement: a customer `
+      + `whose subscription drops out of the export never produces a churn event. Read the `
+      + `columns for shape and the figure above for the level.`,
     `New logos have fallen from ${fmt.int(ytd[0].newLogos)} in ${fmt.monthLabel(ytd[0].month)} to ${fmt.int(lastReliable.newLogos)} in ${fmt.monthLabel(lastReliable.month)}.`
       + (lastReliable.month === latest.month ? '' : ` ${fmt.monthLabel(latest.month)} reads ${fmt.int(latest.newLogos)}, but its revenue has not settled, so it is not read as demand.`),
-    'Churn has been the larger of the two movements for most of the year, so the base is falling on both sides at once.',
+    'Churn is the larger of the two movements once it is counted in full, so the base is falling on the losing side rather than the winning one.',
   ], [
     'Net change is drawn as a line because it is the sum of the other two. As a third column it would read as an independent quantity.',
     'Reactivations are counted separately from new logos, so a returning customer is not double counted as an acquisition.',
