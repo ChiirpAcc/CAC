@@ -17,6 +17,9 @@ import {
 // gone, the flexibility is not.
 const SETTLED = { csShare: 0, partnershipsShare: 1, margin: 0.757 };
 
+// First month the second environment appears, read from the data.
+let S2_FIRST = '';
+
 
 // Ranges quoted by calendar era, recomputed rather than written down.
 //
@@ -494,10 +497,12 @@ function renderAssumptionDependent() {
     + (suppressed.length
         ? suppressed.map(r => fmt.monthLabel(r.month)).join(' and ')
           + ' ' + (suppressed.length === 1 ? 'is' : 'are') + ' left blank. A month is drawn '
-          + 'only once both halves have settled: enough new logos for the ratio to be '
-          + 'measuring cost rather than its own denominator, and enough new MRR against them '
-          + 'to show the revenue has been collected. The trailing month books its arrivals '
-          + 'before their first payment lands, so it clears the first test and fails the second.'
+          + 'only once both halves hold: enough new logos for the ratio to be measuring cost '
+          + 'rather than its own denominator, and enough recognised MRR against them for the '
+          + 'revenue side to mean anything. The trailing month fails the second because most '
+          + 'of its arrivals are in the second Stripe environment, whose revenue does not '
+          + 'reach the MRR column at all. That is a recognition gap rather than a lag: the '
+          + 'earliest of those customers are five months in and still register nothing.'
         : '');
 }
 
@@ -579,8 +584,20 @@ function renderForward() {
   // moving. Neither is touched by the sliders: the split decides how much CS
   // spend counts as acquisition cost, not how much was spent.
   // Stale claim check, stated from the data rather than from memory.
-  const s2 = data.customers.filter(r => r.source === 'S2').length;
+  // The second Stripe environment, measured by what it is doing now rather than
+  // by its share of all history. As a share of every customer month ever
+  // recorded it is a rounding error, which is how it came to be described as
+  // young and harmless. In the trailing month it is most of the new business,
+  // and none of its revenue reaches the MRR column.
+  const s2Rows = data.customers.filter(r => r.source === 'S2');
+  S2_FIRST = s2Rows.length ? s2Rows.reduce((a, r) => (r.month < a ? r.month : a), s2Rows[0].month) : '';
+  const s2 = s2Rows.length;
   const s2Share = s2 / data.customers.length;
+  const s2Ids = new Set(s2Rows.map(r => r.id));
+  const s2WithMrr = new Set(s2Rows.filter(r => r.eopMrr > 0).map(r => r.id));
+  const trailing = data.waterfall[data.waterfall.length - 1].month;
+  const newest = data.customers.filter(r => r.month === trailing && r.eventType === 'new');
+  const newestS2 = newest.filter(r => r.source === 'S2');
   const hasClasses = hasRevenueClasses(data);
   $('margin-statement').innerHTML = hasClasses
     ? '<strong>Margins are applied per revenue class.</strong> Platform '
@@ -589,14 +606,20 @@ function renderForward() {
       + 'recognised-elsewhere at zero. Pass-through is carrier fees, which sit in revenue and '
       + 'in cost of sales at once, so any margin on them would credit profit that does not '
       + 'exist. Recognised-elsewhere is a buyout or prepayment already carried by a couponed '
-      + 'subscription, so counting it again would double count. How the classes divide '
-      + 'recognised MRR is inferred rather than stated by the push: the identified classes are '
-      + 'carved out and the remainder treated as platform, with one-time added rather than '
-      + 'carved out because it is not recurring. '
-      + 'The second Stripe environment carries ' + fmt.int(s2) + ' of '
-      + fmt.int(data.customers.length) + ' customer months, ' + fmt.pct(s2Share, 2)
-      + '. That is a young environment rather than a broken feed: it is pulling, and there is '
-      + 'simply not much in it yet.'
+      + 'subscription, so counting it again would double count. The classes sit alongside '
+      + 'recognised MRR rather than dividing it: eop_mrr tracks platform recurring revenue in '
+      + 'the ledger, and usage, one-time and pass-through are billed on top of it. Each is '
+      + 'therefore margined in its own right and none is subtracted from the platform base. '
+      + '<strong>The second Stripe environment is not reaching the revenue columns.</strong> '
+      + 'It carries ' + fmt.int(s2) + ' of ' + fmt.int(data.customers.length)
+      + ' customer months, ' + fmt.pct(s2Share, 2) + ', which reads as negligible and is not. '
+      + fmt.int(s2Ids.size) + ' customers have arrived in it since ' + S2_FIRST + ' and all of '
+      + 'them have paid; ' + fmt.int(s2WithMrr.size) + ' have ever registered MRR. In '
+      + fmt.monthLabel(trailing) + ' it was ' + fmt.int(newestS2.length) + ' of '
+      + fmt.int(newest.length) + ' new logos. Every figure on this page that counts revenue '
+      + 'therefore understates the newest business, and the collapse in new MRR is mostly this '
+      + 'rather than a collapse in demand: first-month cash from new logos has held roughly '
+      + 'flat while recognised new MRR has fallen away.'
     : '<strong>Still estimated:</strong> a single 75.7% platform margin is applied to all '
       + 'revenue, because the pushed customer waterfall carries no revenue class columns. '
       + 'The query emits them; the push does not carry them, so the fix is upstream rather '
@@ -1033,7 +1056,7 @@ function renderAnnotations() {
     'The shape of each curve bends the same way whatever the cost baseline is, which makes this the one chart here that survives the split being wrong.',
     'Curves that flatten before 100% are cohorts whose revenue is decaying faster than it is accumulating profit.',
   ], [
-    'Margins are applied per revenue class where the push carries them, which it now does: platform 75.7%, usage 60%, one-time 90%, pass-through and recognised-elsewhere at zero. How the classes divide recognised MRR is inferred rather than stated.',
+    'Margins are applied per revenue class where the push carries them, which it does from 2025-09. Platform 75.7%, usage 60%, one-time 90%, pass-through and recognised-elsewhere at zero. The classes sit alongside recognised MRR rather than dividing it. Cohorts that started before 2025-09 accrue their first months with no class data at all, so the earlier half of this window is effectively platform-only.',
     'Only the six most recent cohorts with at least six months are drawn, so this is not the whole book.',
   ]);
 

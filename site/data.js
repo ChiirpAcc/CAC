@@ -1365,11 +1365,22 @@ export const CLASS_MARGINS = {
   recognisedElsewhere: 0,
 };
 
+// The class columns sit alongside recognised MRR, not inside it.
+//
+// This used to carve usage and pass-through out of eop_mrr before applying the
+// platform margin, on the assumption that eop_mrr was a total the classes
+// divided up. It is not. Against net_cash, eop_mrr plus the classes matches to
+// the cent on 69% of rows where eop_mrr alone matches on 27%, and 863 rows
+// carry more class revenue than they carry MRR at all, which is impossible if
+// one contained the other. The ledger agrees: eop_mrr tracks 4000-11 Platform
+// Revenue Recurring, while usage sits in its own account, 4000-22.
+//
+// Carving therefore subtracted revenue that was never in the base and cost
+// about 6% of gross profit in the months that carry classes. It moved no
+// ranking and changed no conclusion, but it was wrong in the direction of
+// pessimism and it is not the kind of thing to leave in.
 export function grossProfit(row, margins = CLASS_MARGINS) {
-  const mrr = row.eopMrr || 0;
-  const carved = (row.usage || 0) + (row.passThrough || 0) + (row.recognisedElsewhere || 0);
-  const platform = Math.max(0, mrr - carved);
-  return platform * margins.platform
+  return (row.eopMrr || 0) * margins.platform
     + (row.usage || 0) * margins.usage
     + (row.oneTime || 0) * margins.oneTime
     + (row.passThrough || 0) * margins.passThrough
