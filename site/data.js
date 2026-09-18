@@ -804,6 +804,106 @@ export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500
   return { horizon, bands, n: starts.length };
 }
 
+
+// Pricing strategies compared, on the site's own data.
+//
+// The question is whether one fixed price would have beaten the gradual climb
+// that was actually run, or a skim that starts high and comes down. It cannot
+// be answered by fitting a demand curve, because price was never varied
+// independently of time: the elasticity is -0.20 with a t of -1.1, and adding
+// a trend flips it positive. So elasticity is swept rather than estimated, and
+// what matters is whether the ranking holds across the sweep. It does.
+//
+// Two inputs come from the data rather than from assumption. Months paid rises
+// with price, fitted across the observed bands, which is why a cheap customer
+// is a short customer twice over. And cost per logo has no relationship to
+// price, so a pricing choice is not allowed to move it.
+export function pricingScenarios(data, { months = 23, horizon = 12 } = {}) {
+  const live = new Map();
+  const cash = new Map();
+  const mrr = new Map();
+  for (const row of data.customers) {
+    if (row.active) {
+      if (!live.has(row.month)) live.set(row.month, new Set());
+      live.get(row.month).add(row.id);
+    }
+    if (!cash.has(row.id)) { cash.set(row.id, new Map()); mrr.set(row.id, new Map()); }
+    cash.get(row.id).set(row.month, row.netCash || 0);
+    mrr.get(row.id).set(row.month, row.eopMrr || 0);
+  }
+  const last = data.lastMonth;
+
+  // Price is the second month's MRR, which is clean of the first-month charge.
+  const starts = [];
+  for (const row of data.customers) {
+    if (row.eventType !== 'new') continue;
+    const price = mrr.get(row.id)?.get(monthAdd(row.month, 1)) || 0;
+    if (price > 0) starts.push({ id: row.id, month: row.month, price });
+  }
+
+  const matured = starts.filter(s => monthAdd(s.month, horizon - 1) <= last);
+  const bands = [[0, 600], [600, 800], [800, 1100], [1100, 1500]]
+    .map(([lo, hi]) => {
+      const g = matured.filter(s => s.price >= lo && s.price < hi);
+      if (g.length < 12) return null;
+      const paid = g.reduce((sum, s) => {
+        let k = 0;
+        for (let i = 0; i < horizon; i += 1) {
+          if (live.get(monthAdd(s.month, i))?.has(s.id)) k += 1;
+        }
+        return sum + k;
+      }, 0) / g.length;
+      return { price: g.reduce((s, x) => s + x.price, 0) / g.length, paid, n: g.length };
+    }).filter(Boolean);
+
+  // Straight line through the bands: months paid as a function of price.
+  const mp = bands.reduce((s, b) => s + b.price, 0) / bands.length;
+  const mm = bands.reduce((s, b) => s + b.paid, 0) / bands.length;
+  const slope = bands.reduce((s, b) => s + (b.price - mp) * (b.paid - mm), 0)
+    / bands.reduce((s, b) => s + (b.price - mp) ** 2, 0);
+  const paidAt = p => Math.max(1, Math.min(horizon, mm + slope * (p - mp)));
+
+  // The base: the eleven months before any rise, and the window's cost per logo.
+  const early = data.waterfall.filter(w => w.month < '2025-08');
+  const baseQ = early.reduce((s, w) => s + (w.newLogos || 0), 0) / (early.length || 1);
+  const byMonth = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const cpl = data.waterfall
+    .filter(w => w.newLogos && byMonth.has(w.month))
+    .map(w => byMonth.get(w.month) / w.newLogos);
+  const cac = cpl.reduce((s, v) => s + v, 0) / cpl.length;
+  const basePrices = starts.filter(s => s.month < '2025-08').map(s => s.price);
+  const baseP = basePrices.reduce((s, v) => s + v, 0) / basePrices.length;
+
+  const plans = [
+    { label: 'Fixed, never raised', at: () => baseP },
+    { label: 'What happened, a gradual rise', at: t => baseP + (930 - baseP) * Math.min(1, t / 14) },
+    { label: 'Fixed at $930 from month one', at: () => 930 },
+    { label: 'Fixed at $1,200', at: () => 1200 },
+    { label: 'Skim, $1,300 down to $800', at: t => Math.max(800, 1300 - 500 * t / (months - 1)) },
+  ];
+
+  const run = (at, elasticity) => {
+    let gross = 0, customers = 0;
+    for (let t = 0; t < months; t += 1) {
+      const p = at(t);
+      const q = baseQ * Math.pow(p / baseP, elasticity);
+      gross += q * p * paidAt(p);
+      customers += q;
+    }
+    return { gross, customers, net: gross - customers * cac };
+  };
+
+  const elasticities = [0, -0.25, -0.5, -1];
+  return {
+    baseP, baseQ, cac, horizon, months, bands, slope,
+    elasticities,
+    plans: plans.map(pl => ({
+      label: pl.label,
+      byElasticity: elasticities.map(e => ({ elasticity: e, ...run(pl.at, e) })),
+    })),
+  };
+}
+
 // Acquisition cost broken out by category, month by month.
 //
 // The categories are the ones the spend actually divides into, not the

@@ -555,3 +555,34 @@ figcaption { margin-bottom: .9rem; }
   .story-lead { padding-left: 0; }
   .story-num { position: static; margin: 0 8px 6px 0; }
 }
+
+/* The what-it-means block under each step, and the closing argument. */
+.story-means {
+  margin: 18px 0 0; padding: 16px 20px;
+  background: var(--surface-sunk); border-radius: 6px;
+  max-width: 46rem;
+}
+.story-means h3 {
+  margin: 0 0 6px; font-size: 0.78rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-soft); font-weight: 600;
+}
+.story-means p { margin: 0 0 10px; color: var(--ink-mid); }
+.story-means p:last-child { margin-bottom: 0; }
+
+.story-close { border-top: 1px solid var(--rule-strong); padding-top: 34px; margin-bottom: 48px; }
+.story-close h2 { margin: 0 0 14px; }
+.story-close h3 { margin: 30px 0 8px; font-size: 1.02rem; }
+.story-close p { max-width: 46rem; color: var(--ink-mid); margin: 0 0 12px; }
+.story-lead-plain { font-size: 1.06rem; }
+.story-controls { max-width: 46rem; color: var(--ink-mid); padding-left: 20px; }
+.story-controls li { margin-bottom: 10px; }
+.story-close .table-scroll { margin: 20px 0 6px; }
+.story-close .best {
+  font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--series-pos); margin-left: 6px;
+}
+.story-close td.emphasis { font-weight: 600; }
+.story-close tfoot td {
+  border-top: 1px solid var(--rule); padding-top: 10px;
+  font-size: 0.86rem; color: var(--ink-soft); text-align: left;
+}

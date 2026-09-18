@@ -40,6 +40,14 @@
         of each other. A customer won in 2026 leaves at about the rate one won
         in 2024 did.</p>
     </div>
+    <div class="story-means">
+      <h3>What this means</h3>
+      <p>Retention work aimed at new customers is aimed at the wrong thing. An
+        intake won today decays about as an intake won two years ago did, so
+        there is no recent break in onboarding or product to go and find. The
+        erosion visible elsewhere on this page is in the standing base,
+        including customers a cohort curve never reaches.</p>
+    </div>
 
     <div class="story-step" data-figure="fig-arrivals-months">
       <p class="story-lead"><span class="story-num">2</span>
@@ -47,6 +55,14 @@
         Adding the starting months one at a time, the recent ones land inside
         the same cloud as the early ones. Nothing about the relationship moved
         across the two years.</p>
+    </div>
+    <div class="story-means">
+      <h3>What this means</h3>
+      <p>A quiet pipeline is not costing you customers elsewhere. The fear that
+        thin months distract the team into losing accounts is not supported at
+        any point in the two years, so acquisition and retention can be run as
+        separate problems by separate owners without one being held hostage to
+        the other.</p>
     </div>
 
     <div class="story-step" data-figure="fig-arrivals-horizons">
@@ -56,6 +72,12 @@
         tilting. However long you wait, months with fewer arrivals do not churn
         more.</p>
     </div>
+    <div class="story-means">
+      <h3>What this means</h3>
+      <p>The same answer at every horizon means this is settled rather than
+        merely unproven. Waiting longer for the effect to appear will not help,
+        so nothing further should be spent looking for it.</p>
+    </div>
 
     <div class="story-step" data-figure="fig-ltv">
       <p class="story-lead"><span class="story-num">4</span>
@@ -64,6 +86,78 @@
         What a customer returns has barely moved. What one costs has roughly
         doubled, and that is the whole of it.</p>
     </div>
+    <div class="story-means">
+      <h3>What this means</h3>
+      <p>The lever is acquisition cost, not retention and not upsell. What a
+        customer returns has barely moved; what one costs has roughly doubled,
+        and that alone accounts for the fall in the ratio. Cutting cost per logo
+        back toward its earlier level restores the unit economics at today's
+        retention, without a single customer behaving differently.</p>
+      <p>The second lever is price, and it is the one with room left in it. See
+        below.</p>
+    </div>
+
+    <section class="story-close">
+      <h2>So should the price have been fixed, or skimmed?</h2>
+      <p class="story-lead-plain"><strong>Fixed, and higher, and sooner.</strong>
+        A single price near the top of the range you have actually charged beats
+        both the gradual climb you ran and a skim that starts high and comes
+        down. That holds at every level of price sensitivity worth testing,
+        including ones far more elastic than anything in the data.</p>
+
+      <div class="table-scroll">
+        <table class="data-table" id="pricing-table"></table>
+      </div>
+
+      <h3>Why skimming loses here</h3>
+      <p>Skimming assumes the customers you pick up later, at the lower price,
+        are worth having on their own terms. In this data they are not: they pay
+        less <em>and</em> leave sooner. Months paid rises with price, about
+        2.3 months more over a year for every extra $1,000 of monthly
+        subscription, so a cheap customer is a short customer twice over. The
+        same logic is why the gradual climb underperforms a flat high price:
+        every month spent at the lower price locks in a cohort at that price,
+        and cohorts do not re-rate.</p>
+
+      <h3>What has to be true, and what we controlled for</h3>
+      <ul class="story-controls">
+        <li><strong>Price sensitivity is not identified.</strong> Volume against
+          price gives an elasticity of &minus;0.20, which does not clear
+          significance, and adding a time trend flips it to +0.14. So the model
+          sweeps elasticity from 0 to &minus;1.0 rather than picking one. Fixed
+          and high wins at all of them.</li>
+        <li><strong>Price rose with time, so era is a confound.</strong> The
+          band comparison is repeated on 2025-08 onward alone, where the whole
+          range was being charged at once. The ordering survives.</li>
+        <li><strong>Acquisition cost is held flat.</strong> Cost per logo has no
+          relationship to price in this data, so a pricing choice is assumed not
+          to move it. If selling dearer customers costs more, the advantage
+          narrows.</li>
+        <li><strong>The first-month charge is removed.</strong> Until mid-2025
+          it was booked as MRR and reversed the next month. Price here is the
+          customer's MRR in their second month, which is comparable across the
+          whole window.</li>
+        <li><strong>Selection is the one we cannot control.</strong> A customer
+          who pays more is usually a larger business, not the same business
+          charged more. This says the customers you win at higher prices are
+          better, not that raising a given customer's price would make them
+          stay. That distinction is the reason this is a direction to test
+          rather than a number to adopt.</li>
+        <li><strong>Only prices actually charged are observed</strong>, roughly
+          $440 to $1,500. Above about $1,500 the sample is 17 customers and
+          looks worse, but it is too thin to read either way. The recommendation
+          stops at the edge of what has been tested.</li>
+      </ul>
+
+      <h3>The directional suggestion</h3>
+      <p>Set one price in the <strong>$1,100 to $1,300</strong> band and hold
+        it, rather than climbing toward it. Do not skim. The thing worth
+        spending on next is not another price change but the experiment that
+        would settle this properly: quote a higher price to a randomly chosen
+        share of new prospects for a quarter, and measure the close rate. That
+        is the one number this data cannot supply and the whole argument rests
+        on.</p>
+    </section>
 
     <footer class="story-foot">
       <p>Move the slider on the last chart. The gap holds at every age both

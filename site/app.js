@@ -6,7 +6,7 @@ import {
   hasRevenueClasses, CLASS_MARGINS, environmentSplit,
   signupEconomics, priceAgainstRetention,
   arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
-  ltvAtAge, signupPriceHistory, priceBands, projectionBasis,
+  ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -429,6 +429,44 @@ const $ = id => document.getElementById(id);
 const COHORT_WINDOW = 24;
 const CHURN_THRESHOLD = 0.05;
 
+
+// The pricing comparison table, in the reading view.
+//
+// One row per strategy, one column per elasticity, showing money left after
+// acquisition cost. The winner is marked in every column, because the point
+// of the table is that the ranking does not depend on the elasticity anyone
+// believes.
+function renderPricing(data) {
+  const node = $('pricing-table');
+  if (!node) return;
+  const s = pricingScenarios(data);
+  const money = v => '$' + (v / 1e6).toFixed(2) + 'm';
+
+  const best = s.elasticities.map((_, i) =>
+    s.plans.reduce((a, b) => (b.byElasticity[i].net > a.byElasticity[i].net ? b : a)).label);
+
+  const head = '<thead><tr><th>Strategy</th>'
+    + s.elasticities.map(e => `<th class="n">elasticity ${e.toFixed(2)}</th>`).join('')
+    + '</tr></thead>';
+
+  const body = s.plans.map(p => '<tr>'
+    + `<td>${p.label}</td>`
+    + p.byElasticity.map((x, i) => {
+      const win = best[i] === p.label;
+      return `<td class="n${win ? ' emphasis' : ''}">${money(x.net)}`
+        + (win ? ' <span class="best">best</span>' : '') + '</td>';
+    }).join('')
+    + '</tr>').join('');
+
+  node.innerHTML = head + '<tbody>' + body + '</tbody>'
+    + `<tfoot><tr><td colspan="${s.elasticities.length + 1}">`
+    + `Gross over ${s.horizon} months per customer won, less acquisition cost at `
+    + `${fmt.money(s.cac)} a logo, summed across ${s.months} months of intake at `
+    + `${s.baseQ.toFixed(0)} logos a month before any price response. Months paid rises `
+    + `${(s.slope * 1000).toFixed(1)} per $1,000 of price, fitted across the observed bands.`
+    + '</td></tr></tfoot>';
+}
+
 // The two views, and the four figures that appear in both.
 //
 // A chart can only live in one place in the document, so the story view does
@@ -498,6 +536,7 @@ function boot() {
     renderCostTable(data);
     renderSettledTotals(data);
     renderAnnotations();
+    renderPricing(data);
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
