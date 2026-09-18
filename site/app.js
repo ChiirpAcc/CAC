@@ -1721,10 +1721,13 @@ function renderSignups() {
       format: v => Math.round(v),
     },
     right: {
-      label: 'Average subscription at signup',
+      label: 'What a new customer pays, monthly',
       colour: INK.primary,
-      values: ph.map(r => r.mean),
+      values: ph.map(r => r.recurringMean),
       format: v => '$' + Math.round(v).toLocaleString(),
+      // The booked figure, drawn behind, so the gap between what was booked
+      // and what recurred is visible rather than described.
+      shadow: { values: ph.map(r => r.mean), label: 'As booked in new_mrr' },
     },
     describe: i => '<strong>' + fmt.monthLabel(ph[i].month) + '</strong>'
       + '<span>' + fmt.int(ph[i].count) + ' new logos</span>'
@@ -1732,17 +1735,23 @@ function renderSignups() {
       + '<span class="muted">' + fmt.money(ph[i].booked) + ' of new MRR booked</span>',
   });
 
-  const phFirst = ph[0], phLast = ph[ph.length - 1];
-  const trough = ph.reduce((a, b) => (b.mean < a.mean ? b : a));
+  const withRec = ph.filter(r => r.recurringMean !== null);
+  const recFirst = withRec[0], recLast = withRec[withRec.length - 1];
+  const premiumEarly = withRec.filter(r => r.month < '2025-07').map(r => r.firstMonthPremium);
+  const premiumLate = withRec.filter(r => r.month >= '2025-10').map(r => r.firstMonthPremium);
+  const avg = xs => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : 0);
+
   $('price-volume-finding').innerHTML =
-    '<strong>Price fell first and has been climbing back, which a shorter window reads as a '
-    + 'rise.</strong> The average new subscription was ' + fmt.money(phFirst.mean) + ' in '
-    + fmt.monthLabel(phFirst.month) + ', bottomed at ' + fmt.money(trough.mean) + ' in '
-    + fmt.monthLabel(trough.month) + ', and is ' + fmt.money(phLast.mean) + ' now. That is '
-    + Math.abs((phLast.mean / trough.mean - 1) * 100).toFixed(0) + '% up off the floor and '
-    + Math.abs((phLast.mean / phFirst.mean - 1) * 100).toFixed(0) + '% '
-    + (phLast.mean < phFirst.mean ? 'below' : 'above') + ' where it started. Volume went from '
-    + fmt.int(phFirst.count) + ' to ' + fmt.int(phLast.count) + ' over the same window.';
+    '<strong>What a new customer pays has risen steadily, by '
+    + Math.abs((recLast.recurringMean / recFirst.recurringMean - 1) * 100).toFixed(0) + '%.</strong> '
+    + fmt.money(recFirst.recurringMean) + ' a month in ' + fmt.monthLabel(recFirst.month)
+    + ' against ' + fmt.money(recLast.recurringMean) + ' in ' + fmt.monthLabel(recLast.month) + '. '
+    + 'The booked line behind it falls and then recovers, and that shape is an artefact: until '
+    + 'mid-2025 the first month’s charge was booked as MRR and taken off again the next '
+    + 'month as a contraction, worth ' + fmt.money(avg(premiumEarly)) + ' a customer on average, '
+    + 'against ' + (Math.abs(avg(premiumLate)) < 25 ? 'nothing'
+        : fmt.money(Math.abs(avg(premiumLate)))) + ' once the practice stopped. Volume went from '
+    + fmt.int(ph[0].count) + ' to ' + fmt.int(ph[ph.length - 1].count) + ' over the same window.';
 
   $('price-volume-note').innerHTML =
     '<strong>The point where these lines cross means nothing.</strong> Two scales can be slid '

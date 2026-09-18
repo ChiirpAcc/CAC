@@ -166,7 +166,11 @@ function legend(container, items) {
   for (const item of items) {
     const key = document.createElement('span');
     key.className = 'legend-item';
-    key.innerHTML = `<span class="swatch" style="background:${item.colour}"></span>${item.label}`;
+    // A faint item marks a line drawn as a comparison rather than as a
+    // measure in its own right, and its swatch says so.
+    key.innerHTML = `<span class="swatch${item.faint ? ' swatch-faint' : ''}" `
+      + `style="background:${item.colour}"></span>${item.label}`;
+    if (item.faint) key.classList.add('legend-faint');
     wrap.appendChild(key);
   }
   container.appendChild(wrap);
@@ -488,6 +492,20 @@ export function dualAxisChart(container, { labels, left, right, describe, refs =
 
   for (const ref of refs) referenceLine(svg, yLeft, ref.value, ref.label, ref.variant || '');
 
+  // A faint companion line on the same scale as its series, for showing a
+  // measure against the one it replaced without a third axis.
+  for (const [series, scale] of [[left, yLeft], [right, yRight]]) {
+    if (series.shadow) {
+      el('path', {
+        d: gappedPath(series.shadow.values, x, scale),
+        class: 'line line-shadow',
+        stroke: series.colour,
+        'stroke-opacity': 0.34,
+        'stroke-dasharray': '3 3',
+      }, svg);
+    }
+  }
+
   for (const [series, scale] of [[left, yLeft], [right, yRight]]) {
     el('path', {
       d: gappedPath(series.values, x, scale),
@@ -502,10 +520,14 @@ export function dualAxisChart(container, { labels, left, right, describe, refs =
 
   xLabels(svg, labels, band);
   attachHover(svg, container, band, labels.length, describe);
-  legend(container, [
+  const items = [
     { label: `${left.label} (left)`, colour: left.colour },
     { label: `${right.label} (right)`, colour: right.colour },
-  ]);
+  ];
+  for (const series of [left, right]) {
+    if (series.shadow) items.push({ label: series.shadow.label, colour: series.colour, faint: true });
+  }
+  legend(container, items);
 }
 
 // One point per cohort with a horizontal mean for each series.

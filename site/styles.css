@@ -499,3 +499,9 @@ figcaption { margin-bottom: .9rem; }
 .cost-table .rule-above td { border-top: 1px solid var(--rule-strong); }
 .cost-table .emphasis td { border-bottom: 0; }
 .cost-table .total-col { border-left: 1px solid var(--rule-strong); }
+
+/* A comparison line and its legend entry, held back so the measure it sits
+   behind reads first. */
+.line-shadow { fill: none; }
+.swatch-faint { opacity: 0.34; }
+.legend-faint { color: var(--ink-soft); }

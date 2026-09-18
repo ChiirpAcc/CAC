@@ -590,22 +590,60 @@ export function ltvAtAge(data, cohorts, { age = 6, margin = 0.757 } = {}) {
 // It is lower than starting_mrr because it excludes fees and waived amounts,
 // so read the shape rather than the level.
 export function signupPriceHistory(data) {
+  // Two prices, because new_mrr is not one series.
+  //
+  // Until mid-2025 the first month's charge was booked as MRR and taken off
+  // again the next month as a contraction: a customer booked at $1,488 pays
+  // $488 from month two, and the $1,000 appears as contraction. The setup_fee
+  // column is zero for those, so the fee was never recorded as a fee. From
+  // about 2025-10 the practice stops and new_mrr equals what the customer
+  // goes on paying.
+  //
+  // Booked price therefore falls by half across the window without any price
+  // changing, and a chart of it shows a collapse and a recovery that did not
+  // happen. What a customer actually pays is their MRR in the following
+  // month, which is comparable the whole way along. Both are returned so the
+  // gap can be shown rather than asserted.
   const byMonth = new Map();
+  const seen = new Map();
+  for (const row of data.customers) {
+    if (!seen.has(row.id)) seen.set(row.id, new Map());
+    seen.get(row.id).set(row.month, row.eopMrr || 0);
+  }
+
   for (const row of data.customers) {
     if (row.eventType !== 'new') continue;
     const price = row.newMrr;
     if (!price || price <= 0) continue;
     if (!byMonth.has(row.month)) byMonth.set(row.month, []);
-    byMonth.get(row.month).push(price);
+    byMonth.get(row.month).push({
+      booked: price,
+      recurring: seen.get(row.id)?.get(monthAdd(row.month, 1)) ?? null,
+    });
   }
+
+  const mid = xs => {
+    const s = [...xs].sort((a, b) => a - b);
+    return s.length ? s[Math.floor(s.length / 2)] : null;
+  };
+  const mean = xs => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null);
+
   return [...byMonth.keys()].sort().map(month => {
-    const prices = byMonth.get(month).sort((a, b) => a - b);
+    const rows = byMonth.get(month);
+    const booked = rows.map(r => r.booked);
+    // Only customers still paying the month after can show a recurring price;
+    // one who left immediately has none to show rather than a zero.
+    const kept = rows.filter(r => r.recurring !== null && r.recurring > 0);
     return {
       month,
-      count: prices.length,
-      mean: prices.reduce((s, v) => s + v, 0) / prices.length,
-      median: prices[Math.floor(prices.length / 2)],
-      booked: prices.reduce((s, v) => s + v, 0),
+      count: rows.length,
+      mean: mean(booked),
+      median: mid(booked),
+      booked: booked.reduce((s, v) => s + v, 0),
+      recurringMean: mean(kept.map(r => r.recurring)),
+      recurringN: kept.length,
+      // Above zero while the first month carried a charge that did not recur.
+      firstMonthPremium: kept.length ? mean(kept.map(r => r.booked - r.recurring)) : null,
     };
   });
 }
