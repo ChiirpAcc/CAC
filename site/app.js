@@ -477,17 +477,20 @@ function renderPricing(data) {
 // the expansion that used to cover churn has stopped covering it. Reading only
 // the logo line would have closed a question that the revenue line reopens.
 //
-// Revenue is indexed to month 2 and logos to month 1, because until mid-2025
-// month 1 carried the first month's charge as MRR. Indexing revenue there
-// would turn that fee dropping out into a cliff in the early eras.
+// Both charts run from month 1. The money one weights each customer by what
+// they were paying in their second month rather than their first, because
+// until mid-2025 the first carried a joining charge booked as MRR and
+// reversed the month after; indexing on it would turn that fee dropping out
+// into a cliff in the early eras.
 function renderEra() {
   // The same cohorts drawn twice, because logos and money do not say the same
   // thing about them. On logos the three years sit within a few points of each
-  // other and the era looks settled. On revenue they separate: the 2024
-  // cohorts hold essentially all of their money for a year while losing a
-  // quarter of their logos, and the later ones do not. Reading only the count
-  // would close a question the money reopens, so both are drawn rather than
-  // hidden behind a switch somebody has to know to flip.
+  // other and the era looks settled. Weighted by what the customers were worth
+  // the years pull apart, and a year can sit either side of its own logo line
+  // depending on whether the accounts it lost were larger or smaller than the
+  // ones it kept. Reading only the count would close a question the money
+  // reopens, so both are drawn rather than hidden behind a switch somebody has
+  // to know to flip.
   const eras = retentionByYear(cohorts, { maxMonths: 12 });
   const eraColours = [INK.tertiary, INK.secondary, INK.negative];
   const labels = Array.from({ length: 12 }, (_, i) => `M${i + 1}`);
@@ -501,7 +504,7 @@ function renderEra() {
     pick(era).filter(v => v !== null && Number.isFinite(v))[depth - 1];
 
   const draw = (node, pick, { money }) => {
-    const from = money ? 1 : 0;
+    const from = 0;
     const shift = arr => arr.slice(from);
     const real = eras.flatMap(e => pick(e)).filter(v => v !== null && Number.isFinite(v));
     multiLineChart($(node), {
@@ -514,9 +517,8 @@ function renderEra() {
       yFormat: v => fmt.pct(v),
       yMin: Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20),
       yMax: Math.max(1, Math.ceil(Math.max(...real) * 20) / 20),
-      xTitle: money ? 'Months since first revenue, indexed to month 2'
-                    : 'Months since first revenue',
-      refs: money ? [{ value: 1, label: 'all of it kept', variant: 'ref-floor' }] : [],
+      xTitle: 'Months since first revenue',
+      refs: [],
       describe: i => `<strong>Month ${i + 1 + from}</strong>` + eras.map(era => {
         const v = pick(era)[i + from];
         return `<span>${era.year} ${v === null || !Number.isFinite(v) ? 'not yet' : fmt.pct(v, 1)}</span>`;
@@ -538,22 +540,34 @@ function renderEra() {
     + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
     + `. That is a narrow spread on thin samples, so on this measure there is no clear `
     + `difference between the eras. The chart below asks the same question in money, and `
-    + `there the answer is different.`;
+    + `there the years separate.`;
 
   const rDepth = depthOf(money);
   const rAt = e => valueAt(e, money, rDepth);
-  const rSpread = Math.max(...eras.map(e => rAt(e) || 0)) - Math.min(...eras.map(e => rAt(e) || 0));
+  const lAt = e => valueAt(e, logos, rDepth);
+  // Signed, and read at the same age on both lines. Negative means the money
+  // line sits under the count: the accounts that left were larger than the
+  // ones that stayed. Positive means the reverse, which is a good result and
+  // would be hidden by ranking on the size of the gap alone.
+  const gap = e => (rAt(e) || 0) - (lAt(e) || 0);
+  const worst = eras.reduce((x, y) => (gap(y) < gap(x) ? y : x));
+  const best = eras.reduce((x, y) => (gap(y) > gap(x) ? y : x));
+  const spreadOf = pick => Math.max(...eras.map(e => valueAt(e, pick, rDepth) || 0))
+    - Math.min(...eras.map(e => valueAt(e, pick, rDepth) || 0));
+  const side = e => (gap(e) < 0 ? 'below' : 'above');
+  const points = e => Math.abs(gap(e) * 100).toFixed(1);
 
   $('era-revenue-finding').innerHTML =
-    `<strong>On money they separate.</strong> At month ${rDepth}, the deepest age all three `
-    + `reach, ${eras.map(e => `${e.year} keeps ${fmt.pct(rAt(e), 0)}`).join(', ')}, a spread of `
-    + `${(rSpread * 100).toFixed(0)} points against ${(logoSpread * 100).toFixed(0)} above. `
-    + `Further out the ${eras[0].year} cohorts hold essentially all of their revenue for a year `
-    + `while losing a quarter of their logos, which is expansion covering churn. The later ones `
-    + `do not, so the same count of customers is worth less than it used to be. `
-    + `<strong>Above the line means the survivors are paying more than they did</strong>, not `
-    + `that nobody left: the ${newest.year} cohorts expand 13% by month 3, from `
-    + `$775 to $887 each, before giving it back.`;
+    `<strong>Weighted by what the customers were worth, the years pull apart, and `
+    + `${worst.year} is the one that pulls ${side(worst)}.</strong> At month ${rDepth} the `
+    + `revenue kept runs ${eras.map(e => `${e.year} ${fmt.pct(rAt(e), 1)}`).join(', ')}, a `
+    + `spread of ${(spreadOf(money) * 100).toFixed(1)} points against `
+    + `${(spreadOf(logos) * 100).toFixed(1)} on the head count. ${worst.year} sits `
+    + `${points(worst)} points ${side(worst)} its own logo line, ${fmt.pct(lAt(worst), 1)} of `
+    + `the customers against ${fmt.pct(rAt(worst), 1)} of the money they came in with. `
+    + `${best.year} sits ${points(best)} points ${side(best)} its own. Where a year falls `
+    + `against its logo line is the whole test: under it, the accounts leaving are bigger `
+    + `than the ones staying, and the head count is flattering the year.`;
 
   const shared =
     'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
@@ -567,10 +581,18 @@ function renderEra() {
   $('era-note').textContent = shared
     + ' Indexed to month 1, where nothing distorts the count.';
   $('era-revenue-note').textContent = shared
-    + ' Indexed to month 2 rather than month 1, because until mid-2025 the first month carried '
-    + 'the first month’s charge as MRR and indexing there would turn that fee dropping out '
-    + 'into a cliff in the early eras. Revenue counts presence rather than survival, because a '
-    + 'customer who returns really is paying again.';
+    + ' Each customer is weighted by what they were paying at the start and then only counted '
+    + 'while they are still there, so this is the logo curve with the customers sized. It '
+    + 'therefore falls for one reason only, which is customers leaving: expansion and '
+    + 'contraction among the ones who stay are deliberately left out, because netting them '
+    + 'against churn is what lets a revenue line sit above its own starting point and stop '
+    + 'being comparable to the count above it. Starting revenue is taken from each customer’s '
+    + 'second month rather than their first, because until mid-2025 the first carried a joining '
+    + 'charge as MRR that came off again the next month. One caveat sits under both lines: a '
+    + 'customer whose MRR is booked to zero is still recorded as present, and at month 6 that '
+    + 'is 7.6% of the surviving 2024 intake, 10.7% of 2025 and 21.4% of 2026. Both curves '
+    + 'therefore count some customers who are no longer paying anything, and they count more '
+    + 'of them in the newest year.';
 }
 
 // The two views, and the four figures that appear in both.
@@ -702,10 +724,13 @@ function renderStatic() {
       + `a 24 month horizon and drawn while at least ${blended[blended.length - 1].cohorts} `
       + `cohorts remain in sample, which carries it to month ${blended[blended.length - 1].offset}, `
       + `on one sample throughout rather than a different one at every age. `
-      + `A curve drawn against age will still show a calendar shock at whatever age it lands: `
-      + `the drop at the right hand end is cohorts whose twelfth month falls after May 2026, `
-      + `where revenue per surviving customer fell sharply for every cohort at once regardless `
-      + `of how old it was.`
+      + `The step at the right hand end is an age effect and not a calendar one. Revenue per `
+      + `surviving customer falls about a fifth in the thirteenth month for cohorts of every `
+      + `vintage, from the 2024-09 intake reaching that age in September 2025 to the 2025-08 `
+      + `intake reaching it in August 2026, while the head count those months behaves `
+      + `normally. Read by calendar month instead, no month since mid-2025 moves more than a `
+      + `few points, so there is no shared shock to find. What the rows show at that age is `
+      + `customers booked as a contraction to zero MRR and still counted as present.`
     : 'Not enough cohort history yet.';
 
   // 5. Monthly logo churn, both ways of counting it.
@@ -1551,11 +1576,20 @@ const MEANS = {
     + 'joined in.',
 
   'chart-era':
-    'A level shift rather than a delay points upstream of onboarding. If newer cohorts were '
-    + 'being onboarded badly they would start level and fall away; starting lower and staying '
-    + 'lower suggests the business is selling to a different kind of customer, or selling them '
-    + 'something different, than it was two years ago. That is a go-to-market question rather '
-    + 'than a customer success one.',
+    'On a head count there is no recent break to go and find. An intake won in 2026 decays '
+    + 'about as one won in 2024 did, and early on it decays rather less, so money spent '
+    + 'rebuilding onboarding on the theory that new customers have got worse would be spent '
+    + 'against a problem this chart does not show. That does not close the question, because '
+    + 'a head count treats a $200 account and a $2,000 account as the same event. The chart '
+    + 'below weights them, and the answer changes.',
+
+  'chart-era-revenue':
+    'This is the version to act on. Where a year sits against its own logo line says which '
+    + 'end of the book is leaving: above it, the departures are the small accounts and the '
+    + 'count overstates the damage; below it, the larger accounts are going and the count '
+    + 'flatters the year. 2026 is the year sitting below. That makes it a named-account '
+    + 'question rather than a general retention programme, and the first deliverable is a '
+    + 'list of the large 2026 customers who left and what they had in common.',
 
   'chart-flows':
     'Churn is the side to act on. The new logo side cannot currently be read as demand, '
@@ -1736,11 +1770,41 @@ function renderAnnotations() {
 
   const eras = retentionByYear(cohorts, { maxMonths: 12 });
   const newestEra = eras[eras.length - 1];
-  const oldestEra = eras[0];
+  // Read off the data rather than asserted. This panel used to say the newest
+  // cohorts were worse from month 2 onward while quoting a month 3 figure that
+  // was the highest of the three, which is what happens when the prose outlives
+  // the fix underneath it. The survival change moved these numbers.
+  const rank6 = [...eras].sort((a, b) => (b.month6 || 0) - (a.month6 || 0));
+  const best6 = rank6[0];
+  const worst6 = rank6[rank6.length - 1];
+  const best3 = [...eras].sort((a, b) => (b.month3 || 0) - (a.month3 || 0))[0];
+  annotate('chart-era-revenue', [
+    `<strong>Weighted by revenue the spread at month 6 is `
+      + `${((Math.max(...eras.map(e => e.revenueMonth6 || 0)) - Math.min(...eras.map(e => e.revenueMonth6 || 0))) * 100).toFixed(1)} points</strong>, `
+      + `against ${(((best6.month6 || 0) - (worst6.month6 || 0)) * 100).toFixed(1)} on the head count: `
+      + `${eras.map(e => `${e.year} ${fmt.pct(e.revenueMonth6, 1)}`).join(', ')}.`,
+    `The money question is which accounts leave, not how many. A year whose revenue line runs `
+      + `under its logo line is losing its larger customers.`,
+    `Same cohorts and same samples as the chart above, so the two are directly comparable.`,
+  ], [
+    'Each customer is weighted by what they were paying in their second month and then counted '
+      + 'only while they are still present, so the line falls for one reason: departures.',
+    'Expansion and contraction among the customers who stay are excluded on purpose. Netting '
+      + 'them in is what lets a revenue retention line sit above 100% and stop being comparable '
+      + 'to the count above it. Chart 4 is the netted version.',
+    'A customer booked at zero MRR still counts as present, so both lines carry some customers '
+      + 'who have stopped paying, and more of them in 2026 than in 2024.',
+  ]);
+
   annotate('chart-era', [
-    `<strong>The newest cohorts are worse from month 2 onward</strong>: ${fmt.pct(newestEra.month3, 1)} at month 3 against ${fmt.pct(oldestEra.month3, 1)} for ${oldestEra.year}.`,
-    `By month 6 the gap widens rather than closes, ${fmt.pct(newestEra.month6, 1)} against ${fmt.pct(oldestEra.month6, 1)}. This is a level shift, not a delay.`,
-    `The ${newestEra.year} line rests on ${newestEra.reachedMonth6} cohorts at month 6, so its right hand end is thin and will move.`,
+    `<strong>The three years sit within ${(((best6.month6 || 0) - (worst6.month6 || 0)) * 100).toFixed(1)} points of each other at month 6</strong>: `
+      + `${eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)}`).join(', ')}. `
+      + `${best6.year} holds best and ${worst6.year} worst, on samples of ${best6.reachedMonth6} and ${worst6.reachedMonth6} cohorts.`,
+    `Early on the newest intakes are not the weak ones: at month 3 the order is `
+      + `${eras.map(e => `${e.year} ${fmt.pct(e.month3, 1)}`).join(', ')}, with ${best3.year} highest. `
+      + `There is no level shift here to find.`,
+    `The ${newestEra.year} line rests on ${newestEra.reachedMonth6} cohorts at month 6, so its right hand end is thin and will move. `
+      + `Chart 9 asks the same question weighted by revenue, and there the years do separate.`,
   ], [
     'Indexed to <strong>month 1</strong> here, unlike charts 4 and 6, because this counts logos rather than revenue and there is no setup fee to distort the first month.',
     'A point is dropped once fewer than three cohorts in that year have reached that age, so the newest line is never drawn by its oldest member alone.',

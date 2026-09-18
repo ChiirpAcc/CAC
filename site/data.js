@@ -374,6 +374,17 @@ export function buildCohorts(data) {
     // Both are kept. Presence is the right measure for revenue, because a
     // returning customer really is paying again. Survival is the right measure
     // for retention, because the question is how much of an intake is left.
+    // What each member was worth at the start, taken from their second month
+    // rather than their first. Until mid-2025 the first month carried a joining
+    // charge as MRR that came off again the next month, so month one overstates
+    // a customer by roughly the size of that fee.
+    const startingMrr = new Map();
+    for (const id of ids) {
+      const second = rowByCustomerMonth.get(id + '|' + monthAdd(month, 1));
+      const first = rowByCustomerMonth.get(id + '|' + month);
+      startingMrr.set(id, second ? (second.eopMrr || 0) : (first ? (first.eopMrr || 0) : 0));
+    }
+
     const runLength = new Map();
     for (const id of ids) {
       const months = activeByCustomer.get(id);
@@ -392,6 +403,20 @@ export function buildCohorts(data) {
     // absence, and a "revenue kept" line that can be lifted by customers who
     // were not in the base is not measuring what it says.
     const survivorRevenue = [];
+
+    // Revenue churn, which is not the same question as revenue kept.
+    //
+    // survivorRevenue moves for two reasons at once: customers leaving, and
+    // the ones who stay paying more or less. That nets expansion against
+    // churn, which is why it can sit above its own starting point and does
+    // not line up with the logo curve beside it.
+    //
+    // This weights each customer by what they were worth at the start and
+    // then only asks whether they are still here. It is logo churn with the
+    // customers weighted by size, so a cohort that keeps its small accounts
+    // and loses its large ones shows the damage that counting heads hides.
+    // Monotonic by construction, and directly comparable to the logo line.
+    const retainedStartingRevenue = [];
     for (let offset = 0; offset <= maxOffset; offset += 1) {
       const at = monthAdd(month, offset);
       let live = 0;
@@ -410,18 +435,21 @@ export function buildCohorts(data) {
       profit.push(gp);
       let intact = 0;
       let intactMrr = 0;
+      let intactStartingMrr = 0;
       for (const id of ids) {
         if (runLength.get(id) <= offset) continue;
         intact += 1;
         const row = rowByCustomerMonth.get(id + '|' + at);
         intactMrr += row ? (row.eopMrr || 0) : 0;
+        intactStartingMrr += startingMrr.get(id) || 0;
       }
       survivors.push(intact);
       survivorRevenue.push(intactMrr);
+      retainedStartingRevenue.push(intactStartingMrr);
     }
 
     return { month, size: logos[0] || ids.length, ids, logos, survivors, revenue,
-             survivorRevenue, profit, maxOffset };
+             survivorRevenue, retainedStartingRevenue, profit, maxOffset };
   });
 
   const built = cohorts.filter(c => c.size > 0);
@@ -1239,11 +1267,12 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
     // fee dropping out look like a cliff in every early era. Logos are indexed
     // to month 1, where nothing distorts, so the two curves start at different
     // ages by design.
-    const revBase = inSample.reduce((s, c) => s + (c.survivorRevenue[1] || 0), 0);
+    const revBase = inSample.reduce((s, c) => s + (c.retainedStartingRevenue[0] || 0), 0);
     const revenue = [];
     for (let offset = 0; offset < maxMonths; offset += 1) {
-      if (offset < 1 || offset > reach || !revBase) { revenue.push(null); continue; }
-      revenue.push(inSample.reduce((s, c) => s + (c.survivorRevenue[offset] || 0), 0) / revBase);
+      if (offset > reach || !revBase) { revenue.push(null); continue; }
+      revenue.push(
+        inSample.reduce((s, c) => s + (c.retainedStartingRevenue[offset] || 0), 0) / revBase);
     }
     const reached = offset => group.filter(c => c.maxOffset >= offset).length;
     return {
