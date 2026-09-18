@@ -26,3 +26,8 @@ dist/
 # not something to keep.
 validation-report.md
 
+# Rendered video and the frame grabs taken to review it. Both are regenerated
+# from the composition by the HyperFrames CLI, so they are build output rather
+# than source, and one render is 5.7MB that would sit in history for good.
+videos/**/renders/
+videos/**/snapshots/

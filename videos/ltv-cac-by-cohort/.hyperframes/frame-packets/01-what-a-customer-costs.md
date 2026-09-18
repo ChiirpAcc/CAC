@@ -11,27 +11,30 @@
 ## Frame 1 — What a customer costs now
 
 - scene: Two costs swap in place under one fixed line, and the second is nearly four times the first
-- duration: 6s
+- duration: 7.5s
 - transition_in: cut
 - status: outline
-- voiceover: "A customer used to cost $2,583. Now a customer costs $9,367."
+- voiceover: "A customer costs $2,583. A customer costs $9,367. 3.6x the price."
 - type: hook
 - persuasion: Contrast, stated as two numbers and nothing else
 - beat: attention
 - blueprint: kinetic-type-beats (Reproduce)
-- focal: the cost figure, set in mono at display-hero scale
-- roles: cost figure = foreground subject · fixed lead line "A customer costs" = supporting · hairline grid = background (dim ~35%)
-- poster: 4s
+- focal: the cost figure, mono at hero scale
+- roles: cost figure = foreground subject · fixed lead line = supporting · hairline grid = background
+- poster: 6s
 - src: compositions/frames/01-what-a-customer-costs.html
 
-Open cold on the number, not on the topic. The chart's whole argument is a
-price change, so the price change is the first thing on screen and the phrase
-LTV:CAC does not appear yet.
+Open cold on the number, not the topic. The whole argument is a price change,
+so the price change is the first thing on screen and the phrase LTV:CAC does
+not appear yet.
 
-Scene 1 (0.0-1.4s): hairline grid field settles. The lead line "A customer costs" sets upper-third left, Newsreader, ink. Nothing else on screen. Centered template, the type block holds ~55% of frame width.
-Scene 2 (1.4-3.0s): "$2,583" springs in beneath the lead line at display-hero scale, DM Mono, teal, with a small "2024-10 cohort" micro label in amber beneath it. Per-character reveal, settling long-tail.
-Scene 3 (3.0-4.4s): hard cut in place, the signature move: "$2,583" is replaced by "$9,367" on the same baseline, red, the micro label swapping to "2026-08 cohort". The old figure does not fade, it is cut away, so the swap reads as a substitution rather than a transition.
-Scene 4 (4.4-6.0s): a thin amber bracket draws once between where the two numbers sat and a small mono tag "3.6x the price" settles at its midpoint. Everything then holds STILL for the read.
+Eyebrow: "COST PER LOGO". Hero fills the content zone: the figure is the
+largest thing in the video.
+
+Scene 1 (0.0-1.2s): grid settles, eyebrow sets, lead line "A customer costs" writes on in the content zone, left set on the 8cqw margin.
+Scene 2 (1.2-3.4s): "$2,583" reveals per character beneath the lead line at hero scale, DM Mono, teal. Amber micro label "2024-10 cohort" rises under it. Two seconds to read a figure and its label.
+Scene 3 (3.4-5.8s): HARD CUT in place. "$2,583" is gone and "$9,367" stands on the same baseline in red; the label swaps to "2026-08 cohort" on the SAME frame, never a beat later. Nothing fades.
+Scene 4 (5.8-7.5s): an amber bracket draws once across the slot both figures occupied and the mono tag "3.6x the price" settles at its midpoint in the footnote zone. Holds STILL.
 
 ## Selected blueprint: kinetic-type-beats
 

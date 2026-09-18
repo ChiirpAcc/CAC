@@ -10,30 +10,35 @@
 
 ## Frame 4 — Then it stopped clearing the bar
 
-- scene: All 24 cohorts cascade in as columns, the recent half sitting under the break-even line
-- duration: 9s
-- transition_in: crossfade
+- scene: All 24 cohorts cascade in as columns, the recent half under the break-even line
+- duration: 12s
+- transition_in: cut
 - status: outline
-- voiceover: "Across 24 cohorts, 12 now sit below 1.0x. They have not yet returned what they cost to win."
+- voiceover: "12 of 24 below break-even. Grey: fewer than 6 months observed."
 - type: pain_point
 - persuasion: Show the whole distribution rather than the worst case
 - beat: tension
 - blueprint: grid-card-assemble (Adapt)
 - focal: the 24 column chart
-- roles: columns = foreground subject · the 1.0x break-even rule = supporting · the grey young-cohort columns = supporting · hairline grid = background (dim ~35%)
-- poster: 8s
+- roles: columns = foreground subject · break-even rule = supporting · grey young cohorts = supporting · hairline grid = background
+- poster: 10s
 - src: compositions/frames/04-below-the-bar.html
 
-Adapt: keep the staggered self-assembling cascade, but the items are chart
-columns on a shared baseline rather than cards in a grid, so the cascade
-builds a distribution instead of a wall. This is the centrepiece of the video
-and it earns the longest build.
+Adapt: keep the staggered cascade, but the items are chart columns on a shared
+baseline, so the cascade builds a distribution rather than a wall. This is the
+centrepiece and it is the one frame whose last three seconds are pure stillness
+by design: the reader has to LOOK at a 24-column distribution, and there is no
+reading rate for that.
 
-Scene 1 (0.0-1.0s): a full-width baseline rule draws left to right across the lower third. Nothing above it yet. Full-width strip framing.
-Scene 2 (1.0-4.2s): 24 columns grow up from the baseline in a staggered left-to-right cascade, one per cohort, heights carrying the real ratios in order: 2.61, 3.75, 2.67, 2.00, 2.76, 2.14, 2.37, 2.07, 1.95, 1.09, 1.83, 1.70, 0.97, 0.99, 0.68, 0.81, 0.61, 0.65, 0.66, 0.55, 0.48, 0.24, 0.31, 0.14. Each column is green at or above 1.0x and red below it. The five youngest, at the right end, grow in grey instead.
-Scene 3 (4.2-5.6s): a dashed rule labelled "1.0x break-even" draws across at the 1.0 height, over the top of the columns. The split it makes is now visible without a word.
-Scene 4 (5.6-7.4s): the twelve red columns pulse once together, and a mono count "12 of 24 below break-even" settles in the upper left.
-Scene 5 (7.4-9.0s): a small ink-soft note fades in at the lower right, "grey = fewer than 6 months observed", and the frame holds STILL. The grey columns are never counted in the twelve.
+Eyebrow: "LTV : CAC BY COHORT". The plot spans the full content zone, left edge
+on the 8cqw margin.
+
+Scene 1 (0.0-1.0s): eyebrow sets, a full-width baseline rule draws left to right. Nothing above it yet.
+Scene 2 (1.0-4.4s): 24 columns grow from the baseline in a staggered left-to-right cascade, heights carrying the real ratios in order: 2.61, 3.75, 2.67, 2.00, 2.76, 2.14, 2.37, 2.07, 1.95, 1.09, 1.83, 1.70, 0.97, 0.99, 0.68, 0.81, 0.61, 0.65, 0.66, 0.55, 0.48, 0.24, 0.31, 0.14. Green at or above 1.0x, red below it, and the five youngest grow in GREY regardless.
+Scene 3 (4.4-6.0s): a dashed rule labelled "1.0x break-even" draws across at exactly the 1.0 height, over the columns.
+Scene 4 (6.0-7.6s): the seven red columns pulse once together. Grey never pulses. "12 of 24 below break-even" settles in the upper left.
+Scene 5 (7.6-9.0s): "Grey: fewer than 6 months observed" fades into the footnote zone with a bracket spanning the five grey columns.
+Scene 6 (9.0-12.0s): NOTHING MOVES. Three full seconds of stillness on the finished chart.
 
 ## Selected blueprint: grid-card-assemble
 

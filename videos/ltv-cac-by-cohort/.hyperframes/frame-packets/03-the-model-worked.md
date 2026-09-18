@@ -10,29 +10,30 @@
 
 ## Frame 3 — The model worked, and here is the receipt
 
-- scene: One cohort's cost and return count up side by side, then resolve into a single ratio
-- duration: 9s
-- transition_in: crossfade
+- scene: One cohort's cost and return resolve into a single ratio
+- duration: 8.5s
+- transition_in: cut
 - status: outline
-- voiceover: "The 2024-10 cohort cost $2,583 a logo. It has returned $9,696 a logo. That is 3.75x, and it cleared the 3.0x goal."
+- voiceover: "Cost per logo $2,583. Gross profit per logo $9,696. Ratio 3.75x, against a 3.0x goal."
 - type: social_proof
-- persuasion: Proof before problem, so the later bad news cannot be read as the model never working
+- persuasion: Proof before problem, so the later bad news cannot read as the model never working
 - beat: credibility
 - blueprint: dataviz-countup (Adapt)
 - focal: the 3.75x ratio
-- roles: cost and return counters = foreground subject · the 3.0x goal line = supporting · hairline grid = background (dim ~35%)
-- poster: 7s
+- roles: the two counters = foreground subject · the 3.0x goal rule = supporting · hairline grid = background
+- poster: 7.5s
 - src: compositions/frames/03-the-model-worked.html
 
-Adapt: keep the count-up signature and the landing on one hero metric, but
-drop the camera push THROUGH the numbers. Two counters resolving into a third
-is the shape, and the stillness at the end is doing the work.
+Adapt: keep the count-up signature and the landing on one hero metric, drop the
+camera push. Two counters resolving into a third is the shape.
 
-Scene 1 (0.0-1.2s): "2024-10 cohort" sets as a small amber label dead centre, then rises to the top third to make room. Triptych framing establishes: three empty columns marked by hairline rules.
-Scene 2 (1.2-3.2s): left column fills. "Cost per logo" label, then "$2,583" counts up from zero in mono, teal, landing hard. Count-up only, no other movement.
-Scene 3 (3.2-5.4s): centre column fills the same way. "Gross profit per logo", then "$9,696" counts up, green. The two figures now sit at the same baseline and the eye compares them without being told to.
-Scene 4 (5.4-7.2s): right column resolves. A hairline divides the two figures and "3.75x" springs in at display-hero scale, green, the largest thing on screen.
-Scene 5 (7.2-9.0s): a dashed reference rule labelled "3.0x goal" draws in beneath the ratio and the ratio sits clearly above it. Full stop, held STILL, no drift.
+Eyebrow: "2024-10 COHORT". Three columns span the full content zone width.
+
+Scene 1 (0.0-1.2s): eyebrow sets, three columns draw as hairline rules across the content zone.
+Scene 2 (1.2-3.2s): left column. "Cost per logo", then "$2,583" counts up from zero in mono, teal. The count-up is driven by the timeline, never by a clock.
+Scene 3 (3.2-5.2s): centre column fills the same way, "$9,696" in green, sharing the figures' baseline.
+Scene 4 (5.2-7.0s): right column resolves. A hairline divides the two and "3.75x" springs in at hero scale, green, the largest thing on screen.
+Scene 5 (7.0-8.5s): the dashed "3.0x goal" reference draws in beneath the ratio, which sits clearly above it. Held STILL. The rule is hidden by its own CSS until this moment.
 
 ## Selected blueprint: dataviz-countup
 

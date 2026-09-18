@@ -11,8 +11,8 @@
 ## Frame 7 — The lever
 
 - scene: One line lands and the two alternatives are struck out
-- duration: 5s
-- transition_in: crossfade
+- duration: 6s
+- transition_in: cut
 - status: outline
 - voiceover: "The lever is acquisition cost. Not upsell. Not pricing."
 - type: cta
@@ -20,13 +20,17 @@
 - beat: resolution
 - blueprint: titlecard-reveal (Reproduce)
 - focal: the line "The lever is acquisition cost"
-- roles: the lever line = foreground subject · the two struck alternatives = supporting · hairline grid = background (dim ~35%)
-- poster: 4s
+- roles: the lever line = foreground subject · the struck alternatives = supporting · hairline grid = background
+- poster: 5s
 - src: compositions/frames/07-the-lever.html
 
-Scene 1 (0.0-1.6s): a single restrained slide-up crossfade brings "The lever is acquisition cost." to centre, Newsreader at display-closing scale, ink. Centered framing, the line holds ~60% of frame width.
-Scene 2 (1.6-3.2s): beneath it and much smaller, "Not upsell." and "Not pricing." settle in mono, ink-soft, and a hairline strikes through each in turn.
-Scene 3 (3.2-5.0s): everything holds STILL. A single amber hairline draws across the very bottom of the frame and stops. No logo, no end card, no call to action beyond the sentence itself.
+Eyebrow: "THE LEVER". The closing line is left set on the same 8cqw margin as
+every other frame, not centred: centring it was part of why the video read as a
+set of unrelated slides.
+
+Scene 1 (0.0-2.0s): eyebrow sets, then "The lever is acquisition cost." slides up into the content zone at display-closing scale, ink.
+Scene 2 (2.0-4.0s): beneath it in mono, "Not upsell." and "Not pricing." settle in the footnote zone and a hairline strikes through each in turn.
+Scene 3 (4.0-6.0s): everything holds STILL. A single amber hairline draws across the bottom and stops. No logo, no end card.
 
 ## Selected blueprint: titlecard-reveal
 

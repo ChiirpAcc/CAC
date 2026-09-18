@@ -10,28 +10,34 @@
 
 ## Frame 5 — The value held. The price did not.
 
-- scene: Two eras sit side by side, and only one number moved
-- duration: 9s
-- transition_in: crossfade
+- scene: Two eras on one shared scale, and only one number moved
+- duration: 15s
+- transition_in: cut
 - status: outline
-- voiceover: "The retention curve did not collapse. Acquisition cost per logo did. Early cohorts were bought for $2,583 to $4,920. Recent ones cost $5,126 to $9,367."
+- voiceover: "The retention curve did not collapse. Acquisition cost per logo did. Early cohorts $2,583 to $4,920. Recent cohorts $5,126 to $9,367. The price of a customer changed. The value of one did not."
 - type: feature_showcase
 - persuasion: Isolate the variable that actually moved
 - beat: comprehension
 - blueprint: comparison-split (Reproduce)
-- focal: the two era cards
-- roles: era cards = foreground subject · the cost range bars = supporting · hairline grid = background (dim ~35%)
-- poster: 7s
+- focal: the two era cards on one scale
+- roles: era cards = foreground subject · range bars = supporting · hairline grid = background
+- roles_note: the "bought cheap" and "bought dear" badges from the first cut are DROPPED. They added four words and no information, and this frame is the most overloaded in the video.
+- poster: 13s
 - src: compositions/frames/05-price-not-value.html
 
-The single most important frame in the video. A viewer who leaves with only
-this one has the finding.
+The single most important frame. A viewer who leaves with only this one has the
+finding. It carried 37 words in 9 seconds in the first cut; it now has 15.
 
-Scene 1 (0.0-1.6s): two cards enter from opposite wings with mirrored book-open tilts and settle side by side on a split-screen. Left card reads "2024-09 to 2025-05", right reads "2025-09 to 2026-08". Cards are hairline outline only, no fill, no shadow.
-Scene 2 (1.6-3.6s): inside the left card a horizontal range bar draws from $2,583 to $4,920 in teal, its two endpoints labelled in mono.
-Scene 3 (3.6-5.4s): the right card's range bar draws from $5,126 to $9,367 in red, on the same horizontal scale as the left, so its greater length is literal rather than styled.
-Scene 4 (5.4-7.0s): the signature move, an inner-edge pill badge spring-pops on each card: "bought cheap" on the left, "bought dear" on the right, both mono, ink on paper.
-Scene 5 (7.0-9.0s): beneath both cards a single Newsreader line writes on: "The price of a customer changed. The value of one did not." Held STILL to the cut.
+Eyebrow: "THE VARIABLE THAT MOVED".
+
+Scene 1 (0.0-2.0s): eyebrow sets, then "The retention curve did not collapse." writes on in Newsreader at display scale.
+Scene 2 (2.0-3.8s): beneath it, "Acquisition cost per logo did." lands, with "did" carrying the amber accent. Two full seconds to read both lines.
+Scene 3 (3.8-5.6s): two hairline cards enter from opposite wings with mirrored book-open tilts and settle level. Left "Early cohorts, 2024-09 to 2025-05", right "Recent cohorts, 2025-09 to 2026-08". Both draw an IDENTICAL scale rail, $0 to $10,000, before either bar exists.
+Scene 4 (5.6-7.6s): the left range bar draws from $2,583 to $4,920 in teal, endpoints in mono.
+Scene 5 (7.6-9.8s): the right bar draws from $5,126 to $9,367 in red, on the SAME scale and at the SAME pixel velocity, so the extra draw time is the extra money.
+Scene 6 (9.8-11.4s): "One shared scale, $0 to $10,000" sets in the footnote zone.
+Scene 7 (11.4-13.4s): beneath both cards, "The price of a customer changed. The value of one did not." writes on in Newsreader.
+Scene 8 (13.4-15.0s): holds STILL.
 
 ## Selected blueprint: comparison-split
 

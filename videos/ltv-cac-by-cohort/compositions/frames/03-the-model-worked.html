@@ -57,8 +57,8 @@
       inset: 0;
       /* ~2cqw cells, 10% ink — background role, dimmed ~35% */
       background-image:
-        linear-gradient(to right, var(--mw03-grid) 0.06cqw, transparent 0.06cqw),
-        linear-gradient(to bottom, var(--mw03-grid) 0.06cqw, transparent 0.06cqw);
+        linear-gradient(to right, var(--mw03-grid) 0.1cqw, transparent 0.1cqw),
+        linear-gradient(to bottom, var(--mw03-grid) 0.1cqw, transparent 0.1cqw);
       background-size: 2cqw 2cqw;
       background-position: 0 0;
       opacity: 0.65;
@@ -102,14 +102,14 @@
       font-size: 1.5cqw;
       line-height: 1;
       letter-spacing: 0.06em;
-      color: var(--mw03-ink-faint);
+      color: var(--mw03-ink-soft);
     }
 
     /* ── the triptych: three columns marked by hairline rules ── */
     .mw03-tri {
       position: absolute;
       left: 4cqw;
-      top: 15.6cqw;
+      top: 16.6cqw;
       width: 92cqw;
       height: 20.8cqw;
     }
@@ -181,6 +181,13 @@
       transform-origin: left bottom;
       white-space: nowrap;
     }
+    /* columns 2 and 3 hold their content off the divider; column 1 sits on the page edge */
+    .mw03-col-2 .mw03-label,
+    .mw03-col-2 .mw03-fig-num,
+    .mw03-col-3 .mw03-label,
+    .mw03-col-3 #mw03-ratio {
+      left: 1.4cqw;
+    }
     #mw03-cost {
       color: var(--mw03-teal);
     }
@@ -208,7 +215,7 @@
     .mw03-oprule {
       position: absolute;
       left: 4cqw;
-      top: 37.1cqw;
+      top: 38.1cqw;
       width: 54cqw;
       height: 0.12cqw;
       background: var(--mw03-ink);
@@ -218,26 +225,31 @@
     /* ── the 3.0x goal reference (supporting) ── */
     .mw03-goalrule {
       position: absolute;
-      left: 58cqw;
-      top: 39.5cqw;
-      width: 38cqw;
+      left: 59.4cqw;
+      top: 40.5cqw;
+      width: 36.6cqw;
       height: 0.12cqw;
       background-image: repeating-linear-gradient(
         to right,
         var(--mw03-ink-soft) 0 0.6cqw,
         transparent 0.6cqw 1.2cqw
       );
+      /* Hidden until Scene 5 draws it. The initial state lives here rather
+         than relying on a fromTo stamping it at build time: that only works
+         with immediateRender on, which in turn leaks the END state of every
+         later cut onto the frame from t=0. */
+      clip-path: inset(0% 100% 0% 0%);
     }
     .mw03-goallabel {
       position: absolute;
-      left: 58cqw;
-      top: 40.2cqw;
+      left: 59.4cqw;
+      top: 41.2cqw;
       font-family: "Hanken Grotesk", sans-serif;
       font-weight: 600;
       font-size: 1.15cqw;
       line-height: 1.2;
       letter-spacing: 0.18em;
-      text-transform: uppercase;
+      /* no uppercase transform here — the multiplier keeps its lowercase x */
       color: var(--mw03-ink-soft);
       white-space: nowrap;
     }
@@ -247,12 +259,12 @@
     id="root"
     data-composition-id="03-the-model-worked"
     data-start="0"
-    data-duration="9"
+    data-duration="9.5"
     data-width="1920"
     data-height="1080"
   >
     <!-- background: paper + permanent grid + the two hairlines -->
-    <div class="clip mw03-ground" data-start="0" data-duration="9" data-track-index="0">
+    <div class="clip mw03-ground" data-start="0" data-duration="9.5" data-track-index="0">
       <div class="mw03-grid"></div>
       <div class="mw03-hair mw03-hair-top"></div>
       <div class="mw03-hair mw03-hair-bottom"></div>
@@ -262,7 +274,7 @@
       id="mw03-cohort"
       class="clip mw03-cohort"
       data-start="0"
-      data-duration="9"
+      data-duration="9.5"
       data-track-index="1"
     >2024-10 COHORT</div>
 
@@ -270,12 +282,12 @@
       id="mw03-figtag"
       class="clip mw03-fig"
       data-start="0"
-      data-duration="9"
+      data-duration="9.5"
       data-track-index="2"
     >FIG. 03</div>
 
     <!-- the triptych -->
-    <div class="clip mw03-tri" data-start="0" data-duration="9" data-track-index="3">
+    <div class="clip mw03-tri" data-start="0" data-duration="9.5" data-track-index="3">
       <i id="mw03-div-a" class="mw03-div mw03-div-a"></i>
       <i id="mw03-div-b" class="mw03-div mw03-div-b"></i>
 
@@ -302,7 +314,7 @@
       id="mw03-oprule"
       class="clip mw03-oprule"
       data-start="0"
-      data-duration="9"
+      data-duration="9.5"
       data-track-index="4"
     ></i>
 
@@ -310,16 +322,16 @@
       id="mw03-goalrule"
       class="clip mw03-goalrule"
       data-start="0"
-      data-duration="9"
+      data-duration="9.5"
       data-track-index="5"
     ></i>
     <div
       id="mw03-goallabel"
       class="clip mw03-goallabel"
       data-start="0"
-      data-duration="9"
+      data-duration="9.5"
       data-track-index="6"
-    >3.0x goal</div>
+    >3.0x GOAL</div>
   </div>
 
   <script>
@@ -334,6 +346,18 @@
 
       function money(v) {
         return "$" + Math.round(v).toLocaleString("en-US");
+      }
+      /* The count-up is driven by the timeline itself, never a timer. It is written in
+         BOTH a `modifiers` hook and `onUpdate` so the digits are correct however the host
+         drives the playhead: `modifiers` runs inside the tween's render (so it survives
+         `tl.seek(t)`, which suppresses callbacks by default), `onUpdate` covers
+         `.time()` / `.progress()` hosts. Both write the identical formatted value, and
+         the tween's end state lands exactly on the real figure. */
+      function writer(el) {
+        return function (v) {
+          el.textContent = money(v);
+          return v;
+        };
       }
 
       /* ── Scene 1 (0.0–1.2s) — the cohort label sets dead centre, then rises to the
@@ -387,6 +411,7 @@
           value: 2583,
           duration: 1.45,
           ease: "power3.out",
+          modifiers: { value: writer(costEl) },
           onUpdate: function () {
             costEl.textContent = money(cost.value);
           },
@@ -416,6 +441,7 @@
           value: 9696,
           duration: 1.5,
           ease: "power3.out",
+          modifiers: { value: writer(profitEl) },
           onUpdate: function () {
             profitEl.textContent = money(profit.value);
           },
@@ -456,7 +482,7 @@
       tl.fromTo(
         "#mw03-goalrule",
         { clipPath: "inset(0% 100% 0% 0%)", opacity: 1 },
-        { clipPath: "inset(0% 0% 0% 0%)", duration: 0.72, ease: "power2.inOut" },
+        { clipPath: "inset(0% 0% 0% 0%)", duration: 0.72, ease: "power2.inOut", immediateRender: false },
         7.28
       );
       tl.fromTo(

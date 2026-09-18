@@ -186,19 +186,19 @@
     id="root"
     data-composition-id="06-what-would-make-this-wrong"
     data-start="0"
-    data-duration="9"
+    data-duration="9.5"
     data-width="1920"
     data-height="1080"
   >
     <!-- background (dim): paper + graph-paper grid + the two hairlines -->
-    <div class="clip wrong06-ground" data-start="0" data-duration="9" data-track-index="0">
+    <div class="clip wrong06-ground" data-start="0" data-duration="9.5" data-track-index="0">
       <div class="wrong06-grid"></div>
       <div class="wrong06-rule wrong06-rule-top"></div>
       <div class="wrong06-rule wrong06-rule-bottom"></div>
     </div>
 
     <!-- supporting: the standing header. Sets once in Scene 1 and never moves again. -->
-    <div class="clip wrong06-rail" data-start="0" data-duration="9" data-track-index="1">
+    <div class="clip wrong06-rail" data-start="0" data-duration="9.5" data-track-index="1">
       <div class="wrong06-header">
         <span id="wrong06-h1" class="wrong06-hline">What would</span>
         <span id="wrong06-h2" class="wrong06-hline">make this</span>
@@ -214,7 +214,7 @@
     </div>
 
     <!-- foreground subject — caveat 1 -->
-    <div id="wrong06-g1" class="clip wrong06-col" data-start="0" data-duration="9" data-track-index="2">
+    <div id="wrong06-g1" class="clip wrong06-col" data-start="0" data-duration="9.5" data-track-index="2">
       <div class="wrong06-lines">
         <span id="wrong06-g1l1" class="wrong06-line">Realised, not projected.</span>
         <span id="wrong06-g1l2" class="wrong06-line">A young cohort sits low</span>
@@ -224,7 +224,7 @@
     </div>
 
     <!-- foreground subject — caveat 2, same baseline -->
-    <div id="wrong06-g2" class="clip wrong06-col" data-start="0" data-duration="9" data-track-index="3">
+    <div id="wrong06-g2" class="clip wrong06-col" data-start="0" data-duration="9.5" data-track-index="3">
       <div class="wrong06-lines">
         <span class="wrong06-line">Cost per logo assumes a month</span>
         <span class="wrong06-line">of spend bought that month</span>
@@ -234,7 +234,7 @@
     </div>
 
     <!-- foreground subject — caveat 3, same baseline; holds to the end -->
-    <div id="wrong06-g3" class="clip wrong06-col" data-start="0" data-duration="9" data-track-index="4">
+    <div id="wrong06-g3" class="clip wrong06-col" data-start="0" data-duration="9.5" data-track-index="4">
       <div class="wrong06-lines">
         <span class="wrong06-line">Cohorts before 2024-09 are</span>
         <span class="wrong06-line">absent because acquisition</span>
@@ -285,14 +285,14 @@
          No fade, no blur, no travel: caveat 1 is simply gone and caveat 2 is simply
          there, on the same baseline. fromTo pairs at 0.001s keep the cut exact and
          seek-safe in both directions. */
-      tl.fromTo("#wrong06-g1", { opacity: 1 }, { opacity: 0, duration: 0.001, ease: "none" }, 3.6);
+      tl.fromTo("#wrong06-g1", { opacity: 1 }, { opacity: 0, duration: 0.001, ease: "none", immediateRender: false }, 3.6);
       tl.fromTo("#wrong06-g2", { opacity: 0 }, { opacity: 1, duration: 0.001, ease: "none" }, 3.6);
       tl.fromTo("#wrong06-g2tag", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 4.05);
 
       /* ── Scene 4 (6.0–9.0s) — HARD CUT again to the third caveat. ─────────────────
          It lands, its tag settles, and then nothing. No payoff beat, no flourish —
          the frame holds dead still for the last ~2s. That stillness is the point. */
-      tl.fromTo("#wrong06-g2", { opacity: 1 }, { opacity: 0, duration: 0.001, ease: "none" }, 6.0);
+      tl.fromTo("#wrong06-g2", { opacity: 1 }, { opacity: 0, duration: 0.001, ease: "none", immediateRender: false }, 6.0);
       tl.fromTo("#wrong06-g3", { opacity: 0 }, { opacity: 1, duration: 0.001, ease: "none" }, 6.0);
       tl.fromTo("#wrong06-g3tag", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 6.45);
 

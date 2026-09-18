@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1920, height=1080" />
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js" integrity="sha384-sG0Hv1tP1lZCk9KQmrIbY/XNwi+OY84GQqhMscbnsoBFqAz8KNCil1kvfL3Hbbk2" crossorigin="anonymous"></script>
     <style>
       * {
         margin: 0;
@@ -12,25 +12,23 @@
       }
       html,
       body {
-        margin: 0;
         width: 1920px;
         height: 1080px;
         overflow: hidden;
-        background: #0a0a0a;
+        background: #000;
       }
       #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #f4f5f6;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
         width: 100%;
         height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-      }
-      #title {
-        color: #f4f4f5;
-        font-size: 72px;
-        font-weight: 600;
-        letter-spacing: -0.03em;
       }
     </style>
   </head>
@@ -39,17 +37,101 @@
       id="root"
       data-composition-id="main"
       data-start="0"
-      data-duration="10"
+      data-duration="55"
       data-width="1920"
       data-height="1080"
     >
-      <h1 id="title" class="clip" data-start="0" data-duration="10" data-track-index="0">Title</h1>
+      <div
+        id="el-01-what-a-customer-costs"
+        class="scene"
+        data-composition-id="01-what-a-customer-costs"
+        data-composition-src="compositions/frames/01-what-a-customer-costs.html"
+        data-start="0"
+        data-duration="6.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-02-what-it-measures"
+        class="scene"
+        data-composition-id="02-what-it-measures"
+        data-composition-src="compositions/frames/02-what-it-measures.html"
+        data-start="6"
+        data-duration="8.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-03-the-model-worked"
+        class="scene"
+        data-composition-id="03-the-model-worked"
+        data-composition-src="compositions/frames/03-the-model-worked.html"
+        data-start="14"
+        data-duration="9.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-04-below-the-bar"
+        class="scene"
+        data-composition-id="04-below-the-bar"
+        data-composition-src="compositions/frames/04-below-the-bar.html"
+        data-start="23"
+        data-duration="9.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-05-price-not-value"
+        class="scene"
+        data-composition-id="05-price-not-value"
+        data-composition-src="compositions/frames/05-price-not-value.html"
+        data-start="32"
+        data-duration="9.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-06-what-would-make-this-wrong"
+        class="scene"
+        data-composition-id="06-what-would-make-this-wrong"
+        data-composition-src="compositions/frames/06-what-would-make-this-wrong.html"
+        data-start="41"
+        data-duration="9.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-07-the-lever"
+        class="scene"
+        data-composition-id="07-the-lever"
+        data-composition-src="compositions/frames/07-the-lever.html"
+        data-start="50"
+        data-duration="5"
+        data-track-index="0"
+      ></div>
+
     </div>
+
     <script>
-      const tl = gsap.timeline({ paused: true });
-      // Example: tl.fromTo("#title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6 }, 0);
-      window.__timelines["main"] = tl;
-      tl.seek(0);
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+      // ── frame transitions (injected by transitions.mjs) ──
+      (function () { var tl = window.__timelines["main"];
+        tl.to("#el-01-what-a-customer-costs", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 6);
+        tl.fromTo("#el-02-what-it-measures", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 6);
+        tl.to("#el-02-what-it-measures", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 14);
+        tl.fromTo("#el-03-the-model-worked", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 14);
+        tl.to("#el-03-the-model-worked", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 23);
+        tl.fromTo("#el-04-below-the-bar", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 23);
+        tl.to("#el-04-below-the-bar", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 32);
+        tl.fromTo("#el-05-price-not-value", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 32);
+        tl.to("#el-05-price-not-value", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 41);
+        tl.fromTo("#el-06-what-would-make-this-wrong", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 41);
+        tl.to("#el-06-what-would-make-this-wrong", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 50);
+        tl.fromTo("#el-07-the-lever", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 50);
+        tl.to({}, { duration: 55 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
+      })();
     </script>
   </body>
 </html>

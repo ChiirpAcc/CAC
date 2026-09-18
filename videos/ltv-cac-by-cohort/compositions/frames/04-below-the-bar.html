@@ -257,22 +257,23 @@
     .bb04-note {
       position: absolute;
       right: 0;
-      bottom: 6.5cqw;
+      bottom: 5.9cqw;
       white-space: nowrap;
       text-align: right;
       font-family: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
       font-weight: 400;
-      font-size: 1cqw;
-      line-height: 1.5;
+      font-size: 0.95cqw;
+      line-height: 1.35;
       color: var(--bb04-ink-soft);
     }
-    /* 5 columns + 4 gaps = 16.32cqw, right-aligned on the last column */
+    /* 5 columns + 4 gaps = 16.32cqw, right-aligned on the last column;
+       a downward bracket that reaches toward the five grey columns */
     .bb04-grey-span {
       position: absolute;
       right: 0;
-      bottom: 5.15cqw;
+      bottom: 4.85cqw;
       width: 16.32cqw;
-      height: 0.5cqw;
+      height: 0.55cqw;
       border-top: 0.08cqw solid var(--bb04-muted);
       border-left: 0.08cqw solid var(--bb04-muted);
       border-right: 0.08cqw solid var(--bb04-muted);
@@ -297,12 +298,12 @@
     id="root"
     data-composition-id="04-below-the-bar"
     data-start="0"
-    data-duration="9"
+    data-duration="9.5"
     data-width="1920"
     data-height="1080"
   >
     <!-- track 0 — ground: paper, graph grid (background, dimmed), hairlines -->
-    <div class="clip bb04-ground" data-start="0" data-duration="9" data-track-index="0">
+    <div class="clip bb04-ground" data-start="0" data-duration="9.5" data-track-index="0">
       <div class="bb04-grid"></div>
       <div class="bb04-hair bb04-hair-top"></div>
       <div class="bb04-hair bb04-hair-bottom"></div>
@@ -313,7 +314,7 @@
       id="bb04-scale"
       class="clip bb04-plot"
       data-start="0"
-      data-duration="9"
+      data-duration="9.5"
       data-track-index="1"
     >
       <i class="bb04-scale-line bb04-at-3"></i>
@@ -327,14 +328,14 @@
       id="bb04-baseline"
       class="clip bb04-baseline"
       data-start="0"
-      data-duration="9"
+      data-duration="9.5"
       data-track-index="2"
     ></div>
 
     <!-- track 3 — Scene 2: the 24 columns. Heights are calc(unit * real ratio),
          one shared linear scale, in cohort order. 12 green (>= 1.0x), 7 red
          (< 1.0x), 5 grey (younger than 6 months — never judged, never pulsed). -->
-    <div class="clip bb04-plot" data-start="0" data-duration="9" data-track-index="3">
+    <div class="clip bb04-plot" data-start="0" data-duration="9.5" data-track-index="3">
       <div class="bb04-cols">
         <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 2.61)"></div><!-- 2024-09 -->
         <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 3.75)"></div><!-- 2024-10 -->
@@ -364,7 +365,7 @@
     </div>
 
     <!-- track 4 — cohort ticks, every fourth cohort, on the column rhythm -->
-    <div class="clip bb04-ticks" data-start="0" data-duration="9" data-track-index="4">
+    <div class="clip bb04-ticks" data-start="0" data-duration="9.5" data-track-index="4">
       <span class="bb04-tick">2024-09</span>
       <span class="bb04-tick"></span>
       <span class="bb04-tick"></span>
@@ -392,7 +393,7 @@
     </div>
 
     <!-- track 5 — Scene 3: the dashed break-even rule + its label -->
-    <div class="clip bb04-plot" data-start="0" data-duration="9" data-track-index="5">
+    <div class="clip bb04-plot" data-start="0" data-duration="9.5" data-track-index="5">
       <i id="bb04-breakeven" class="bb04-breakeven"></i>
       <span id="bb04-be-label" class="bb04-be-label">1.0x break-even</span>
     </div>
@@ -402,7 +403,7 @@
       id="bb04-count"
       class="clip bb04-count"
       data-start="0"
-      data-duration="9"
+      data-duration="9.5"
       data-track-index="6"
     >
       <span class="bb04-count-num">12</span>
@@ -410,7 +411,7 @@
     </div>
 
     <!-- track 7 — Scene 5: the grey note + the bracket over the five young cohorts -->
-    <div class="clip bb04-plot" data-start="0" data-duration="9" data-track-index="7">
+    <div class="clip bb04-plot" data-start="0" data-duration="9.5" data-track-index="7">
       <span id="bb04-note" class="bb04-note">grey = fewer than 6 months observed</span>
       <i id="bb04-grey-span" class="bb04-grey-span"></i>
     </div>
@@ -420,7 +421,7 @@
       id="bb04-figtag"
       class="clip bb04-figtag"
       data-start="0"
-      data-duration="9"
+      data-duration="9.5"
       data-track-index="8"
     >
       LTV : CAC by cohort

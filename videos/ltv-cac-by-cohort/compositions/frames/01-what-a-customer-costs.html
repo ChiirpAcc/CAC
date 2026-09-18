@@ -149,7 +149,7 @@
     .cost01-labels {
       position: absolute;
       left: 0;
-      top: 12.5cqw;
+      top: 15cqw;
       height: 2cqw;
     }
     .cost01-label {
@@ -173,7 +173,7 @@
       position: absolute;
       left: 0;
       right: 0;
-      top: 15.2cqw;
+      top: 17.7cqw;
       height: 1.4cqw;
     }
     .cost01-br-line {
@@ -220,17 +220,17 @@
     id="root"
     data-composition-id="01-what-a-customer-costs"
     data-start="0"
-    data-duration="6"
+    data-duration="6.5"
     data-width="1920"
     data-height="1080"
   >
-    <div class="clip cost01-ground" data-start="0" data-duration="6" data-track-index="0">
+    <div class="clip cost01-ground" data-start="0" data-duration="6.5" data-track-index="0">
       <div id="cost01-grid" class="cost01-grid"></div>
       <div id="cost01-rule-top" class="cost01-rule cost01-rule-top"></div>
       <div id="cost01-rule-bottom" class="cost01-rule cost01-rule-bottom"></div>
     </div>
 
-    <div class="clip cost01-block" data-start="0" data-duration="6" data-track-index="1">
+    <div class="clip cost01-block" data-start="0" data-duration="6.5" data-track-index="1">
       <div class="cost01-inner">
         <div id="cost01-lede" class="cost01-lede">A customer costs</div>
 
@@ -329,10 +329,12 @@
       var labelA = document.getElementById("cost01-label-a");
       var labelB = document.getElementById("cost01-label-b");
 
+      // The figure and its cohort label swap on the SAME threshold. Staggering
+      // them left $9,367 sitting under "2024-10 cohort" for ~80ms, which is a
+      // wrong label on screen, not a beat.
       var STATES = [
         { t: 0.0, fig: "a", label: "a" },
-        { t: 3.0, fig: "b", label: "a" },
-        { t: 3.08, fig: "b", label: "b" },
+        { t: 3.0, fig: "b", label: "b" },
       ];
 
       function stateAt(time) {

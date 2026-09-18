@@ -1,0 +1,568 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    /* ── faces: only families declared in frame.md, pointing at the .woff2 staged in the project ── */
+    @font-face {
+      font-family: "Newsreader";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/Newsreader-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url("assets/fonts/HankenGrotesk-600.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "DM Mono";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/DMMono-400.woff2") format("woff2");
+    }
+
+    /* ── frame root — styled by #root, never by a class on the composition element ── */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+      /* frame.md tokens */
+      --pnv05-paper: #f4f5f6;
+      --pnv05-ink: #15181c;
+      --pnv05-ink-soft: #474d55;
+      --pnv05-grid: rgba(21, 24, 28, 0.08);
+      --pnv05-ink-faint: rgba(21, 24, 28, 0.16);
+      --pnv05-teal: #1f6f8b;      /* series-1 · neutral series — the early-cohort range */
+      --pnv05-negative: #a8423a;  /* series-neg · below break-even — the recent-cohort range */
+      --pnv05-amber: #b07d2b;     /* series-2 · accent label */
+    }
+
+    /* ── ground: full-bleed paper + permanent graph-paper grid, on a clip layer ── */
+    .pnv05-ground {
+      position: absolute;
+      inset: 0;
+      background: var(--pnv05-paper);
+    }
+    .pnv05-gridfield {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, var(--pnv05-grid) 0.06cqw, transparent 0.06cqw),
+        linear-gradient(to bottom, var(--pnv05-grid) 0.06cqw, transparent 0.06cqw);
+      background-size: 2cqw 2cqw;
+      background-position: 0 0;
+      opacity: 0.65; /* background role — dimmed ~35% so the cards stay the subject */
+    }
+    .pnv05-hair {
+      position: absolute;
+      left: 4cqw;
+      right: 4cqw;
+      height: 0.12cqw;
+      background: var(--pnv05-ink);
+    }
+    .pnv05-hair-top { top: 3cqw; }
+    .pnv05-hair-bottom { bottom: 3cqw; }
+
+    /* ── title block (blueprint Scene 1: slide-down title with one accent keyword) ── */
+    .pnv05-title {
+      position: absolute;
+      left: 4.5cqw;
+      top: 4.9cqw;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 600;
+      font-size: 1.5cqw;
+      line-height: 1.45;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--pnv05-ink);
+    }
+    .pnv05-title-line { display: block; white-space: nowrap; }
+    .pnv05-title-1 { color: var(--pnv05-ink-soft); }
+    .pnv05-key { color: var(--pnv05-amber); }
+
+    /* ── shared-scale annotation (mono chrome, amber accent label) ── */
+    .pnv05-scalenote {
+      position: absolute;
+      right: 4.5cqw;
+      top: 7.35cqw;
+      font-family: "DM Mono", monospace;
+      font-weight: 400;
+      font-size: 1.35cqw;
+      line-height: 1.45;
+      letter-spacing: 0.06em;
+      color: var(--pnv05-amber);
+      white-space: nowrap;
+    }
+
+    /* ── the split stage: perspective lives here, GSAP never touches this element ── */
+    .pnv05-stage {
+      position: absolute;
+      inset: 0;
+      perspective: 2000px;
+      transform-style: preserve-3d;
+    }
+    /* outer layer — owns the entry (x / rotateY / scale / opacity) */
+    .pnv05-shell {
+      position: absolute;
+      top: 11cqw;
+      width: 41cqw;
+      height: 20cqw;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+    .pnv05-shell-a { left: 4.5cqw; transform-origin: 100% 50%; }  /* hinges on the inner edge */
+    .pnv05-shell-b { left: 54.5cqw; transform-origin: 0% 50%; }
+    /* inner layer — owns the counter-phase idle only; nothing else writes its transform */
+    .pnv05-float { position: absolute; inset: 0; will-change: transform; }
+
+    /* hairline outline only — no fill, no shadow, no radius (frame.md is flat) */
+    .pnv05-card {
+      position: absolute;
+      inset: 0;
+      border: 0.12cqw solid var(--pnv05-ink);
+      background: transparent;
+    }
+
+    .pnv05-eyebrow {
+      position: absolute;
+      left: 3cqw;
+      top: 2cqw;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 600;
+      font-size: 1.3cqw;
+      line-height: 1.3;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--pnv05-ink-soft);
+      white-space: nowrap;
+    }
+    .pnv05-era {
+      position: absolute;
+      left: 3cqw;
+      top: 3.7cqw;
+      font-family: "DM Mono", monospace;
+      font-weight: 400;
+      font-size: 1.8cqw;
+      line-height: 1.2;
+      letter-spacing: 0.05em;
+      color: var(--pnv05-ink);
+      white-space: nowrap;
+    }
+    .pnv05-divider {
+      position: absolute;
+      left: 3cqw;
+      right: 3cqw;
+      top: 7cqw;
+      height: 0.06cqw;
+      background: var(--pnv05-ink-faint);
+    }
+
+    /* ── the plot track: 35cqw == $0 … $10,000. IDENTICAL geometry in both cards. ── */
+    .pnv05-track {
+      position: absolute;
+      left: 3cqw;
+      top: 0;
+      width: 35cqw;
+      height: 100%;
+    }
+    .pnv05-gline {
+      position: absolute;
+      top: 10.9cqw;
+      height: 5.8cqw;
+      width: 0.08cqw;
+      background: var(--pnv05-ink-faint);
+      opacity: 0.55;
+    }
+    .pnv05-axis {
+      position: absolute;
+      left: 0;
+      top: 16.7cqw;
+      width: 35cqw;
+      height: 0.12cqw;
+      background: var(--pnv05-ink);
+    }
+    .pnv05-atick {
+      position: absolute;
+      top: 16.82cqw;
+      height: 0.5cqw;
+      width: 0.08cqw;
+      background: var(--pnv05-ink-faint);
+    }
+    .pnv05-alabel {
+      position: absolute;
+      top: 17.4cqw;
+      width: 7cqw;
+      text-align: center;
+      font-family: "DM Mono", monospace;
+      font-weight: 400;
+      font-size: 1.1cqw;
+      line-height: 1.2;
+      letter-spacing: 0.06em;
+      color: var(--pnv05-ink-soft);
+    }
+
+    /* the range bar itself — flat, 0 radius, drawn on the shared scale */
+    .pnv05-bar {
+      position: absolute;
+      top: 11.5cqw;
+      height: 1.6cqw;
+      transform-origin: left center;
+    }
+    .pnv05-bar-a { background: var(--pnv05-teal); }
+    .pnv05-bar-b { background: var(--pnv05-negative); }
+
+    .pnv05-endtick { position: absolute; width: 0.12cqw; height: 0.6cqw; }
+    .pnv05-endtick-max { top: 10.9cqw; transform-origin: bottom center; }
+    .pnv05-endtick-min { top: 13.1cqw; transform-origin: top center; }
+    .pnv05-tick-a { background: var(--pnv05-teal); }
+    .pnv05-tick-b { background: var(--pnv05-negative); }
+
+    .pnv05-val {
+      position: absolute;
+      font-family: "DM Mono", monospace;
+      font-weight: 400;
+      font-size: 1.8cqw;
+      line-height: 1.2;
+      letter-spacing: 0.04em;
+      color: var(--pnv05-ink);
+      white-space: nowrap;
+    }
+    .pnv05-val-max { top: 8.5cqw; text-align: right; }
+    .pnv05-val-min { top: 13.7cqw; text-align: left; }
+
+    /* ── inner-edge badges — on the STAGE PARENT, never inside a card ── */
+    .pnv05-badge {
+      position: absolute;
+      top: 21.36cqw;
+      padding: 1cqw 1.6cqw;
+      background: var(--pnv05-paper);
+      border: 0.12cqw solid var(--pnv05-ink);
+      font-family: "DM Mono", monospace;
+      font-weight: 400;
+      font-size: 1.35cqw;
+      line-height: 1.4;
+      letter-spacing: 0.05em;
+      color: var(--pnv05-ink);
+      white-space: nowrap;
+    }
+    .pnv05-badge-a { right: 53cqw; transform-origin: 100% 50%; }
+    .pnv05-badge-b { left: 53cqw; transform-origin: 0% 50%; }
+
+    /* ── the closing line ── */
+    .pnv05-closerule {
+      position: absolute;
+      left: 46cqw;
+      top: 35cqw;
+      width: 8cqw;
+      height: 0.12cqw;
+      background: var(--pnv05-ink);
+    }
+    .pnv05-close {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 37cqw;
+      text-align: center;
+      font-family: "Newsreader", serif;
+      font-weight: 400;
+      font-size: 4.3cqw;
+      line-height: 1.06;
+      letter-spacing: -0.005em;
+      color: var(--pnv05-ink);
+    }
+    .pnv05-cline { display: block; white-space: nowrap; }
+    .pnv05-w { display: inline-block; will-change: transform; }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="05-price-not-value"
+    data-start="0"
+    data-duration="9.5"
+    data-width="1920"
+    data-height="1080"
+  >
+    <!-- track 0 · background: paper, permanent graph-paper grid, the two hairlines -->
+    <div class="clip pnv05-ground" data-start="0" data-duration="9.5" data-track-index="0">
+      <div class="pnv05-gridfield"></div>
+      <div id="pnv05-hair-top" class="pnv05-hair pnv05-hair-top"></div>
+      <div id="pnv05-hair-bottom" class="pnv05-hair pnv05-hair-bottom"></div>
+    </div>
+
+    <!-- track 1 · title: the variable that moved -->
+    <div class="clip pnv05-title" data-start="0" data-duration="9.5" data-track-index="1">
+      <span id="pnv05-title-1" class="pnv05-title-line pnv05-title-1">The retention curve did not collapse</span>
+      <span id="pnv05-title-2" class="pnv05-title-line">Acquisition cost per logo <span class="pnv05-key">did</span></span>
+    </div>
+
+    <!-- track 2 · the shared-scale annotation -->
+    <div id="pnv05-scalenote" class="clip pnv05-scalenote" data-start="0" data-duration="9.5" data-track-index="2">
+      one shared scale &middot; $0 &ndash; $10,000
+    </div>
+
+    <!-- track 3 · the two era cards -->
+    <div class="clip pnv05-stage" data-start="0" data-duration="9.5" data-track-index="3">
+
+      <div id="pnv05-shell-a" class="pnv05-shell pnv05-shell-a">
+        <div id="pnv05-float-a" class="pnv05-float">
+          <div class="pnv05-card">
+            <div id="pnv05-eyebrow-a" class="pnv05-eyebrow">Early cohorts</div>
+            <div id="pnv05-era-a" class="pnv05-era">2024-09 &rarr; 2025-05</div>
+            <div id="pnv05-divider-a" class="pnv05-divider"></div>
+
+            <div class="pnv05-track">
+              <i class="pnv05-gline pnv05-gline-a" style="left: 0cqw;"></i>
+              <i class="pnv05-gline pnv05-gline-a" style="left: 8.75cqw;"></i>
+              <i class="pnv05-gline pnv05-gline-a" style="left: 17.5cqw;"></i>
+              <i class="pnv05-gline pnv05-gline-a" style="left: 26.25cqw;"></i>
+              <i class="pnv05-gline pnv05-gline-a" style="left: 35cqw;"></i>
+
+              <i id="pnv05-axis-a" class="pnv05-axis"></i>
+
+              <i class="pnv05-atick pnv05-atick-a" style="left: 0cqw;"></i>
+              <i class="pnv05-atick pnv05-atick-a" style="left: 8.75cqw;"></i>
+              <i class="pnv05-atick pnv05-atick-a" style="left: 17.5cqw;"></i>
+              <i class="pnv05-atick pnv05-atick-a" style="left: 26.25cqw;"></i>
+              <i class="pnv05-atick pnv05-atick-a" style="left: 35cqw;"></i>
+
+              <div class="pnv05-alabel pnv05-alabel-a" style="left: -3.5cqw;">$0</div>
+              <div class="pnv05-alabel pnv05-alabel-a" style="left: 5.25cqw;">$2.5K</div>
+              <div class="pnv05-alabel pnv05-alabel-a" style="left: 14cqw;">$5K</div>
+              <div class="pnv05-alabel pnv05-alabel-a" style="left: 22.75cqw;">$7.5K</div>
+              <div class="pnv05-alabel pnv05-alabel-a" style="left: 31.5cqw;">$10K</div>
+
+              <!-- $2,583 → $4,920 on the shared 35cqw = $10,000 scale -->
+              <i id="pnv05-bar-a" class="pnv05-bar pnv05-bar-a" style="left: 9.041cqw; width: 8.180cqw;"></i>
+              <i id="pnv05-tickmin-a" class="pnv05-endtick pnv05-endtick-min pnv05-tick-a" style="left: 8.981cqw;"></i>
+              <i id="pnv05-tickmax-a" class="pnv05-endtick pnv05-endtick-max pnv05-tick-a" style="left: 17.161cqw;"></i>
+              <div id="pnv05-valmin-a" class="pnv05-val pnv05-val-min" style="left: 9.041cqw;">$2,583</div>
+              <div id="pnv05-valmax-a" class="pnv05-val pnv05-val-max" style="right: 17.779cqw;">$4,920</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="pnv05-shell-b" class="pnv05-shell pnv05-shell-b">
+        <div id="pnv05-float-b" class="pnv05-float">
+          <div class="pnv05-card">
+            <div id="pnv05-eyebrow-b" class="pnv05-eyebrow">Recent cohorts</div>
+            <div id="pnv05-era-b" class="pnv05-era">2025-09 &rarr; 2026-08</div>
+            <div id="pnv05-divider-b" class="pnv05-divider"></div>
+
+            <div class="pnv05-track">
+              <i class="pnv05-gline pnv05-gline-b" style="left: 0cqw;"></i>
+              <i class="pnv05-gline pnv05-gline-b" style="left: 8.75cqw;"></i>
+              <i class="pnv05-gline pnv05-gline-b" style="left: 17.5cqw;"></i>
+              <i class="pnv05-gline pnv05-gline-b" style="left: 26.25cqw;"></i>
+              <i class="pnv05-gline pnv05-gline-b" style="left: 35cqw;"></i>
+
+              <i id="pnv05-axis-b" class="pnv05-axis"></i>
+
+              <i class="pnv05-atick pnv05-atick-b" style="left: 0cqw;"></i>
+              <i class="pnv05-atick pnv05-atick-b" style="left: 8.75cqw;"></i>
+              <i class="pnv05-atick pnv05-atick-b" style="left: 17.5cqw;"></i>
+              <i class="pnv05-atick pnv05-atick-b" style="left: 26.25cqw;"></i>
+              <i class="pnv05-atick pnv05-atick-b" style="left: 35cqw;"></i>
+
+              <div class="pnv05-alabel pnv05-alabel-b" style="left: -3.5cqw;">$0</div>
+              <div class="pnv05-alabel pnv05-alabel-b" style="left: 5.25cqw;">$2.5K</div>
+              <div class="pnv05-alabel pnv05-alabel-b" style="left: 14cqw;">$5K</div>
+              <div class="pnv05-alabel pnv05-alabel-b" style="left: 22.75cqw;">$7.5K</div>
+              <div class="pnv05-alabel pnv05-alabel-b" style="left: 31.5cqw;">$10K</div>
+
+              <!-- $5,126 → $9,367 on the SAME 35cqw = $10,000 scale -->
+              <i id="pnv05-bar-b" class="pnv05-bar pnv05-bar-b" style="left: 17.941cqw; width: 14.844cqw;"></i>
+              <i id="pnv05-tickmin-b" class="pnv05-endtick pnv05-endtick-min pnv05-tick-b" style="left: 17.881cqw;"></i>
+              <i id="pnv05-tickmax-b" class="pnv05-endtick pnv05-endtick-max pnv05-tick-b" style="left: 32.725cqw;"></i>
+              <div id="pnv05-valmin-b" class="pnv05-val pnv05-val-min" style="left: 17.941cqw;">$5,126</div>
+              <div id="pnv05-valmax-b" class="pnv05-val pnv05-val-max" style="right: 2.215cqw;">$9,367</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- track 4 · inner-edge badges (parent-mounted so they never inherit a card's rotateY) -->
+    <div class="clip" data-start="0" data-duration="9.5" data-track-index="4" style="position:absolute; inset:0;">
+      <div id="pnv05-badge-a" class="pnv05-badge pnv05-badge-a">bought cheap</div>
+      <div id="pnv05-badge-b" class="pnv05-badge pnv05-badge-b">bought dear</div>
+    </div>
+
+    <!-- track 5 · the closing line -->
+    <div class="clip" data-start="0" data-duration="9.5" data-track-index="5" style="position:absolute; inset:0;">
+      <i id="pnv05-closerule" class="pnv05-closerule"></i>
+      <div class="pnv05-close">
+        <span id="pnv05-close-1" class="pnv05-cline"><span class="pnv05-w">The</span> <span class="pnv05-w">price</span> <span class="pnv05-w">of</span> <span class="pnv05-w">a</span> <span class="pnv05-w">customer</span> <span class="pnv05-w">changed.</span></span>
+        <span id="pnv05-close-2" class="pnv05-cline"><span class="pnv05-w">The</span> <span class="pnv05-w">value</span> <span class="pnv05-w">of</span> <span class="pnv05-w">one</span> <span class="pnv05-w">did</span> <span class="pnv05-w">not.</span></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* ══ Scene 1 (0.0–1.6s) ═══════════════════════════════════════════════════════
+         The title slides DOWN from just above (blueprint's non-conflicting T-shape),
+         then the two cards arrive from opposite wings carrying mirrored book-open
+         rotateY tilts — the signature move. They settle FLAT: frame.md's surface is a
+         two-colour risograph print (no shadow, no z-axis), so the tilt is the arrival
+         gesture, not a held state. Cards are hairline outline only, per the packet. */
+      tl.fromTo("#pnv05-hair-top",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.85, ease: "power3.out", transformOrigin: "center center" }, 0.10);
+      tl.fromTo("#pnv05-hair-bottom",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.85, ease: "power3.out", transformOrigin: "center center" }, 0.10);
+
+      tl.fromTo("#pnv05-title-1",
+        { y: -26, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.70, ease: "power3.out" }, 0.02);
+      tl.fromTo("#pnv05-title-2",
+        { y: -26, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.70, ease: "power3.out" }, 0.16);
+
+      /* mirrored opposite-wing entry — left +TILT, right −TILT, hinged on the inner edge */
+      tl.fromTo("#pnv05-shell-a",
+        { x: -300, rotateY: 18, scale: 0.88, opacity: 0 },
+        { x: 0, rotateY: 0, scale: 1, opacity: 1, duration: 0.95, ease: "power3.out" }, 0.28);
+      tl.fromTo("#pnv05-shell-b",
+        { x: 300, rotateY: -18, scale: 0.88, opacity: 0 },
+        { x: 0, rotateY: 0, scale: 1, opacity: 1, duration: 0.95, ease: "power3.out" }, 0.44);
+
+      /* copy fades up during the settle tail, never after the cards are already idle */
+      tl.fromTo(["#pnv05-eyebrow-a", "#pnv05-era-a"],
+        { y: 14, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.50, ease: "power2.out", stagger: 0.09 }, 0.98);
+      tl.fromTo(["#pnv05-eyebrow-b", "#pnv05-era-b"],
+        { y: 14, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.50, ease: "power2.out", stagger: 0.09 }, 1.12);
+
+      tl.fromTo("#pnv05-divider-a",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.44, ease: "power2.inOut", transformOrigin: "left center" }, 1.34);
+      tl.fromTo("#pnv05-divider-b",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.44, ease: "power2.inOut", transformOrigin: "left center" }, 1.42);
+
+      /* ══ Scene 2 (1.6–3.6s) ═══════════════════════════════════════════════════════
+         The SCALE is built first, and built in BOTH cards at once: five identical
+         gridlines ($0 / $2.5K / $5K / $7.5K / $10K), one identical baseline, one
+         identical tick row. 35cqw == $10,000 in both cards, so every bar length and
+         bar position below is literal, not styled. Then the left range draws in teal. */
+      tl.fromTo(".pnv05-gline-a, .pnv05-gline-b",
+        { scaleY: 0, opacity: 0 },
+        { scaleY: 1, opacity: 1, duration: 0.50, ease: "power2.out", stagger: 0.035, transformOrigin: "bottom center" }, 1.64);
+
+      tl.fromTo(["#pnv05-axis-a", "#pnv05-axis-b"],
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.55, ease: "power2.inOut", transformOrigin: "left center" }, 1.90);
+
+      tl.fromTo(".pnv05-atick-a, .pnv05-atick-b, .pnv05-alabel-a, .pnv05-alabel-b",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.45, ease: "power1.out", stagger: 0.022 }, 1.98);
+
+      tl.fromTo("#pnv05-scalenote",
+        { y: 12, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.50, ease: "power2.out" }, 2.10);
+
+      /* Bar A: $2,583 → $4,920 = 157px of the 672px scale. Linear draw at a fixed
+         pixel velocity, so Bar B later takes visibly longer to cross the same plane. */
+      tl.fromTo("#pnv05-bar-a",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.80, ease: "none", transformOrigin: "left center" }, 2.28);
+      tl.fromTo("#pnv05-tickmin-a",
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.30, ease: "power2.out", transformOrigin: "top center" }, 2.30);
+      tl.fromTo("#pnv05-valmin-a",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.40, ease: "power2.out" }, 2.34);
+      tl.fromTo("#pnv05-tickmax-a",
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.28, ease: "power2.out", transformOrigin: "bottom center" }, 3.02);
+      tl.fromTo("#pnv05-valmax-a",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.40, ease: "power2.out" }, 3.06);
+
+      /* ══ Scene 3 (3.6–5.4s) ═══════════════════════════════════════════════════════
+         Bar B: $5,126 → $9,367 = 285px on the SAME scale — 1.81× the left bar, and it
+         starts just past where the left bar ended. Same linear pixel velocity as Bar A,
+         so the extra 1.45s of draw IS the extra money. */
+      tl.fromTo("#pnv05-bar-b",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 1.45, ease: "none", transformOrigin: "left center" }, 3.68);
+      tl.fromTo("#pnv05-tickmin-b",
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.30, ease: "power2.out", transformOrigin: "top center" }, 3.70);
+      tl.fromTo("#pnv05-valmin-b",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.40, ease: "power2.out" }, 3.74);
+      tl.fromTo("#pnv05-tickmax-b",
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.28, ease: "power2.out", transformOrigin: "bottom center" }, 5.06);
+      tl.fromTo("#pnv05-valmax-b",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.40, ease: "power2.out" }, 5.10);
+
+      /* ══ Scene 4 (5.4–7.0s) ═══════════════════════════════════════════════════════
+         The blueprint's punctuation: an inner-edge badge pops on each card, growing
+         out of the centre seam. The one overshoot in the shot, kept to a whisper so it
+         still reads as ink on paper rather than cartoon wobble. */
+      tl.fromTo("#pnv05-badge-a",
+        { scale: 0, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.52, ease: "back.out(1.25)" }, 5.46);
+      tl.fromTo("#pnv05-badge-b",
+        { scale: 0, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.52, ease: "back.out(1.25)" }, 5.78);
+
+      /* ══ Scene 5 (7.0–9.0s) ═══════════════════════════════════════════════════════
+         A short rule opens, then the line writes on word by word and everything is
+         STILL for the last ~0.7s into the cut. */
+      tl.fromTo("#pnv05-closerule",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.60, ease: "power2.inOut", transformOrigin: "center center" }, 6.96);
+      tl.fromTo("#pnv05-close-1 .pnv05-w",
+        { y: 18, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.50, ease: "power3.out", stagger: 0.055 }, 7.02);
+      tl.fromTo("#pnv05-close-2 .pnv05-w",
+        { y: 18, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.50, ease: "power3.out", stagger: 0.055 }, 7.52);
+
+      /* ══ counter-phase idle (1.75–7.0s) ═══════════════════════════════════════════
+         sine-wave-loop, onUpdate form, at the LOW end of its amplitude range: the two
+         cards bob in opposite phase (left sin(p), right sin(p+π)) so they never
+         conveyor-belt. Deterministic — no repeat, no yoyo, no wall clock. sin(0)=0 at
+         the start and an amplitude envelope drives it to exactly 0 by 7.0s, so the
+         closing line lands on a completely static frame. */
+      var IDLE_START = 1.75, IDLE_DUR = 5.25, CYCLES = 1.75, Y_AMP = 2.2, FADE = 0.25;
+      var phase = { p: 0 };
+      tl.to(phase, {
+        p: Math.PI * 2 * CYCLES,
+        duration: IDLE_DUR,
+        ease: "none",
+        onUpdate: function () {
+          var t = phase.p / (Math.PI * 2 * CYCLES);
+          var env = t < 1 - FADE ? 1 : Math.max(0, (1 - t) / FADE);
+          var a = document.getElementById("pnv05-float-a");
+          var b = document.getElementById("pnv05-float-b");
+          if (a) a.style.transform = "translateY(" + (Math.sin(phase.p) * Y_AMP * env).toFixed(3) + "px)";
+          if (b) b.style.transform = "translateY(" + (Math.sin(phase.p + Math.PI) * Y_AMP * env).toFixed(3) + "px)";
+        }
+      }, IDLE_START);
+
+      /* hold the full allocated duration — the last ~0.7s is pure stillness */
+      tl.to({}, { duration: 9 }, 0);
+
+      window.__timelines["05-price-not-value"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

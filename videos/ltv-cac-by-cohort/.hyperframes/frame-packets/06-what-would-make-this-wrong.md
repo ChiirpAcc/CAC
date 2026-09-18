@@ -10,29 +10,37 @@
 
 ## Frame 6 — What would make this wrong
 
-- scene: Three caveats replace one another in the same place, each one a full stop
-- duration: 9s
-- transition_in: crossfade
+- scene: Three caveats replace one another under a header that never moves
+- duration: 22s
+- transition_in: cut
 - status: outline
-- voiceover: "Realised, not projected: a young cohort sits low because it is young. Cost per logo assumes a month of spend bought that month of logos. Cohorts before 2024-09 are missing cost data, not missing performance."
+- voiceover: "Realised, not projected: a young cohort sits low because it is young. Cost per logo assumes a month of spend bought that month of logos. Cohorts before 2024-09 are absent because acquisition cost is not recorded then."
 - type: benefit_highlight
 - persuasion: State the defeaters yourself, which is what makes the finding usable
 - beat: credibility
 - blueprint: kinetic-type-beats (Adapt)
 - focal: the current caveat line
-- roles: caveat line = foreground subject · the standing header "What would make this wrong" = supporting · hairline grid = background (dim ~35%)
+- roles: caveat line = foreground subject · standing header = supporting · hairline grid = background
 - poster: 4s
 - src: compositions/frames/06-what-would-make-this-wrong.html
 
-Adapt: keep the statement-beats structure and the hard in-place swap, but
-there is no spring-pop payoff at the end. The last caveat simply holds. The
-site's house rule is to say the finding and then say what would make it
-wrong, and a punchline here would undercut that.
+Adapt: statement beats with a hard in-place swap, and deliberately NO payoff.
+The last caveat simply holds. A punchline here would undercut the point.
 
-Scene 1 (0.0-1.2s): the header "What would make this wrong" sets once in amber micro-caps on the narrow left rail of an asymmetric 70/30 split. It never moves again for the rest of the frame.
-Scene 2 (1.2-3.6s): the first caveat writes on in the wide right column, Newsreader, ink: "Realised, not projected. A young cohort sits low because it is young." A mono tag "the right-hand columns will keep rising" settles beneath it in ink-soft.
-Scene 3 (3.6-6.0s): hard cut in place. The first caveat is replaced on the same baseline by: "Cost per logo assumes a month of spend bought that month of logos." Tag beneath: "a long sales cycle would put spend on the wrong cohort."
-Scene 4 (6.0-9.0s): hard cut again to the third: "Cohorts before 2024-09 are absent because acquisition cost is not recorded then." Tag beneath: "an absence of data, not a verdict." Holds STILL to the end with no payoff beat.
+This frame carried 63 words in 9 seconds in the first cut, roughly three times
+reading speed, and it is the main reason the video failed. Each caveat now gets
+just over 7 seconds, which is about 19 words at 2.7 words per second, and the
+tag beneath it is part of that budget rather than an extra.
+
+The header occupies the eyebrow zone at the left margin and NEVER moves after
+Scene 1. Each caveat sets in the content zone at body scale or larger; each tag
+sets in the footnote zone. Every caveat and tag uses the same slot, so only the
+words change.
+
+Scene 1 (0.0-0.8s): header "WHAT WOULD MAKE THIS WRONG" sets once in amber mono caps in the eyebrow zone, with the 01/03 rail counter beneath it.
+Scene 2 (0.8-7.8s): caveat 1, "Realised, not projected. A young cohort sits low because it is young.", wipes on line by line. Tag settles at 2.0s: "The right-hand columns will keep rising." Then over four seconds of held reading.
+Scene 3 (7.8-15.0s): HARD CUT in place to caveat 2, "Cost per logo assumes a month of spend bought that month of logos." Counter steps to 02/03. Tag at 9.0s: "A long sales cycle would put spend on the wrong cohort." Held.
+Scene 4 (15.0-22.0s): HARD CUT to caveat 3, "Cohorts before 2024-09 are absent because acquisition cost is not recorded then." Counter steps to 03/03. Tag at 16.2s: "An absence of data, not a verdict." Holds dead still to the end with no closing move.
 
 ## Selected blueprint: kinetic-type-beats
 
