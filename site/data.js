@@ -427,6 +427,114 @@ export function cohortEconomics(data, cohorts, { margin }) {
   });
 }
 
+
+// Departures counted from the file rather than taken from the summary.
+//
+// churned_logos books a departure when the pipeline sees the transition. A
+// customer whose subscription simply drops out of the Stripe export never
+// produces one: they are present one month, absent the next, and no churn is
+// recorded. In 2026 that is 182 customers, 179 of whom carried cash in their
+// last six months and 156 of whom the subscription export itself marks
+// churned with an end date. They are real departures, not test accounts.
+//
+// Over the last six months the summary books 240 and the file loses 399, so
+// the reported figure understates departures by about two thirds. The
+// difference decides whether the base is growing or shrinking, so both are
+// carried and the charts say which they are using.
+export function departures(data) {
+  const live = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!live.has(row.month)) live.set(row.month, new Set());
+    live.get(row.month).add(row.id);
+  }
+  const months = [...live.keys()].sort();
+  return months.map((month, i) => {
+    if (!i) return { month, left: null, entered: null, base: live.get(month).size, rate: null };
+    const prev = live.get(months[i - 1]);
+    const now = live.get(month);
+    let left = 0;
+    for (const id of prev) if (!now.has(id)) left += 1;
+    let entered = 0;
+    for (const id of now) if (!prev.has(id)) entered += 1;
+    return { month, left, entered, base: prev.size, rate: prev.size ? left / prev.size : null };
+  });
+}
+
+
+// Acquisition cost broken out by category, month by month.
+//
+// The categories are the ones the spend actually divides into, not the
+// ledger's own sections: who you employ to sell, what you buy to generate
+// demand, and what it costs to stand in a room with customers. The bucket
+// rules are the pipeline's; only the grouping is here.
+//
+// Partnerships is the one split line that reaches acquisition, at 100%.
+// Customer Success is settled at 0% and Technical Account Manager sits in
+// cost of sales, so neither appears. The total reconciles to
+// cac_total_actual, which is what the pipeline itself reports.
+export const COST_CATEGORIES = [
+  { key: 'ae',          label: 'Account Executives',   match: /Account Executive/i },
+  { key: 'sdr',         label: 'SDR',                  match: /SDR/i },
+  { key: 'salesmgmt',   label: 'Sales management',     match: /Sales Management/i },
+  { key: 'partnerships',label: 'Partnerships',         match: /Partnerships/i },
+  { key: 'affiliate',   label: 'Affiliate marketing',  match: /Affiliate/i },
+  { key: 'services',    label: 'Agencies and services',match: /Professional Services/i },
+  { key: 'advertising', label: 'Advertising',          match: /Advertising/i },
+  { key: 'software',    label: 'Sales software',       match: /S&M - Software/i },
+  { key: 'events',      label: 'Trade shows and events',match: /6100-07/ },
+  { key: 'travel',      label: 'Travel',               match: /6100-4[1-5]/ },
+];
+
+export function acquisitionCosts(data, { months = 12 } = {}) {
+  const rows = data.expenses.filter(e =>
+    e.bucket === 'CAC' || (e.bucket === 'SPLIT' && /Partnerships/i.test(e.account || '')));
+
+  const all = [...new Set(rows.map(e => e.month))].sort();
+  const window = all.slice(-months);
+  const inWindow = new Set(window);
+
+  const byCategory = new Map();
+  for (const c of COST_CATEGORIES) byCategory.set(c.key, new Map());
+  const other = new Map();
+
+  for (const e of rows) {
+    if (!inWindow.has(e.month)) continue;
+    const cat = COST_CATEGORIES.find(c => c.match.test(e.account || ''));
+    const target = cat ? byCategory.get(cat.key) : other;
+    target.set(e.month, (target.get(e.month) || 0) + (e.amount || 0));
+  }
+
+  const logos = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+  const reported = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+
+  const categories = COST_CATEGORIES.map(c => ({
+    key: c.key,
+    label: c.label,
+    values: window.map(m => byCategory.get(c.key).get(m) || 0),
+  }));
+  const otherValues = window.map(m => other.get(m) || 0);
+  if (otherValues.some(v => v > 0)) {
+    categories.push({ key: 'other', label: 'Other acquisition', values: otherValues });
+  }
+
+  const totals = window.map((m, i) => categories.reduce((s, c) => s + c.values[i], 0));
+
+  return {
+    months: window,
+    categories,
+    totals,
+    logos: window.map(m => logos.get(m) ?? null),
+    costPerLogo: window.map((m, i) => {
+      const n = logos.get(m);
+      return n ? totals[i] / n : null;
+    }),
+    // What the pipeline says the same months cost, so the table can show
+    // whether this build and the workbook agree.
+    reported: window.map(m => reported.get(m) ?? null),
+  };
+}
+
 // Blended retention, indexed to month 2.
 //
 // Month 1 carries setup and onboarding fees, so indexing there turns a

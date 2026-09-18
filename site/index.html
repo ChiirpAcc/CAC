@@ -58,7 +58,7 @@
         <h3>5. Monthly logo churn rate</h3>
       </figcaption>
       <div class="plot" id="chart-churn"></div>
-      <p class="note">Churned logos over the prior month closing base.</p>
+      <p class="note" id="churn-note"></p>
     </figure>
 
     <figure class="card">
@@ -332,6 +332,29 @@
 
   </div>
 
+  <div class="wrap section-break">
+    <h2>What acquisition costs</h2>
+    <p class="section-intro">
+      Every line the pipeline counts as acquisition, by month, with the logo
+      count and the cost per logo underneath it. Partnerships is the one split
+      line that reaches this total, at 100%; Customer Success is settled at 0%
+      and Technical Account Manager sits in cost of sales, so neither appears.
+    </p>
+  </div>
+
+  <div class="wrap charts">
+    <figure class="card wide" id="fig-costs">
+      <figcaption>
+        <h3>24. Acquisition cost by category, and what it bought</h3>
+      </figcaption>
+      <div class="table-scroll">
+        <table class="data-table cost-table" id="cost-table"></table>
+      </div>
+      <p class="finding" id="cost-finding"></p>
+      <p class="note" id="cost-note"></p>
+    </figure>
+  </div>
+
   <footer class="wrap site-footer">
     <h2>What is solid and what is not</h2>
     <p>
@@ -342,10 +365,12 @@
       an open question rather than a measurement.
     </p>
     <p>
-      Two limits worth carrying: gross profit here is what a cohort has
-      actually returned to date rather than a projection, so young cohorts are
-      understated by construction. And the second Stripe environment has not
-      been pulling, so anything it alone carries is missing from these cohorts.
+      Two limits worth carrying. Gross profit here is what a cohort has actually
+      returned to date rather than a projection, so young cohorts are understated
+      by construction. And departures are counted two ways: the push books a churn
+      when it sees the transition, while a customer whose subscription drops out of
+      the Stripe export simply stops appearing. The second count is about two thirds
+      higher, and which one you use decides whether the base is growing or shrinking.
     </p>
   </footer>
 

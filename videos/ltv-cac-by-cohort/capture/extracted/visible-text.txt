@@ -1,0 +1,40 @@
+CHART 1: LTV:CAC BY COHORT
+
+What it plots
+Gross profit realised to date over acquisition cost, per logo, for each
+monthly cohort. 24 cohorts, 2024-09 through 2026-08. Reference lines sit at
+1.0x (break-even) and 3.0x (the goal).
+
+The live figures (2026-09-18)
+Best cohort: 2024-10, 3.75x, on $2,583 cost per logo, returning $9,696 gross
+profit per logo from 62 logos.
+Earliest cohort in the window: 2024-09, 2.61x, $5,532 cost.
+12 of 24 cohorts sit below 1.0x.
+Newest cohort: 2026-08, 0.14x, $9,367 cost per logo, 1 month observed.
+2026-01: 0.61x on $7,962. 2025-09: 0.97x on $7,079. 2025-05: 1.95x on $3,117.
+
+Cost per logo by era
+The 2024-09 through 2025-05 run sits mostly between $2,583 and $4,920.
+The 2025-09 through 2026-08 run sits mostly between $5,126 and $9,367.
+Roughly a tripling between the best early cohort and the newest one.
+
+The finding
+The model works and has been proven to work. The earliest cohorts in the
+window returned two to nearly four times what they cost, on roughly a third
+of the acquisition cost of the recent ones. What has broken is the price of a
+customer, not the value of one. At the cost per logo the newest cohorts
+carry, the same retention curve cannot clear the bar. The lever here is
+acquisition cost, not upsell or pricing.
+
+What would make this wrong
+LTV here is gross profit realised to date, not a projection, so a cohort
+partly sits where it does because of its age. The rightmost columns will keep
+rising. Cohorts younger than 6 months are drawn in grey rather than withheld,
+because a young cohort sits low for want of time rather than for want of
+quality.
+Cost per logo assumes a month of spend bought that month of logos. A long
+sales cycle would push spend onto the wrong cohort throughout.
+Cohorts before 2024-09 are absent because acquisition cost is not recorded
+then, not because they performed badly.
+Cost and gross profit are divided by the same cohort count, so the ratio
+compares like with like.

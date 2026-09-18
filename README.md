@@ -22,33 +22,38 @@ automatically, so a push is live in about thirty seconds.
 
 ## What you need to know before reading the charts
 
-### The base count was wrong, and the fix has landed
+### The base is right. Departures are not.
 
-The pipeline used to decide whether a customer was present by asking whether
-their MRR was above zero. A customer billed $900 who did not pay that month
-dropped to zero, read as churned, and read as a reactivation when they paid
-again. One customer, two invented events.
+Active logos for 2026-08 read **1,048** against a reported ~1,017, within 3%.
+The presence correction has fully landed and the site reads presence from
+`event_type`: the live types are `new`, `reactivation`, `flat`, `expansion`
+and `contraction`, and counting them reproduces `active_logos` exactly across
+all 93 months. Treat the base as sound.
 
-That is fixed upstream, and the site now reads presence from `event_type`
-rather than from `eop_mrr`. The live event types are `new`, `reactivation`,
-`flat`, `expansion` and `contraction`; `churn` is the month a customer left.
-Across all 94 months that count equals `active_logos` in the monthly summary
-exactly, with no month out by one.
+What is not sound is the count of customers leaving.
 
-`eop_mrr` is still the revenue and is still legitimately zero for a customer
-who has been billed and has not paid. Presence and payment are separate
-questions and the two columns now answer one each.
+`churned_logos` books a departure when the pipeline sees the transition. A
+customer whose subscription drops out of the Stripe export never produces one:
+present one month, absent the next, nothing recorded. In 2026 that is **182
+customers**, and they are not test accounts — 179 carried cash in their last
+six months, $573,144 between them, and the subscription export itself marks
+156 as churned with an end date.
 
-August 2026 reads **960** active against a reported ~1,017. Year to date the
-file shows 587 churned and 374 acquired, against 456 and 324 reported, with
-reactivations down from 229 to 26. The remaining gap is small enough that the
-figures are usable; it was not before.
+Three counts of the same year:
 
-One consequence worth knowing when reading the trailing month: a logo is now
-counted when it arrives, but its first payment lands later. August 2026 books
-33 new logos against $5,050 of new MRR, $153 each where every other month runs
-near $680. Charts that divide one by the other suppress a month until both
-halves have settled.
+| | 2026 departures |
+|---|---|
+| `churned_logos` as pushed | 310 |
+| Customers that actually left the file | **492** |
+| The business's own figure | 456 |
+
+Over the last six months the push books 240 and the file loses 399, 66% more.
+The difference decides the direction of the business: at the reported rate the
+base converges to about 1,365, up 30%; at the observed rate it converges to
+about 821, down 22%.
+
+The site now draws both on chart 5 and labels which is which. Read the derived
+line as the rate and `churned_logos` as a floor.
 
 ### There are three counts of a new logo and they disagree
 

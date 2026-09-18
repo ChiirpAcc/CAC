@@ -23,6 +23,8 @@ import sys
 from pathlib import Path
 
 DATA = Path(__file__).resolve().parent.parent / "data"
+LIVE_EVENTS = {"new", "reactivation", "flat", "expansion", "contraction"}
+
 MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 REQUIRED_TABS = {
@@ -216,6 +218,52 @@ def check_presence_is_not_payment(waterfall, customers):
                f"presence is carried by event_type rather than by the amount.")
 
 
+def check_departures_are_booked(waterfall, customers):
+    """Catch customers leaving the base without a churn event.
+
+    churned_logos books a departure when the pipeline sees the transition. A
+    customer whose subscription drops out of the Stripe export never produces
+    one: they are present one month, absent the next, and nothing is recorded.
+    Those are real departures, not test accounts, and leaving them uncounted
+    understates churn by enough to reverse the direction of the base.
+    """
+    if not customers:
+        return
+    live = {}
+    for row in customers.get("rows", []):
+        month = str(row.get("month", ""))
+        if not MONTH.match(month) or row.get("event_type") not in LIVE_EVENTS:
+            continue
+        live.setdefault(month, set()).add(row.get("customer_id"))
+
+    months = sorted(live)
+    if len(months) < 8:
+        return
+    window = months[-6:]
+
+    left = 0
+    for month in window:
+        previous = months[months.index(month) - 1]
+        left += len(live[previous] - live[month])
+
+    booked = 0
+    for row in waterfall.get("rows", []):
+        if str(row.get("month", "")) in window:
+            booked += number(row.get("churned_logos")) or 0
+
+    if booked and left > booked * 1.15:
+        report("error", "Waterfall Summary",
+               f"over {window[0]} to {window[-1]} the push books {booked:,.0f} departures "
+               f"while {left:,} customers present in one month are absent the next, "
+               f"{left / booked - 1:.0%} more. A customer whose subscription drops out of "
+               f"the source stops appearing without generating a churn event, so churn is "
+               f"understated. Check the derived figure before using churned_logos.")
+    elif booked:
+        report("note", "Waterfall Summary",
+               f"departures reconcile: {booked:,.0f} booked against {left:,} observed over "
+               f"the last six months.")
+
+
 def main():
     index = load("index.json")
     if index is None:
@@ -246,7 +294,9 @@ def main():
     waterfall = load("waterfall_summary.json")
     if waterfall:
         check_zero_for_blank(waterfall, "Waterfall Summary", ["new_mrr", "churn_mrr"])
-        check_presence_is_not_payment(waterfall, load("customer_waterfall.json"))
+        customers = load("customer_waterfall.json")
+        check_presence_is_not_payment(waterfall, customers)
+        check_departures_are_booked(waterfall, customers)
 
         # The base count is the one number that needs no interpretation, so a
         # sharp move in it is worth a look even when nothing is malformed.

@@ -487,3 +487,15 @@ figcaption { margin-bottom: .9rem; }
 }
 
 .tick-y-right { text-anchor: start; }
+
+/* The acquisition cost table is wide by nature: a dozen months of columns and
+   a category per row. It scrolls in its own container rather than pushing the
+   page sideways, and the two summary rows are ruled off so the CAC
+   calculation reads as a calculation rather than as three more categories. */
+.cost-table { min-width: 860px; font-variant-numeric: tabular-nums; }
+.cost-table td:first-child, .cost-table th:first-child {
+  position: sticky; left: 0; background: var(--surface); white-space: nowrap;
+}
+.cost-table .rule-above td { border-top: 1px solid var(--rule-strong); }
+.cost-table .emphasis td { border-bottom: 0; }
+.cost-table .total-col { border-left: 1px solid var(--rule-strong); }

@@ -5,7 +5,7 @@ import {
   seasonalSurvival,
   hasRevenueClasses, CLASS_MARGINS, environmentSplit,
   signupEconomics, priceAgainstRetention,
-  arrivalsAgainstChurn, HISTORY_STARTS,
+  arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
@@ -55,6 +55,77 @@ function costByEra(shown) {
     + `, which is most of why the older cohorts sit higher.`;
 }
 
+
+// 24. What acquisition costs, by category and month.
+//
+// Every other chart on this page reads the acquisition total as one number.
+// This is the number opened up, because the question the total cannot answer
+// is which line moved. The bottom three rows are the whole CAC calculation:
+// what was spent, what arrived, and the division of one by the other.
+function renderCostTable(data) {
+  const c = acquisitionCosts(data, { months: 12 });
+  if (!c.months.length) {
+    $('cost-table').innerHTML = '<tbody><tr><td>No acquisition spend in the window.</td></tr></tbody>';
+    return;
+  }
+
+  const money = v => (v ? '$' + Math.round(v).toLocaleString() : '–');
+  const head = '<thead><tr><th>Category</th>'
+    + c.months.map(m => `<th class="n">${fmt.monthLabel(m)}</th>`).join('')
+    + '<th class="n total-col">12 months</th></tr></thead>';
+
+  const sum = vals => vals.reduce((s, v) => s + v, 0);
+  const body = c.categories
+    .filter(cat => sum(cat.values) > 0)
+    .sort((a, b) => sum(b.values) - sum(a.values))
+    .map(cat => `<tr><td>${cat.label}</td>`
+      + cat.values.map(v => `<td class="n">${money(v)}</td>`).join('')
+      + `<td class="n total-col">${money(sum(cat.values))}</td></tr>`)
+    .join('');
+
+  const totalRow = `<tr class="rule-above"><td><strong>Total acquisition cost</strong></td>`
+    + c.totals.map(v => `<td class="n"><strong>${money(v)}</strong></td>`).join('')
+    + `<td class="n total-col"><strong>${money(sum(c.totals))}</strong></td></tr>`;
+
+  const logoRow = `<tr><td>New logos</td>`
+    + c.logos.map(v => `<td class="n">${v === null ? '–' : fmt.int(v)}</td>`).join('')
+    + `<td class="n total-col">${fmt.int(c.logos.reduce((s, v) => s + (v || 0), 0))}</td></tr>`;
+
+  const totalLogos = c.logos.reduce((s, v) => s + (v || 0), 0);
+  const cplRow = `<tr class="rule-above emphasis"><td><strong>Cost per logo</strong></td>`
+    + c.costPerLogo.map(v => `<td class="n"><strong>${v === null ? '–' : money(v)}</strong></td>`).join('')
+    + `<td class="n total-col"><strong>${totalLogos ? money(sum(c.totals) / totalLogos) : '–'}</strong></td></tr>`;
+
+  $('cost-table').innerHTML = head + '<tbody>' + body + totalRow + logoRow + cplRow + '</tbody>';
+
+  // Does this build's total agree with the one the workbook publishes?
+  const drift = c.months.map((m, i) =>
+    (c.reported[i] === null ? null : c.totals[i] - c.reported[i]));
+  const worst = drift.reduce((a, b) => (b !== null && Math.abs(b) > Math.abs(a || 0) ? b : a), 0);
+
+  const first = c.costPerLogo.find(v => v !== null);
+  const last = [...c.costPerLogo].reverse().find(v => v !== null);
+  const headcount = c.categories.filter(x =>
+    ['ae', 'sdr', 'salesmgmt', 'partnerships'].includes(x.key));
+  const headcountTotal = sum(headcount.map(x => sum(x.values)));
+  const grand = sum(c.totals);
+
+  $('cost-finding').innerHTML =
+    `<strong>${money(grand)} bought ${fmt.int(totalLogos)} logos, ${money(grand / totalLogos)} each.</strong> `
+    + `People you employ to sell are ${fmt.pct(headcountTotal / grand, 0)} of it. `
+    + `Cost per logo ran ${money(first)} in ${fmt.monthLabel(c.months[0])} against `
+    + `${money(last)} in ${fmt.monthLabel(c.months[c.months.length - 1])}.`;
+
+  $('cost-note').textContent =
+    'Categories are matched from the account name, so a renamed account falls into Other '
+    + 'rather than disappearing. The total is built from the expense lines here rather than '
+    + 'read from the pipeline, which is a check on both: the two agree to within '
+    + money(Math.abs(worst)) + ' in the worst month. New logos are the monthly summary count, '
+    + 'the same one the cohort charts use, so cost per logo here is on the same basis as '
+    + 'everywhere else on this page rather than the cac_per_logo the workbook publishes, '
+    + 'which divides by a larger count.';
+}
+
 // A cohort this young cannot have returned its acquisition cost whatever its
 // quality, because the measure is profit realised to date rather than a
 // projection. Drawing them invites the age bias to be read as decline.
@@ -79,6 +150,7 @@ function boot() {
     renderForward();
     renderSeasonal();
     renderSignups();
+    renderCostTable(data);
     renderAnnotations();
     $('horizon').addEventListener('input', renderSeasonal);
     $('arrival-horizon').addEventListener('input', renderArrivals);
@@ -131,22 +203,58 @@ function renderStatic() {
     ? `Indexed to month 2, because month 1 carries setup and onboarding fees and indexing there turns a one-off charge ending into an apparent cliff. Held to a 24 month horizon, and drawn only while at least 20 cohorts remain in sample. Here it runs to month ${blended[blended.length - 1].offset}.`
     : 'Not enough cohort history yet.';
 
-  // 5. Monthly logo churn rate, against the 5% threshold.
+  // 5. Monthly logo churn, both ways of counting it.
+  //
+  // The summary books a churn when the pipeline sees the transition. A
+  // customer whose subscription drops out of the Stripe export never produces
+  // one: present one month, absent the next, nothing recorded. Counting who
+  // actually left the file finds about two thirds again as many, and they are
+  // not test accounts. Drawing only the reported line would understate the
+  // rate that decides whether the base grows or shrinks.
   const churnSeries = recent.map((r, i) => {
     const previous = i === 0 ? null : recent[i - 1];
     const base = previous ? previous.activeLogos : null;
     return base ? (r.churnedLogos || 0) / base : null;
   });
-  lineChart($('chart-churn'), {
+  const dep = new Map(departures(data).map(d => [d.month, d]));
+  const departureSeries = recent.map(r => dep.get(r.month)?.rate ?? null);
+
+  multiLineChart($('chart-churn'), {
     labels,
-    values: churnSeries,
-    colour: INK.negative,
+    series: [
+      { label: 'Customers that left the file', colour: INK.negative,
+        values: departureSeries },
+      { label: 'Churn as reported by the push', colour: INK.secondary,
+        values: churnSeries, dashed: true },
+    ],
     yFormat: v => fmt.pct(v, 1),
     refs: [{ value: CHURN_THRESHOLD, label: '5% threshold', variant: 'ref-goal' }],
-    describe: i => `<strong>${fmt.monthLabel(recent[i].month)}</strong>
-      <span>Churn ${fmt.pct(churnSeries[i], 2)}</span>
-      <span>${fmt.int(recent[i].churnedLogos)} logos lost</span>`,
+    legendItems: [
+      { label: 'Customers that left the file', colour: INK.negative },
+      { label: 'Churn as reported by the push', colour: INK.secondary },
+    ],
+    describe: i => {
+      const d = dep.get(recent[i].month);
+      return `<strong>${fmt.monthLabel(recent[i].month)}</strong>
+        <span>Left the file ${d && d.rate !== null ? fmt.pct(d.rate, 2) : '--'}`
+        + (d && d.left !== null ? `, ${fmt.int(d.left)} customers` : '') + `</span>
+        <span>Reported churn ${fmt.pct(churnSeries[i], 2)}, ${fmt.int(recent[i].churnedLogos)} logos</span>`;
+    },
   });
+
+  const depRecent = departures(data).filter(d => d.rate !== null).slice(-6);
+  const sumLeft = depRecent.reduce((s, d) => s + d.left, 0);
+  const sumRep = recent.slice(-depRecent.length).reduce((s, r) => s + (r.churnedLogos || 0), 0);
+  $('churn-note').innerHTML =
+    'Two counts of the same thing. The dashed line is churned_logos as the push reports it. '
+    + 'The solid line counts customers present one month and absent the next, taken from the '
+    + 'customer file itself. Over the last ' + depRecent.length + ' months the push books '
+    + fmt.int(sumRep) + ' departures and the file loses ' + fmt.int(sumLeft) + ', '
+    + (sumRep ? ((sumLeft / sumRep - 1) * 100).toFixed(0) : '0') + '% more. The difference is '
+    + 'customers whose subscription drops out of the Stripe export without generating a churn '
+    + 'event. They are not test accounts: in 2026 there are 182 of them, 179 carried cash in '
+    + 'their last six months, and the subscription export itself marks 156 as churned with an '
+    + 'end date. Read the solid line as the rate and the dashed one as a floor.';
 
   // 6. Retention at month 3 and month 6, one point per cohort.
   const windowed = cohorts.slice(-COHORT_WINDOW);
@@ -610,16 +718,28 @@ function renderForward() {
       + 'recognised MRR rather than dividing it: eop_mrr tracks platform recurring revenue in '
       + 'the ledger, and usage, one-time and pass-through are billed on top of it. Each is '
       + 'therefore margined in its own right and none is subtracted from the platform base. '
-      + '<strong>The second Stripe environment is not reaching the revenue columns.</strong> '
-      + 'It carries ' + fmt.int(s2) + ' of ' + fmt.int(data.customers.length)
-      + ' customer months, ' + fmt.pct(s2Share, 2) + ', which reads as negligible and is not. '
-      + fmt.int(s2Ids.size) + ' customers have arrived in it since ' + S2_FIRST + ' and all of '
-      + 'them have paid; ' + fmt.int(s2WithMrr.size) + ' have ever registered MRR. In '
-      + fmt.monthLabel(trailing) + ' it was ' + fmt.int(newestS2.length) + ' of '
-      + fmt.int(newest.length) + ' new logos. Every figure on this page that counts revenue '
-      + 'therefore understates the newest business, and the collapse in new MRR is mostly this '
-      + 'rather than a collapse in demand: first-month cash from new logos has held roughly '
-      + 'flat while recognised new MRR has fallen away.'
+      + (() => {
+        // Whether this environment reaches the revenue columns is a fact to be
+        // read, not a claim to be carried. It did not for months, the numbers
+        // here updated when it started to and the sentence around them did
+        // not, which is the same fault this page has caught twice elsewhere.
+        const recognised = s2Ids.size ? s2WithMrr.size / s2Ids.size : 0;
+        const head = recognised >= 0.9
+          ? '<strong>The second Stripe environment is now reaching the revenue columns.</strong> '
+          : '<strong>The second Stripe environment is not reaching the revenue columns.</strong> ';
+        const body = 'It carries ' + fmt.int(s2) + ' of ' + fmt.int(data.customers.length)
+          + ' customer months, ' + fmt.pct(s2Share, 2) + '. ' + fmt.int(s2Ids.size)
+          + ' customers have arrived in it since ' + S2_FIRST + ', all of them paying, and '
+          + fmt.int(s2WithMrr.size) + ' register MRR. In ' + fmt.monthLabel(trailing)
+          + ' it was ' + fmt.int(newestS2.length) + ' of ' + fmt.int(newest.length)
+          + ' new logos, so it is most of the new business rather than a rounding error. ';
+        return head + body + (recognised >= 0.9
+          ? 'It was invisible to every revenue figure until this push, which is why the '
+            + 'earlier collapse in new MRR read as a collapse in demand and was not one.'
+          : 'Every figure here that counts revenue therefore understates the newest business, '
+            + 'and the fall in new MRR is mostly that rather than demand: first-month cash '
+            + 'from new logos has held roughly flat throughout.');
+      })()
     : '<strong>Still estimated:</strong> a single 75.7% platform margin is applied to all '
       + 'revenue, because the pushed customer waterfall carries no revenue class columns. '
       + 'The query emits them; the push does not carry them, so the fix is upstream rather '
