@@ -19,6 +19,62 @@
 
 <div id="dashboard" hidden>
 
+  <nav class="wrap tabs" role="tablist" aria-label="Views">
+    <button id="tab-story" role="tab" aria-selected="false" aria-controls="view-story">The argument</button>
+    <button id="tab-all" role="tab" aria-selected="true" aria-controls="view-all">Every chart</button>
+  </nav>
+
+  <!-- The story view holds no charts of its own. The four it presents are
+       moved here from the full page and moved back on the way out, so there
+       is one of each and they cannot drift apart. -->
+  <section id="view-story" class="wrap story" hidden>
+    <header class="story-head">
+      <h2>What changed, in four charts</h2>
+      <p>Read in order. The first three rule things out; the last one is what is left.</p>
+    </header>
+
+    <div class="story-step" data-figure="fig-era">
+      <p class="story-lead"><span class="story-num">1</span>
+        <strong>It is not that cohorts decay faster than they used to.</strong>
+        Line the intakes up by age and the three years sit within a few points
+        of each other. A customer won in 2026 leaves at about the rate one won
+        in 2024 did.</p>
+    </div>
+
+    <div class="story-step" data-figure="fig-arrivals-months">
+      <p class="story-lead"><span class="story-num">2</span>
+        <strong>It is not that thin months are poisoning the base.</strong>
+        Adding the starting months one at a time, the recent ones land inside
+        the same cloud as the early ones. Nothing about the relationship moved
+        across the two years.</p>
+    </div>
+
+    <div class="story-step" data-figure="fig-arrivals-horizons">
+      <p class="story-lead"><span class="story-num">3</span>
+        <strong>And it is not hiding at a longer horizon.</strong>
+        Give churn one month to happen or six and the cloud lifts without
+        tilting. However long you wait, months with fewer arrivals do not churn
+        more.</p>
+    </div>
+
+    <div class="story-step" data-figure="fig-ltv">
+      <p class="story-lead"><span class="story-num">4</span>
+        <strong>What changed is the price of a customer.</strong>
+        Cut every cohort at the same age so none of the slope is the calendar.
+        What a customer returns has barely moved. What one costs has roughly
+        doubled, and that is the whole of it.</p>
+    </div>
+
+    <footer class="story-foot">
+      <p>Move the slider on the last chart. The gap holds at every age both
+        halves can reach, which is what rules out the calendar as the
+        explanation. Every figure here is drawn from the same push as the rest
+        of the page.</p>
+    </footer>
+  </section>
+
+  <div id="view-all">
+
   <div class="wrap charts">
 
     <figure class="card wide" id="fig-ltv">
@@ -83,7 +139,7 @@
       <p class="note" id="unit-note"></p>
     </figure>
 
-    <figure class="card wide">
+    <figure class="card wide" id="fig-era">
       <figcaption>
         <h3>8. Retention curve by era</h3>
       </figcaption>
@@ -308,7 +364,7 @@
 
   <div class="wrap charts">
 
-    <figure class="card wide">
+    <figure class="card wide" id="fig-arrivals-horizons">
       <figcaption>
         <h3>22. Churn against arrivals, one to six months</h3>
       </figcaption>
@@ -361,7 +417,7 @@
       </p>
     </figure>
 
-    <figure class="card wide">
+    <figure class="card wide" id="fig-arrivals-months">
       <figcaption>
         <h3>24. The same question, month by month</h3>
       </figcaption>
@@ -397,6 +453,8 @@
       <p class="note" id="cost-note"></p>
     </figure>
   </div>
+
+  </div><!-- view-all -->
 
   <footer class="wrap site-footer">
     <h2>What is solid and what is not</h2>

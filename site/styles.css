@@ -505,3 +505,53 @@ figcaption { margin-bottom: .9rem; }
 .line-shadow { fill: none; }
 .swatch-faint { opacity: 0.34; }
 .legend-faint { color: var(--ink-soft); }
+
+/* The two views. The story is a reading layout rather than a grid: one figure
+   per step, full width, with the argument in front of each chart instead of
+   underneath it. */
+.tabs {
+  display: flex; gap: 4px; padding-block: 18px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.tabs button {
+  appearance: none; background: none; border: 0;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  padding: 8px 14px; font: inherit; font-size: 0.94rem;
+  color: var(--ink-soft); cursor: pointer;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button.is-on { color: var(--ink); border-bottom-color: var(--series-1); }
+
+.story { max-width: 62rem; padding-block: 34px 72px; }
+.story-head { margin-bottom: 40px; }
+.story-head h2 { margin: 0 0 8px; }
+.story-head p { color: var(--ink-soft); margin: 0; max-width: 46rem; }
+
+.story-step { margin-bottom: 56px; }
+.story-lead {
+  font-size: 1.06rem; line-height: 1.6; color: var(--ink-mid);
+  max-width: 46rem; margin: 0 0 18px; padding-left: 44px; position: relative;
+}
+.story-lead strong { color: var(--ink); }
+.story-num {
+  position: absolute; left: 0; top: -2px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--surface-sunk); color: var(--ink-mid);
+  font-size: 0.86rem; font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* A borrowed figure sits on the page rather than in a grid cell, so it drops
+   the card's own width constraint and fills the reading column. */
+.story-step > figure { width: 100%; margin: 0; }
+.story-foot {
+  border-top: 1px solid var(--rule); padding-top: 20px;
+  color: var(--ink-soft); max-width: 46rem;
+}
+.story-foot p { margin: 0; }
+
+/* While reading, the annotations stay available but stop competing. */
+.reading .story details.annotate { margin-top: 14px; }
+@media (max-width: 640px) {
+  .story-lead { padding-left: 0; }
+  .story-num { position: static; margin: 0 8px 6px 0; }
+}

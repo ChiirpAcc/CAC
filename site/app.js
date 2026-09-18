@@ -429,6 +429,61 @@ const $ = id => document.getElementById(id);
 const COHORT_WINDOW = 24;
 const CHURN_THRESHOLD = 0.05;
 
+// The two views, and the four figures that appear in both.
+//
+// A chart can only live in one place in the document, so the story view does
+// not hold copies: it borrows the real figures and gives them back. Copying
+// them would mean two of everything to keep in step, and the pair would
+// disagree the first time one of them was updated and the other was not.
+//
+// Each figure remembers where it came from, so returning it puts it back in
+// its numbered position rather than at the end of the page.
+const STORY_FIGURES = ['fig-era', 'fig-arrivals-months', 'fig-arrivals-horizons', 'fig-ltv'];
+const homes = new Map();
+
+function rememberHomes() {
+  for (const id of STORY_FIGURES) {
+    const fig = $(id);
+    if (fig && !homes.has(id)) homes.set(id, { parent: fig.parentNode, next: fig.nextSibling });
+  }
+}
+
+function showView(which) {
+  const story = which === 'story';
+
+  if (story) {
+    for (const id of STORY_FIGURES) {
+      const fig = $(id);
+      const slot = document.querySelector(`.story-step[data-figure="${id}"]`);
+      if (fig && slot) slot.appendChild(fig);
+    }
+  } else {
+    // Back in reverse, so each insertBefore lands against a sibling that is
+    // already home.
+    for (const id of [...STORY_FIGURES].reverse()) {
+      const fig = $(id);
+      const home = homes.get(id);
+      if (fig && home) home.parent.insertBefore(fig, home.next);
+    }
+  }
+
+  $('view-story').hidden = !story;
+  $('view-all').hidden = story;
+  for (const [id, on] of [['tab-story', story], ['tab-all', !story]]) {
+    $(id).setAttribute('aria-selected', String(on));
+    $(id).classList.toggle('is-on', on);
+  }
+  document.documentElement.classList.toggle('reading', story);
+  window.scrollTo({ top: 0 });
+}
+
+function wireTabs() {
+  rememberHomes();
+  $('tab-story').addEventListener('click', () => showView('story'));
+  $('tab-all').addEventListener('click', () => showView('all'));
+  showView('all');
+}
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -443,6 +498,7 @@ function boot() {
     renderCostTable(data);
     renderSettledTotals(data);
     renderAnnotations();
+    wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
     $('forward-horizon').addEventListener('input', renderForward);
