@@ -504,7 +504,11 @@ function renderEra() {
     pick(era).filter(v => v !== null && Number.isFinite(v))[depth - 1];
 
   const draw = (node, pick, { money }) => {
-    const from = 0;
+    // The money chart starts at month 2, where its own base is set. See the
+    // note in retentionByYear: month 1 is not a clean 100% once each customer
+    // is capped at the rate they arrive on, because a part-billed first month
+    // leaves them under it.
+    const from = money ? 1 : 0;
     const shift = arr => arr.slice(from);
     const real = eras.flatMap(e => pick(e)).filter(v => v !== null && Number.isFinite(v));
     multiLineChart($(node), {
@@ -527,7 +531,7 @@ function renderEra() {
   };
 
   const logos = e => e.points;
-  const money = e => e.revenue;
+  const money = e => e.grossRevenue;
   draw('chart-era', logos, { money: false });
   draw('chart-era-revenue', money, { money: true });
 
@@ -542,32 +546,26 @@ function renderEra() {
     + `difference between the eras. The chart below asks the same question in money, and `
     + `there the years separate.`;
 
-  const rDepth = depthOf(money);
-  const rAt = e => valueAt(e, money, rDepth);
-  const lAt = e => valueAt(e, logos, rDepth);
-  // Signed, and read at the same age on both lines. Negative means the money
-  // line sits under the count: the accounts that left were larger than the
-  // ones that stayed. Positive means the reverse, which is a good result and
-  // would be hidden by ranking on the size of the gap alone.
-  const gap = e => (rAt(e) || 0) - (lAt(e) || 0);
-  const worst = eras.reduce((x, y) => (gap(y) < gap(x) ? y : x));
-  const best = eras.reduce((x, y) => (gap(y) > gap(x) ? y : x));
-  const spreadOf = pick => Math.max(...eras.map(e => valueAt(e, pick, rDepth) || 0))
-    - Math.min(...eras.map(e => valueAt(e, pick, rDepth) || 0));
-  const side = e => (gap(e) < 0 ? 'below' : 'above');
-  const points = e => Math.abs(gap(e) * 100).toFixed(1);
+  // Both read at month 6 off the month 2 base, so the gap between them is
+  // downgrades and departures rather than a difference in indexing.
+  const gAt = e => e.grossMonth6;
+  const lAt = e => e.logosMonth6FromMonth2;
+  const gap = e => (gAt(e) || 0) - (lAt(e) || 0);
+  const ranked = [...eras].sort((a, b) => gap(a) - gap(b));
+  const worst = ranked[0];
+  const mildest = ranked[ranked.length - 1];
+  const pts = e => Math.abs(gap(e) * 100).toFixed(1);
 
   $('era-revenue-finding').innerHTML =
-    `<strong>Weighted by what the customers were worth, the years pull apart, and `
-    + `${worst.year} is the one that pulls ${side(worst)}.</strong> At month ${rDepth} the `
-    + `revenue kept runs ${eras.map(e => `${e.year} ${fmt.pct(rAt(e), 1)}`).join(', ')}, a `
-    + `spread of ${(spreadOf(money) * 100).toFixed(1)} points against `
-    + `${(spreadOf(logos) * 100).toFixed(1)} on the head count. ${worst.year} sits `
-    + `${points(worst)} points ${side(worst)} its own logo line, ${fmt.pct(lAt(worst), 1)} of `
-    + `the customers against ${fmt.pct(rAt(worst), 1)} of the money they came in with. `
-    + `${best.year} sits ${points(best)} points ${side(best)} its own. Where a year falls `
-    + `against its logo line is the whole test: under it, the accounts leaving are bigger `
-    + `than the ones staying, and the head count is flattering the year.`;
+    `<strong>Every year loses more revenue than it loses customers, and the gap widens `
+    + `with each one.</strong> Measured from month 2, at month 6 the three years keep `
+    + `${eras.map(e => `${e.year} ${fmt.pct(gAt(e), 1)}`).join(', ')} of their revenue, `
+    + `against ${eras.map(e => `${fmt.pct(lAt(e), 1)}`).join(', ')} of their customers. `
+    + `That is a shortfall of ${eras.map(e => `${pts(e)} points in ${e.year}`).join(', ')}. `
+    + `${worst.year} is the worst of them: it keeps ${fmt.pct(lAt(worst), 1)} of the `
+    + `customers it had at month 2 and ${fmt.pct(gAt(worst), 1)} of the money, `
+    + `${pts(worst)} points apart, against ${pts(mildest)} in ${mildest.year}. `
+    + `The head count is the flattering number, and it is getting more flattering.`;
 
   const shared =
     'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
@@ -581,18 +579,20 @@ function renderEra() {
   $('era-note').textContent = shared
     + ' Indexed to month 1, where nothing distorts the count.';
   $('era-revenue-note').textContent = shared
-    + ' Each customer is weighted by what they were paying at the start and then only counted '
-    + 'while they are still there, so this is the logo curve with the customers sized. It '
-    + 'therefore falls for one reason only, which is customers leaving: expansion and '
-    + 'contraction among the ones who stay are deliberately left out, because netting them '
-    + 'against churn is what lets a revenue line sit above its own starting point and stop '
-    + 'being comparable to the count above it. Starting revenue is taken from each customer’s '
-    + 'second month rather than their first, because until mid-2025 the first carried a joining '
-    + 'charge as MRR that came off again the next month. One caveat sits under both lines: a '
-    + 'customer whose MRR is booked to zero is still recorded as present, and at month 6 that '
-    + 'is 7.6% of the surviving 2024 intake, 10.7% of 2025 and 21.4% of 2026. Both curves '
-    + 'therefore count some customers who are no longer paying anything, and they count more '
-    + 'of them in the newest year.';
+    + ' Gross revenue retention: every customer is capped at what they were paying in their '
+    + 'second month, so this falls both when a customer leaves and when one stays on less than '
+    + 'they arrived on, and expansion cannot lift it. Capping is what makes it comparable to '
+    + 'the count above; a line that nets expansion against churn can sit above its own starting '
+    + 'point and stops answering the same question. Chart 4 is the netted version. The second '
+    + 'month is the base rather than the first because until mid-2025 the first carried a '
+    + 'joining charge booked as MRR that came off again the next month, and because a '
+    + 'part-billed first month leaves a customer under the rate they arrive on. The line is '
+    + 'drawn from month 2 for the same reason, and the logo figures quoted beside it are '
+    + 'reindexed to month 2 so the gap is not an artefact of where each line starts. It is not '
+    + 'strictly monotonic: a customer who downgrades and later returns to their original rate '
+    + 'adds that money back. Much of the fall is customers still recorded as present with MRR '
+    + 'booked to zero, which at month 6 is 7.6% of the surviving 2024 intake, 10.7% of 2025 '
+    + 'and 21.4% of 2026.';
 }
 
 // The two views, and the four figures that appear in both.
@@ -604,7 +604,7 @@ function renderEra() {
 //
 // Each figure remembers where it came from, so returning it puts it back in
 // its numbered position rather than at the end of the page.
-const STORY_FIGURES = ['fig-era', 'fig-era-revenue', 'fig-blended',
+const STORY_FIGURES = ['fig-era', 'fig-era-revenue',
   'fig-arrivals-months', 'fig-arrivals-horizons', 'fig-ltv'];
 const homes = new Map();
 
@@ -1584,12 +1584,13 @@ const MEANS = {
     + 'below weights them, and the answer changes.',
 
   'chart-era-revenue':
-    'This is the version to act on. Where a year sits against its own logo line says which '
-    + 'end of the book is leaving: above it, the departures are the small accounts and the '
-    + 'count overstates the damage; below it, the larger accounts are going and the count '
-    + 'flatters the year. 2026 is the year sitting below. That makes it a named-account '
-    + 'question rather than a general retention programme, and the first deliverable is a '
-    + 'list of the large 2026 customers who left and what they had in common.',
+    'This is the version to act on, and it says the retention problem is larger than the logo '
+    + 'count has been reporting. The gap between the two lines is money lost without a customer '
+    + 'being lost: downgrades, and accounts booked down to zero MRR while still sitting in the '
+    + 'base as live. It widens year on year, so the reported churn rate has been getting less '
+    + 'informative rather than more. Two things follow. Revenue retention, not logo retention, '
+    + 'is the number to run the business on. And an account at zero MRR needs to be either '
+    + 'recovered or closed, because at present it costs support and counts as a win.',
 
   'chart-flows':
     'Churn is the side to act on. The new logo side cannot currently be read as demand, '
@@ -1778,22 +1779,25 @@ function renderAnnotations() {
   const best6 = rank6[0];
   const worst6 = rank6[rank6.length - 1];
   const best3 = [...eras].sort((a, b) => (b.month3 || 0) - (a.month3 || 0))[0];
+  const gapAt6 = e => ((e.grossMonth6 || 0) - (e.logosMonth6FromMonth2 || 0)) * 100;
+  const byGap = [...eras].sort((a, b) => gapAt6(a) - gapAt6(b));
   annotate('chart-era-revenue', [
-    `<strong>Weighted by revenue the spread at month 6 is `
-      + `${((Math.max(...eras.map(e => e.revenueMonth6 || 0)) - Math.min(...eras.map(e => e.revenueMonth6 || 0))) * 100).toFixed(1)} points</strong>, `
-      + `against ${(((best6.month6 || 0) - (worst6.month6 || 0)) * 100).toFixed(1)} on the head count: `
-      + `${eras.map(e => `${e.year} ${fmt.pct(e.revenueMonth6, 1)}`).join(', ')}.`,
-    `The money question is which accounts leave, not how many. A year whose revenue line runs `
-      + `under its logo line is losing its larger customers.`,
-    `Same cohorts and same samples as the chart above, so the two are directly comparable.`,
+    `<strong>Revenue falls faster than the count in every year</strong>: at month 6, measured `
+      + `from month 2, the shortfall is `
+      + `${eras.map(e => `${Math.abs(gapAt6(e)).toFixed(1)} points in ${e.year}`).join(', ')}.`,
+    `${byGap[0].year} keeps ${fmt.pct(byGap[0].logosMonth6FromMonth2, 1)} of its customers and `
+      + `${fmt.pct(byGap[0].grossMonth6, 1)} of its revenue. Counting heads there overstates what `
+      + `the cohort is still worth by roughly a fifth of itself.`,
+    `Because expansion is capped out, none of this is a cohort failing to grow. It is money that `
+      + `was being paid and is not any more, by customers who in many cases are still on the books.`,
   ], [
-    'Each customer is weighted by what they were paying in their second month and then counted '
-      + 'only while they are still present, so the line falls for one reason: departures.',
-    'Expansion and contraction among the customers who stay are excluded on purpose. Netting '
-      + 'them in is what lets a revenue retention line sit above 100% and stop being comparable '
-      + 'to the count above it. Chart 4 is the netted version.',
-    'A customer booked at zero MRR still counts as present, so both lines carry some customers '
-      + 'who have stopped paying, and more of them in 2026 than in 2024.',
+    'Gross revenue retention: each customer capped at what they were paying in their second '
+      + 'month, so departures and downgrades both pull it down and expansion cannot lift it.',
+    'Indexed and drawn from month 2, where the cap is set, because a part-billed first month '
+      + 'leaves a customer under the rate they arrive on. The logo figures quoted here are '
+      + 'reindexed to month 2 to match.',
+    'Not strictly monotonic, and not forced to be: a customer who downgrades and later returns '
+      + 'to their original rate adds that money back.',
   ]);
 
   annotate('chart-era', [

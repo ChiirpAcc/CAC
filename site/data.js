@@ -416,7 +416,29 @@ export function buildCohorts(data) {
     // customers weighted by size, so a cohort that keeps its small accounts
     // and loses its large ones shows the damage that counting heads hides.
     // Monotonic by construction, and directly comparable to the logo line.
+    //
+    // On its own it turned out to be nearly the logo curve redrawn: across
+    // the three eras it sits within four points of it at every age, because
+    // departures are not strongly sized. Kept because it isolates that one
+    // effect, but it is not the chart to read revenue churn off.
     const retainedStartingRevenue = [];
+
+    // Gross revenue retention, which is the standard measure and the one that
+    // actually moves away from the count.
+    //
+    // Each customer is capped at what they were paying at the start, so
+    // expansion cannot lift the line above 100% and a cohort cannot grow its
+    // way out of having lost money. What is left falls for both of the ways
+    // revenue actually goes away: customers leaving, and customers staying on
+    // less than they arrived on. The second is the larger effect here and the
+    // one the logo curve cannot see at all, not least because a customer
+    // booked down to zero MRR is still counted as present.
+    //
+    // It is not strictly monotonic, and should not be forced to be. A
+    // customer who downgrades and later returns to their original rate adds
+    // their money back, and flattening that with a running minimum would hide
+    // a real recovery.
+    const cappedRetainedRevenue = [];
     for (let offset = 0; offset <= maxOffset; offset += 1) {
       const at = monthAdd(month, offset);
       let live = 0;
@@ -436,20 +458,25 @@ export function buildCohorts(data) {
       let intact = 0;
       let intactMrr = 0;
       let intactStartingMrr = 0;
+      let intactCappedMrr = 0;
       for (const id of ids) {
         if (runLength.get(id) <= offset) continue;
         intact += 1;
         const row = rowByCustomerMonth.get(id + '|' + at);
         intactMrr += row ? (row.eopMrr || 0) : 0;
-        intactStartingMrr += startingMrr.get(id) || 0;
+        const started = startingMrr.get(id) || 0;
+        intactStartingMrr += started;
+        intactCappedMrr += Math.min(row ? (row.eopMrr || 0) : 0, started);
       }
       survivors.push(intact);
       survivorRevenue.push(intactMrr);
       retainedStartingRevenue.push(intactStartingMrr);
+      cappedRetainedRevenue.push(intactCappedMrr);
     }
 
     return { month, size: logos[0] || ids.length, ids, logos, survivors, revenue,
-             survivorRevenue, retainedStartingRevenue, profit, maxOffset };
+             survivorRevenue, retainedStartingRevenue, cappedRetainedRevenue,
+             profit, maxOffset };
   });
 
   const built = cohorts.filter(c => c.size > 0);
@@ -1260,26 +1287,61 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
       points.push(inSample.reduce((s, c) => s + c.survivors[offset], 0) / base);
     }
 
-    // The same curve in money rather than in logos.
+    // The same cohorts in money rather than in logos, on the same base and
+    // the same sample so the two charts can be read against each other.
     //
-    // Indexed to month 2, not month 1, because month 1 carried the first
-    // month's charge as MRR until mid-2025 and indexing there would make the
-    // fee dropping out look like a cliff in every early era. Logos are indexed
-    // to month 1, where nothing distorts, so the two curves start at different
-    // ages by design.
+    // Both revenue paths are divided by what the cohort was paying at the
+    // start, taken from each member's second month: until mid-2025 the first
+    // month carried a joining charge as MRR that came off again the next
+    // month, so indexing on month one would overstate every early cohort by
+    // roughly the size of that fee and turn it dropping out into a cliff.
     const revBase = inSample.reduce((s, c) => s + (c.retainedStartingRevenue[0] || 0), 0);
-    const revenue = [];
-    for (let offset = 0; offset < maxMonths; offset += 1) {
-      if (offset > reach || !revBase) { revenue.push(null); continue; }
-      revenue.push(
-        inSample.reduce((s, c) => s + (c.retainedStartingRevenue[offset] || 0), 0) / revBase);
-    }
+    const pathOn = key => {
+      const out = [];
+      for (let offset = 0; offset < maxMonths; offset += 1) {
+        if (offset > reach || !revBase) { out.push(null); continue; }
+        out.push(inSample.reduce((s, c) => s + (c[key][offset] || 0), 0) / revBase);
+      }
+      return out;
+    };
+
+    // Gross revenue retention: every customer capped at what they arrived on,
+    // so this falls for departures and for downgrades and cannot be lifted by
+    // expansion. This is the one worth reading. The departures-only path below
+    // isolates whether the customers leaving are larger or smaller than
+    // average, which turns out to be a small effect, so on its own it draws
+    // as very nearly the logo curve again.
+    const revenue = pathOn('retainedStartingRevenue');
+
+    // Indexed to month 2 and drawn from month 2, because that is where the
+    // cap is set. Month 1 is not a clean 100% on this measure: a customer
+    // billed for part of their first month pays less then than the rate they
+    // arrive on, and capping them at that rate leaves them short of it. The
+    // 2026 cohorts read 88.8% at month 1 for that reason alone, which is a
+    // billing calendar rather than a loss. Starting the line where its own
+    // base is set removes the artefact instead of explaining it away.
+    const grossRaw = pathOn('cappedRetainedRevenue');
+    const grossBase = grossRaw[1];
+    const grossRevenue = grossRaw.map((v, i) => (
+      i < 1 || v === null || !grossBase ? null : v / grossBase));
+
+    // The logo curve on the same footing, so the gap between the two is
+    // downgrades and departures rather than a difference in where each line
+    // was indexed. Quoted anywhere the two are compared.
+    const logosFromMonth2 = points.map((v, i) => (
+      i < 1 || v === null || !points[1] ? null : v / points[1]));
+
     const reached = offset => group.filter(c => c.maxOffset >= offset).length;
     return {
       year,
       cohorts: inSample.length,
       cohortsInYear: group.length,
       reach,
+      grossRevenue,
+      grossMonth6: grossRevenue[5],
+      grossMonth12: grossRevenue[11],
+      logosFromMonth2,
+      logosMonth6FromMonth2: logosFromMonth2[5],
       revenue,
       revenueMonth6: revenue[5],
       revenueMonth12: revenue[11],
