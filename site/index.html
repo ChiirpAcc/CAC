@@ -29,8 +29,8 @@
        is one of each and they cannot drift apart. -->
   <section id="view-story" class="wrap story" hidden>
     <header class="story-head">
-      <h2>What changed, in four charts</h2>
-      <p>Read in order. The first three rule things out; the last one is what is left.</p>
+      <h2>What changed, in five charts</h2>
+      <p>Read in order. The first four rule things out; the last one is what is left.</p>
     </header>
 
     <div class="story-step" data-figure="fig-era">
@@ -49,8 +49,16 @@
         including customers a cohort curve never reaches.</p>
     </div>
 
-    <div class="story-step" data-figure="fig-arrivals-months">
+    <div class="story-step" data-figure="fig-blended">
       <p class="story-lead"><span class="story-num">2</span>
+        <strong>And the customers who stay are worth what they always were.</strong>
+        Follow the money rather than the count and the two lines run together:
+        revenue falls at about the rate logos do. Nobody who stayed is quietly
+        paying less, so there is no hidden value problem underneath the count.</p>
+    </div>
+
+    <div class="story-step" data-figure="fig-arrivals-months">
+      <p class="story-lead"><span class="story-num">3</span>
         <strong>It is not that thin months are poisoning the base.</strong>
         Adding the starting months one at a time, the recent ones land inside
         the same cloud as the early ones. Nothing about the relationship moved
@@ -66,7 +74,7 @@
     </div>
 
     <div class="story-step" data-figure="fig-arrivals-horizons">
-      <p class="story-lead"><span class="story-num">3</span>
+      <p class="story-lead"><span class="story-num">4</span>
         <strong>And it is not hiding at a longer horizon.</strong>
         Give churn one month to happen or six and the cloud lifts without
         tilting. However long you wait, months with fewer arrivals do not churn
@@ -80,7 +88,7 @@
     </div>
 
     <div class="story-step" data-figure="fig-ltv">
-      <p class="story-lead"><span class="story-num">4</span>
+      <p class="story-lead"><span class="story-num">5</span>
         <strong>What changed is the price of a customer.</strong>
         Cut every cohort at the same age so none of the slope is the calendar.
         What a customer returns has barely moved. What one costs has roughly
@@ -201,7 +209,7 @@
       <p class="note" id="recovery-note"></p>
     </figure>
 
-    <figure class="card wide">
+    <figure class="card wide" id="fig-blended">
       <figcaption>
         <h3>4. Blended retention curve, logos against revenue</h3>
       </figcaption>
@@ -237,6 +245,13 @@
       <figcaption>
         <h3>8. Retention curve by era</h3>
       </figcaption>
+      <div class="chart-control">
+        <label for="era-basis">Measure each era by</label>
+        <select id="era-basis">
+          <option value="logos">logos kept</option>
+          <option value="revenue">revenue kept</option>
+        </select>
+      </div>
       <div class="plot" id="chart-era"></div>
       <p class="finding negative" id="era-finding"></p>
       <p class="note" id="era-note"></p>

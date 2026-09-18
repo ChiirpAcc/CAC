@@ -467,6 +467,90 @@ function renderPricing(data) {
     + '</td></tr></tfoot>';
 }
 
+
+// 8. Retention by era, in logos or in money.
+//
+// The same cohorts measured two ways, because they do not say the same thing.
+// On logos the three years sit within a few points of each other and the era
+// looks settled. On revenue they separate sharply: the 2024 cohorts hold
+// essentially all of their money for a year while the later ones do not, so
+// the expansion that used to cover churn has stopped covering it. Reading only
+// the logo line would have closed a question that the revenue line reopens.
+//
+// Revenue is indexed to month 2 and logos to month 1, because until mid-2025
+// month 1 carried the first month's charge as MRR. Indexing revenue there
+// would turn that fee dropping out into a cliff in the early eras.
+function renderEra() {
+  const basis = $('era-basis') ? $('era-basis').value : 'logos';
+  const money = basis === 'revenue';
+  const eras = retentionByYear(cohorts, { maxMonths: 12 });
+  const eraColours = [INK.tertiary, INK.secondary, INK.negative];
+  const series = era => (money ? era.revenue : era.points);
+
+  const real = eras.flatMap(e => series(e)).filter(v => v !== null && Number.isFinite(v));
+  const floor = Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20);
+  const ceil = Math.max(1, Math.ceil(Math.max(...real) * 20) / 20);
+
+  multiLineChart($('chart-era'), {
+    labels: Array.from({ length: 12 }, (_, i) => `M${i + 1}`),
+    series: eras.map((era, i) => ({
+      label: `${era.year} cohorts`,
+      colour: eraColours[i],
+      values: series(era),
+    })),
+    yFormat: v => fmt.pct(v),
+    yMin: floor,
+    yMax: ceil,
+    xTitle: money ? 'Months since first revenue, indexed to month 2'
+                  : 'Months since first revenue',
+    refs: money ? [{ value: 1, label: 'all of it kept', variant: 'ref-floor' }] : [],
+    describe: i => `<strong>Month ${i + 1}</strong>` + eras.map(era => {
+      const v = series(era)[i];
+      return `<span>${era.year} ${v === null || !Number.isFinite(v) ? 'not yet' : fmt.pct(v, 1)}</span>`;
+    }).join(''),
+  });
+
+  // Compared at a common age, never at each line's end. The lines stop at
+  // different ages, so reading them at their ends would put a 2026 cohort at
+  // month 6 against a 2024 cohort at month 12 and call the difference a trend.
+  const depth = Math.min(...eras.map(e =>
+    series(e).filter(v => v !== null && Number.isFinite(v)).length));
+  const common = money ? depth : depth - 1;
+  const at = era => series(era).filter(v => v !== null && Number.isFinite(v))[depth - 1];
+  const oldest = eras[0], newest = eras[eras.length - 1];
+  const spread = Math.max(...eras.map(e => at(e) || 0)) - Math.min(...eras.map(e => at(e) || 0));
+  const logoSpread = Math.max(...eras.map(e => e.month6 || 0)) - Math.min(...eras.map(e => e.month6 || 0));
+
+  $('era-note').textContent =
+    'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
+    + 'first month whenever that happened, then averaged into one line per starting year. '
+    + 'The logo view is indexed to month 1, where nothing distorts it. The revenue view is '
+    + 'indexed to month 2, because until mid-2025 month 1 carried the first month’s charge '
+    + 'as MRR and indexing there would turn that fee dropping out into a cliff. '
+    + eras.map(e => `${e.year}: ${e.cohorts} cohorts`).join(', ')
+    + `. Each year is drawn on a sample fixed to the cohorts that reach its far end, so a line `
+    + `moves when retention moves rather than when its membership does. The ${newest.year} line `
+    + `rests on ${newest.cohorts} of its ${newest.cohortsInYear} cohorts and will move as more `
+    + `months land.`;
+
+  $('era-finding').innerHTML = money
+    ? `<strong>On money the eras separate, where on logos they barely do.</strong> `
+      + `At month ${common}, the deepest age all three reach, `
+      + `${eras.map(e => `${e.year} keeps ${fmt.pct(at(e), 0)}`).join(', ')}, a spread of `
+      + `${(spread * 100).toFixed(0)} points against ${(logoSpread * 100).toFixed(0)} on the `
+      + `logo view. Further out, the ${oldest.year} cohorts hold essentially all of their `
+      + `revenue for a year while losing a quarter of their logos, which is expansion covering `
+      + `churn. The later ones do not, so the same count of customers is worth less than it `
+      + `used to be.`
+    : (Math.abs((oldest.month6 || 0) - (newest.month6 || 0)) * 100 < 5
+      ? `<strong>The three years sit within ${((Math.max(...eras.map(e => e.month6 || 0)) - Math.min(...eras.map(e => e.month6 || 0))) * 100).toFixed(1)} points of each other at month 6.</strong> `
+        + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
+        + `. That is a narrow spread on thin samples. Switch the measure to revenue: on money `
+        + `the same cohorts are not alike at all.`
+      : `<strong>${oldest.year} holds up better than ${newest.year} at six months</strong>, `
+        + `${fmt.pct(oldest.month6, 1)} against ${fmt.pct(newest.month6, 1)}.`);
+}
+
 // The two views, and the four figures that appear in both.
 //
 // A chart can only live in one place in the document, so the story view does
@@ -476,7 +560,8 @@ function renderPricing(data) {
 //
 // Each figure remembers where it came from, so returning it puts it back in
 // its numbered position rather than at the end of the page.
-const STORY_FIGURES = ['fig-era', 'fig-arrivals-months', 'fig-arrivals-horizons', 'fig-ltv'];
+const STORY_FIGURES = ['fig-era', 'fig-blended', 'fig-arrivals-months',
+  'fig-arrivals-horizons', 'fig-ltv'];
 const homes = new Map();
 
 function rememberHomes() {
@@ -540,6 +625,7 @@ function boot() {
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
+    $('era-basis').addEventListener('change', renderEra);
     $('forward-horizon').addEventListener('input', renderForward);
     $('band-horizon').addEventListener('input', renderPriceBands);
     $('arrival-horizon').addEventListener('input', renderArrivals);
@@ -681,58 +767,7 @@ function renderStatic() {
   });
 
   // 8. Retention by era, one line per starting year.
-  const eras = retentionByYear(cohorts, { maxMonths: 12 });
-  const eraColours = [INK.tertiary, INK.secondary, INK.negative];
-  multiLineChart($('chart-era'), {
-    labels: Array.from({ length: 12 }, (_, i) => `M${i + 1}`),
-    series: eras.map((era, i) => ({
-      label: `${era.year} cohorts`,
-      colour: eraColours[i],
-      values: era.points,
-    })),
-    yFormat: v => fmt.pct(v),
-    yMin: 0.5,
-    yMax: 1,
-    xTitle: 'Months since first revenue',
-    describe: i => `<strong>Month ${i + 1}</strong>` + eras.map(era =>
-      `<span>${era.year} ${fmt.pct(era.points[i], 1)}</span>`).join(''),
-  });
-
-  // The headline is read off the numbers rather than asserted, so it cannot
-  // keep claiming a direction the data has stopped supporting.
-  const ranked = [...eras].filter(e => e.month6 !== null).sort((a, b) => b.month6 - a.month6);
-  const bestYear = ranked[0];
-  const worstYear = ranked[ranked.length - 1];
-  const newest = eras[eras.length - 1];
-  const spread6 = ((bestYear.month6 - worstYear.month6) * 100).toFixed(1);
-  const monotonic = eras.every((e, i) => i === 0 || e.month6 <= eras[i - 1].month6);
-
-  $('era-finding').innerHTML = monotonic
-    ? `<strong>Each year is worse than the one before it at six months.</strong> `
-      + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)}`).join(', ')
-      + `. A steady decline rather than one bad year.`
-    : Number(spread6) < 5
-      ? `<strong>The three years sit within ${spread6} points of each other at month 6.</strong> `
-        + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
-        + `. That is a narrow spread on thin samples, and ${newest.year} rests on `
-        + `${newest.cohorts} of its ${newest.cohortsInYear} cohorts, so read this as no clear `
-        + `difference between eras rather than as a ranking.`
-      : `<strong>${bestYear.year} is the best of the three at six months.</strong> `
-        + `${eras.map(e => `${e.year} holds ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')}`
-        + `, a spread of ${spread6} points. With this few cohorts a year the ordering is worth `
-        + `less than the level, and the level is that roughly a fifth of every intake is gone by `
-        + `month six whichever year it arrived in.`;
-
-  $('era-note').textContent =
-    'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
-    + 'first month whenever that happened, then averaged into one line per starting year. '
-    + 'Everyone starts at 100% because month 1 is everyone, and the line falls as customers '
-    + 'leave. Indexed to month 1 rather than month 2, because this counts logos rather than '
-    + 'revenue and there is no setup fee to distort the first month. '
-    + eras.map(e => `${e.year}: ${e.cohorts} cohorts`).join(', ')
-    + `. The ${newest.year} line stops where fewer than three of its cohorts have reached `
-    + `that age; only ${newest.reachedMonth6} have reached month 6, so its right hand end is `
-    + 'thin and will move as more months land.';
+  renderEra();
 
   // 10. Monthly logo flows.
   flowChart($('chart-flows'), {

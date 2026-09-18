@@ -982,17 +982,28 @@ export function acquisitionCosts(data, { months = 12 } = {}) {
 // one-off charge ending into what reads as a cliff. The sample rule keeps the
 // tail from being drawn by a handful of old cohorts.
 export function blendedRetention(cohorts, { minCohorts = 12, maxMonths = 24 } = {}) {
-  const points = [];
-  for (let offset = 1; ; offset += 1) {
-    // Two limits, whichever bites first. The sample rule stops the tail being
-    // drawn by a handful of old cohorts, and the horizon keeps the curve to a
-    // span somebody can actually reason about.
-    if (offset + 1 > maxMonths) break;
-    const inSample = cohorts.filter(c => c.maxOffset >= offset && c.survivors[1] > 0);
-    if (inSample.length < minCohorts) break;
+  // One sample for the whole curve, not one per point.
+  //
+  // Recomputing the sample at every age meant each point was drawn from a
+  // different set of cohorts: 23 of them at month 2, twelve by month 13. The
+  // curve then moved when its membership moved rather than when retention did,
+  // and the last step dropped revenue fourteen points against four for logos
+  // purely because the cohorts behind it had changed. Same fault the era chart
+  // had, same fix: take the cohorts that reach the far end and read every
+  // point off those.
+  const eligible = cohorts.filter(c => c.survivors[1] > 0);
+  let reach = 0;
+  for (let offset = Math.min(maxMonths - 1, 23); offset >= 1; offset -= 1) {
+    if (eligible.filter(c => c.maxOffset >= offset).length >= minCohorts) { reach = offset; break; }
+  }
+  if (!reach) return [];
 
-    const logoBase = inSample.reduce((sum, c) => sum + c.survivors[1], 0);
-    const revenueBase = inSample.reduce((sum, c) => sum + c.revenue[1], 0);
+  const inSample = eligible.filter(c => c.maxOffset >= reach);
+  const logoBase = inSample.reduce((sum, c) => sum + c.survivors[1], 0);
+  const revenueBase = inSample.reduce((sum, c) => sum + c.revenue[1], 0);
+
+  const points = [];
+  for (let offset = 1; offset <= reach; offset += 1) {
     points.push({
       offset: offset + 1,
       // Survival for the logo line, presence for revenue. A customer who
@@ -1201,12 +1212,29 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
       if (offset > reach || !base || inSample.length < minCohorts) { points.push(null); continue; }
       points.push(inSample.reduce((s, c) => s + c.survivors[offset], 0) / base);
     }
+
+    // The same curve in money rather than in logos.
+    //
+    // Indexed to month 2, not month 1, because month 1 carried the first
+    // month's charge as MRR until mid-2025 and indexing there would make the
+    // fee dropping out look like a cliff in every early era. Logos are indexed
+    // to month 1, where nothing distorts, so the two curves start at different
+    // ages by design.
+    const revBase = inSample.reduce((s, c) => s + (c.revenue[1] || 0), 0);
+    const revenue = [];
+    for (let offset = 0; offset < maxMonths; offset += 1) {
+      if (offset < 1 || offset > reach || !revBase) { revenue.push(null); continue; }
+      revenue.push(inSample.reduce((s, c) => s + (c.revenue[offset] || 0), 0) / revBase);
+    }
     const reached = offset => group.filter(c => c.maxOffset >= offset).length;
     return {
       year,
       cohorts: inSample.length,
       cohortsInYear: group.length,
       reach,
+      revenue,
+      revenueMonth6: revenue[5],
+      revenueMonth12: revenue[11],
       points,
       month3: points[2],
       month6: points[5],
@@ -1247,8 +1275,19 @@ function ratioPath(cohort) {
 
 // Beyond the ages a donor observed, hold its recent average rather than
 // letting the path run off the end of the data.
-function terminalRate(path, depth = 6) {
-  const ages = [...path.keys()].sort((a, b) => a - b).slice(-depth);
+// The rate a projection settles at once the observed path runs out.
+//
+// This took the last six steps of the path, which are the thinnest: a pooled
+// path runs as deep as its oldest donor, so its final steps rest on one or two
+// cohorts. Averaging exactly those to get the rate that carries every
+// projection past the observed data put the most consequential number on the
+// least evidence. It now averages the deepest steps that still have a real
+// sample behind them, and the caller says what "real" means.
+function terminalRate(path, depth = 6, counts = null, minDonors = 1) {
+  const ages = [...path.keys()]
+    .filter(k => !counts || (counts.get(k) || 0) >= minDonors)
+    .sort((a, b) => a - b)
+    .slice(-depth);
   if (!ages.length) return 0.97;
   return ages.reduce((s, k) => s + path.get(k), 0) / ages.length;
 }
@@ -1265,16 +1304,30 @@ export function donorTrajectory(cohorts) {
   const donors = cohorts.filter(c => c.month >= '2023-01' && c.maxOffset >= 12);
   const numerator = new Map();
   const denominator = new Map();
+  const counts = new Map();
   for (const cohort of donors) {
     for (let k = 1; k < cohort.revenue.length; k += 1) {
       if (cohort.revenue[k - 1] <= 0) continue;
       numerator.set(k, (numerator.get(k) || 0) + cohort.revenue[k]);
       denominator.set(k, (denominator.get(k) || 0) + cohort.revenue[k - 1]);
+      counts.set(k, (counts.get(k) || 0) + 1);
     }
   }
+
+  // A pooled path runs as deep as its oldest donor, so its deepest steps rest
+  // on one or two cohorts and move with them. Steps below half the donor pool
+  // are dropped rather than drawn, and the terminal rate is taken from the
+  // deepest steps that survive that rule.
+  const minDonors = Math.max(2, Math.ceil(donors.length / 2));
   const path = new Map();
-  for (const [k, den] of denominator) if (den > 0) path.set(k, numerator.get(k) / den);
-  return { donors, path, terminal: terminalRate(path) };
+  for (const [k, den] of denominator) {
+    if (den > 0 && (counts.get(k) || 0) >= minDonors) path.set(k, numerator.get(k) / den);
+  }
+  return {
+    donors, path, counts, minDonors,
+    depth: path.size ? Math.max(...path.keys()) : 0,
+    terminal: terminalRate(path, 6, counts, minDonors),
+  };
 }
 
 // A projected month has no revenue class breakdown to work from, so a cohort
