@@ -307,6 +307,58 @@ def build_ltv_by_age():
 
     save(frames, OUT / "ltv_cac_by_age.gif")
 
+def build_arrivals_by_month(mrr, waterfall, eligible, anchor):
+    """The same scatter, built one starting month at a time.
+
+    The horizon animation asks whether the relationship changes as churn is
+    given longer to happen. This one asks whether it changed over the two
+    years, which a single scatter cannot show at all: every point is drawn at
+    once and nothing says which came first. Each frame adds a month and marks
+    it, so a reader can watch where the recent months land relative to the
+    earlier ones.
+
+    The axes are the same in every frame, set from the full series before any
+    of it is drawn. Rescaling per frame would put the first point in the
+    middle of an empty chart and make every month look alike.
+    """
+    HORIZON = 4
+    months = [m for m in eligible(HORIZON) if m in anchor]
+    xs, ys = [], []
+    for month in months:
+        base = mrr[month]
+        later = set(mrr[month_add(month, HORIZON)])
+        xs.append(waterfall[month]["new_logos"])
+        ys.append(1 - sum(1 for c in base if c in later) / len(base))
+
+    if len(months) < 6:
+        return
+
+    # Fixed bounds, rounded outwards, computed once from every point.
+    x_hi = max(xs) * 1.15
+    y_lo, y_hi = min(ys) * 0.75, max(ys) * 1.12
+
+    frames = []
+    for i in range(len(months)):
+        r, est, ci = fit(xs[: i + 1], ys[: i + 1]) if i >= 2 else (None, None, None)
+        verdict = ("not enough months yet" if r is None
+                   else f"r = {r:+.2f} on {i + 1} months"
+                        + ("" if abs(est) - ci > 0 else ", interval spans zero"))
+        image, draw, px, py = frame(
+            "Does churn rise when fewer customers arrive?",
+            f"Starting months {months[0]} to {months[i]}. {verdict}",
+            (y_lo, y_hi), lambda v: f"{v * 100:.0f}%", x_range=(0, x_hi),
+            y_title=f"Share gone {HORIZON} months later")
+
+        for j in range(i + 1):
+            newest = j == i
+            dot(draw, px(xs[j]), py(ys[j]),
+                HIGH if newest else RULE if j < i - 5 else SOFT,
+                radius=9 if newest else 6)
+        draw.text((px(xs[i]), py(ys[i]) - 22), months[i], font=F_TICK, fill=HIGH, anchor="ma")
+        frames.append(image)
+
+    save(frames, OUT / "arrivals_by_month.gif")
+
 def build():
     OUT.mkdir(parents=True, exist_ok=True)
     mrr, waterfall, last, eligible, anchor = read_months()
@@ -354,6 +406,7 @@ def build():
     save(frames, OUT / "arrivals_vs_churn.gif")
 
     build_ltv_by_age()
+    build_arrivals_by_month(mrr, waterfall, eligible, anchor)
 
     print()
     print("  horizon   r        per 10 fewer     verdict")

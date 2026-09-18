@@ -339,7 +339,31 @@
   <div class="wrap charts">
     <figure class="card wide">
       <figcaption>
-        <h3>23. LTV:CAC as cohorts mature</h3>
+        <h3>23. The same question, month by month</h3>
+      </figcaption>
+      <img class="animation" src="media/arrivals_by_month.gif" loading="lazy"
+           alt="The arrivals against churn scatter built one starting month at a time, on fixed axes, with each new month marked as it lands.">
+      <p class="finding" id="arrivals-month-finding">
+        <strong>The recent months land inside the same cloud as the early
+        ones.</strong> Chart 21 draws every month at once, so nothing on it says
+        which came first and a relationship that had changed would be invisible.
+        Adding them one at a time shows that none of the last two years'
+        starting months sits apart from the rest.
+      </p>
+      <p class="note">
+        One frame per starting month, each new point marked and the ones before
+        it faded by age. Churn is measured over the four months after each
+        starting month. The axes are set once from every point and never move,
+        so a point that looks extreme is extreme against the whole period rather
+        than against the handful drawn so far. The correlation in the subtitle
+        is recomputed on the months drawn, which is why it wanders early and
+        settles as the sample fills.
+      </p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>24. LTV:CAC as cohorts mature</h3>
       </figcaption>
       <img class="animation" src="media/ltv_cac_by_age.gif" loading="lazy"
            alt="LTV:CAC by cohort with every cohort cut at the same age, stepping the age from one month to twelve. The axis is fixed, so only the bars move.">
@@ -362,7 +386,7 @@
 
     <figure class="card wide" id="fig-costs">
       <figcaption>
-        <h3>24. Acquisition cost by category, and what it bought</h3>
+        <h3>25. Acquisition cost by category, and what it bought</h3>
       </figcaption>
       <div class="table-scroll">
         <table class="data-table cost-table" id="cost-table"></table>
