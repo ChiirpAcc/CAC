@@ -481,74 +481,91 @@ function renderPricing(data) {
 // month 1 carried the first month's charge as MRR. Indexing revenue there
 // would turn that fee dropping out into a cliff in the early eras.
 function renderEra() {
-  const basis = $('era-basis') ? $('era-basis').value : 'logos';
-  const money = basis === 'revenue';
+  // The same cohorts drawn twice, because logos and money do not say the same
+  // thing about them. On logos the three years sit within a few points of each
+  // other and the era looks settled. On revenue they separate: the 2024
+  // cohorts hold essentially all of their money for a year while losing a
+  // quarter of their logos, and the later ones do not. Reading only the count
+  // would close a question the money reopens, so both are drawn rather than
+  // hidden behind a switch somebody has to know to flip.
   const eras = retentionByYear(cohorts, { maxMonths: 12 });
   const eraColours = [INK.tertiary, INK.secondary, INK.negative];
-  const series = era => (money ? era.revenue : era.points);
+  const labels = Array.from({ length: 12 }, (_, i) => `M${i + 1}`);
 
-  const real = eras.flatMap(e => series(e)).filter(v => v !== null && Number.isFinite(v));
-  const floor = Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20);
-  const ceil = Math.max(1, Math.ceil(Math.max(...real) * 20) / 20);
+  // The deepest age all three reach, so the eras are never compared at their
+  // own line ends: that would set a 2026 cohort at month 6 against a 2024 one
+  // at month 12 and call the difference a trend.
+  const depthOf = pick => Math.min(...eras.map(e =>
+    pick(e).filter(v => v !== null && Number.isFinite(v)).length));
+  const valueAt = (era, pick, depth) =>
+    pick(era).filter(v => v !== null && Number.isFinite(v))[depth - 1];
 
-  multiLineChart($('chart-era'), {
-    labels: Array.from({ length: 12 }, (_, i) => `M${i + 1}`),
-    series: eras.map((era, i) => ({
-      label: `${era.year} cohorts`,
-      colour: eraColours[i],
-      values: series(era),
-    })),
-    yFormat: v => fmt.pct(v),
-    yMin: floor,
-    yMax: ceil,
-    xTitle: money ? 'Months since first revenue, indexed to month 2'
-                  : 'Months since first revenue',
-    refs: money ? [{ value: 1, label: 'all of it kept', variant: 'ref-floor' }] : [],
-    describe: i => `<strong>Month ${i + 1}</strong>` + eras.map(era => {
-      const v = series(era)[i];
-      return `<span>${era.year} ${v === null || !Number.isFinite(v) ? 'not yet' : fmt.pct(v, 1)}</span>`;
-    }).join(''),
-  });
+  const draw = (node, pick, { money }) => {
+    const real = eras.flatMap(e => pick(e)).filter(v => v !== null && Number.isFinite(v));
+    multiLineChart($(node), {
+      labels,
+      series: eras.map((era, i) => ({
+        label: `${era.year} cohorts`,
+        colour: eraColours[i],
+        values: pick(era),
+      })),
+      yFormat: v => fmt.pct(v),
+      yMin: Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20),
+      yMax: Math.max(1, Math.ceil(Math.max(...real) * 20) / 20),
+      xTitle: money ? 'Months since first revenue, indexed to month 2'
+                    : 'Months since first revenue',
+      refs: money ? [{ value: 1, label: 'all of it kept', variant: 'ref-floor' }] : [],
+      describe: i => `<strong>Month ${i + 1}</strong>` + eras.map(era => {
+        const v = pick(era)[i];
+        return `<span>${era.year} ${v === null || !Number.isFinite(v) ? 'not yet' : fmt.pct(v, 1)}</span>`;
+      }).join(''),
+    });
+  };
 
-  // Compared at a common age, never at each line's end. The lines stop at
-  // different ages, so reading them at their ends would put a 2026 cohort at
-  // month 6 against a 2024 cohort at month 12 and call the difference a trend.
-  const depth = Math.min(...eras.map(e =>
-    series(e).filter(v => v !== null && Number.isFinite(v)).length));
-  const common = money ? depth : depth - 1;
-  const at = era => series(era).filter(v => v !== null && Number.isFinite(v))[depth - 1];
-  const oldest = eras[0], newest = eras[eras.length - 1];
-  const spread = Math.max(...eras.map(e => at(e) || 0)) - Math.min(...eras.map(e => at(e) || 0));
+  const logos = e => e.points;
+  const money = e => e.revenue;
+  draw('chart-era', logos, { money: false });
+  draw('chart-era-revenue', money, { money: true });
+
+  const newest = eras[eras.length - 1];
   const logoSpread = Math.max(...eras.map(e => e.month6 || 0)) - Math.min(...eras.map(e => e.month6 || 0));
 
-  $('era-note').textContent =
+  $('era-finding').innerHTML =
+    `<strong>On logos the three years sit within ${(logoSpread * 100).toFixed(1)} points of `
+    + `each other at month 6.</strong> `
+    + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
+    + `. That is a narrow spread on thin samples, so on this measure there is no clear `
+    + `difference between the eras. The chart below asks the same question in money, and `
+    + `there the answer is different.`;
+
+  const rDepth = depthOf(money);
+  const rAt = e => valueAt(e, money, rDepth);
+  const rSpread = Math.max(...eras.map(e => rAt(e) || 0)) - Math.min(...eras.map(e => rAt(e) || 0));
+
+  $('era-revenue-finding').innerHTML =
+    `<strong>On money they separate.</strong> At month ${rDepth}, the deepest age all three `
+    + `reach, ${eras.map(e => `${e.year} keeps ${fmt.pct(rAt(e), 0)}`).join(', ')}, a spread of `
+    + `${(rSpread * 100).toFixed(0)} points against ${(logoSpread * 100).toFixed(0)} above. `
+    + `Further out the ${eras[0].year} cohorts hold essentially all of their revenue for a year `
+    + `while losing a quarter of their logos, which is expansion covering churn. The later ones `
+    + `do not, so the same count of customers is worth less than it used to be.`;
+
+  const shared =
     'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
     + 'first month whenever that happened, then averaged into one line per starting year. '
-    + 'The logo view is indexed to month 1, where nothing distorts it. The revenue view is '
-    + 'indexed to month 2, because until mid-2025 month 1 carried the first month’s charge '
-    + 'as MRR and indexing there would turn that fee dropping out into a cliff. '
     + eras.map(e => `${e.year}: ${e.cohorts} cohorts`).join(', ')
     + `. Each year is drawn on a sample fixed to the cohorts that reach its far end, so a line `
     + `moves when retention moves rather than when its membership does. The ${newest.year} line `
     + `rests on ${newest.cohorts} of its ${newest.cohortsInYear} cohorts and will move as more `
     + `months land.`;
 
-  $('era-finding').innerHTML = money
-    ? `<strong>On money the eras separate, where on logos they barely do.</strong> `
-      + `At month ${common}, the deepest age all three reach, `
-      + `${eras.map(e => `${e.year} keeps ${fmt.pct(at(e), 0)}`).join(', ')}, a spread of `
-      + `${(spread * 100).toFixed(0)} points against ${(logoSpread * 100).toFixed(0)} on the `
-      + `logo view. Further out, the ${oldest.year} cohorts hold essentially all of their `
-      + `revenue for a year while losing a quarter of their logos, which is expansion covering `
-      + `churn. The later ones do not, so the same count of customers is worth less than it `
-      + `used to be.`
-    : (Math.abs((oldest.month6 || 0) - (newest.month6 || 0)) * 100 < 5
-      ? `<strong>The three years sit within ${((Math.max(...eras.map(e => e.month6 || 0)) - Math.min(...eras.map(e => e.month6 || 0))) * 100).toFixed(1)} points of each other at month 6.</strong> `
-        + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
-        + `. That is a narrow spread on thin samples. Switch the measure to revenue: on money `
-        + `the same cohorts are not alike at all.`
-      : `<strong>${oldest.year} holds up better than ${newest.year} at six months</strong>, `
-        + `${fmt.pct(oldest.month6, 1)} against ${fmt.pct(newest.month6, 1)}.`);
+  $('era-note').textContent = shared
+    + ' Indexed to month 1, where nothing distorts the count.';
+  $('era-revenue-note').textContent = shared
+    + ' Indexed to month 2 rather than month 1, because until mid-2025 the first month carried '
+    + 'the first month’s charge as MRR and indexing there would turn that fee dropping out '
+    + 'into a cliff in the early eras. Revenue counts presence rather than survival, because a '
+    + 'customer who returns really is paying again.';
 }
 
 // The two views, and the four figures that appear in both.
@@ -560,8 +577,8 @@ function renderEra() {
 //
 // Each figure remembers where it came from, so returning it puts it back in
 // its numbered position rather than at the end of the page.
-const STORY_FIGURES = ['fig-era', 'fig-blended', 'fig-arrivals-months',
-  'fig-arrivals-horizons', 'fig-ltv'];
+const STORY_FIGURES = ['fig-era', 'fig-era-revenue', 'fig-blended',
+  'fig-arrivals-months', 'fig-arrivals-horizons', 'fig-ltv'];
 const homes = new Map();
 
 function rememberHomes() {
@@ -625,7 +642,6 @@ function boot() {
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
-    $('era-basis').addEventListener('change', renderEra);
     $('forward-horizon').addEventListener('input', renderForward);
     $('band-horizon').addEventListener('input', renderPriceBands);
     $('arrival-horizon').addEventListener('input', renderArrivals);
@@ -974,7 +990,7 @@ function renderAssumptionDependent() {
     + 'chance of never covering their cost. Projection stops at ten years.';
 
   // 7. Cost per logo against revenue per logo, indexed to 100.
-  // The pipeline's own acquisition cost, the same figure charts 1, 2 and 16
+  // The pipeline's own acquisition cost, the same figure charts 1, 2 and 17
   // divide by. Re-deriving it here from the expense lines produced a second
   // implementation of one number, which is how the page ended up with three
   // answers to what a logo costs.
@@ -1038,11 +1054,18 @@ function renderAssumptionDependent() {
 function renderForward() {
   const horizon = Number($('forward-horizon').value) || 4;
   $('forward-horizon-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');
+  // These two titles carry their own numbers because the horizon is in them,
+  // so the number is read off the markup rather than written here. Hardcoding
+  // it meant a renumbering fixed the page and left the JavaScript pointing at
+  // the old positions, which put two charts on the same number.
+  const numberOf = node => (node.textContent.match(/^(\d+)\./) || [])[1] || '';
+  const forwardNum = numberOf($('forward-title'));
+  const trendNum = numberOf($('forward-trend-title'));
   $('forward-title').textContent =
-    `17. Forward ${horizon} month${horizon === 1 ? '' : 's'}, from every starting month with a full window`;
+    `${forwardNum}. Forward ${horizon} month${horizon === 1 ? '' : 's'}, from every starting month with a full window`;
   $('forward-trend-title').textContent = horizon === 1
-    ? '18. One-month survival, by starting month'
-    : `18. Survival ${horizon} months on, by starting month`;
+    ? `${trendNum}. One-month survival, by starting month`
+    : `${trendNum}. Survival ${horizon} months on, by starting month`;
 
   const fw = forwardSurvival(data, { horizon, windows: 24 });
   const starts = fw.starts;
@@ -1284,7 +1307,7 @@ function renderForward() {
     + 'relationship that faded. Customer Success has barely moved, ' + sign(liveCap[0]) + ' to '
     + sign(liveCap[liveCap.length - 1]) + ', and is the stronger of the two throughout. On '
     + live.length + ' overlapping windows neither movement is worth reading as a trend, which '
-    + 'is also why chart 21 finds nothing pooled.';
+    + 'is also why chart 22 finds nothing pooled.';
 
   $('momentum-note').textContent =
     'Correlation against forward churn computed over a moving ' + cap.rollingWidth
@@ -1409,7 +1432,7 @@ function renderSeasonal() {
       + ' points of the loss a year ago and only ' + latestCushion.toFixed(1) + ' now.';
 
   $('seasonal-revenue-note').textContent =
-    'The same customers as chart 10, followed by what they pay rather than by whether they '
+    'The same customers as chart 11, followed by what they pay rather than by whether they '
     + 'are still there. No new customers enter it, so this is not net revenue retention for '
     + 'the business; it is what one fixed set did. Above the logo line means survivors grew '
     + 'and expansion is offsetting churn. Below it means the ones who stayed are also paying '
@@ -1944,7 +1967,7 @@ function renderSignups() {
     + 'forward. Read the shapes here, not the intersection. '
     + 'Price is new_mrr, the subscription booked when a customer joins, which is the only '
     + 'price measure that exists for all ' + ph.length + ' months. The richer starting_mrr, '
-    + 'what a customer was actually sold, is only populated from 2026-01 and is what charts 14 '
+    + 'what a customer was actually sold, is only populated from 2026-01 and is what charts 15 '
     + 'and 15 use. The two differ because new_mrr excludes fees and waived amounts, so the '
     + 'level here is low and the shape is the part to read.';
 

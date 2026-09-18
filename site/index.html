@@ -29,8 +29,8 @@
        is one of each and they cannot drift apart. -->
   <section id="view-story" class="wrap story" hidden>
     <header class="story-head">
-      <h2>What changed, in five charts</h2>
-      <p>Read in order. The first four rule things out; the last one is what is left.</p>
+      <h2>What changed, in six charts</h2>
+      <p>Read in order. The first five narrow it down; the last one is what is left.</p>
     </header>
 
     <div class="story-step" data-figure="fig-era">
@@ -49,8 +49,18 @@
         including customers a cohort curve never reaches.</p>
     </div>
 
-    <div class="story-step" data-figure="fig-blended">
+    <div class="story-step" data-figure="fig-era-revenue">
       <p class="story-lead"><span class="story-num">2</span>
+        <strong>But the survivors are no longer worth what they were.</strong>
+        The same cohorts, measured in money rather than in logos. The 2024
+        intakes held essentially all their revenue for a year while losing a
+        quarter of their customers, because the ones who stayed grew enough to
+        cover it. The later intakes do not, and that is a real difference where
+        the logo view showed almost none.</p>
+    </div>
+
+    <div class="story-step" data-figure="fig-blended">
+      <p class="story-lead"><span class="story-num">3</span>
         <strong>And the customers who stay are worth what they always were.</strong>
         Follow the money rather than the count and the two lines run together:
         revenue falls at about the rate logos do. Nobody who stayed is quietly
@@ -58,7 +68,7 @@
     </div>
 
     <div class="story-step" data-figure="fig-arrivals-months">
-      <p class="story-lead"><span class="story-num">3</span>
+      <p class="story-lead"><span class="story-num">4</span>
         <strong>It is not that thin months are poisoning the base.</strong>
         Adding the starting months one at a time, the recent ones land inside
         the same cloud as the early ones. Nothing about the relationship moved
@@ -74,7 +84,7 @@
     </div>
 
     <div class="story-step" data-figure="fig-arrivals-horizons">
-      <p class="story-lead"><span class="story-num">4</span>
+      <p class="story-lead"><span class="story-num">5</span>
         <strong>And it is not hiding at a longer horizon.</strong>
         Give churn one month to happen or six and the cloud lifts without
         tilting. However long you wait, months with fewer arrivals do not churn
@@ -88,7 +98,7 @@
     </div>
 
     <div class="story-step" data-figure="fig-ltv">
-      <p class="story-lead"><span class="story-num">5</span>
+      <p class="story-lead"><span class="story-num">6</span>
         <strong>What changed is the price of a customer.</strong>
         Cut every cohort at the same age so none of the slope is the calendar.
         What a customer returns has barely moved. What one costs has roughly
@@ -243,23 +253,25 @@
 
     <figure class="card wide" id="fig-era">
       <figcaption>
-        <h3>8. Retention curve by era</h3>
+        <h3>8. Retention curve by era, logos kept</h3>
       </figcaption>
-      <div class="chart-control">
-        <label for="era-basis">Measure each era by</label>
-        <select id="era-basis">
-          <option value="logos">logos kept</option>
-          <option value="revenue">revenue kept</option>
-        </select>
-      </div>
       <div class="plot" id="chart-era"></div>
       <p class="finding negative" id="era-finding"></p>
       <p class="note" id="era-note"></p>
     </figure>
 
+    <figure class="card wide" id="fig-era-revenue">
+      <figcaption>
+        <h3>9. The same cohorts, revenue kept</h3>
+      </figcaption>
+      <div class="plot" id="chart-era-revenue"></div>
+      <p class="finding negative" id="era-revenue-finding"></p>
+      <p class="note" id="era-revenue-note"></p>
+    </figure>
+
     <figure class="card wide">
       <figcaption>
-        <h3>9. Monthly logo flows</h3>
+        <h3>10. Monthly logo flows</h3>
       </figcaption>
       <div class="plot" id="chart-flows"></div>
       <p class="finding negative" id="flows-caveat"></p>
@@ -268,7 +280,7 @@
 
     <div class="card wide control-card">
       <div class="chart-control">
-        <label for="horizon">Charts 10 and 11: follow customers forward for</label>
+        <label for="horizon">Charts 11 and 12: follow customers forward for</label>
         <input type="range" id="horizon" min="1" max="12" step="1" value="4">
         <output id="horizon-value">4 months</output>
       </div>
@@ -276,7 +288,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>10. Logos kept, this year against last year</h3>
+        <h3>11. Logos kept, this year against last year</h3>
       </figcaption>
       <div class="plot" id="chart-seasonal"></div>
       <p class="finding" id="seasonal-finding"></p>
@@ -285,7 +297,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>11. Revenue kept, same customers and same windows</h3>
+        <h3>12. Revenue kept, same customers and same windows</h3>
       </figcaption>
       <div class="plot" id="chart-seasonal-revenue"></div>
       <p class="finding" id="seasonal-revenue-finding"></p>
@@ -294,7 +306,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>12. Price at signup against volume</h3>
+        <h3>13. Price at signup against volume</h3>
       </figcaption>
       <div class="plot" id="chart-price-volume"></div>
       <p class="finding" id="price-volume-finding"></p>
@@ -303,7 +315,7 @@
 
     <figure class="card wide" id="fig-price-bands">
       <figcaption>
-        <h3>13. What each price band actually returns</h3>
+        <h3>14. What each price band actually returns</h3>
       </figcaption>
       <div class="chart-control">
         <label for="band-horizon">Follow each band forward for</label>
@@ -320,7 +332,7 @@
 
     <figure class="card">
       <figcaption>
-        <h3>14. Onboarding: how many are charged, and how much</h3>
+        <h3>15. Onboarding: how many are charged, and how much</h3>
       </figcaption>
       <div class="plot" id="chart-onboarding"></div>
       <p class="finding" id="onboarding-finding"></p>
@@ -329,7 +341,7 @@
 
     <figure class="card">
       <figcaption>
-        <h3>15. How a month starts: start type mix</h3>
+        <h3>16. How a month starts: start type mix</h3>
       </figcaption>
       <div class="plot" id="chart-start-type"></div>
       <p class="finding" id="start-type-finding"></p>
@@ -338,7 +350,7 @@
 
     <figure class="card wide" id="fig-breakeven">
       <figcaption>
-        <h3>16. Break-even month by cohort</h3>
+        <h3>17. Break-even month by cohort</h3>
       </figcaption>
       <p class="finding" id="breakeven-divisor"></p>
       <div class="table-scroll">
@@ -363,7 +375,7 @@
 
     <div class="card wide control-card">
       <div class="chart-control">
-        <label for="forward-horizon">Charts 17 and 18: follow the whole base forward for</label>
+        <label for="forward-horizon">Charts 18 and 19: follow the whole base forward for</label>
         <input type="range" id="forward-horizon" min="1" max="9" step="1" value="4">
         <output id="forward-horizon-value">4 months</output>
       </div>
@@ -371,7 +383,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3 id="forward-title">17. Forward survival, from every starting month with a full window</h3>
+        <h3 id="forward-title">18. Forward survival, from every starting month with a full window</h3>
       </figcaption>
       <div class="plot" id="chart-forward"></div>
       <p class="finding negative" id="forward-finding"></p>
@@ -380,7 +392,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3 id="forward-trend-title">18. Survival by starting month</h3>
+        <h3 id="forward-trend-title">19. Survival by starting month</h3>
       </figcaption>
       <div class="plot" id="chart-forward-trend"></div>
       <p class="note" id="forward-trend-note"></p>
@@ -388,7 +400,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>19. Customer Success capacity against churn</h3>
+        <h3>20. Customer Success capacity against churn</h3>
       </figcaption>
       <div class="plot" id="chart-capacity"></div>
       <p class="finding" id="capacity-finding"></p>
@@ -397,7 +409,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>20. Is either relationship moving?</h3>
+        <h3>21. Is either relationship moving?</h3>
       </figcaption>
       <div class="plot" id="chart-momentum"></div>
       <p class="finding" id="momentum-finding"></p>
@@ -406,7 +418,7 @@
 
     <figure class="card wide">
       <figcaption>
-        <h3>21. Does churn rise when fewer customers arrive?</h3>
+        <h3>22. Does churn rise when fewer customers arrive?</h3>
       </figcaption>
       <div class="chart-control">
         <label for="arrival-horizon">Measure churn over the following</label>
@@ -475,7 +487,7 @@
 
     <figure class="card wide" id="fig-arrivals-horizons">
       <figcaption>
-        <h3>22. Churn against arrivals, one to six months</h3>
+        <h3>23. Churn against arrivals, one to six months</h3>
       </figcaption>
       <img class="animation" src="media/arrivals_vs_churn.gif" loading="lazy"
            alt="Animated scatter of forward churn against new logos, stepping the horizon from one to six months. The cloud rises as the horizon lengthens and does not tilt.">
@@ -505,7 +517,7 @@
   <div class="wrap charts">
     <figure class="card wide">
       <figcaption>
-        <h3>23. The same, split by what customers pay</h3>
+        <h3>24. The same, split by what customers pay</h3>
       </figcaption>
       <img class="animation" src="media/arrivals_vs_churn_by_price.gif" loading="lazy"
            alt="The same scatter with each month split at its own median subscription, customers paying below the median in red and above it in blue.">
@@ -528,7 +540,7 @@
 
     <figure class="card wide" id="fig-arrivals-months">
       <figcaption>
-        <h3>24. The same question, month by month</h3>
+        <h3>25. The same question, month by month</h3>
       </figcaption>
       <img class="animation" src="media/arrivals_by_month.gif" loading="lazy"
            alt="The arrivals against churn scatter built one starting month at a time, on fixed axes, with each new month marked as it lands.">
@@ -553,7 +565,7 @@
 
     <figure class="card wide" id="fig-costs">
       <figcaption>
-        <h3>25. Acquisition cost by category, and what it bought</h3>
+        <h3>26. Acquisition cost by category, and what it bought</h3>
       </figcaption>
       <div class="table-scroll">
         <table class="data-table cost-table" id="cost-table"></table>
