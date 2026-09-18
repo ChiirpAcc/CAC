@@ -206,6 +206,7 @@ function renderLtvAtAge() {
     projectionNote(basis),
     projectionCheck(basis),
     'Cost per logo assumes a month of spend bought that month of logos. A long sales cycle would push spend into the wrong cohort.',
+    censorNote(data, shown),
   ]);
 
   $('ltv-note').textContent =
@@ -1735,6 +1736,38 @@ function renderSeasonal() {
 // reading are prose, because they are properties of the method and of the
 // decision rather than numbers, and should not change when a push moves a
 // decimal.
+// The first cohort in the window is not a whole cohort.
+//
+// A customer who joined before the window opens has no knowable cohort and is
+// dropped, but the monthly summary still counts them as arriving in the first
+// tracked month. So the opening month divides a full month of spend by a part
+// of a month of customers and its cost per logo reads high, which flatters the
+// earlier half of any comparison that includes it. Stated rather than silently
+// corrected, because it moves the headline in the conservative direction and a
+// reader is entitled to know by how much.
+function censorNote(data, shown) {
+  if (!shown.length) return null;
+  const first = shown[0];
+  const reported = data.waterfall.find(w => w.month === first.month)?.newLogos;
+  if (!reported || !first.size || reported <= first.size * 1.2) return null;
+  const rest = shown.slice(1, Math.floor(shown.length / 2));
+  const later = shown.slice(Math.floor(shown.length / 2));
+  const mean = (rows, key) => (rows.length
+    ? rows.reduce((s, r) => s + (r[key] || 0), 0) / rows.length : 0);
+  const withFirst = mean(shown.slice(0, Math.floor(shown.length / 2)), 'costPerLogo');
+  const without = mean(rest, 'costPerLogo');
+  const riseWith = withFirst ? (mean(later, 'costPerLogo') / withFirst - 1) * 100 : null;
+  const riseWithout = without ? (mean(later, 'costPerLogo') / without - 1) * 100 : null;
+  return `${first.month} is the window's opening month and only ${fmt.int(first.size)} of the `
+    + `${fmt.int(reported)} logos the summary books that month have a knowable cohort, the rest `
+    + `having joined before the window opens. Its cost per logo therefore reads high, at `
+    + `${fmt.money(first.costPerLogo)}, and it sits in the earlier half. Dropping it, the rise `
+    + `in cost per logo across the halves is `
+    + `${riseWithout === null ? 'unchanged' : riseWithout.toFixed(0) + '%'} rather than `
+    + `${riseWith === null ? 'unchanged' : riseWith.toFixed(0) + '%'}, so leaving it in `
+    + `understates the increase rather than manufacturing it.`;
+}
+
 function annotate(plotId, takeaways, assumptions) {
   const plot = $(plotId);
   if (!plot) return;
@@ -1751,7 +1784,7 @@ function annotate(plotId, takeaways, assumptions) {
     + '<h4>What it says</h4><ul>'
     + takeaways.filter(Boolean).map(x => '<li>' + x + '</li>').join('')
     + '</ul><h4>What it assumes</h4><ul>'
-    + assumptions.map(x => '<li>' + x + '</li>').join('')
+    + assumptions.filter(Boolean).map(x => '<li>' + x + '</li>').join('')
     + '</ul>'
     + (meaning ? '<h4>What it means for the business</h4><p class="means">' + meaning + '</p>' : '');
   figure.appendChild(block);
@@ -2020,6 +2053,12 @@ function renderAnnotations() {
   ], [
     'Both series are indexed to 100 at the same month, so the absolute levels do not need to be right for the divergence to read. The base month is stated on the chart.',
     'Where the pipeline reports a cost per logo it is used directly; earlier months derive it from total cost over the waterfall new logos.',
+    'That denominator is the monthly summary’s new logo count, not the cohort count used by '
+      + 'the per cohort table in chart 17. The two agree within about a tenth in every month but '
+      + 'the first, where the summary counts arrivals that predate the window and the cohort '
+      + 'does not, so this chart reads 2024-09 far cheaper than that table does. Consistency '
+      + 'along this line matters more than agreement with the other, because the chart is a '
+      + 'shape rather than a level.',
   ]);
 
   const eras = retentionByYear(cohorts, { maxMonths: 12 });
@@ -2061,7 +2100,7 @@ function renderAnnotations() {
       + `${eras.map(e => `${e.year} ${fmt.pct(e.month3, 1)}`).join(', ')}, with ${best3.year} highest. `
       + `There is no level shift here to find.`,
     `The ${newestEra.year} line rests on ${newestEra.reachedMonth6} cohorts at month 6, so its right hand end is thin and will move. `
-      + `Chart 9 asks the same question weighted by revenue, and there the years do separate.`,
+      + `Chart 9 asks it again with each customer capped at what they arrived on, and there the years do separate.`,
   ], [
     'Indexed to <strong>month 1</strong> here, unlike charts 4 and 6, because this counts logos rather than revenue and there is no setup fee to distort the first month.',
     'A point is dropped once fewer than three cohorts in that year have reached that age, so the newest line is never drawn by its oldest member alone.',
@@ -2299,7 +2338,7 @@ function renderSignups() {
     + 'Price is new_mrr, the subscription booked when a customer joins, which is the only '
     + 'price measure that exists for all ' + ph.length + ' months. The richer starting_mrr, '
     + 'what a customer was actually sold, is only populated from 2026-01 and is what charts 15 '
-    + 'and 15 use. The two differ because new_mrr excludes fees and waived amounts, so the '
+    + 'and 16 use. The two differ because new_mrr excludes fees and waived amounts, so the '
     + 'level here is low and the shape is the part to read.';
 
   // 14. Attach rate and fee are two different movements.
