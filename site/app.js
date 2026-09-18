@@ -1785,7 +1785,8 @@ function renderSignups() {
     + 'movement hides which lever was pulled.';
   $('onboarding-note').textContent =
     'Attach rate is the share of the month with a setup fee above zero. The average is taken '
-    + 'across those charged, not across everyone, because including the unfeed customers would '
+    + 'across those charged, not across everyone, because including the customers who were not '
+    + 'charged would '
     + 'blend the two movements back together.';
 
   // 15. How much of a month is not a standard start.
