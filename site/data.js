@@ -382,6 +382,16 @@ export function buildCohorts(data) {
       runLength.set(id, k);
     }
     const survivors = [];
+
+    // Revenue from the survivors alone, as against revenue from whoever is
+    // present. A retention chart has to hold one population: the logo line
+    // counts customers who have been there since month one, so the money line
+    // beside it has to count the money those same customers pay. Presence
+    // lets in members the cohort did not start with, through a Stripe start
+    // date that predates their first billed month or a return after an
+    // absence, and a "revenue kept" line that can be lifted by customers who
+    // were not in the base is not measuring what it says.
+    const survivorRevenue = [];
     for (let offset = 0; offset <= maxOffset; offset += 1) {
       const at = monthAdd(month, offset);
       let live = 0;
@@ -399,11 +409,19 @@ export function buildCohorts(data) {
       revenue.push(mrr);
       profit.push(gp);
       let intact = 0;
-      for (const id of ids) if (runLength.get(id) > offset) intact += 1;
+      let intactMrr = 0;
+      for (const id of ids) {
+        if (runLength.get(id) <= offset) continue;
+        intact += 1;
+        const row = rowByCustomerMonth.get(id + '|' + at);
+        intactMrr += row ? (row.eopMrr || 0) : 0;
+      }
       survivors.push(intact);
+      survivorRevenue.push(intactMrr);
     }
 
-    return { month, size: logos[0] || ids.length, ids, logos, survivors, revenue, profit, maxOffset };
+    return { month, size: logos[0] || ids.length, ids, logos, survivors, revenue,
+             survivorRevenue, profit, maxOffset };
   });
 
   const built = cohorts.filter(c => c.size > 0);
@@ -1000,17 +1018,18 @@ export function blendedRetention(cohorts, { minCohorts = 12, maxMonths = 24 } = 
 
   const inSample = eligible.filter(c => c.maxOffset >= reach);
   const logoBase = inSample.reduce((sum, c) => sum + c.survivors[1], 0);
-  const revenueBase = inSample.reduce((sum, c) => sum + c.revenue[1], 0);
+  const revenueBase = inSample.reduce((sum, c) => sum + c.survivorRevenue[1], 0);
 
   const points = [];
   for (let offset = 1; offset <= reach; offset += 1) {
     points.push({
       offset: offset + 1,
-      // Survival for the logo line, presence for revenue. A customer who
-      // returns is genuinely paying again, so revenue counts them; retention
-      // asks how much of the intake is left, so it does not.
+      // Both lines on the survivors, so the gap between them is expansion and
+      // contraction among the customers who stayed rather than a difference in
+      // who is being counted.
       logos: logoBase ? inSample.reduce((s, c) => s + c.survivors[offset], 0) / logoBase : null,
-      revenue: revenueBase ? inSample.reduce((s, c) => s + c.revenue[offset], 0) / revenueBase : null,
+      revenue: revenueBase
+        ? inSample.reduce((s, c) => s + c.survivorRevenue[offset], 0) / revenueBase : null,
       cohorts: inSample.length,
     });
   }
@@ -1220,11 +1239,11 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
     // fee dropping out look like a cliff in every early era. Logos are indexed
     // to month 1, where nothing distorts, so the two curves start at different
     // ages by design.
-    const revBase = inSample.reduce((s, c) => s + (c.revenue[1] || 0), 0);
+    const revBase = inSample.reduce((s, c) => s + (c.survivorRevenue[1] || 0), 0);
     const revenue = [];
     for (let offset = 0; offset < maxMonths; offset += 1) {
       if (offset < 1 || offset > reach || !revBase) { revenue.push(null); continue; }
-      revenue.push(inSample.reduce((s, c) => s + (c.revenue[offset] || 0), 0) / revBase);
+      revenue.push(inSample.reduce((s, c) => s + (c.survivorRevenue[offset] || 0), 0) / revBase);
     }
     const reached = offset => group.filter(c => c.maxOffset >= offset).length;
     return {

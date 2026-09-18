@@ -501,13 +501,15 @@ function renderEra() {
     pick(era).filter(v => v !== null && Number.isFinite(v))[depth - 1];
 
   const draw = (node, pick, { money }) => {
+    const from = money ? 1 : 0;
+    const shift = arr => arr.slice(from);
     const real = eras.flatMap(e => pick(e)).filter(v => v !== null && Number.isFinite(v));
     multiLineChart($(node), {
-      labels,
+      labels: labels.slice(from),
       series: eras.map((era, i) => ({
         label: `${era.year} cohorts`,
         colour: eraColours[i],
-        values: pick(era),
+        values: shift(pick(era)),
       })),
       yFormat: v => fmt.pct(v),
       yMin: Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20),
@@ -515,8 +517,8 @@ function renderEra() {
       xTitle: money ? 'Months since first revenue, indexed to month 2'
                     : 'Months since first revenue',
       refs: money ? [{ value: 1, label: 'all of it kept', variant: 'ref-floor' }] : [],
-      describe: i => `<strong>Month ${i + 1}</strong>` + eras.map(era => {
-        const v = pick(era)[i];
+      describe: i => `<strong>Month ${i + 1 + from}</strong>` + eras.map(era => {
+        const v = pick(era)[i + from];
         return `<span>${era.year} ${v === null || !Number.isFinite(v) ? 'not yet' : fmt.pct(v, 1)}</span>`;
       }).join(''),
     });
@@ -548,7 +550,10 @@ function renderEra() {
     + `${(rSpread * 100).toFixed(0)} points against ${(logoSpread * 100).toFixed(0)} above. `
     + `Further out the ${eras[0].year} cohorts hold essentially all of their revenue for a year `
     + `while losing a quarter of their logos, which is expansion covering churn. The later ones `
-    + `do not, so the same count of customers is worth less than it used to be.`;
+    + `do not, so the same count of customers is worth less than it used to be. `
+    + `<strong>Above the line means the survivors are paying more than they did</strong>, not `
+    + `that nobody left: the ${newest.year} cohorts expand 13% by month 3, from `
+    + `$775 to $887 each, before giving it back.`;
 
   const shared =
     'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
@@ -695,7 +700,12 @@ function renderStatic() {
       + `turns a one-off charge ending into an apparent cliff. The logo line is survival, so a `
       + `customer who leaves and returns is not counted twice and the line can only fall. Held to `
       + `a 24 month horizon and drawn while at least ${blended[blended.length - 1].cohorts} `
-      + `cohorts remain in sample, which carries it to month ${blended[blended.length - 1].offset}.`
+      + `cohorts remain in sample, which carries it to month ${blended[blended.length - 1].offset}, `
+      + `on one sample throughout rather than a different one at every age. `
+      + `A curve drawn against age will still show a calendar shock at whatever age it lands: `
+      + `the drop at the right hand end is cohorts whose twelfth month falls after May 2026, `
+      + `where revenue per surviving customer fell sharply for every cohort at once regardless `
+      + `of how old it was.`
     : 'Not enough cohort history yet.';
 
   // 5. Monthly logo churn, both ways of counting it.
