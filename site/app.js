@@ -321,8 +321,12 @@ function renderSettledTotals(data) {
     .filter(e => test(e))
     .reduce((s, e) => s + (e.amount || 0), 0);
 
-  const cs = sum(e => e.bucket === 'SPLIT' && /Customer Success/i.test(e.account || ''));
-  const tam = sum(e => e.bucket === 'OPEN');
+  // Both read by account rather than by bucket. Technical Account Manager sat
+  // in OPEN while the decision was open and has since been moved to COGS,
+  // which is the decision being carried out; reading the bucket made the
+  // footer report $0 for it the moment that happened.
+  const cs = sum(e => /Customer Success/i.test(e.account || ''));
+  const tam = sum(e => /Technical Account Manager/i.test(e.account || ''));
   const cac = data.cacMonthly.reduce((s, r) => s + (r.cacTotalActual || 0), 0);
 
   const money = v => (v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'm' : fmt.money(v));
