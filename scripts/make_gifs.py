@@ -176,6 +176,115 @@ def save(frames, out):
     print(f"  {out.name}  {out.stat().st_size / 1024:.0f} KB")
 
 
+def bar_frame(title, subtitle, labels, values, y_range, y_format, colours,
+              refs=(), y_title="LTV:CAC"):
+    """A column chart frame. The scatter helper cannot draw these, and the
+    whole point of the LTV animation is that the axis never moves while the
+    bars do."""
+    image = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(image)
+    y0, y1 = y_range
+    left, right = PAD["l"], W - PAD["r"]
+    py = lambda v: H - PAD["b"] - (v - y0) / (y1 - y0) * (H - PAD["t"] - PAD["b"])
+
+    draw.text((left, 30), title, font=F_TITLE, fill=INK)
+    draw.text((left, 66), subtitle, font=F_LABEL, fill=SOFT)
+
+    for i in range(6):
+        value = y0 + (y1 - y0) * i / 5
+        y = py(value)
+        draw.line([(left, y), (right, y)], fill=RULE)
+        draw.text((left - 14, y - 9), y_format(value), font=F_TICK, fill=SOFT, anchor="ra")
+
+    for value, label, colour in refs:
+        if y0 <= value <= y1:
+            y = py(value)
+            for x in range(int(left), int(right), 12):
+                draw.line([(x, y), (x + 6, y)], fill=colour, width=2)
+            draw.text((right, y - 20), label, font=F_TICK, fill=colour, anchor="ra")
+
+    band = (right - left) / max(len(values), 1)
+    width = band * 0.68
+    for i, v in enumerate(values):
+        cx = left + band * (i + 0.5)
+        if v is None:
+            continue
+        top = py(min(v, y1))
+        draw.rectangle([cx - width / 2, top, cx + width / 2, py(0)], fill=colours[i])
+        if v > y1:
+            draw.polygon([(cx - 7, top + 1), (cx, top - 9), (cx + 7, top + 1)], fill=colours[i])
+        if i % 3 == 0:
+            draw.text((cx, H - PAD["b"] + 12), labels[i], font=F_TICK, fill=SOFT, anchor="ma")
+
+    draw.text((26, PAD["t"] + (H - PAD["t"] - PAD["b"]) / 2), y_title,
+              font=F_LABEL, fill=SOFT, anchor="mm")
+    return image
+
+
+def build_ltv_by_age():
+    """LTV:CAC with every cohort cut at the same age, stepping the age.
+
+    The static chart measures each cohort to today, so an old cohort has had
+    two years to return its cost and a young one two months and the slope is
+    mostly the calendar. Holding the axis still and stepping the age shows the
+    part that is real: the bars rise together as cohorts mature, and the
+    recent ones stay below the older ones at every age they can both reach.
+    """
+    rows = load("customer_waterfall.json")["rows"]
+    cac = {r["month"]: number(r.get("cac_total_actual"))
+           for r in load("cac_monthly.json")["rows"]}
+
+    live = {"new", "reactivation", "flat", "expansion", "contraction"}
+    first, months_of = {}, defaultdict(dict)
+    for r in sorted(rows, key=lambda r: r["month"]):
+        if r.get("event_type") not in live:
+            continue
+        cid, m = r["customer_id"], r["month"]
+        first.setdefault(cid, m)
+        months_of[cid][m] = r
+
+    last = max(m for c in months_of.values() for m in c)
+    window_start = min(first.values())
+
+    cohorts = defaultdict(list)
+    for cid, m in first.items():
+        if m != window_start:
+            cohorts[m].append(cid)
+
+    MARGIN = 0.757
+    def gp(r):
+        return ((number(r.get("eop_mrr")) or 0) * MARGIN
+                + (number(r.get("usage_revenue")) or 0) * 0.60
+                + (number(r.get("onetime_revenue")) or 0) * 0.90)
+
+    ordered = sorted(m for m in cohorts if cac.get(m))
+    frames = []
+    for age in range(1, 13):
+        labels, values, colours = [], [], []
+        for m in ordered:
+            ids = cohorts[m]
+            if month_add(m, age - 1) > last:
+                continue
+            cost = cac[m] / len(ids)
+            total = sum(gp(months_of[cid][mm])
+                        for cid in ids
+                        for k in range(age)
+                        if (mm := month_add(m, k)) in months_of[cid])
+            ratio = total / len(ids) / cost
+            labels.append(m[2:])
+            values.append(ratio)
+            colours.append(HIGH if ratio >= 1 else LOW)
+        if len(values) < 3:
+            continue
+        frames.append(bar_frame(
+            f"LTV:CAC by cohort, measured at month {age}",
+            f"{len(values)} cohorts old enough to reach month {age}. "
+            f"Same axis every frame, so the bars move and the scale does not.",
+            labels, values, (0, 2.0), lambda v: f"{v:.1f}x", colours,
+            refs=[(1.0, "1.0x break-even", SOFT)]))
+
+    save(frames, OUT / "ltv_cac_by_age.gif")
+
 def build():
     OUT.mkdir(parents=True, exist_ok=True)
     mrr, waterfall, last, eligible, anchor = read_months()
@@ -288,6 +397,8 @@ def build():
                   font=F_BIG, fill=HIGH if abs(f["t"]) > 2.07 else SOFT, anchor="ra")
         frames.append(image)
     save(frames, OUT / "price_gap_by_month.gif")
+
+    build_ltv_by_age()
 
     print("\n  horizon   mean gap   paired t   months won")
     for f in gaps:

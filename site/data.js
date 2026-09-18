@@ -202,6 +202,14 @@ export async function load() {
       eventType: r.event_type || '',
       active: LIVE_EVENTS.has(r.event_type),
       eopMrr: num(r.eop_mrr),
+      // The subscription booked when a customer joins, and the cash that
+      // actually arrived. new_mrr is the only price measure that exists for
+      // every month in the window; starting_mrr is richer but only populated
+      // from 2026-01, which is too short to show the shape.
+      newMrr: num(r.new_mrr),
+      startingMrr: num(r.starting_mrr),
+      startType: r.start_type || '',
+      netCash: num(r.net_cash),
       usage: num(r.usage_revenue) || 0,
       oneTime: num(r.onetime_revenue) || 0,
       passThrough: num(r.passthrough_revenue) || 0,
@@ -329,6 +337,27 @@ export function buildCohorts(data) {
     const logos = [];
     const revenue = [];
     const profit = [];
+
+    // Survival, which is not the same as presence.
+    //
+    // logos[] counts who is present at each age, so a customer who leaves and
+    // returns is counted again and the curve can rise. A retention curve that
+    // goes up is not a retention curve: it read 100.2% at month 2 for the 2025
+    // cohorts and ran 89% then 95% then 87% for 2026. Survival counts a
+    // customer only while they have been present every month since their
+    // first, so once they are gone they stay gone and the line can only fall.
+    //
+    // Both are kept. Presence is the right measure for revenue, because a
+    // returning customer really is paying again. Survival is the right measure
+    // for retention, because the question is how much of an intake is left.
+    const runLength = new Map();
+    for (const id of ids) {
+      const months = activeByCustomer.get(id);
+      let k = 0;
+      while (k <= maxOffset && months.has(monthAdd(month, k))) k += 1;
+      runLength.set(id, k);
+    }
+    const survivors = [];
     for (let offset = 0; offset <= maxOffset; offset += 1) {
       const at = monthAdd(month, offset);
       let live = 0;
@@ -345,9 +374,12 @@ export function buildCohorts(data) {
       logos.push(live);
       revenue.push(mrr);
       profit.push(gp);
+      let intact = 0;
+      for (const id of ids) if (runLength.get(id) > offset) intact += 1;
+      survivors.push(intact);
     }
 
-    return { month, size: logos[0] || ids.length, ids, logos, revenue, profit, maxOffset };
+    return { month, size: logos[0] || ids.length, ids, logos, survivors, revenue, profit, maxOffset };
   });
 
   const built = cohorts.filter(c => c.size > 0);
@@ -462,6 +494,131 @@ export function departures(data) {
 }
 
 
+
+
+// LTV:CAC with every cohort measured at the same age.
+//
+// The plain version of this chart is age-biased by construction: an old
+// cohort has had two years to return its cost and a young one two months, so
+// the bars slope even if nothing changed. Cutting every cohort at the same
+// age removes that, and what is left is a like-for-like comparison. The price
+// is that only cohorts old enough to reach the age appear at all.
+export function ltvAtAge(data, cohorts, { age = 6, margin = 0.757 } = {}) {
+  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const offset = age - 1;
+
+  return cohorts.map(cohort => {
+    const spend = cac.get(cohort.month);
+    const costPerLogo = (spend === undefined || !cohort.size) ? null : spend / cohort.size;
+    if (cohort.maxOffset < offset || costPerLogo === null) {
+      return { month: cohort.month, size: cohort.size, costPerLogo, ratio: null, gpPerLogo: null };
+    }
+    let gp = 0;
+    for (let k = 0; k <= offset; k += 1) {
+      gp += (cohort.profit && cohort.profit.length ? cohort.profit[k] : cohort.revenue[k] * margin);
+    }
+    const gpPerLogo = gp / cohort.size;
+    return {
+      month: cohort.month,
+      size: cohort.size,
+      costPerLogo,
+      gpPerLogo,
+      ratio: gpPerLogo / costPerLogo,
+      survival: cohort.survivors[offset] / (cohort.survivors[0] || 1),
+    };
+  });
+}
+
+// Price at signup across the whole window, and what each price bought.
+//
+// signupEconomics() reads the New Customer Cohorts tab, which only covers
+// 2026-01 onward. Over seven months price looks like it rose 44%. Over
+// twenty-four it is a V: the average new subscription was $1,325 in
+// 2024-09, fell to $741 by 2025-11 and has climbed back to about $1,300.
+// The recent rise is a recovery to where the business already was, not a
+// new high, and no chart drawn on seven months can show that.
+//
+// The price here is new_mrr, the subscription booked when a customer joins,
+// which is the only price measure that exists for all twenty-four months.
+// It is lower than starting_mrr because it excludes fees and waived amounts,
+// so read the shape rather than the level.
+export function signupPriceHistory(data) {
+  const byMonth = new Map();
+  for (const row of data.customers) {
+    if (row.eventType !== 'new') continue;
+    const price = row.newMrr;
+    if (!price || price <= 0) continue;
+    if (!byMonth.has(row.month)) byMonth.set(row.month, []);
+    byMonth.get(row.month).push(price);
+  }
+  return [...byMonth.keys()].sort().map(month => {
+    const prices = byMonth.get(month).sort((a, b) => a - b);
+    return {
+      month,
+      count: prices.length,
+      mean: prices.reduce((s, v) => s + v, 0) / prices.length,
+      median: prices[Math.floor(prices.length / 2)],
+      booked: prices.reduce((s, v) => s + v, 0),
+    };
+  });
+}
+
+// What a price band actually returns.
+//
+// The question a dual axis cannot answer: is there a price that maximises
+// revenue? A crossing point on that chart is an artefact of two scales and
+// means nothing, but the underlying question is real and this is where it
+// can be asked. Each band is followed the same number of months, so the
+// comparison is age-matched.
+export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500, Infinity] } = {}) {
+  const live = new Map();
+  const cash = new Map();
+  for (const row of data.customers) {
+    if (row.active) {
+      if (!live.has(row.month)) live.set(row.month, new Set());
+      live.get(row.month).add(row.id);
+    }
+    if (!cash.has(row.id)) cash.set(row.id, new Map());
+    cash.get(row.id).set(row.month, row.netCash || 0);
+  }
+  const last = data.lastMonth;
+
+  const starts = [];
+  for (const row of data.customers) {
+    if (row.eventType !== 'new' || !row.newMrr || row.newMrr <= 0) continue;
+    if (monthAdd(row.month, horizon - 1) > last) continue;
+    starts.push({ id: row.id, month: row.month, price: row.newMrr });
+  }
+
+  const bands = [];
+  for (let i = 0; i < edges.length - 1; i += 1) {
+    const lo = edges[i], hi = edges[i + 1];
+    const group = starts.filter(s => s.price >= lo && s.price < hi);
+    if (group.length < 10) continue;
+    const target = s => monthAdd(s.month, horizon - 1);
+    const alive = group.filter(s => live.get(target(s))?.has(s.id)).length;
+    const total = group.reduce((sum, s) => {
+      let paid = 0;
+      for (let k = 0; k < horizon; k += 1) paid += cash.get(s.id)?.get(monthAdd(s.month, k)) || 0;
+      return sum + paid;
+    }, 0);
+    const price = group.reduce((s, x) => s + x.price, 0) / group.length;
+    bands.push({
+      lo, hi, n: group.length,
+      label: hi === Infinity ? `$${lo.toLocaleString()}+`
+        : `$${lo.toLocaleString()}–${hi.toLocaleString()}`,
+      survival: alive / group.length,
+      price,
+      cashPerCustomer: total / group.length,
+      // Six months of cash per dollar of monthly price. Flat would mean price
+      // buys exactly proportional revenue; falling means diminishing returns.
+      perDollar: total / group.length / price,
+      total,
+    });
+  }
+  return { horizon, bands, n: starts.length };
+}
+
 // Acquisition cost broken out by category, month by month.
 //
 // The categories are the ones the spend actually divides into, not the
@@ -540,21 +697,24 @@ export function acquisitionCosts(data, { months = 12 } = {}) {
 // Month 1 carries setup and onboarding fees, so indexing there turns a
 // one-off charge ending into what reads as a cliff. The sample rule keeps the
 // tail from being drawn by a handful of old cohorts.
-export function blendedRetention(cohorts, { minCohorts = 20, maxMonths = 24 } = {}) {
+export function blendedRetention(cohorts, { minCohorts = 12, maxMonths = 24 } = {}) {
   const points = [];
   for (let offset = 1; ; offset += 1) {
     // Two limits, whichever bites first. The sample rule stops the tail being
     // drawn by a handful of old cohorts, and the horizon keeps the curve to a
     // span somebody can actually reason about.
     if (offset + 1 > maxMonths) break;
-    const inSample = cohorts.filter(c => c.maxOffset >= offset && c.logos[1] > 0);
+    const inSample = cohorts.filter(c => c.maxOffset >= offset && c.survivors[1] > 0);
     if (inSample.length < minCohorts) break;
 
-    const logoBase = inSample.reduce((sum, c) => sum + c.logos[1], 0);
+    const logoBase = inSample.reduce((sum, c) => sum + c.survivors[1], 0);
     const revenueBase = inSample.reduce((sum, c) => sum + c.revenue[1], 0);
     points.push({
       offset: offset + 1,
-      logos: logoBase ? inSample.reduce((s, c) => s + c.logos[offset], 0) / logoBase : null,
+      // Survival for the logo line, presence for revenue. A customer who
+      // returns is genuinely paying again, so revenue counts them; retention
+      // asks how much of the intake is left, so it does not.
+      logos: logoBase ? inSample.reduce((s, c) => s + c.survivors[offset], 0) / logoBase : null,
       revenue: revenueBase ? inSample.reduce((s, c) => s + c.revenue[offset], 0) / revenueBase : null,
       cohorts: inSample.length,
     });
@@ -568,10 +728,10 @@ export function blendedRetention(cohorts, { minCohorts = 20, maxMonths = 24 } = 
 // its retention and every recent cohort reads as perfect.
 export function retentionAtAge(cohorts, offset) {
   return cohorts.map(cohort => {
-    if (cohort.maxOffset < offset || !cohort.logos[1]) {
+    if (cohort.maxOffset < offset || !cohort.survivors[1]) {
       return { month: cohort.month, value: null };
     }
-    return { month: cohort.month, value: cohort.logos[offset] / cohort.logos[1] };
+    return { month: cohort.month, value: cohort.survivors[offset] / cohort.survivors[1] };
   });
 }
 
@@ -700,7 +860,13 @@ export function forwardSurvival(data, { horizon = 4, windows = 24 } = {}) {
   };
 }
 
-export function correlate(pairs) {
+export function correlate(input) {
+  // Drop incomplete pairs rather than arithmetic on them. A single missing
+  // month used to turn the whole correlation into NaN, which then rendered as
+  // a blank where a reader would take it for "no relationship" rather than
+  // "not computed".
+  const pairs = input.filter(p =>
+    p && Number.isFinite(p[0]) && Number.isFinite(p[1]));
   const n = pairs.length;
   if (n < 3) return null;
   const mx = pairs.reduce((s, p) => s + p[0], 0) / n;
@@ -731,18 +897,32 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
   const years = [...byYear.keys()].sort().slice(-3);
 
   return years.map(year => {
-    const group = byYear.get(year);
+    const group = byYear.get(year).filter(c => c.survivors[0] > 0);
+
+    // The sample has to be the same at every age, or the line moves because
+    // its membership moved. Recomputing it per point let the 2026 curve run
+    // 86.7% then 91.6%: the cohorts that had reached month four were simply
+    // better than the ones that had only reached month three. Fix the set to
+    // the cohorts that reach the far end, then read every point off it, and
+    // stop the line where that set would have to change.
+    let reach = 0;
+    for (let offset = maxMonths - 1; offset >= 0; offset -= 1) {
+      if (group.filter(c => c.maxOffset >= offset).length >= minCohorts) { reach = offset; break; }
+    }
+    const inSample = group.filter(c => c.maxOffset >= reach);
+    const base = inSample.reduce((s, c) => s + c.survivors[0], 0);
+
     const points = [];
     for (let offset = 0; offset < maxMonths; offset += 1) {
-      const inSample = group.filter(c => c.maxOffset >= offset && c.logos[0] > 0);
-      if (inSample.length < minCohorts) { points.push(null); continue; }
-      const base = inSample.reduce((s, c) => s + c.logos[0], 0);
-      points.push(base ? inSample.reduce((s, c) => s + c.logos[offset], 0) / base : null);
+      if (offset > reach || !base || inSample.length < minCohorts) { points.push(null); continue; }
+      points.push(inSample.reduce((s, c) => s + c.survivors[offset], 0) / base);
     }
     const reached = offset => group.filter(c => c.maxOffset >= offset).length;
     return {
       year,
-      cohorts: group.length,
+      cohorts: inSample.length,
+      cohortsInYear: group.length,
+      reach,
       points,
       month3: points[2],
       month6: points[5],
@@ -988,6 +1168,19 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
   // Momentum: the same correlation computed over a moving window, so a
   // relationship that has faded shows as a line heading for zero rather than
   // hiding inside one pooled number.
+  // Average subscription booked in each measured month, lined up with the
+  // same months the other series use.
+  const priceByMonth = new Map();
+  for (const row of data.customers) {
+    if (row.eventType !== 'new' || !row.newMrr || row.newMrr <= 0) continue;
+    if (!priceByMonth.has(row.month)) priceByMonth.set(row.month, []);
+    priceByMonth.get(row.month).push(row.newMrr);
+  }
+  const priceSeries = measured.map(p => {
+    const v = priceByMonth.get(p.month);
+    return v && v.length ? v.reduce((s, x) => s + x, 0) / v.length : null;
+  });
+
   const rolling = (xs, width = 12) => measured.map((_, i) => {
     if (i < width - 1) return null;
     const a = xs.slice(i - width + 1, i + 1);
@@ -1014,6 +1207,12 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
     rollingArrivals: rolling(arrivals),
     rollingCapacity: rolling(capacity),
     rollingWholeFunction: rolling(wholeFunction),
+    // Price belongs on this chart as much as spend does. It is the one lever
+    // the business has actually pulled over the window, and the pooled tests
+    // elsewhere say higher payers churn less, so whether that relationship is
+    // strengthening or fading is worth watching rather than assuming.
+    rollingPrice: rolling(priceSeries),
+    priceAgainstChurn: pair(priceSeries, churn),
     rollingWidth: 12,
   };
 }

@@ -1,0 +1,238 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    /* Families declared in frame.md — Newsreader 400 (display ramp) + DM Mono 400 (chrome).
+       No .woff2 ships in assets/fonts/ or capture/assets/fonts/ in this project, so the faces
+       point at the real upstream files for these exact Google families (latin subset).
+       font-display: block so every parallel render worker paints the same glyphs. */
+    @font-face {
+      font-family: "Newsreader";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("https://fonts.gstatic.com/s/newsreader/v26/cY9VfjOCX1hbuyalUrK49dLafXjalZCsZBsgBgbNJYQ.woff2")
+        format("woff2");
+    }
+    @font-face {
+      font-family: "DM Mono";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("https://fonts.gstatic.com/s/dmmono/v16/aFTU7PB1QTsUX8KYthqQBA.woff2") format("woff2");
+    }
+
+    /* ── frame root — styled by #root, never by a class on the composition element ── */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+      /* frame.md tokens */
+      --lever07-paper: #f4f5f6;
+      --lever07-ink: #15181c;
+      --lever07-ink-soft: #474d55;
+      --lever07-grid: rgba(21, 24, 28, 0.08);
+      --lever07-amber: #b07d2b;
+    }
+
+    /* ── ground: full-bleed paper + permanent graph-paper grid, on a clip layer ── */
+    .lever07-ground {
+      position: absolute;
+      inset: 0;
+      background: var(--lever07-paper);
+    }
+    .lever07-grid {
+      position: absolute;
+      inset: 0;
+      /* ~2cqw cells, 10% ink — the permanent measured plane, dimmed background role */
+      background-image:
+        linear-gradient(to right, var(--lever07-grid) 0.06cqw, transparent 0.06cqw),
+        linear-gradient(to bottom, var(--lever07-grid) 0.06cqw, transparent 0.06cqw);
+      background-size: 2cqw 2cqw;
+      background-position: 0 0;
+      opacity: 0.9;
+    }
+    /* the two persistent hairlines framing every composition */
+    .lever07-rule {
+      position: absolute;
+      left: 4cqw;
+      right: 4cqw;
+      height: 0.12cqw;
+      background: var(--lever07-ink);
+    }
+    .lever07-rule-top {
+      top: 3cqw;
+    }
+    .lever07-rule-bottom {
+      bottom: 3cqw;
+    }
+
+    /* ── foreground subject: the lever line ── */
+    .lever07-lede {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 14cqw;
+      text-align: center;
+      font-family: "Newsreader", Georgia, serif;
+      font-weight: 400;
+      font-size: 8.4cqw; /* display-closing register, fit to a ~64cqw measure */
+      line-height: 0.96;
+      letter-spacing: -0.005em;
+      color: var(--lever07-ink);
+    }
+    .lever07-line {
+      display: block;
+      padding: 0 4cqw 0.06em;
+      white-space: nowrap;
+    }
+
+    /* ── supporting: the two struck alternatives ── */
+    .lever07-alts {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 36.5cqw;
+      display: flex;
+      justify-content: center;
+      align-items: baseline;
+      gap: 7cqw;
+    }
+    .lever07-alt {
+      position: relative;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 2cqw;
+      letter-spacing: 0.05em;
+      line-height: 1.4;
+      color: var(--lever07-ink-soft);
+      padding: 0 0.3cqw;
+    }
+    .lever07-strike {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(50% - 0.06cqw);
+      height: 0.12cqw;
+      background: var(--lever07-ink);
+    }
+
+    /* ── the closing amber hairline, at the very bottom edge ── */
+    .lever07-mark {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 1.6cqw;
+      height: 0.12cqw;
+      background: var(--lever07-amber);
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="07-the-lever"
+    data-start="0"
+    data-duration="5"
+    data-width="1920"
+    data-height="1080"
+  >
+    <div class="clip lever07-ground" data-start="0" data-duration="5" data-track-index="0">
+      <div class="lever07-grid"></div>
+      <div class="lever07-rule lever07-rule-top"></div>
+      <div class="lever07-rule lever07-rule-bottom"></div>
+    </div>
+
+    <div id="lever07-lede" class="clip lever07-lede" data-start="0" data-duration="5" data-track-index="1">
+      <span id="lever07-line1" class="lever07-line">The lever is</span>
+      <span id="lever07-line2" class="lever07-line">acquisition cost.</span>
+    </div>
+
+    <div class="clip lever07-alts" data-start="0" data-duration="5" data-track-index="2">
+      <div id="lever07-alt1" class="lever07-alt">
+        Not upsell.
+        <i id="lever07-strike1" class="lever07-strike"></i>
+      </div>
+      <div id="lever07-alt2" class="lever07-alt">
+        Not pricing.
+        <i id="lever07-strike2" class="lever07-strike"></i>
+      </div>
+    </div>
+
+    <div id="lever07-mark" class="clip lever07-mark" data-start="0" data-duration="5" data-track-index="3"></div>
+  </div>
+
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* Scene 1 (0.0–1.6s) — the ONE restrained move: a slide-up crossfade brings the
+         lever line to centre, with a whisper of scale settle underneath. Then it holds. */
+      tl.fromTo(
+        "#lever07-lede",
+        { scale: 0.972 },
+        { scale: 1, duration: 1.25, ease: "power2.out" },
+        0.04
+      );
+      tl.fromTo(
+        "#lever07-line1",
+        { yPercent: 34, opacity: 0 },
+        { yPercent: 0, opacity: 1, duration: 0.82, ease: "power3.out" },
+        0.04
+      );
+      tl.fromTo(
+        "#lever07-line2",
+        { yPercent: 34, opacity: 0 },
+        { yPercent: 0, opacity: 1, duration: 0.82, ease: "power3.out" },
+        0.16
+      );
+
+      /* Scene 2 (1.6–3.2s) — the two alternatives settle in mono, each struck in turn. */
+      tl.fromTo(
+        "#lever07-alt1",
+        { y: 16, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.52, ease: "power2.out" },
+        1.62
+      );
+      tl.fromTo(
+        "#lever07-strike1",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.36, ease: "power2.inOut", transformOrigin: "left center" },
+        1.98
+      );
+      tl.to("#lever07-alt1", { opacity: 0.62, duration: 0.35, ease: "power1.out" }, 2.2);
+
+      tl.fromTo(
+        "#lever07-alt2",
+        { y: 16, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.52, ease: "power2.out" },
+        2.24
+      );
+      tl.fromTo(
+        "#lever07-strike2",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.36, ease: "power2.inOut", transformOrigin: "left center" },
+        2.62
+      );
+      tl.to("#lever07-alt2", { opacity: 0.62, duration: 0.35, ease: "power1.out" }, 2.84);
+
+      /* Scene 3 (3.2–5.0s) — everything holds still. One amber hairline draws across the
+         very bottom of the frame and stops. Nothing after it: the sentence is the ending. */
+      tl.fromTo(
+        "#lever07-mark",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.98, ease: "power2.inOut", transformOrigin: "left center" },
+        3.32
+      );
+
+      /* span the full allocated duration — the last 0.7s is pure stillness */
+      tl.to({}, { duration: 5 }, 0);
+
+      window.__timelines["07-the-lever"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>
