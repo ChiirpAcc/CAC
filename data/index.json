@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-09-18T13:04:36",
+  "pushed_at": "2026-09-18T14:15:51",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -24,7 +24,7 @@
     {
       "tab": "Customer Waterfall",
       "file": "customer_waterfall.json",
-      "rows": 48040
+      "rows": 48158
     },
     {
       "tab": "Subscription Lifetimes",
