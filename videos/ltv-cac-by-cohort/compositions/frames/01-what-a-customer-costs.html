@@ -1,0 +1,396 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    /* Faces staged on disk in assets/fonts/ — referenced project-root-relative.
+       Only the three families frame.md declares exist; font-display: block so every
+       parallel render worker paints identical glyphs. */
+    @font-face {
+      font-family: "Newsreader";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/Newsreader-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "DM Mono";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/DMMono-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url("assets/fonts/HankenGrotesk-600.woff2") format("woff2");
+    }
+
+    /* ── frame root — styled via #root, never a class on the composition element ── */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+      /* frame.md tokens */
+      --cost01-paper: #f4f5f6;
+      --cost01-ink: #15181c;
+      --cost01-grid: rgba(21, 24, 28, 0.08);
+      /* series colours — meaning-bearing, lifted from the site this video explains */
+      --cost01-teal: #1f6f8b; /* neutral series — the old price */
+      --cost01-negative: #a8423a; /* below break-even — the new price */
+      --cost01-amber: #b07d2b; /* accent label */
+    }
+
+    /* ── background role: paper + the permanent graph-paper grid, on a clip layer ── */
+    .cost01-ground {
+      position: absolute;
+      inset: 0;
+      background: var(--cost01-paper);
+    }
+    .cost01-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, var(--cost01-grid) 0.06cqw, transparent 0.06cqw),
+        linear-gradient(to bottom, var(--cost01-grid) 0.06cqw, transparent 0.06cqw);
+      background-size: 2cqw 2cqw;
+      background-position: 0 0;
+      opacity: 0.9;
+      transform-origin: 50% 50%;
+    }
+    /* the two persistent hairlines framing every composition */
+    .cost01-rule {
+      position: absolute;
+      left: 4cqw;
+      right: 4cqw;
+      height: 0.12cqw;
+      background: var(--cost01-ink);
+    }
+    .cost01-rule-top {
+      top: 3cqw;
+      transform-origin: left center;
+    }
+    .cost01-rule-bottom {
+      bottom: 3cqw;
+      transform-origin: right center;
+    }
+
+    /* ── the type block: centred template, left-set inside itself ── */
+    .cost01-block {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 14.5cqw;
+      text-align: center;
+    }
+    .cost01-inner {
+      display: inline-block;
+      text-align: left;
+    }
+
+    /* supporting: the fixed lead line */
+    .cost01-lede {
+      font-family: "Newsreader", Georgia, serif;
+      font-weight: 400;
+      font-size: 3.2cqw;
+      line-height: 1.1;
+      letter-spacing: -0.005em;
+      color: var(--cost01-ink);
+      white-space: nowrap;
+    }
+
+    /* the slot both figures share — width is set by the figure itself */
+    .cost01-stack {
+      position: relative;
+      display: block;
+      margin-top: 2cqw;
+    }
+
+    /* foreground subject: the cost figure, mono at hero scale */
+    .cost01-figwrap {
+      position: relative;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 12.5cqw;
+      line-height: 0.9;
+      letter-spacing: 0.05em;
+      margin-right: -0.05em; /* swallow the trailing letter-space */
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+      white-space: nowrap;
+    }
+    .cost01-fig {
+      display: block;
+      white-space: nowrap;
+    }
+    .cost01-fig-b {
+      position: absolute;
+      left: 0;
+      top: 0;
+      visibility: hidden;
+    }
+    .cost01-fig-a {
+      color: var(--cost01-teal);
+    }
+    .cost01-fig-b {
+      color: var(--cost01-negative);
+    }
+    .cost01-ch {
+      display: inline-block;
+      transform-origin: 50% 70%;
+      will-change: transform;
+    }
+
+    /* micro label — amber, tracked Hanken */
+    .cost01-labels {
+      position: absolute;
+      left: 0;
+      top: 12.5cqw;
+      height: 2cqw;
+    }
+    .cost01-label {
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-family: "Hanken Grotesk", "Helvetica Neue", sans-serif;
+      font-weight: 600;
+      font-size: 1.4cqw;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      color: var(--cost01-amber);
+    }
+    .cost01-label-b {
+      visibility: hidden;
+    }
+
+    /* the bracket that closes the frame — drawn once across the shared slot */
+    .cost01-bracket {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 15.2cqw;
+      height: 1.4cqw;
+    }
+    .cost01-br-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 0.12cqw;
+      background: var(--cost01-amber);
+      transform-origin: left center;
+    }
+    .cost01-br-tick {
+      position: absolute;
+      top: 0;
+      width: 0.12cqw;
+      height: 100%;
+      background: var(--cost01-amber);
+    }
+    .cost01-br-tick-l {
+      left: 0;
+      transform-origin: center top;
+    }
+    .cost01-br-tick-r {
+      right: 0;
+      transform-origin: center bottom;
+    }
+
+    .cost01-tag {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 18.2cqw;
+      text-align: center;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 1.5cqw;
+      line-height: 1.4;
+      letter-spacing: 0.05em;
+      color: var(--cost01-amber);
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="01-what-a-customer-costs"
+    data-start="0"
+    data-duration="6"
+    data-width="1920"
+    data-height="1080"
+  >
+    <div class="clip cost01-ground" data-start="0" data-duration="6" data-track-index="0">
+      <div id="cost01-grid" class="cost01-grid"></div>
+      <div id="cost01-rule-top" class="cost01-rule cost01-rule-top"></div>
+      <div id="cost01-rule-bottom" class="cost01-rule cost01-rule-bottom"></div>
+    </div>
+
+    <div class="clip cost01-block" data-start="0" data-duration="6" data-track-index="1">
+      <div class="cost01-inner">
+        <div id="cost01-lede" class="cost01-lede">A customer costs</div>
+
+        <div class="cost01-stack">
+          <div class="cost01-figwrap">
+            <span id="cost01-fig-a" class="cost01-fig cost01-fig-a"
+              ><span class="cost01-ch cost01-ch-a">$</span><span class="cost01-ch cost01-ch-a"
+                >2</span
+              ><span class="cost01-ch cost01-ch-a">,</span><span class="cost01-ch cost01-ch-a"
+                >5</span
+              ><span class="cost01-ch cost01-ch-a">8</span><span class="cost01-ch cost01-ch-a"
+                >3</span
+              ></span
+            >
+            <span id="cost01-fig-b" class="cost01-fig cost01-fig-b"
+              ><span class="cost01-ch">$</span><span class="cost01-ch">9</span
+              ><span class="cost01-ch">,</span><span class="cost01-ch">3</span
+              ><span class="cost01-ch">6</span><span class="cost01-ch">7</span></span
+            >
+          </div>
+
+          <div class="cost01-labels">
+            <span id="cost01-label-a" class="cost01-label cost01-label-a">2024-10 cohort</span>
+            <span id="cost01-label-b" class="cost01-label cost01-label-b">2026-08 cohort</span>
+          </div>
+
+          <div class="cost01-bracket">
+            <i id="cost01-br-tick-l" class="cost01-br-tick cost01-br-tick-l"></i>
+            <i id="cost01-br-line" class="cost01-br-line"></i>
+            <i id="cost01-br-tick-r" class="cost01-br-tick cost01-br-tick-r"></i>
+          </div>
+
+          <div id="cost01-tag" class="cost01-tag">3.6x the price</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* ── Scene 1 (0.0–1.4s) — the hairline grid field settles, then the fixed
+         lead line sets. Nothing else on screen. ───────────────────────────── */
+      tl.fromTo(
+        "#cost01-grid",
+        { opacity: 0, scale: 1.035 },
+        { opacity: 0.9, scale: 1, duration: 1.1, ease: "power3.out" },
+        0
+      );
+      tl.fromTo(
+        "#cost01-rule-top",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.86, ease: "power2.inOut" },
+        0.05
+      );
+      tl.fromTo(
+        "#cost01-rule-bottom",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.86, ease: "power2.inOut" },
+        0.12
+      );
+      tl.fromTo(
+        "#cost01-lede",
+        { y: 26, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.62, ease: "power3.out" },
+        0.08
+      );
+
+      /* ── Scene 2 (1.4–3.0s) — "$2,583" springs in beneath the lead line,
+         per character, each on a smooth long-tail settle (spring-pop-entrance),
+         then the amber cohort micro-label rises under it. ──────────────────── */
+      gsap.utils.toArray(".cost01-ch-a").forEach(function (ch, i) {
+        tl.fromTo(
+          ch,
+          { opacity: 0, scale: 0.55, y: 16 },
+          { opacity: 1, scale: 1, y: 0, duration: 0.52, ease: "power3.out" },
+          1.4 + i * 0.058
+        );
+      });
+      tl.fromTo(
+        "#cost01-label-a",
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.48, ease: "power2.out" },
+        2.05
+      );
+
+      /* ── Scene 3 (3.0–4.4s) — THE SIGNATURE MOVE. A discrete state swap at a
+         frame threshold (discrete-text-sequence): "$2,583" is not faded, it is
+         CUT away and "$9,367" stands on the same baseline in its place. The
+         cohort label catches up one beat later. Visibility only — no opacity
+         tween touches these nodes, so the substitution is instant on any frame. */
+      var figA = document.getElementById("cost01-fig-a");
+      var figB = document.getElementById("cost01-fig-b");
+      var labelA = document.getElementById("cost01-label-a");
+      var labelB = document.getElementById("cost01-label-b");
+
+      var STATES = [
+        { t: 0.0, fig: "a", label: "a" },
+        { t: 3.0, fig: "b", label: "a" },
+        { t: 3.08, fig: "b", label: "b" },
+      ];
+
+      function stateAt(time) {
+        for (var i = STATES.length - 1; i >= 0; i--) {
+          if (time >= STATES[i].t) return STATES[i];
+        }
+        return STATES[0];
+      }
+
+      var driver = { t: 0 };
+      tl.to(
+        driver,
+        {
+          t: 6,
+          duration: 6,
+          ease: "none",
+          onUpdate: function () {
+            var s = stateAt(driver.t);
+            figA.style.visibility = s.fig === "a" ? "visible" : "hidden";
+            figB.style.visibility = s.fig === "b" ? "visible" : "hidden";
+            labelA.style.visibility = s.label === "a" ? "visible" : "hidden";
+            labelB.style.visibility = s.label === "b" ? "visible" : "hidden";
+          },
+        },
+        0
+      );
+
+      /* ── Scene 4 (4.4–6.0s) — one thin amber bracket draws once across the slot
+         both numbers occupied (down the left tick, across, up the right tick —
+         one continuous pen), and the mono tag settles at its midpoint. Then the
+         frame holds STILL for the read. ────────────────────────────────────── */
+      tl.fromTo(
+        "#cost01-br-tick-l",
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.24, ease: "power2.out" },
+        4.4
+      );
+      tl.fromTo(
+        "#cost01-br-line",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.56, ease: "power2.inOut" },
+        4.58
+      );
+      tl.fromTo(
+        "#cost01-br-tick-r",
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.24, ease: "power2.out" },
+        5.02
+      );
+      tl.fromTo(
+        "#cost01-tag",
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.44, ease: "power2.out" },
+        5.24
+      );
+
+      window.__timelines["01-what-a-customer-costs"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

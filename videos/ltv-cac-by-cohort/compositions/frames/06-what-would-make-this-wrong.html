@@ -1,0 +1,349 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    /* Families declared in frame.md. Real .woff2 files ship in assets/fonts/ —
+       referenced project-root-relative, never from a CDN, so every parallel render
+       worker paints identical glyphs. font-display: block for the same reason.
+       Only the faces actually used here are declared. */
+    @font-face {
+      font-family: "Newsreader";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/Newsreader-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "DM Mono";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/DMMono-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "DM Mono";
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url("assets/fonts/DMMono-500.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url("assets/fonts/HankenGrotesk-600.woff2") format("woff2");
+    }
+
+    /* ── frame root — styled by #root, never by a class on the composition element ── */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+      /* frame.md tokens */
+      --wrong06-paper: #f4f5f6;
+      --wrong06-ink: #15181c;
+      --wrong06-ink-soft: #474d55;
+      --wrong06-grid: rgba(21, 24, 28, 0.08);
+      --wrong06-ink-faint: rgba(21, 24, 28, 0.16);
+      --wrong06-amber: #b07d2b; /* series.amber — the accent LABEL colour, never decoration */
+    }
+
+    /* ── ground: full-bleed paper + the permanent graph-paper grid, on a clip layer ── */
+    .wrong06-ground {
+      position: absolute;
+      inset: 0;
+      background: var(--wrong06-paper);
+    }
+    .wrong06-grid {
+      position: absolute;
+      inset: 0;
+      /* ~2cqw cells at 8% ink — the dim measured plane behind everything */
+      background-image:
+        linear-gradient(to right, var(--wrong06-grid) 0.06cqw, transparent 0.06cqw),
+        linear-gradient(to bottom, var(--wrong06-grid) 0.06cqw, transparent 0.06cqw);
+      background-size: 2cqw 2cqw;
+      background-position: 0 0;
+      opacity: 0.9;
+    }
+    /* the two persistent hairlines framing every composition */
+    .wrong06-rule {
+      position: absolute;
+      left: 4cqw;
+      right: 4cqw;
+      height: 0.12cqw;
+      background: var(--wrong06-ink);
+    }
+    .wrong06-rule-top {
+      top: 3cqw;
+    }
+    .wrong06-rule-bottom {
+      bottom: 3cqw;
+    }
+
+    /* ── the narrow left rail of the 70/30 split — standing header + counter ── */
+    .wrong06-rail {
+      position: absolute;
+      left: 4cqw;
+      top: 0;
+      width: 22cqw;
+      height: 100%;
+    }
+    .wrong06-header {
+      position: absolute;
+      left: 0;
+      top: 18.1cqw;
+      width: 100%;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 600;
+      font-size: 1.15cqw; /* micro-strong register */
+      letter-spacing: 0.18em;
+      line-height: 1.9;
+      text-transform: uppercase;
+      color: var(--wrong06-amber);
+    }
+    .wrong06-hline {
+      display: block;
+      white-space: nowrap;
+    }
+    .wrong06-count {
+      position: absolute;
+      left: 0;
+      top: 28.6cqw;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 500;
+      font-size: 1.4cqw;
+      letter-spacing: 0.06em;
+      line-height: 1.2;
+      color: var(--wrong06-ink-soft);
+      white-space: nowrap;
+    }
+    .wrong06-ticks {
+      position: absolute;
+      left: 0;
+      top: 31.9cqw;
+      display: flex;
+      gap: 0.8cqw;
+    }
+    .wrong06-tick {
+      width: 3.4cqw;
+      height: 0.24cqw;
+      background: var(--wrong06-ink-faint);
+    }
+    /* the structural divider between rail and column */
+    .wrong06-divider {
+      position: absolute;
+      left: 28cqw;
+      top: 16.4cqw;
+      width: 0.12cqw;
+      height: 21cqw;
+      background: var(--wrong06-ink-faint);
+    }
+
+    /* ── the wide right column — the caveats swap here, on one baseline ── */
+    .wrong06-col {
+      position: absolute;
+      left: 31cqw;
+      right: 6cqw; /* 63cqw measure — inside the 78cqw block cap */
+      top: 17cqw;
+    }
+    .wrong06-lines {
+      font-family: "Newsreader", Georgia, serif;
+      font-weight: 400;
+      font-size: 4cqw; /* row-headline/quote register, fit to the 63cqw measure */
+      line-height: 1.12;
+      letter-spacing: -0.005em;
+      color: var(--wrong06-ink);
+    }
+    .wrong06-line {
+      display: block;
+      width: fit-content;
+      white-space: nowrap;
+    }
+    .wrong06-tag {
+      position: absolute;
+      left: 0;
+      top: 17.3cqw; /* beneath the three-line block, same slot for all three caveats */
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 1.4cqw; /* at the legibility floor, mono chrome register */
+      letter-spacing: 0.05em;
+      line-height: 1.5;
+      color: var(--wrong06-ink-soft);
+      white-space: nowrap;
+    }
+    /* caveats 2 and 3 are dark until their hard cut; caveat 1 is live at t=0 */
+    #wrong06-g2,
+    #wrong06-g3 {
+      opacity: 0;
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="06-what-would-make-this-wrong"
+    data-start="0"
+    data-duration="9"
+    data-width="1920"
+    data-height="1080"
+  >
+    <!-- background (dim): paper + graph-paper grid + the two hairlines -->
+    <div class="clip wrong06-ground" data-start="0" data-duration="9" data-track-index="0">
+      <div class="wrong06-grid"></div>
+      <div class="wrong06-rule wrong06-rule-top"></div>
+      <div class="wrong06-rule wrong06-rule-bottom"></div>
+    </div>
+
+    <!-- supporting: the standing header. Sets once in Scene 1 and never moves again. -->
+    <div class="clip wrong06-rail" data-start="0" data-duration="9" data-track-index="1">
+      <div class="wrong06-header">
+        <span id="wrong06-h1" class="wrong06-hline">What would</span>
+        <span id="wrong06-h2" class="wrong06-hline">make this</span>
+        <span id="wrong06-h3" class="wrong06-hline">wrong</span>
+      </div>
+      <div id="wrong06-count" class="wrong06-count"></div>
+      <div id="wrong06-ticks" class="wrong06-ticks">
+        <i id="wrong06-tick0" class="wrong06-tick"></i>
+        <i id="wrong06-tick1" class="wrong06-tick"></i>
+        <i id="wrong06-tick2" class="wrong06-tick"></i>
+      </div>
+      <div id="wrong06-divider" class="wrong06-divider"></div>
+    </div>
+
+    <!-- foreground subject — caveat 1 -->
+    <div id="wrong06-g1" class="clip wrong06-col" data-start="0" data-duration="9" data-track-index="2">
+      <div class="wrong06-lines">
+        <span id="wrong06-g1l1" class="wrong06-line">Realised, not projected.</span>
+        <span id="wrong06-g1l2" class="wrong06-line">A young cohort sits low</span>
+        <span id="wrong06-g1l3" class="wrong06-line">because it is young.</span>
+      </div>
+      <div id="wrong06-g1tag" class="wrong06-tag">the right-hand columns will keep rising</div>
+    </div>
+
+    <!-- foreground subject — caveat 2, same baseline -->
+    <div id="wrong06-g2" class="clip wrong06-col" data-start="0" data-duration="9" data-track-index="3">
+      <div class="wrong06-lines">
+        <span class="wrong06-line">Cost per logo assumes a month</span>
+        <span class="wrong06-line">of spend bought that month</span>
+        <span class="wrong06-line">of logos.</span>
+      </div>
+      <div id="wrong06-g2tag" class="wrong06-tag">a long sales cycle would put spend on the wrong cohort.</div>
+    </div>
+
+    <!-- foreground subject — caveat 3, same baseline; holds to the end -->
+    <div id="wrong06-g3" class="clip wrong06-col" data-start="0" data-duration="9" data-track-index="4">
+      <div class="wrong06-lines">
+        <span class="wrong06-line">Cohorts before 2024-09 are</span>
+        <span class="wrong06-line">absent because acquisition</span>
+        <span class="wrong06-line">cost is not recorded then.</span>
+      </div>
+      <div id="wrong06-g3tag" class="wrong06-tag">an absence of data, not a verdict.</div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      var INK = "#15181c";
+      var FAINT = "rgba(21, 24, 28, 0.16)";
+
+      /* ── Scene 1 (0.0–1.2s) — the header sets, once. ───────────────────────────────
+         Amber micro-caps rise into the narrow left rail line by line, and the rail
+         divider draws down beside them. After this the header never moves again. */
+      tl.fromTo("#wrong06-h1", { yPercent: 44, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.42, ease: "power3.out" }, 0.02);
+      tl.fromTo("#wrong06-h2", { yPercent: 44, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.42, ease: "power3.out" }, 0.13);
+      tl.fromTo("#wrong06-h3", { yPercent: 44, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.42, ease: "power3.out" }, 0.24);
+      tl.fromTo(
+        "#wrong06-divider",
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.8, ease: "power2.inOut", transformOrigin: "center top" },
+        0.35
+      );
+
+      /* ── Scene 2 (1.2–3.6s) — the first caveat WRITES ON in the wide column. ───────
+         Each Newsreader line reveals left→right under a clip-path wipe, staggered, so
+         the statement arrives as writing rather than as a slide. */
+      var WIPE_FROM = "inset(-10% 100% -10% 0%)";
+      var WIPE_TO = "inset(-10% 0% -10% 0%)";
+      tl.fromTo("#wrong06-g1l1", { clipPath: WIPE_FROM }, { clipPath: WIPE_TO, duration: 0.6, ease: "power2.inOut" }, 1.12);
+      tl.fromTo("#wrong06-g1l2", { clipPath: WIPE_FROM }, { clipPath: WIPE_TO, duration: 0.6, ease: "power2.inOut" }, 1.3);
+      tl.fromTo("#wrong06-g1l3", { clipPath: WIPE_FROM }, { clipPath: WIPE_TO, duration: 0.6, ease: "power2.inOut" }, 1.48);
+
+      /* the rail counter + ticks arrive with the first caveat */
+      tl.fromTo("#wrong06-count", { opacity: 0 }, { opacity: 1, duration: 0.42, ease: "power1.out" }, 1.15);
+      tl.fromTo("#wrong06-ticks", { opacity: 0 }, { opacity: 1, duration: 0.42, ease: "power1.out" }, 1.15);
+
+      /* the mono tag settles beneath the line — the same move for all three caveats */
+      tl.fromTo("#wrong06-g1tag", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 2.4);
+
+      /* ── Scene 3 (3.6–6.0s) — HARD CUT in place. ──────────────────────────────────
+         No fade, no blur, no travel: caveat 1 is simply gone and caveat 2 is simply
+         there, on the same baseline. fromTo pairs at 0.001s keep the cut exact and
+         seek-safe in both directions. */
+      tl.fromTo("#wrong06-g1", { opacity: 1 }, { opacity: 0, duration: 0.001, ease: "none" }, 3.6);
+      tl.fromTo("#wrong06-g2", { opacity: 0 }, { opacity: 1, duration: 0.001, ease: "none" }, 3.6);
+      tl.fromTo("#wrong06-g2tag", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 4.05);
+
+      /* ── Scene 4 (6.0–9.0s) — HARD CUT again to the third caveat. ─────────────────
+         It lands, its tag settles, and then nothing. No payoff beat, no flourish —
+         the frame holds dead still for the last ~2s. That stillness is the point. */
+      tl.fromTo("#wrong06-g2", { opacity: 1 }, { opacity: 0, duration: 0.001, ease: "none" }, 6.0);
+      tl.fromTo("#wrong06-g3", { opacity: 0 }, { opacity: 1, duration: 0.001, ease: "none" }, 6.0);
+      tl.fromTo("#wrong06-g3tag", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 6.45);
+
+      /* ── rail chrome state machine (discrete-text-sequence) ───────────────────────
+         One linear driver; on every update a reverse threshold search picks the
+         current caveat index and writes the counter text + tick fills. Pure function
+         of time, so every seek renders the same state. */
+      var STATES = [
+        { t: 0.0, i: -1 },
+        { t: 1.15, i: 0 },
+        { t: 3.6, i: 1 },
+        { t: 6.0, i: 2 }
+      ];
+      var LABELS = ["01 / 03", "02 / 03", "03 / 03"];
+      var countEl = document.getElementById("wrong06-count");
+      var tickEls = [
+        document.getElementById("wrong06-tick0"),
+        document.getElementById("wrong06-tick1"),
+        document.getElementById("wrong06-tick2")
+      ];
+
+      function stateAt(time) {
+        for (var k = STATES.length - 1; k >= 0; k--) {
+          if (time >= STATES[k].t) return STATES[k].i;
+        }
+        return -1;
+      }
+
+      var driver = { t: 0 };
+      tl.to(
+        driver,
+        {
+          t: 9,
+          duration: 9,
+          ease: "none",
+          onUpdate: function () {
+            var i = stateAt(driver.t);
+            countEl.textContent = i < 0 ? "" : LABELS[i];
+            for (var k = 0; k < 3; k++) {
+              tickEls[k].style.background = k === i ? INK : FAINT;
+            }
+          }
+        },
+        0
+      );
+
+      /* span the full allocated duration */
+      tl.to({}, { duration: 9 }, 0);
+
+      window.__timelines["06-what-would-make-this-wrong"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

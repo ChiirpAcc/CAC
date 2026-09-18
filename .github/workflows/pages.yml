@@ -60,7 +60,15 @@ jobs:
           cp -r data/. _site/data/
           rm -f _site/data/README.md
 
-          # Stamp the commit onto every module and stylesheet reference.
+          # Stamp the commit onto every module, stylesheet and image reference.
+          #
+          # The animations needed this more than the modules did and did not
+          # have it. They are redrawn from the data on every deploy but keep
+          # the same four filenames, so a browser that has seen the page before
+          # has no reason to fetch them again and goes on showing charts drawn
+          # from data that has since been corrected. Nothing looks stale when
+          # that happens, which is what makes it bad: the numbers in the text
+          # move and the pictures beside them do not.
           #
           # Pages caches JavaScript for several minutes but revalidates the
           # HTML sooner, so a deploy can leave a browser running new markup
@@ -82,8 +90,10 @@ jobs:
               text = re.sub(r"from '\./([\w-]+\.js)'", rf"from './\1?v={version}'", text)
               text = re.sub(r'src="([\w-]+\.js)"', rf'src="\1?v={version}"', text)
               text = re.sub(r'href="(styles\.css)"', rf'href="\1?v={version}"', text)
+              text = re.sub(r'src="(media/[\w-]+\.(?:gif|png|jpg|svg))"',
+                            rf'src="\1?v={version}"', text)
               path.write_text(text, encoding='utf-8')
-          print(f'Stamped module references with {version}')
+          print(f'Stamped module, stylesheet and media references with {version}')
           PY
 
           echo "Deploying:"

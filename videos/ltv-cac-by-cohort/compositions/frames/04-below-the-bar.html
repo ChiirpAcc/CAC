@@ -1,0 +1,541 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    /* Families declared in frame.md; the real .woff2 files ship in assets/fonts/.
+       Paths are project-root-relative. font-display: block so every render worker
+       paints the same glyphs on the same frame. */
+    @font-face {
+      font-family: "Newsreader";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/Newsreader-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "DM Mono";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/DMMono-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "DM Mono";
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url("assets/fonts/DMMono-500.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/HankenGrotesk-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url("assets/fonts/HankenGrotesk-600.woff2") format("woff2");
+    }
+
+    /* ── frame root — styled by #root, never by a class on the composition element ── */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+
+      /* frame.md tokens */
+      --bb04-paper: #f4f5f6;
+      --bb04-ink: #15181c;
+      --bb04-ink-soft: #474d55;
+      --bb04-grid: rgba(21, 24, 28, 0.08);
+      --bb04-ink-faint: rgba(21, 24, 28, 0.16);
+      --bb04-positive: #2e7d5b;
+      --bb04-negative: #a8423a;
+      --bb04-muted: #7a8794;
+
+      /* chart scale — ONE shared linear unit for all 24 columns.
+         1.0x ratio == 8.333333cqw == 160px at 1920. Every column height is
+         calc(var(--bb04-u) * <ratio>), so the scale cannot drift. */
+      --bb04-u: 8.333333cqw;
+      --bb04-plot-inset: 8.333333cqw; /* 160px left + right */
+      --bb04-plot-top: 11.458333cqw; /* 220px — top of the 3.75x headroom */
+      --bb04-gap: 1.3cqw; /* 24.96px between columns */
+    }
+
+    /* ── ground: paper + the permanent graph-paper grid (background role, dimmed) ── */
+    .bb04-ground {
+      position: absolute;
+      inset: 0;
+      background: var(--bb04-paper);
+    }
+    .bb04-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, var(--bb04-grid) 0.06cqw, transparent 0.06cqw),
+        linear-gradient(to bottom, var(--bb04-grid) 0.06cqw, transparent 0.06cqw);
+      background-size: 2cqw 2cqw;
+      opacity: 0.62; /* dimmed ~38% so the columns stay the subject */
+    }
+    /* the two persistent hairlines framing every composition */
+    .bb04-hair {
+      position: absolute;
+      left: 4cqw;
+      right: 4cqw;
+      height: 0.12cqw;
+      background: var(--bb04-ink);
+    }
+    .bb04-hair-top {
+      top: 3cqw;
+    }
+    .bb04-hair-bottom {
+      bottom: 3cqw;
+    }
+
+    /* ── the plot box: shared geometry for the columns and every overlay ──
+       bottom edge of this box IS the baseline (820px), top is exactly 3.75x. */
+    .bb04-plot {
+      position: absolute;
+      left: var(--bb04-plot-inset);
+      right: var(--bb04-plot-inset);
+      top: var(--bb04-plot-top);
+      height: calc(var(--bb04-u) * 3.75);
+    }
+
+    /* ── background: faint horizontal scale rules at 2.0x and 3.0x + mono ticks ── */
+    .bb04-scale-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 0.06cqw;
+      background: var(--bb04-ink-faint);
+    }
+    .bb04-scale-line.bb04-at-2 {
+      bottom: calc(var(--bb04-u) * 2 - 0.03cqw);
+    }
+    .bb04-scale-line.bb04-at-3 {
+      bottom: calc(var(--bb04-u) * 3 - 0.03cqw);
+    }
+    .bb04-scale-tick {
+      position: absolute;
+      right: calc(100% + 1cqw);
+      white-space: nowrap;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 0.7cqw;
+      letter-spacing: 0.06em;
+      color: var(--bb04-ink-soft);
+    }
+    .bb04-scale-tick.bb04-at-2 {
+      bottom: calc(var(--bb04-u) * 2 - 0.42cqw);
+    }
+    .bb04-scale-tick.bb04-at-3 {
+      bottom: calc(var(--bb04-u) * 3 - 0.42cqw);
+    }
+
+    /* ── Scene 1: the baseline rule, wider than the plot (full-width strip) ── */
+    .bb04-baseline {
+      position: absolute;
+      left: 4cqw;
+      right: 4cqw;
+      top: calc(var(--bb04-plot-top) + var(--bb04-u) * 3.75);
+      height: 0.12cqw;
+      background: var(--bb04-ink);
+      transform-origin: left center;
+    }
+
+    /* ── Scene 2: the 24 columns, on the shared baseline ── */
+    .bb04-cols {
+      display: flex;
+      align-items: flex-end;
+      gap: var(--bb04-gap);
+      height: 100%;
+    }
+    .bb04-bar {
+      display: block;
+      flex: 1 1 0;
+      min-width: 0;
+      transform-origin: 50% 100%;
+      /* pixel-stack echo: faint horizontal cell lines in paper, per frame.md */
+      background-image: repeating-linear-gradient(
+        to top,
+        rgba(244, 245, 246, 0.42) 0 0.05cqw,
+        transparent 0.05cqw 2cqw
+      );
+    }
+    .bb04-pos {
+      background-color: var(--bb04-positive);
+    }
+    .bb04-neg {
+      background-color: var(--bb04-negative);
+    }
+    .bb04-mut {
+      background-color: var(--bb04-muted);
+    }
+
+    /* ── cohort ticks, directly beneath the baseline, same rhythm as the columns ── */
+    .bb04-ticks {
+      position: absolute;
+      left: var(--bb04-plot-inset);
+      right: var(--bb04-plot-inset);
+      top: 43.6cqw;
+      display: flex;
+      gap: var(--bb04-gap);
+    }
+    .bb04-tick {
+      flex: 1 1 0;
+      min-width: 0;
+      text-align: center;
+      white-space: nowrap;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 0.7cqw;
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+      color: var(--bb04-ink-soft);
+    }
+
+    /* ── Scene 3: the dashed break-even rule, exactly at the 1.0x height ── */
+    .bb04-breakeven {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: calc(var(--bb04-u) * 1 - 0.06cqw);
+      height: 0.12cqw;
+      background-image: repeating-linear-gradient(
+        to right,
+        var(--bb04-ink) 0 0.65cqw,
+        transparent 0.65cqw 1.15cqw
+      );
+    }
+    .bb04-be-label {
+      position: absolute;
+      right: 0;
+      bottom: calc(var(--bb04-u) * 1 + 0.7cqw);
+      white-space: nowrap;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 500;
+      font-size: 1cqw;
+      letter-spacing: 0.05em;
+      color: var(--bb04-ink);
+      background: var(--bb04-paper);
+      padding: 0.12cqw 0.3cqw;
+    }
+
+    /* ── Scene 4: the mono count, upper left ── */
+    .bb04-count {
+      position: absolute;
+      left: var(--bb04-plot-inset);
+      top: 4.5cqw;
+      display: flex;
+      align-items: baseline;
+      gap: 0.75cqw;
+      color: var(--bb04-ink);
+    }
+    .bb04-count-num {
+      font-family: "Newsreader", Georgia, serif;
+      font-weight: 400;
+      font-size: 5.2cqw;
+      line-height: 0.9;
+      letter-spacing: -0.015em;
+    }
+    .bb04-count-rest {
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 500;
+      font-size: 1.45cqw;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Scene 5: the ink-soft note + a bracket over the five grey columns ── */
+    .bb04-note {
+      position: absolute;
+      right: 0;
+      bottom: 6.5cqw;
+      white-space: nowrap;
+      text-align: right;
+      font-family: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+      font-weight: 400;
+      font-size: 1cqw;
+      line-height: 1.5;
+      color: var(--bb04-ink-soft);
+    }
+    /* 5 columns + 4 gaps = 16.32cqw, right-aligned on the last column */
+    .bb04-grey-span {
+      position: absolute;
+      right: 0;
+      bottom: 5.15cqw;
+      width: 16.32cqw;
+      height: 0.5cqw;
+      border-top: 0.08cqw solid var(--bb04-muted);
+      border-left: 0.08cqw solid var(--bb04-muted);
+      border-right: 0.08cqw solid var(--bb04-muted);
+    }
+
+    /* ── chrome: the data-frame fig tag ── */
+    .bb04-figtag {
+      position: absolute;
+      right: var(--bb04-plot-inset);
+      top: 4.95cqw;
+      white-space: nowrap;
+      font-family: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+      font-weight: 600;
+      font-size: 0.78cqw;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--bb04-ink-soft);
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="04-below-the-bar"
+    data-start="0"
+    data-duration="9"
+    data-width="1920"
+    data-height="1080"
+  >
+    <!-- track 0 — ground: paper, graph grid (background, dimmed), hairlines -->
+    <div class="clip bb04-ground" data-start="0" data-duration="9" data-track-index="0">
+      <div class="bb04-grid"></div>
+      <div class="bb04-hair bb04-hair-top"></div>
+      <div class="bb04-hair bb04-hair-bottom"></div>
+    </div>
+
+    <!-- track 1 — background scale rules at 2.0x / 3.0x -->
+    <div
+      id="bb04-scale"
+      class="clip bb04-plot"
+      data-start="0"
+      data-duration="9"
+      data-track-index="1"
+    >
+      <i class="bb04-scale-line bb04-at-3"></i>
+      <i class="bb04-scale-line bb04-at-2"></i>
+      <span class="bb04-scale-tick bb04-at-3">3.0x</span>
+      <span class="bb04-scale-tick bb04-at-2">2.0x</span>
+    </div>
+
+    <!-- track 2 — Scene 1: the baseline -->
+    <div
+      id="bb04-baseline"
+      class="clip bb04-baseline"
+      data-start="0"
+      data-duration="9"
+      data-track-index="2"
+    ></div>
+
+    <!-- track 3 — Scene 2: the 24 columns. Heights are calc(unit * real ratio),
+         one shared linear scale, in cohort order. 12 green (>= 1.0x), 7 red
+         (< 1.0x), 5 grey (younger than 6 months — never judged, never pulsed). -->
+    <div class="clip bb04-plot" data-start="0" data-duration="9" data-track-index="3">
+      <div class="bb04-cols">
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 2.61)"></div><!-- 2024-09 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 3.75)"></div><!-- 2024-10 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 2.67)"></div><!-- 2024-11 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 2.00)"></div><!-- 2024-12 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 2.76)"></div><!-- 2025-01 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 2.14)"></div><!-- 2025-02 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 2.37)"></div><!-- 2025-03 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 2.07)"></div><!-- 2025-04 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 1.95)"></div><!-- 2025-05 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 1.09)"></div><!-- 2025-06 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 1.83)"></div><!-- 2025-07 -->
+        <div class="bb04-bar bb04-pos" style="height: calc(var(--bb04-u) * 1.70)"></div><!-- 2025-08 -->
+        <div class="bb04-bar bb04-neg" style="height: calc(var(--bb04-u) * 0.97)"></div><!-- 2025-09 -->
+        <div class="bb04-bar bb04-neg" style="height: calc(var(--bb04-u) * 0.99)"></div><!-- 2025-10 -->
+        <div class="bb04-bar bb04-neg" style="height: calc(var(--bb04-u) * 0.68)"></div><!-- 2025-11 -->
+        <div class="bb04-bar bb04-neg" style="height: calc(var(--bb04-u) * 0.81)"></div><!-- 2025-12 -->
+        <div class="bb04-bar bb04-neg" style="height: calc(var(--bb04-u) * 0.61)"></div><!-- 2026-01 -->
+        <div class="bb04-bar bb04-neg" style="height: calc(var(--bb04-u) * 0.65)"></div><!-- 2026-02 -->
+        <div class="bb04-bar bb04-neg" style="height: calc(var(--bb04-u) * 0.66)"></div><!-- 2026-03 -->
+        <div class="bb04-bar bb04-mut" style="height: calc(var(--bb04-u) * 0.55)"></div><!-- 2026-04 -->
+        <div class="bb04-bar bb04-mut" style="height: calc(var(--bb04-u) * 0.48)"></div><!-- 2026-05 -->
+        <div class="bb04-bar bb04-mut" style="height: calc(var(--bb04-u) * 0.24)"></div><!-- 2026-06 -->
+        <div class="bb04-bar bb04-mut" style="height: calc(var(--bb04-u) * 0.31)"></div><!-- 2026-07 -->
+        <div class="bb04-bar bb04-mut" style="height: calc(var(--bb04-u) * 0.14)"></div><!-- 2026-08 -->
+      </div>
+    </div>
+
+    <!-- track 4 — cohort ticks, every fourth cohort, on the column rhythm -->
+    <div class="clip bb04-ticks" data-start="0" data-duration="9" data-track-index="4">
+      <span class="bb04-tick">2024-09</span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick">2025-01</span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick">2025-05</span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick">2025-09</span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick">2026-01</span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick">2026-05</span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+      <span class="bb04-tick"></span>
+    </div>
+
+    <!-- track 5 — Scene 3: the dashed break-even rule + its label -->
+    <div class="clip bb04-plot" data-start="0" data-duration="9" data-track-index="5">
+      <i id="bb04-breakeven" class="bb04-breakeven"></i>
+      <span id="bb04-be-label" class="bb04-be-label">1.0x break-even</span>
+    </div>
+
+    <!-- track 6 — Scene 4: the count -->
+    <div
+      id="bb04-count"
+      class="clip bb04-count"
+      data-start="0"
+      data-duration="9"
+      data-track-index="6"
+    >
+      <span class="bb04-count-num">12</span>
+      <span class="bb04-count-rest">of 24 below break-even</span>
+    </div>
+
+    <!-- track 7 — Scene 5: the grey note + the bracket over the five young cohorts -->
+    <div class="clip bb04-plot" data-start="0" data-duration="9" data-track-index="7">
+      <span id="bb04-note" class="bb04-note">grey = fewer than 6 months observed</span>
+      <i id="bb04-grey-span" class="bb04-grey-span"></i>
+    </div>
+
+    <!-- track 8 — data-frame chrome -->
+    <div
+      id="bb04-figtag"
+      class="clip bb04-figtag"
+      data-start="0"
+      data-duration="9"
+      data-track-index="8"
+    >
+      LTV : CAC by cohort
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* Scene 1 (0.0–1.0s) — a full-width baseline rule draws left to right across
+         the lower third. Nothing above it yet; only the quiet fig tag joins it. */
+      tl.fromTo(
+        "#bb04-baseline",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.9, ease: "power2.inOut", transformOrigin: "left center" },
+        0.05
+      );
+      tl.fromTo(
+        "#bb04-figtag",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.5, ease: "power1.out" },
+        0.55
+      );
+      /* the background scale rules arrive with the first columns, dim */
+      tl.fromTo(
+        "#bb04-scale",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.5, ease: "power1.out" },
+        0.88
+      );
+
+      /* Scene 2 (1.0–4.2s) — 24 columns grow up off the baseline in a staggered
+         left-to-right cascade (grid-card-assemble, adapted to a shared baseline:
+         each item travels a short distance directly into its own slot). Real
+         heights, one shared scale; scaleY on a block with a real height. */
+      tl.fromTo(
+        ".bb04-bar",
+        { scaleY: 0, opacity: 0.25 },
+        {
+          scaleY: 1,
+          opacity: 1,
+          duration: 0.62,
+          ease: "power2.out",
+          transformOrigin: "50% 100%",
+          stagger: 0.105
+        },
+        0.95
+      );
+      tl.fromTo(
+        ".bb04-tick",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.4, ease: "power1.out", stagger: 0.105 },
+        1.1
+      );
+
+      /* Scene 3 (4.2–5.6s) — the dashed 1.0x rule draws across over the columns,
+         left to right, exactly at the 1.0 height. Its label lands after it. */
+      tl.fromTo(
+        "#bb04-breakeven",
+        { clipPath: "inset(0% 100% 0% 0%)" },
+        { clipPath: "inset(0% 0% 0% 0%)", duration: 0.85, ease: "power2.inOut" },
+        4.25
+      );
+      tl.fromTo(
+        "#bb04-be-label",
+        { y: 8, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.45, ease: "power2.out" },
+        5.02
+      );
+
+      /* Scene 4 (5.6–7.4s) — the SEVEN red columns pulse once, together. The grey
+         columns never pulse: they are the ones withheld from judgement. Two
+         explicit tweens (no repeat/yoyo); immediateRender:false so the pulse does
+         not clobber the entrance's from-state at t=0. */
+      tl.fromTo(
+        ".bb04-neg",
+        { opacity: 1 },
+        { opacity: 0.28, duration: 0.26, ease: "power2.in", immediateRender: false },
+        5.62
+      );
+      tl.fromTo(
+        ".bb04-neg",
+        { opacity: 0.28 },
+        { opacity: 1, duration: 0.44, ease: "power2.out", immediateRender: false },
+        5.88
+      );
+      tl.fromTo(
+        "#bb04-count",
+        { y: 18, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.62, ease: "power3.out" },
+        6.25
+      );
+
+      /* Scene 5 (7.4–9.0s) — the ink-soft note fades in at the lower right with a
+         bracket over the five grey columns, and the frame holds STILL. */
+      tl.fromTo(
+        "#bb04-grey-span",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.55, ease: "power1.out" },
+        7.46
+      );
+      tl.fromTo(
+        "#bb04-note",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.7, ease: "power2.out" },
+        7.58
+      );
+
+      /* span the full allocated duration — the last ~0.7s is pure stillness */
+      tl.to({}, { duration: 9 }, 0);
+
+      window.__timelines["04-below-the-bar"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

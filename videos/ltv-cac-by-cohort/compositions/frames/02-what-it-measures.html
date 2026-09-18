@@ -1,0 +1,433 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    /* Faces declared in frame.md, staged as real .woff2 in assets/fonts/ (project-root
+       relative). font-display: block so every parallel render worker paints the same
+       glyphs on the first painted frame. No network font fetch. */
+    @font-face {
+      font-family: "Newsreader";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/Newsreader-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "DM Mono";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/DMMono-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/HankenGrotesk-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url("assets/fonts/HankenGrotesk-600.woff2") format("woff2");
+    }
+
+    /* ── frame root — styled by #root, never by a class on the composition element ── */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+      /* frame.md tokens */
+      --wim02-paper: #f4f5f6;
+      --wim02-ink: #15181c;
+      --wim02-ink-soft: #474d55;
+      --wim02-grid: rgba(21, 24, 28, 0.08);
+      --wim02-ink-faint: rgba(21, 24, 28, 0.16);
+      --wim02-amber: #b07d2b; /* series-2 — used only on the two window-bound labels */
+    }
+
+    /* ── background role: full-bleed paper + permanent graph-paper grid, on a clip layer ── */
+    .wim02-ground {
+      position: absolute;
+      inset: 0;
+      background: var(--wim02-paper);
+    }
+    .wim02-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, var(--wim02-grid) 0.06cqw, transparent 0.06cqw),
+        linear-gradient(to bottom, var(--wim02-grid) 0.06cqw, transparent 0.06cqw);
+      background-size: 2cqw 2cqw;
+      background-position: 0 0;
+      opacity: 0.65; /* dimmed ~35% per the frame's roles: line */
+    }
+    .wim02-rule {
+      position: absolute;
+      left: 4cqw;
+      right: 4cqw;
+      height: 0.12cqw;
+      background: var(--wim02-ink);
+    }
+    .wim02-rule-top {
+      top: 3cqw;
+    }
+    .wim02-rule-bottom {
+      bottom: 3cqw;
+    }
+
+    /* ── kicker: the term being defined ── */
+    .wim02-kicker {
+      position: absolute;
+      left: 6cqw;
+      top: 12cqw;
+      font-family: "Hanken Grotesk", ui-sans-serif, sans-serif;
+      font-weight: 600;
+      font-size: 1.25cqw;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      line-height: 1.4;
+      color: var(--wim02-ink);
+    }
+
+    /* ── foreground subject: the two-term formula, left 60% of a 60/40 split ── */
+    .wim02-formula {
+      position: absolute;
+      left: 6cqw;
+      top: 16cqw;
+      width: 58cqw;
+    }
+    .wim02-term {
+      font-family: "Newsreader", Georgia, serif;
+      font-weight: 400;
+      font-size: 3.8cqw;
+      line-height: 1.15;
+      letter-spacing: -0.005em;
+      color: var(--wim02-ink);
+      white-space: nowrap;
+    }
+    .wim02-w {
+      display: inline-block;
+    }
+    .wim02-divide {
+      width: 52cqw;
+      height: 0.12cqw;
+      background: var(--wim02-ink);
+      margin: 1.5cqw 0;
+    }
+
+    /* ── supporting: the right rail, the site's own like-for-like note ── */
+    .wim02-rail {
+      position: absolute;
+      left: 68cqw;
+      top: 16.6cqw;
+      width: 26cqw;
+    }
+    .wim02-tag {
+      display: inline-block;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 1.9cqw;
+      letter-spacing: 0.05em;
+      line-height: 1.2;
+      color: var(--wim02-ink);
+      border: 0.12cqw solid var(--wim02-ink);
+      padding: 0.55cqw 1.1cqw 0.7cqw;
+    }
+    .wim02-note {
+      margin-top: 1.9cqw;
+      font-family: "Hanken Grotesk", ui-sans-serif, sans-serif;
+      font-weight: 400;
+      font-size: 1.55cqw;
+      line-height: 1.5;
+      color: var(--wim02-ink-soft);
+    }
+
+    /* ── supporting: the 24-tick cohort ribbon ── */
+    .wim02-ribbon-label {
+      position: absolute;
+      left: 6cqw;
+      top: 23.2cqw;
+      font-family: "Hanken Grotesk", ui-sans-serif, sans-serif;
+      font-weight: 600;
+      font-size: 1.25cqw;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      line-height: 1.4;
+      color: var(--wim02-ink-soft);
+    }
+    .wim02-ribbon {
+      position: absolute;
+      left: 6cqw;
+      right: 6cqw;
+      top: 26cqw;
+      height: 5.4cqw;
+    }
+    .wim02-ticks {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+    .wim02-tick {
+      display: block;
+      width: 0.12cqw;
+      height: 4.2cqw;
+      background: var(--wim02-ink-faint);
+    }
+    .wim02-tick.wim02-edge {
+      height: 5.4cqw;
+      background: var(--wim02-ink);
+    }
+    .wim02-base {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 0.12cqw;
+      background: var(--wim02-ink);
+    }
+    .wim02-date {
+      position: absolute;
+      top: 32.2cqw;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 1.55cqw;
+      letter-spacing: 0.06em;
+      line-height: 1.4;
+      color: var(--wim02-amber);
+    }
+    .wim02-date-a {
+      left: 6cqw;
+    }
+    .wim02-date-b {
+      right: 6cqw;
+      text-align: right;
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="02-what-it-measures"
+    data-start="0"
+    data-duration="8"
+    data-width="1920"
+    data-height="1080"
+  >
+    <div class="clip wim02-ground" data-start="0" data-duration="8" data-track-index="0">
+      <div class="wim02-grid"></div>
+      <div class="wim02-rule wim02-rule-top"></div>
+      <div class="wim02-rule wim02-rule-bottom"></div>
+    </div>
+
+    <div
+      id="wim02-kicker"
+      class="clip wim02-kicker"
+      data-start="0"
+      data-duration="8"
+      data-track-index="1"
+    >
+      LTV : CAC
+    </div>
+
+    <div
+      id="wim02-formula"
+      class="clip wim02-formula"
+      data-start="0"
+      data-duration="8"
+      data-track-index="2"
+    >
+      <div id="wim02-num" class="wim02-term">
+        <span class="wim02-w">Gross</span> <span class="wim02-w">profit</span>
+        <span class="wim02-w">realised</span> <span class="wim02-w">to</span>
+        <span class="wim02-w">date</span>
+      </div>
+      <div id="wim02-divide" class="wim02-divide"></div>
+      <div id="wim02-den" class="wim02-term">Acquisition cost</div>
+    </div>
+
+    <div
+      id="wim02-rail"
+      class="clip wim02-rail"
+      data-start="0"
+      data-duration="8"
+      data-track-index="3"
+    >
+      <div><span id="wim02-tag" class="wim02-tag">per logo</span></div>
+      <div id="wim02-note" class="wim02-note">same cohort count on both sides</div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="8" data-track-index="4">
+      <div id="wim02-ribbon-label" class="wim02-ribbon-label">24 monthly cohorts</div>
+      <div class="wim02-ribbon">
+        <div id="wim02-base" class="wim02-base"></div>
+        <div class="wim02-ticks">
+          <i class="wim02-tick wim02-edge"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick"></i>
+          <i class="wim02-tick wim02-edge"></i>
+        </div>
+      </div>
+      <div id="wim02-date-a" class="wim02-date wim02-date-a">2024-09</div>
+      <div id="wim02-date-b" class="wim02-date wim02-date-b">2026-08</div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* ── Scene 1 (0.0–1.6s) — the numerator writes on, word by word, left 60%.
+         The kicker names the term first so the hero is on screen well before 0.5s. ── */
+      tl.fromTo(
+        "#wim02-kicker",
+        { x: -12, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.5, ease: "power2.out" },
+        0.06
+      );
+      tl.fromTo(
+        "#wim02-num .wim02-w",
+        { x: -16, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.5, ease: "power3.out", stagger: 0.17 },
+        0.14
+      );
+
+      /* ── Scene 2 (1.6–3.2s) — the division rule draws left to right, then the
+         denominator settles beneath it. The two terms become one fraction. ── */
+      tl.fromTo(
+        "#wim02-divide",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.6, ease: "power2.inOut", transformOrigin: "left center" },
+        1.62
+      );
+      tl.fromTo(
+        "#wim02-den",
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.72, ease: "power3.out" },
+        2.26
+      );
+
+      /* ── Scene 3 (3.2–4.8s) — the mono tag springs into the right rail, the
+         like-for-like note sets beneath it in ink-soft. ── */
+      tl.fromTo(
+        "#wim02-tag",
+        { scale: 0.62, opacity: 0 },
+        {
+          scale: 1,
+          opacity: 1,
+          duration: 0.62,
+          ease: "back.out(2.1)",
+          transformOrigin: "left center"
+        },
+        3.28
+      );
+      tl.fromTo(
+        "#wim02-note",
+        { y: 14, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.6, ease: "power2.out" },
+        3.98
+      );
+
+      /* ── Scene 4 (4.8–8.0s) — the formula slides up and compacts to ~a third;
+         the rail rides up with it. Beneath, the 24-tick ribbon draws left to right
+         in one continuous sweep, its two window bounds labelled in amber. ── */
+      tl.fromTo(
+        "#wim02-formula",
+        { y: 0, scale: 1 },
+        {
+          y: -92,
+          scale: 0.42,
+          duration: 0.88,
+          ease: "power2.inOut",
+          transformOrigin: "left top"
+        },
+        4.84
+      );
+      tl.fromTo(
+        "#wim02-kicker",
+        { y: 0 },
+        { y: -92, duration: 0.88, ease: "power2.inOut" },
+        4.84
+      );
+      tl.fromTo(
+        "#wim02-rail",
+        { y: 0 },
+        { y: -92, duration: 0.88, ease: "power2.inOut" },
+        4.84
+      );
+
+      tl.fromTo(
+        "#wim02-ribbon-label",
+        { y: 12, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" },
+        5.32
+      );
+
+      /* the ribbon spine and its 24 ticks arrive as one sweep, left to right */
+      tl.fromTo(
+        "#wim02-base",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 1.72, ease: "none", transformOrigin: "left center" },
+        5.5
+      );
+      tl.fromTo(
+        ".wim02-tick",
+        { scaleY: 0 },
+        {
+          scaleY: 1,
+          duration: 0.28,
+          ease: "power2.out",
+          transformOrigin: "center bottom",
+          stagger: 0.062
+        },
+        5.52
+      );
+
+      tl.fromTo(
+        "#wim02-date-a",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.42, ease: "power2.out" },
+        5.74
+      );
+      tl.fromTo(
+        "#wim02-date-b",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.42, ease: "power2.out" },
+        7.12
+      );
+
+      /* span the full allocated duration — the tail is a held read, no exit */
+      tl.to({}, { duration: 8 }, 0);
+
+      window.__timelines["02-what-it-measures"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>
