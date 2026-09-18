@@ -459,7 +459,11 @@ function renderAssumptionDependent() {
   const typical = counts.length ? counts[Math.floor(counts.length / 2)] : 0;
   // A third of a typical month, not a half. July sits at 47% of typical and is
   // a thin month rather than a broken one; August at 18% is the count failing.
-  const reliable = r => r.newLogos && r.newLogos >= typical * 0.35;
+  const perLogo = months.map(r => (r.newLogos ? r.newMrr / r.newLogos : 0)).filter(Boolean).sort((a, b) => a - b);
+  const typicalPerLogo = perLogo.length ? perLogo[Math.floor(perLogo.length / 2)] : 0;
+  const reliable = r => r.newLogos
+    && r.newLogos >= typical * 0.35
+    && r.newMrr / r.newLogos >= typicalPerLogo * 0.35;
   const suppressed = months.filter(r => !reliable(r));
 
   const costPerLogo = months.map(r => (reliable(r) ? cac.get(r.month) / r.newLogos : null));
@@ -489,9 +493,11 @@ function renderAssumptionDependent() {
     + 'summary, one basis for the whole line. '
     + (suppressed.length
         ? suppressed.map(r => fmt.monthLabel(r.month)).join(' and ')
-          + ' ' + (suppressed.length === 1 ? 'is' : 'are') + ' left blank: the new logo count '
-          + 'there is under a third of a typical month, so the ratio would be measuring the '
-          + 'denominator rather than the cost.'
+          + ' ' + (suppressed.length === 1 ? 'is' : 'are') + ' left blank. A month is drawn '
+          + 'only once both halves have settled: enough new logos for the ratio to be '
+          + 'measuring cost rather than its own denominator, and enough new MRR against them '
+          + 'to show the revenue has been collected. The trailing month books its arrivals '
+          + 'before their first payment lands, so it clears the first test and fails the second.'
         : '');
 }
 
@@ -979,7 +985,10 @@ function renderAnnotations() {
   // it. Quoting it as the end of a trend states a measurement gap as a fact.
   const flowCounts = w.map(r => r.newLogos).filter(Boolean).sort((a, b) => a - b);
   const flowTypical = flowCounts.length ? flowCounts[Math.floor(flowCounts.length / 2)] : 0;
-  const reliableFlow = w.filter(r => r.newLogos >= flowTypical * 0.35);
+  const flowPerLogo = w.map(r => (r.newLogos ? r.newMrr / r.newLogos : 0)).filter(Boolean).sort((a, b) => a - b);
+  const flowTypicalPerLogo = flowPerLogo.length ? flowPerLogo[Math.floor(flowPerLogo.length / 2)] : 0;
+  const reliableFlow = w.filter(r => r.newLogos >= flowTypical * 0.35
+    && r.newMrr / r.newLogos >= flowTypicalPerLogo * 0.35);
   const lastReliable = reliableFlow[reliableFlow.length - 1] || latest;
   const peak = w.reduce((b, r) => (r.activeLogos > b.activeLogos ? r : b), w[0]);
   const year = latest.month.slice(0, 4);
@@ -1047,7 +1056,7 @@ function renderAnnotations() {
   const lastChurn = churnSeries[churnSeries.length - 1];
   annotate('chart-churn', [
     `<strong>${overThreshold} of the last ${churnSeries.length} months sit above the 5% threshold.</strong> The latest reads ${fmt.pct(lastChurn, 2)}.`,
-    `Monthly churn has roughly doubled across the window, from about ${fmt.pct(Math.min(...churnSeries), 1)} at its lowest to ${fmt.pct(Math.max(...churnSeries), 1)} at its worst.`,
+    `Monthly churn has risen about ${(Math.max(...churnSeries) / Math.min(...churnSeries)).toFixed(1)}x across the window, from ${fmt.pct(Math.min(...churnSeries), 1)} at its lowest to ${fmt.pct(Math.max(...churnSeries), 1)} at its worst.`,
   ], [
     'The denominator is the prior month closing base, so a month of rapid growth flatters the rate slightly.',
     'This counts logos, not revenue, and <strong>cannot tell a lapse from a cancellation</strong>. Some of what reads as churn is a billing gap.',
@@ -1071,7 +1080,10 @@ function renderAnnotations() {
   const unitAll = w.filter(r => cacMap.has(r.month) && r.newLogos);
   const unitCounts = unitAll.map(r => r.newLogos).sort((a, b) => a - b);
   const unitTypical = unitCounts.length ? unitCounts[Math.floor(unitCounts.length / 2)] : 0;
-  const unitMonths = unitAll.filter(r => r.newLogos >= unitTypical * 0.35);
+  const unitPerLogo = unitAll.map(r => r.newMrr / r.newLogos).filter(Boolean).sort((a, b) => a - b);
+  const unitTypicalPerLogo = unitPerLogo.length ? unitPerLogo[Math.floor(unitPerLogo.length / 2)] : 0;
+  const unitMonths = unitAll.filter(r => r.newLogos >= unitTypical * 0.35
+    && r.newMrr / r.newLogos >= unitTypicalPerLogo * 0.35);
   const firstU = unitMonths[0], lastU = unitMonths[unitMonths.length - 1];
   const costFirst = cacMap.get(firstU.month) / firstU.newLogos;
   const costLast = cacMap.get(lastU.month) / lastU.newLogos;
@@ -1102,7 +1114,8 @@ function renderAnnotations() {
 
   annotate('chart-flows', [
     `<strong>${fmt.int(churned)} logos out against ${fmt.int(acquired)} in, ${year} to date</strong>, a net loss of ${fmt.int(churned - acquired)}.`,
-    `New logos have fallen from ${fmt.int(ytd[0].newLogos)} in ${fmt.monthLabel(ytd[0].month)} to ${fmt.int(lastReliable.newLogos)} in ${fmt.monthLabel(lastReliable.month)}. ${fmt.monthLabel(latest.month)} reads ${fmt.int(latest.newLogos)}, too far below a typical month to be read as demand.`,
+    `New logos have fallen from ${fmt.int(ytd[0].newLogos)} in ${fmt.monthLabel(ytd[0].month)} to ${fmt.int(lastReliable.newLogos)} in ${fmt.monthLabel(lastReliable.month)}.`
+      + (lastReliable.month === latest.month ? '' : ` ${fmt.monthLabel(latest.month)} reads ${fmt.int(latest.newLogos)}, but its revenue has not settled, so it is not read as demand.`),
     'Churn has been the larger of the two movements for most of the year, so the base is falling on both sides at once.',
   ], [
     'Net change is drawn as a line because it is the sum of the other two. As a third column it would read as an independent quantity.',

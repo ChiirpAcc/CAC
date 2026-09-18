@@ -22,25 +22,33 @@ automatically, so a push is live in about thirty seconds.
 
 ## What you need to know before reading the charts
 
-### The base count is currently wrong, and everything rests on it
+### The base count was wrong, and the fix has landed
 
-The site shows **871** active logos for August 2026. The business reports
-**1,017**.
+The pipeline used to decide whether a customer was present by asking whether
+their MRR was above zero. A customer billed $900 who did not pay that month
+dropped to zero, read as churned, and read as a reactivation when they paid
+again. One customer, two invented events.
 
-The pipeline decided whether a customer was present by asking whether their
-MRR was above zero. A customer billed $900 who did not pay that month dropped
-to zero, read as churned, and read as a reactivation when they paid again.
-One customer, two invented events.
+That is fixed upstream, and the site now reads presence from `event_type`
+rather than from `eop_mrr`. The live event types are `new`, `reactivation`,
+`flat`, `expansion` and `contraction`; `churn` is the month a customer left.
+Across all 94 months that count equals `active_logos` in the monthly summary
+exactly, with no month out by one.
 
-Year to date this shows 703 churned against a reported 456, and 281 acquired
-against 324. **Churn is overstated by about 54%**, so the page shows a
-business losing 422 logos net where the real figure is nearer 132. That is
-the difference between a slow decline and a crisis.
+`eop_mrr` is still the revenue and is still legitimately zero for a customer
+who has been billed and has not paid. Presence and payment are separate
+questions and the two columns now answer one each.
 
-A fix exists upstream. Until a push lands where `active_logos` for `2026-08`
-reads near 1,017, treat every retention, churn and cohort figure here as
-directionally right and numerically wrong. The validator flags this on every
-push, so check the open issues before believing a number.
+August 2026 reads **960** active against a reported ~1,017. Year to date the
+file shows 587 churned and 374 acquired, against 456 and 324 reported, with
+reactivations down from 229 to 26. The remaining gap is small enough that the
+figures are usable; it was not before.
+
+One consequence worth knowing when reading the trailing month: a logo is now
+counted when it arrives, but its first payment lands later. August 2026 books
+33 new logos against $5,050 of new MRR, $153 each where every other month runs
+near $680. Charts that divide one by the other suppress a month until both
+halves have settled.
 
 ### There are three counts of a new logo and they disagree
 

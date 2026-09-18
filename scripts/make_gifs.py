@@ -85,12 +85,20 @@ def font(size, bold=False):
 F_TITLE, F_LABEL, F_TICK, F_BIG = font(26, True), font(15), font(13), font(19, True)
 
 
+# Presence is an event type, not a payment. Same rule the site uses: a
+# customer billed but not yet collected is in the base, and reading presence
+# off the amount instead turned one late payment into a churn and a
+# reactivation. The value kept against each id is still the revenue, which is
+# legitimately zero for those customers.
+LIVE_EVENTS = {"new", "reactivation", "flat", "expansion", "contraction"}
+
+
 def read_months():
     mrr = defaultdict(dict)
     for row in load("customer_waterfall.json")["rows"]:
-        value = number(row.get("eop_mrr"))
-        if value and value > 0:
-            mrr[row["month"]][row["customer_id"]] = value
+        if row.get("event_type") not in LIVE_EVENTS:
+            continue
+        mrr[row["month"]][row["customer_id"]] = number(row.get("eop_mrr")) or 0.0
 
     waterfall = {r["month"]: r for r in load("waterfall_summary.json")["rows"]}
     last = max(mrr)

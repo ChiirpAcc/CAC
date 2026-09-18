@@ -172,34 +172,48 @@ def check_presence_is_not_payment(waterfall, customers):
                    f"down.")
 
     # The same fault seen per customer rather than in the totals.
+    #
+    # A revenue gap is not the fault and never was. A billed customer who pays
+    # late has a zero month and belongs in the base throughout, which is why
+    # presence is read from event_type. The fault is that gap being recorded as
+    # a departure: a churn with revenue on both sides of it, which invents a
+    # loss and an acquisition out of one late payment.
     if not customers:
         return
     by_customer = {}
     for row in customers.get("rows", []):
-        amount = number(row.get("eop_mrr"))
-        by_customer.setdefault(row.get("customer_id"), {})[row.get("month")] = amount or 0
+        by_customer.setdefault(row.get("customer_id"), {})[row.get("month")] = (
+            number(row.get("eop_mrr")) or 0, str(row.get("event_type") or ""))
 
-    gapped = 0
+    spurious = 0
     paying = 0
+    gap_only = 0
     for months in by_customer.values():
         keys = sorted(k for k in months if k)
-        if not any(months[k] > 0 for k in keys):
-            continue
-        paying += 1
-        live = [i for i, k in enumerate(keys) if months[k] > 0]
+        live = [i for i, k in enumerate(keys) if months[k][0] > 0]
         if not live:
             continue
+        paying += 1
         first, last = live[0], live[-1]
-        if any(months[keys[i]] == 0 for i in range(first, last)):
-            gapped += 1
+        interior = range(first + 1, last)
+        if any(months[keys[i]][0] == 0 for i in interior):
+            gap_only += 1
+        if any(months[keys[i]][1] == "churn" for i in interior):
+            spurious += 1
 
-    if paying and gapped / paying > 0.05:
+    if paying and spurious / paying > 0.05:
         report("error", "Customer Waterfall",
-               f"{gapped:,} of {paying:,} paying customers ({gapped / paying:.0%}) have a "
-               f"zero month with revenue on both sides of it. Each of those reads as a churn "
-               f"followed by a reactivation. A customer who was there in March and there in "
-               f"May did not leave in April, so presence is being read from payment rather "
-               f"than from a subscription or a base membership.")
+               f"{spurious:,} of {paying:,} paying customers ({spurious / paying:.0%}) are "
+               f"marked churned in a month that has revenue on both sides of it. A customer "
+               f"who was there in March and there in May did not leave in April, so presence "
+               f"is being read from payment rather than from a subscription or a base "
+               f"membership.")
+    elif gap_only:
+        report("note", "Customer Waterfall",
+               f"{gap_only:,} of {paying:,} paying customers ({gap_only / paying:.0%}) have a "
+               f"zero revenue month with revenue on both sides. None of them is recorded as a "
+               f"departure, which is the expected shape: these are late payments, and "
+               f"presence is carried by event_type rather than by the amount.")
 
 
 def main():
@@ -259,6 +273,9 @@ def main():
 def finish():
     errors = [f for f in findings if f["level"] == "error"]
     warnings = [f for f in findings if f["level"] == "warning"]
+    # Notes record a check that passed in a way worth stating, so a reader can
+    # tell "this was tested and is fine" from "this was never looked at".
+    notes = [f for f in findings if f["level"] == "note"]
 
     if not findings:
         print("No problems found.")
@@ -273,8 +290,15 @@ def finish():
         lines.append(f"## {len(warnings)} warning{'s' if len(warnings) != 1 else ''}\n")
         lines += [f"- **{f['tab']}** - {f['message']}" for f in warnings]
         lines.append("")
-    lines.append("The site still deployed. Nothing here blocks publishing, because a "
-                 "site carrying a warning is more useful than no site.")
+    if notes:
+        lines.append(f"## {len(notes)} note{'s' if len(notes) != 1 else ''}\n")
+        lines += [f"- **{f['tab']}** - {f['message']}" for f in notes]
+        lines.append("")
+    if errors or warnings:
+        lines.append("The site still deployed. Nothing here blocks publishing, because a "
+                     "site carrying a warning is more useful than no site.")
+    else:
+        lines.append("No errors or warnings. The notes above are checks that passed.")
 
     body = "\n".join(lines)
     print(body)

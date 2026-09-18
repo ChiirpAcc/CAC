@@ -28,6 +28,14 @@ function earliestMonth(reference = CURRENT_MONTH) {
 
 export const HISTORY_STARTS = earliestMonth();
 
+// The event types that mean a customer was in the base that month. 'churn' is
+// the month they left and 'inactive' is a row carried for a customer who was
+// not there at all, so neither counts. Anything else is presence, whether or
+// not money moved.
+export const LIVE_EVENTS = new Set([
+  'new', 'reactivation', 'flat', 'expansion', 'contraction',
+]);
+
 export function num(value) {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -191,6 +199,8 @@ export async function load() {
       source: r.source || null,
       canonicalId: r.canonical_id || null,
       month: r.month,
+      eventType: r.event_type || '',
+      active: LIVE_EVENTS.has(r.event_type),
       eopMrr: num(r.eop_mrr),
       usage: num(r.usage_revenue) || 0,
       oneTime: num(r.onetime_revenue) || 0,
@@ -261,7 +271,7 @@ export function buildCohorts(data) {
   const rowByCustomerMonth = new Map();
 
   for (const row of data.customers) {
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!row.active) continue;
 
     const seen = firstRevenueMonth.get(row.id);
     if (seen === undefined || row.month < seen) firstRevenueMonth.set(row.id, row.month);
@@ -291,7 +301,7 @@ export function buildCohorts(data) {
   // first row in the file. A month of zero-revenue rows in front of the window
   // would otherwise move the boundary off the month that actually censors.
   const windowStart = data.customers
-    .filter(r => r.eopMrr !== null && r.eopMrr > 0)
+    .filter(r => r.active)
     .reduce((earliest, r) => (earliest === null || r.month < earliest ? r.month : earliest), null);
   const censored = [];
   for (const [id, month] of [...firstRevenueMonth]) {
@@ -475,7 +485,7 @@ export function forwardSurvival(data, { horizon = 4, windows = 24 } = {}) {
   const firstMonth = new Map();
 
   for (const row of data.customers) {
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!row.active) continue;
     if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Map());
     activeByMonth.get(row.month).set(row.id, row.eopMrr);
 
@@ -780,7 +790,7 @@ export function projectedBreakEven(data, cohorts, options) {
 export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
   const activeByMonth = new Map();
   for (const row of data.customers) {
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!row.active) continue;
     if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Set());
     activeByMonth.get(row.month).add(row.id);
   }
@@ -911,7 +921,7 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
 export function seasonalSurvival(data, { horizon = 4 } = {}) {
   const mrrByMonth = new Map();
   for (const row of data.customers) {
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!row.active) continue;
     if (!mrrByMonth.has(row.month)) mrrByMonth.set(row.month, new Map());
     mrrByMonth.get(row.month).set(row.id, row.eopMrr);
   }
@@ -976,7 +986,7 @@ export function survivalByRevenueWithinTenure(data, { horizon = 4, windows = 24 
   const activeByMonth = new Map();
   const firstMonth = new Map();
   for (const row of data.customers) {
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!row.active) continue;
     if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Map());
     activeByMonth.get(row.month).set(row.id, row.eopMrr);
     const seen = firstMonth.get(row.id);
@@ -1136,7 +1146,7 @@ export function retentionBySignupPrice(data, { horizon = 4, windows = 24 } = {})
   const activeByMonth = new Map();
   const firstMonth = new Map();
   for (const row of data.customers) {
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!row.active) continue;
     if (!activeByMonth.has(row.month)) activeByMonth.set(row.month, new Set());
     activeByMonth.get(row.month).add(row.id);
     const seen = firstMonth.get(row.id);
@@ -1203,7 +1213,7 @@ export function priceAgainstRetention(data, { ages = [3, 6, 12], minCohort = 16 
   const firstMrr = new Map();
 
   for (const row of data.customers) {
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!row.active) continue;
     if (!active.has(row.month)) active.set(row.month, new Set());
     active.get(row.month).add(row.id);
     const seen = firstMonth.get(row.id);
@@ -1275,7 +1285,7 @@ export function priceAgainstRetention(data, { ages = [3, 6, 12], minCohort = 16 
 export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
   const active = new Map();
   for (const row of data.customers) {
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!row.active) continue;
     if (!active.has(row.month)) active.set(row.month, new Set());
     active.get(row.month).add(row.id);
   }
@@ -1384,7 +1394,7 @@ export function environmentSplit(data) {
 
   for (const row of data.customers) {
     if (row.source && !source.has(row.id)) source.set(row.id, row.source);
-    if (row.eopMrr === null || row.eopMrr <= 0) continue;
+    if (!row.active) continue;
     everRevenue.add(row.id);
     const seen = firstRevenue.get(row.id);
     if (seen === undefined || row.month < seen) firstRevenue.set(row.id, row.month);
