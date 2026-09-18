@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-"""Render the animated versions of the arrivals chart straight from data/.
+"""Render the animated charts straight from data/.
 
-Three of them, and the third exists because the second was misleading.
+  arrivals_vs_churn.gif   churn against arrivals, horizons 1 to 6
+  ltv_cac_by_age.gif      LTV:CAC as cohorts mature
 
-  arrivals_vs_churn.gif            one cloud, horizons 1 to 6
-  arrivals_vs_churn_by_price.gif   the same split by what customers pay
-  price_gap_by_month.gif           the paired difference, which is the honest
-                                   way to show the price effect
+Two files where there were four. The price-split scatter and the paired
+difference that corrected it are gone: the split version read as though
+nothing was there, the paired view existed only to say why that reading was
+wrong, and neither survived the question being answered. A chart kept to
+argue with a chart nobody is looking at any more is just maintenance.
 
-The split version overlaps so heavily that it looks like nothing is there,
-and that reading is wrong: almost all the visible scatter is between months
-rather than between the two halves within a month. A paired test clears
-significance at every horizon. A scatter of two overlapping groups is simply
-the wrong picture for a paired comparison, so the third file plots the
-per-month difference, which is what the test actually looks at.
+The arrivals animation anchors every horizon to the same starting months, the
+same rule the interactive chart uses, so stepping through the horizons changes
+the horizon and nothing else. Taking the last 24 complete windows at each
+setting instead slides the period backwards as the horizon grows, and the
+effect that appeared at one month turned out to be carried by the recent
+thin-intake months that only the short horizons could see.
 
 Axes are fixed across every frame. If each frame rescaled to its own data the
 cloud would look much the same at every horizon and the movement would be
@@ -289,40 +291,27 @@ def build():
     OUT.mkdir(parents=True, exist_ok=True)
     mrr, waterfall, last, eligible, anchor = read_months()
 
-    plain, split, gaps = [], [], []
+    # Same anchored window the interactive chart uses: every horizon is
+    # measured from the same starting months, so moving through the horizons
+    # changes the horizon and nothing else. Taking "the last 24 complete
+    # windows" per horizon instead slides the period backwards as the horizon
+    # grows, and the effect that appeared at one month turned out to be
+    # carried by the recent thin-intake months only the short horizons saw.
+    plain = []
     for horizon in HORIZONS:
         months = [m for m in eligible(horizon) if m in anchor]
-        xs, whole, low, high, diffs = [], [], [], [], []
-
+        xs, whole = [], []
         for month in months:
             base = mrr[month]
             later = set(mrr[month_add(month, horizon)])
-            median = sorted(base.values())[len(base) // 2]
-            cheap = [c for c, v in base.items() if v <= median]
-            dear = [c for c, v in base.items() if v > median]
-
             xs.append(waterfall[month]["new_logos"])
             whole.append(1 - sum(1 for c in base if c in later) / len(base))
-            lo = 1 - sum(1 for c in cheap if c in later) / len(cheap)
-            hi = 1 - sum(1 for c in dear if c in later) / len(dear)
-            low.append(lo)
-            high.append(hi)
-            diffs.append((lo - hi) * 100)
-
-        n = len(diffs)
-        mean = sum(diffs) / n
-        sd = math.sqrt(sum((d - mean) ** 2 for d in diffs) / (n - 1))
         plain.append({"h": horizon, "xs": xs, "ys": whole, "months": months,
                       "fit": fit(xs, whole)})
-        split.append({"h": horizon, "xs": xs, "low": low, "high": high, "months": months,
-                      "gap": mean, "fit_low": fit(xs, low), "fit_high": fit(xs, high)})
-        gaps.append({"h": horizon, "months": months, "diffs": diffs, "mean": mean,
-                     "t": mean / (sd / math.sqrt(n)), "wins": sum(1 for d in diffs if d > 0), "n": n})
 
     y_pct = lambda v: f"{v * 100:.0f}%"
     span = lambda f: f"{f['months'][0]} to {f['months'][-1]}"
 
-    # 1. One cloud.
     frames = []
     for f in plain:
         r, est, ci = f["fit"]
@@ -344,65 +333,14 @@ def build():
         frames.append(image)
     save(frames, OUT / "arrivals_vs_churn.gif")
 
-    # 2. Two clouds.
-    frames = []
-    for f in split:
-        image, draw, px, py = frame(
-            "Churn against arrivals, split by what customers pay",
-            f"Churn over the following {f['h']} month{'' if f['h'] == 1 else 's'}"
-            f"   ·   same {len(f['months'])} starting months, {span(f)}",
-            (0, 0.35), y_pct)
-        for x, y in zip(f["xs"], f["low"]):
-            dot(draw, px(x), py(y), LOW)
-        for x, y in zip(f["xs"], f["high"]):
-            dot(draw, px(x), py(y), HIGH)
-        lx = W - PAD["r"] - 250
-        dot(draw, lx + 6, 92, LOW, 6)
-        draw.text((lx + 20, 82), "pays below median", font=F_LABEL, fill=SOFT)
-        dot(draw, lx + 6, 114, HIGH, 6)
-        draw.text((lx + 20, 104), "pays above median", font=F_LABEL, fill=SOFT)
-        draw.text((PAD["l"], H - PAD["b"] + 82),
-                  f"per 10 fewer arrivals:  below median {f['fit_low'][1]:+.2f} ± {f['fit_low'][2]:.2f} pts"
-                  f"     above median {f['fit_high'][1]:+.2f} ± {f['fit_high'][2]:.2f} pts",
-                  font=F_LABEL, fill=SOFT)
-        draw.text((W - PAD["r"], H - PAD["b"] + 56),
-                  "the clouds overlap; see the paired view", font=F_BIG, fill=SOFT, anchor="ra")
-        frames.append(image)
-    save(frames, OUT / "arrivals_vs_churn_by_price.gif")
-
-    # 3. The paired difference, which is what the test actually looks at.
-    limit = max(abs(d) for f in gaps for d in f["diffs"])
-    limit = math.ceil(limit)
-    frames = []
-    for f in gaps:
-        image, draw, px, py = frame(
-            "How much less do higher payers churn, month by month",
-            f"Over the following {f['h']} month{'' if f['h'] == 1 else 's'}"
-            f"   ·   same {f['n']} starting months, {f['months'][0]} to {f['months'][-1]}",
-            (-limit, limit), lambda v: f"{v:+.0f}", x_range=(0, f["n"] - 1),
-            x_title="Starting month, oldest to newest",
-            y_title="Gap", zero_line=True)
-        for i, d in enumerate(f["diffs"]):
-            dot(draw, px(i), py(d), HIGH if d > 0 else LOW)
-        draw.line([(PAD["l"], py(f["mean"])), (W - PAD["r"], py(f["mean"]))],
-                  fill=HIGH, width=2)
-        draw.text((PAD["l"] + 8, py(f["mean"]) - 22),
-                  f"mean {f['mean']:+.2f} points", font=F_LABEL, fill=HIGH)
-        draw.text((PAD["l"], H - PAD["b"] + 82),
-                  f"paired t = {f['t']:+.2f} on {f['n'] - 1} df"
-                  f"     higher payers churned less in {f['wins']} of {f['n']} months",
-                  font=F_LABEL, fill=SOFT)
-        draw.text((W - PAD["r"], H - PAD["b"] + 56),
-                  "clears significance" if abs(f["t"]) > 2.07 else "does not clear",
-                  font=F_BIG, fill=HIGH if abs(f["t"]) > 2.07 else SOFT, anchor="ra")
-        frames.append(image)
-    save(frames, OUT / "price_gap_by_month.gif")
-
     build_ltv_by_age()
 
-    print("\n  horizon   mean gap   paired t   months won")
-    for f in gaps:
-        print(f"    {f['h']}mo     {f['mean']:+6.2f}    {f['t']:+6.2f}     {f['wins']} of {f['n']}")
+    print()
+    print("  horizon   r        per 10 fewer     verdict")
+    for f in plain:
+        r, est, ci = f["fit"]
+        verdict = "measurable" if (est - abs(ci)) * (est + abs(ci)) > 0 else "nothing"
+        print(f"    {f['h']}mo     {r:+.2f}    {est:+6.2f} pts      {verdict}")
 
 
 if __name__ == "__main__":

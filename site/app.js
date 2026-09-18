@@ -9,7 +9,7 @@ import {
   ltvAtAge, signupPriceHistory, priceBands,
 } from './data.js';
 import {
-  lineChart, multiLineChart, columnChart, flowChart, scatterOverTime,
+  lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
   scatterXY, dualAxisChart, fmt, INK,
 } from './charts.js';
 
@@ -79,11 +79,16 @@ function renderLtvAtAge() {
     return;
   }
 
-  columnChart($('chart-ltv-cac'), {
+  const partial = shown.filter(r => !r.complete);
+  const settled = shown.filter(r => r.complete);
+  const verdict = v => (v >= 3 ? INK.positive : v >= 1 ? INK.tertiary : INK.negative);
+
+  stackedColumnChart($('chart-ltv-cac'), {
     labels: shown.map(r => fmt.monthLabel(r.month)),
-    values: shown.map(r => r.ratio),
+    observed: shown.map(r => r.observed),
+    projected: shown.map(r => r.projected),
     yFormat: v => v.toFixed(1) + 'x',
-    colourFor: v => (v >= 3 ? INK.positive : v >= 1 ? INK.tertiary : INK.negative),
+    colourFor: v => verdict(v),
     refs: [
       { value: 3, label: '3.0x', variant: 'ref-goal' },
       { value: 1, label: '1.0x break-even', variant: 'ref-floor' },
@@ -92,14 +97,22 @@ function renderLtvAtAge() {
       { label: 'At or above 3.0x', colour: 'var(--series-pos)' },
       { label: 'Between 1.0x and 3.0x', colour: 'var(--series-3)' },
       { label: 'Below break-even', colour: 'var(--series-neg)' },
+      { label: 'Hatched: projected, not yet observed', colour: 'var(--depends)' },
     ],
     describe: i => {
       const r = shown[i];
-      return `<strong>${r.month} cohort at month ${age}</strong>
-        <span>LTV:CAC ${fmt.ratio(r.ratio)}</span>
+      const head = `<strong>${r.month} cohort at month ${age}</strong>
+        <span>LTV:CAC ${fmt.ratio(r.ratio)}</span>`;
+      const split = r.complete
+        ? '<span class="muted">Fully observed</span>'
+        : `<span>Observed ${fmt.ratio(r.observed)} through month ${r.monthsObserved}</span>
+           <span>Projected ${fmt.ratio(r.projected)} over the next `
+           + `${age - r.monthsObserved} month${age - r.monthsObserved === 1 ? '' : 's'}</span>`;
+      return head + split + `
         <span>Cost per logo ${fmt.money(r.costPerLogo)}</span>
         <span>Gross profit per logo ${fmt.money(r.gpPerLogo)}</span>
-        <span class="muted">${fmt.int(r.size)} logos, ${fmt.pct(r.survival, 0)} still there</span>`;
+        <span class="muted">${fmt.int(r.size)} logos, ${fmt.pct(r.survival, 0)} still there at `
+        + `month ${r.survivalAt}</span>`;
     },
   });
 
@@ -124,14 +137,39 @@ function renderLtvAtAge() {
     + `while gross profit per logo is `
     + `${move(avg(early, 'gpPerLogo'), avg(late, 'gpPerLogo'))}, `
     + `${fmt.money(avg(early, 'gpPerLogo'))} against ${fmt.money(avg(late, 'gpPerLogo'))}. `
-    + `What a customer is worth has barely moved. What one costs has.`;
+    + `What a customer is worth has barely moved. What one costs has.`
+    + (partial.length
+        ? ` ${partial.length} of these columns are part projection, so the later half is `
+          + `the half carrying most of that assumption.`
+        : '');
+
+  const bestCohort = shown.reduce((x, y) => (y.ratio > x.ratio ? y : x));
+  const worstCohort = shown.reduce((x, y) => (y.ratio < x.ratio ? y : x));
+
+  // Chart 1's annotation is written here rather than in renderAnnotations,
+  // because both it and the chart depend on the age the slider sets. Left
+  // there it went on describing the lifetime measure this chart replaced.
+  annotate('chart-ltv-cac', [
+    `<strong>${shown.length - above} of ${shown.length} cohorts are still below 1.0x at month ${age}</strong>, meaning they have not yet returned what they cost to win.`,
+    `The best is ${bestCohort.month} at ${fmt.ratio(bestCohort.ratio)} on ${fmt.money(bestCohort.costPerLogo)} a logo; the worst is ${worstCohort.month} at ${fmt.ratio(worstCohort.ratio)} on ${fmt.money(worstCohort.costPerLogo)}.`,
+    `Averaged across the halves: cost per logo ${fmt.money(avg(early, 'costPerLogo'))} then ${fmt.money(avg(late, 'costPerLogo'))}, gross profit per logo ${fmt.money(avg(early, 'gpPerLogo'))} then ${fmt.money(avg(late, 'gpPerLogo'))}.`,
+  ], [
+    `Cutting every cohort at the same age is what makes these comparable. A cohort that has not reached month ${age} yet carries what it has returned so far plus a projection of the rest, drawn hatched, so the bar shows which part is measured: ${settled.length} of ${shown.length} are fully observed here and ${partial.length} carry some projection.`,
+    'Cost per logo assumes a month of spend bought that month of logos. A long sales cycle would push spend into the wrong cohort.',
+  ]);
 
   $('ltv-note').textContent =
     'Every cohort cut at the same age, so none of the slope is the calendar. '
-    + (rows.length - shown.length) + ' of ' + rows.length + ' cohorts are too young to reach '
-    + 'month ' + age + ' and are absent rather than drawn short. Gross profit is what a cohort '
-    + 'actually returned by that age, not a projection. Cost per logo is the month acquisition '
-    + 'cost over the cohort count, the same denominator on both halves of the ratio.';
+    + (partial.length
+        ? `${settled.length} of ${shown.length} cohorts have actually reached month ${age}; `
+          + `the other ${partial.length} are drawn solid up to their last observed month and `
+          + `hatched beyond it. The hatched part is not evidence. It carries the pooled donor `
+          + `trajectory, the same projection the break-even chart uses, and each cohort's own `
+          + `realised margin rather than the flat assumption. `
+        : `Every cohort has actually reached month ${age}, so nothing here is projected. `)
+    + 'Cost per logo is the month acquisition cost over the cohort count, the same denominator '
+    + 'on both halves of the ratio. A projection is worth least exactly where it is longest, '
+    + 'so read the newest columns as a question rather than an answer.';
 }
 
 
@@ -221,6 +259,7 @@ function renderPriceBands() {
     + 'business charged more.';
 }
 
+
 // 24. What acquisition costs, by category and month.
 //
 // Every other chart on this page reads the acquisition total as one number.
@@ -268,8 +307,6 @@ function renderCostTable(data) {
     (c.reported[i] === null ? null : c.totals[i] - c.reported[i]));
   const worst = drift.reduce((a, b) => (b !== null && Math.abs(b) > Math.abs(a || 0) ? b : a), 0);
 
-  const first = c.costPerLogo.find(v => v !== null);
-  const last = [...c.costPerLogo].reverse().find(v => v !== null);
   const headcount = c.categories.filter(x =>
     ['ae', 'sdr', 'salesmgmt', 'partnerships'].includes(x.key));
   const headcountTotal = sum(headcount.map(x => sum(x.values)));
@@ -278,8 +315,12 @@ function renderCostTable(data) {
   $('cost-finding').innerHTML =
     `<strong>${money(grand)} bought ${fmt.int(totalLogos)} logos, ${money(grand / totalLogos)} each.</strong> `
     + `People you employ to sell are ${fmt.pct(headcountTotal / grand, 0)} of it. `
-    + `Cost per logo ran ${money(first)} in ${fmt.monthLabel(c.months[0])} against `
-    + `${money(last)} in ${fmt.monthLabel(c.months[c.months.length - 1])}.`;
+    + `Cost per logo averaged ${money(sum(c.totals.slice(0, 6)) / Math.max(c.logos.slice(0, 6).reduce((s, v) => s + (v || 0), 0), 1))} `
+    + `over the first six months of the window and `
+    + `${money(sum(c.totals.slice(6)) / Math.max(c.logos.slice(6).reduce((s, v) => s + (v || 0), 0), 1))} `
+    + `over the last six. Month by month it swings from ${money(Math.min(...c.costPerLogo.filter(v => v !== null)))} `
+    + `to ${money(Math.max(...c.costPerLogo.filter(v => v !== null)))}, so a single month is a `
+    + `poor summary of it.`;
 
   $('cost-note').textContent =
     'Categories are matched from the account name, so a renamed account falls into Other '
@@ -369,7 +410,11 @@ function renderStatic() {
     },
   });
   $('retention-note').textContent = blended.length
-    ? `Indexed to month 2, because month 1 carries setup and onboarding fees and indexing there turns a one-off charge ending into an apparent cliff. Held to a 24 month horizon, and drawn only while at least 20 cohorts remain in sample. Here it runs to month ${blended[blended.length - 1].offset}.`
+    ? `Indexed to month 2, because month 1 carries setup and onboarding fees and indexing there `
+      + `turns a one-off charge ending into an apparent cliff. The logo line is survival, so a `
+      + `customer who leaves and returns is not counted twice and the line can only fall. Held to `
+      + `a 24 month horizon and drawn while at least ${blended[blended.length - 1].cohorts} `
+      + `cohorts remain in sample, which carries it to month ${blended[blended.length - 1].offset}.`
     : 'Not enough cohort history yet.';
 
   // 5. Monthly logo churn, both ways of counting it.
@@ -487,16 +532,17 @@ function renderStatic() {
     ? `<strong>Each year is worse than the one before it at six months.</strong> `
       + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)}`).join(', ')
       + `. A steady decline rather than one bad year.`
-    : `<strong>${bestYear.year} was the good year, and both sides of it are worse.</strong> `
-      + `At month 6, ${eras.map(e => `${e.year} holds ${fmt.pct(e.month6, 1)}`).join(', ')}`
-      + `, a spread of ${spread6} points. `
-      + (newest.month3 > eras[0].month3
-          ? `The ${newest.year} cohorts actually start better than ${eras[0].year} at month 3, `
-            + `${fmt.pct(newest.month3, 1)} against ${fmt.pct(eras[0].month3, 1)}, and give it `
-            + `back by month 6. `
-          : '')
-      + `The question that follows is what was different about ${bestYear.year}, which nothing `
-      + `else on this page asks.`;
+    : Number(spread6) < 5
+      ? `<strong>The three years sit within ${spread6} points of each other at month 6.</strong> `
+        + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
+        + `. That is a narrow spread on thin samples, and ${newest.year} rests on `
+        + `${newest.cohorts} of its ${newest.cohortsInYear} cohorts, so read this as no clear `
+        + `difference between eras rather than as a ranking.`
+      : `<strong>${bestYear.year} is the best of the three at six months.</strong> `
+        + `${eras.map(e => `${e.year} holds ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')}`
+        + `, a spread of ${spread6} points. With this few cohorts a year the ordering is worth `
+        + `less than the level, and the level is that roughly a fifth of every intake is gone by `
+        + `month six whichever year it arrived in.`;
 
   $('era-note').textContent =
     'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
@@ -526,9 +572,10 @@ function renderStatic() {
     'New and reactivated above the axis, churned below. Net change is a line rather than a '
     + 'third column, because it is the sum of the other two and would otherwise read as an '
     + 'independent quantity. '
-    + 'Counts come from the monthly summary. The cohort charts derive their own from '
-    + 'when a customer started, so the two can differ while the summary is on an older '
-    + 'basis.';
+    + 'Counts come from the monthly summary, which the customer file now reproduces exactly: '
+    + 'the live event types total active_logos in every month of the window. Churned here is '
+    + 'the summary figure, which chart 5 shows is a floor rather than the full count of '
+    + 'customers who left.';
 }
 
 // Cost and profit. Settled inputs, so this runs once like everything else.
@@ -712,7 +759,7 @@ function renderAssumptionDependent() {
     + 'chance of never covering their cost. Projection stops at ten years.';
 
   // 7. Cost per logo against revenue per logo, indexed to 100.
-  // The pipeline's own acquisition cost, the same figure charts 1, 2 and 14
+  // The pipeline's own acquisition cost, the same figure charts 1, 2 and 16
   // divide by. Re-deriving it here from the expense lines produced a second
   // implementation of one number, which is how the page ended up with three
   // answers to what a logo costs.
@@ -1016,12 +1063,13 @@ function renderForward() {
   const live = cap.rollingArrivals.filter(v => v !== null);
   const liveCap = cap.rollingCapacity.filter(v => v !== null);
   $('momentum-finding').innerHTML =
-    '<strong>One is fading, the other is not.</strong> The link between new arrivals and churn '
-    + 'ran at ' + sign(live[0]) + ' over the earliest twelve month window and '
-    + sign(live[live.length - 1]) + ' over the latest, so it has gone. The CS capacity link has '
-    + 'barely moved, ' + sign(liveCap[0]) + ' to ' + sign(liveCap[liveCap.length - 1]) + '. '
-    + 'That is why chart 20 reads close to nothing overall: a real early relationship '
-    + 'and no recent one average out to nothing.';
+    '<strong>One was never there; the other has not moved.</strong> The link between new '
+    + 'arrivals and churn ran at ' + sign(live[0]) + ' over the earliest twelve month window and '
+    + sign(live[live.length - 1]) + ' over the latest, weak at both ends rather than a '
+    + 'relationship that faded. Customer Success has barely moved, ' + sign(liveCap[0]) + ' to '
+    + sign(liveCap[liveCap.length - 1]) + ', and is the stronger of the two throughout. On '
+    + live.length + ' overlapping windows neither movement is worth reading as a trend, which '
+    + 'is also why chart 21 finds nothing pooled.';
 
   $('momentum-note').textContent =
     'Correlation against forward churn computed over a moving ' + cap.rollingWidth
@@ -1185,12 +1233,12 @@ function annotate(plotId, takeaways, assumptions) {
 
 const MEANS = {
   'chart-price-volume':
-    'This is the chart to put in front of anyone who has seen the volume line on its own. '
-    + 'Fewer customers at a higher price is a different business from fewer customers, and '
-    + 'the revenue effect is roughly two thirds of what the count alone implies. It does not '
-    + 'make the decline disappear, and it does change what to do about it: the pricing move '
-    + 'is working and the volume problem is partly a measurement boundary, so the honest '
-    + 'reading is that neither a discount nor a panic about demand is supported here.',
+    'Over seven months this chart said price had risen 44%. Over the full window it says price '
+    + 'fell by nearly half and has since climbed back to roughly where it started, which is a '
+    + 'different fact and a different decision. The recovery is real and worth protecting; it '
+    + 'is not evidence of pricing power the business did not already have in 2024. What the '
+    + 'chart cannot tell you is where to price, because two lines on two scales cross wherever '
+    + 'the axes are set. The chart below answers that one.',
 
   'chart-onboarding':
     'Charging more customers and charging them more are separate decisions with separate '
@@ -1206,11 +1254,13 @@ const MEANS = {
     + 'the months holding them read high.',
 
   'chart-ltv-cac':
-    'The model works and has been proven to work. The earliest cohorts in the window returned '
-    + 'two to four and a half times what they cost, on roughly half the acquisition cost of the '
-    + 'recent ones. What has broken is the price of a customer, not the value of one: at the '
-    + 'cost per logo the newest cohorts carry, the same retention curve cannot clear the bar. '
-    + 'The lever here is acquisition cost, not upsell or pricing.',
+    'Read the two averages under the chart together and the diagnosis is in them. Cut at the '
+    + 'same age, what a customer returns has barely moved between the earlier cohorts and the '
+    + 'later ones. What one costs has roughly doubled. That is the whole of the deterioration '
+    + 'here, and it points at acquisition rather than at retention or pricing: the same '
+    + 'retention curve clears the bar at the older cohorts’ cost per logo and does not at '
+    + 'the newer ones’. Move the slider and the gap holds at every age both halves reach, '
+    + 'which is what rules out the calendar as the explanation.',
 
   'chart-payback':
     'Payback lengthening changes how the business is financed, not just how it looks. The '
@@ -1344,14 +1394,9 @@ function renderAnnotations() {
   const recovered = shown.filter(c => c.payback !== null);
   const withinGoal = recovered.filter(c => c.payback <= 12).length;
 
-  annotate('chart-ltv-cac', [
-    `<strong>${belowOne} of ${withLtv.length} cohorts shown sit below 1.0x</strong>, meaning they have not yet returned what they cost to win.`,
-    `${above3} ${above3 === 1 ? 'is' : 'are'} above the 3.0x line. The best is ${best.month} at ${fmt.ratio(best.ltvCac)}, on ${fmt.money(best.costPerLogo)} a logo.`,
-    costByEra(shown),
-  ], [
-    'LTV here is gross profit <strong>realised to date</strong>, not a projection, so a cohort partly sits where it does because of its age. Cohorts under six months are withheld for that reason.',
-    'Cost per logo assumes a month of spend bought that month of logos. A long sales cycle would push spend into the wrong cohort.',
-  ]);
+  // Chart 1's annotation is written where the chart is drawn, because both
+  // depend on the age its slider sets. Left here it described the lifetime
+  // measure the chart no longer uses.
 
   annotate('chart-payback', [
     `<strong>${recovered.length} of ${shown.length} cohorts have covered their cost</strong>, `
@@ -1385,7 +1430,7 @@ function renderAnnotations() {
     'This pools every era, so it is an average that conceals the deterioration visible in the era chart below.',
   ], [
     'Indexed to <strong>month 2</strong>, not month 1. Month 1 carries setup and onboarding fees, and indexing there turns a one-off charge ending into an apparent churn cliff.',
-    'Drawn only while at least twenty cohorts remain in sample, and held to a 24 month horizon.',
+    `Drawn while at least ${lastPoint ? lastPoint.cohorts : 12} cohorts remain in sample, and held to a 24 month horizon. The logo line is survival rather than presence, so a customer who leaves and returns is counted once.`,
   ]);
 
   const recent = w.slice(-36);

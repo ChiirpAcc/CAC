@@ -319,6 +319,83 @@ export function columnChart(container, { labels, values, yFormat = fmt.int, desc
   if (legendItems) legend(container, legendItems);
 }
 
+// One diagonal hatch per colour, built on demand. Keyed by the colour itself
+// so three semantic colours produce three patterns rather than one per bar.
+function hatchPattern(svg, colour) {
+  const key = colour.replace(/[^a-z0-9]+/gi, '-');
+  const id = `hatch-${key}`;
+  if (svg.querySelector(`#${id}`)) return id;
+  let defs = svg.querySelector('defs');
+  if (!defs) defs = el('defs', {}, svg);
+  const pattern = el('pattern', {
+    id, width: 7, height: 7, patternUnits: 'userSpaceOnUse',
+    patternTransform: 'rotate(45)',
+  }, defs);
+  el('rect', { width: 7, height: 7, fill: colour, opacity: 0.18 }, pattern);
+  el('line', { x1: 0, y1: 0, x2: 0, y2: 7, stroke: colour, 'stroke-width': 2.4 }, pattern);
+  return id;
+}
+
+// A column in two parts: what a cohort has actually returned by a given age,
+// and what the donor trajectory says it will have returned by then.
+//
+// One hue per column, because the verdict is about the whole column. Two
+// textures, because a reader must never be able to mistake the projected part
+// for evidence. Solid is observed, hatched is projected, and a hairline marks
+// the seam so where the evidence stops is never a matter of judging a shade.
+export function stackedColumnChart(container, { labels, observed, projected,
+                                                yFormat = fmt.int, describe, colourFor,
+                                                colour = INK.primary, refs = [], yMax = null,
+                                                legendItems = null }) {
+  const svg = makeSvg(container);
+  const totals = labels.map((_, i) => {
+    const seen = observed[i];
+    if (seen === null || !Number.isFinite(seen)) return null;
+    const ahead = projected[i];
+    return seen + (Number.isFinite(ahead) ? ahead : 0);
+  });
+  const real = totals.filter(v => v !== null && Number.isFinite(v));
+  if (!real.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
+
+  const hi = yMax !== null ? yMax : niceCeil(Math.max(...real, ...refs.map(r => r.value)));
+  const y = frame(svg, { yMin: 0, yMax: hi, yFormat });
+  const band = bandScale(labels.length);
+  const base = y(0);
+
+  totals.forEach((total, i) => {
+    if (total === null) return;
+    const paint = colourFor ? colourFor(total, i) : colour;
+    const x = band.centre(i) - band.width / 2;
+    const seen = Math.max(0, Math.min(observed[i], hi));
+
+    el('rect', {
+      x, y: y(seen), width: band.width,
+      height: Math.max(base - y(seen), 1),
+      class: 'bar', fill: paint,
+    }, svg);
+
+    // Clipped at the ceiling rather than rescaling the axis, the same rule
+    // the plain column chart uses.
+    const top = Math.min(total, hi);
+    if (top > seen) {
+      el('rect', {
+        x, y: y(top), width: band.width,
+        height: Math.max(y(seen) - y(top), 1),
+        class: 'bar bar-projected', fill: `url(#${hatchPattern(svg, paint)})`,
+      }, svg);
+      el('line', {
+        x1: x, y1: y(seen), x2: x + band.width, y2: y(seen),
+        class: 'seam', stroke: paint, 'stroke-width': 1.5,
+      }, svg);
+    }
+  });
+
+  for (const ref of refs) referenceLine(svg, y, ref.value, ref.label, ref.variant || '');
+  xLabels(svg, labels, band);
+  attachHover(svg, container, band, labels.length, describe);
+  if (legendItems) legend(container, legendItems);
+}
+
 // New and reactivated stack upward, churned is drawn downward, and net is a
 // line on its own axis. Net is the sum of the other two, so drawing it as a
 // third column would read as a third independent quantity.

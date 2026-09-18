@@ -27,7 +27,7 @@
       </figcaption>
       <div class="chart-control">
         <label for="ltv-age">Measure every cohort at month</label>
-        <input type="range" id="ltv-age" min="1" max="12" step="1" value="6">
+        <input type="range" id="ltv-age" min="1" max="24" step="1" value="6">
         <output id="ltv-age-value">6</output>
       </div>
       <div class="plot" id="chart-ltv-cac"></div>
@@ -69,7 +69,7 @@
 
     <figure class="card">
       <figcaption>
-        <h3>6. Retention at month 3 and month 6, by cohort</h3>
+        <h3>6. Retention at months 3, 6 and 12, by cohort</h3>
       </figcaption>
       <div class="plot" id="chart-age-retention"></div>
       <p class="note">One line per age, against the month a cohort started. A cohort joins a line only once that age is behind it, so the lines end at different points and the right hand end of each is the newest cohort old enough to be judged. Retention here is survival: once a customer has gone they stay gone, so a line can only fall.</p>
@@ -321,46 +321,6 @@
       </p>
     </figure>
 
-    <figure class="card wide">
-      <figcaption>
-        <h3>23. The same, split by what customers pay</h3>
-      </figcaption>
-      <img class="animation" src="media/arrivals_vs_churn_by_price.gif" loading="lazy"
-           alt="The same animation with each month split into the half of the base paying above its median and the half below.">
-      <p class="note">
-        Splitting by price separates the clouds vertically and leaves the
-        horizontal story just as flat. This one is included because it reads as
-        though nothing is there, and that reading is wrong: nearly all the
-        visible scatter is between months rather than between the two halves
-        within a month. The chart below is the honest picture of the same
-        comparison.
-      </p>
-    </figure>
-
-    <figure class="card wide">
-      <figcaption>
-        <h3>24. How much less higher payers churn, month by month</h3>
-      </figcaption>
-      <img class="animation" src="media/price_gap_by_month.gif" loading="lazy"
-           alt="The per-month difference in churn between higher and lower paying halves of the base, at horizons from one to six months, with the mean and a paired t statistic.">
-      <p class="finding">
-        <strong>The paired difference clears significance at every horizon</strong>,
-        from t = +6.75 to t = +9.91, and the gap widens the longer you look:
-        2.2 points at one month, 4.3 at six. Higher payers churned less in
-        twenty-two to twenty-four months of twenty-four depending on the
-        window. On the old payment basis this read far weaker, t = +2.36 to
-        +4.14 on fifteen to nineteen months, because a late payment from a
-        higher payer was being counted as churn.
-      </p>
-      <p class="note">
-        A scatter of two overlapping groups is the wrong picture for a paired
-        comparison: it shows the noise the comparison conditions out. Plotting
-        the per-month difference instead shows what the test actually looks at.
-        Blue is a month where higher payers churned less, red where they churned
-        more.
-      </p>
-    </figure>
-
   </div>
 
   <div class="wrap section-break">
@@ -376,7 +336,7 @@
   <div class="wrap charts">
     <figure class="card wide">
       <figcaption>
-        <h3>25. LTV:CAC as cohorts mature</h3>
+        <h3>23. LTV:CAC as cohorts mature</h3>
       </figcaption>
       <img class="animation" src="media/ltv_cac_by_age.gif" loading="lazy"
            alt="LTV:CAC by cohort with every cohort cut at the same age, stepping the age from one month to twelve. The axis is fixed, so only the bars move.">
@@ -398,7 +358,7 @@
 
     <figure class="card wide" id="fig-costs">
       <figcaption>
-        <h3>26. Acquisition cost by category, and what it bought</h3>
+        <h3>24. Acquisition cost by category, and what it bought</h3>
       </figcaption>
       <div class="table-scroll">
         <table class="data-table cost-table" id="cost-table"></table>

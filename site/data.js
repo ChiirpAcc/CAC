@@ -311,9 +311,20 @@ export function buildCohorts(data) {
   const windowStart = data.customers
     .filter(r => r.active)
     .reduce((earliest, r) => (earliest === null || r.month < earliest ? r.month : earliest), null);
+  //
+  // The push now classifies these by hand. A customer marked 'shifted forward'
+  // in start_type is one the workbook has already identified as starting
+  // before the window, which beats inferring it from where their first row
+  // happens to fall: the inference catches everyone sitting on the boundary,
+  // including customers who genuinely started there.
+  const shiftedForward = new Set(
+    data.customers.filter(r => /shifted forward/i.test(r.startType || '')).map(r => r.id));
+
   const censored = [];
   for (const [id, month] of [...firstRevenueMonth]) {
-    if (month === windowStart && !data.lifetimes?.has(id)) {
+    const known = data.lifetimes?.has(id);
+    const stated = shiftedForward.has(id);
+    if ((month === windowStart || stated) && !known) {
       firstRevenueMonth.delete(id);
       censored.push(id);
     }
@@ -506,25 +517,61 @@ export function departures(data) {
 export function ltvAtAge(data, cohorts, { age = 6, margin = 0.757 } = {}) {
   const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
   const offset = age - 1;
+  const { path, terminal } = donorTrajectory(cohorts);
 
   return cohorts.map(cohort => {
     const spend = cac.get(cohort.month);
     const costPerLogo = (spend === undefined || !cohort.size) ? null : spend / cohort.size;
-    if (cohort.maxOffset < offset || costPerLogo === null) {
-      return { month: cohort.month, size: cohort.size, costPerLogo, ratio: null, gpPerLogo: null };
+
+    // No recorded spend means no denominator, and inventing one would invent
+    // the whole ratio. These stay absent whatever the age.
+    if (costPerLogo === null) {
+      return {
+        month: cohort.month, size: cohort.size, costPerLogo: null,
+        ratio: null, observed: null, projected: null, gpPerLogo: null,
+        monthsObserved: cohort.maxOffset + 1, complete: false, survival: null,
+      };
     }
-    let gp = 0;
+
+    const monthly = cohort.profit && cohort.profit.length ? cohort.profit : null;
+    const effective = realisedMargin(cohort, margin);
+
+    // Two accumulators rather than one. A cohort younger than the chosen age
+    // used to be dropped, which quietly removed every recent cohort from the
+    // chart exactly when the reader moved the slider far enough to ask an
+    // interesting question. It carries what it has actually returned plus
+    // what the donor trajectory says it will return by that age, and the two
+    // are kept apart so the column can show which is which.
+    let observedGp = 0;
+    let projectedGp = 0;
+    let carried = null;
     for (let k = 0; k <= offset; k += 1) {
-      gp += (cohort.profit && cohort.profit.length ? cohort.profit[k] : cohort.revenue[k] * margin);
+      if (k <= cohort.maxOffset) {
+        observedGp += monthly ? monthly[k] : cohort.revenue[k] * margin;
+      } else {
+        const step = path.has(k) ? path.get(k) : terminal;
+        carried = (carried === null ? cohort.revenue[cohort.maxOffset] : carried) * step;
+        projectedGp += carried * effective;
+      }
     }
-    const gpPerLogo = gp / cohort.size;
+
+    const complete = cohort.maxOffset >= offset;
+    const lastSeen = Math.min(offset, cohort.maxOffset);
     return {
       month: cohort.month,
       size: cohort.size,
       costPerLogo,
-      gpPerLogo,
-      ratio: gpPerLogo / costPerLogo,
-      survival: cohort.survivors[offset] / (cohort.survivors[0] || 1),
+      gpPerLogo: (observedGp + projectedGp) / cohort.size,
+      observed: (observedGp / cohort.size) / costPerLogo,
+      projected: (projectedGp / cohort.size) / costPerLogo,
+      ratio: ((observedGp + projectedGp) / cohort.size) / costPerLogo,
+      monthsObserved: cohort.maxOffset + 1,
+      complete,
+      // Survival is only ever read from an observed month. Projecting a
+      // logo count would put a made-up number in the tooltip beside two
+      // real ones.
+      survival: cohort.survivors[0] ? cohort.survivors[lastSeen] / cohort.survivors[0] : null,
+      survivalAt: lastSeen + 1,
     };
   });
 }
@@ -969,17 +1016,16 @@ function terminalRate(path, depth = 6) {
   return ages.reduce((s, k) => s + path.get(k), 0) / ages.length;
 }
 
-export function projectedBreakEven(data, cohorts, options) {
-  const { csShare, partnershipsShare, margin, replicates = 300, horizon = 120 } = options;
-  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
-
-  // Donors need enough history to lend a trajectory, and recent enough to be
-  // lending one from the same regime.
+// The pooled donor trajectory: what one month of a cohort's revenue does to
+// the next, averaged over every cohort old enough to have shown it.
+//
+// Both projections on this page read it. The equal-age chart could compute
+// its own and would then disagree with the break-even projection about what
+// the same young cohort is worth, which is the defect that produced three
+// cost-per-logo figures: one number, two implementations, and the quiet one
+// stays wrong.
+export function donorTrajectory(cohorts) {
   const donors = cohorts.filter(c => c.month >= '2023-01' && c.maxOffset >= 12);
-  const donorPaths = donors.map(ratioPath);
-  const donorTerminals = donorPaths.map(p => terminalRate(p));
-
-  const pooled = new Map();
   const numerator = new Map();
   const denominator = new Map();
   for (const cohort of donors) {
@@ -989,19 +1035,36 @@ export function projectedBreakEven(data, cohorts, options) {
       denominator.set(k, (denominator.get(k) || 0) + cohort.revenue[k - 1]);
     }
   }
-  for (const [k, den] of denominator) if (den > 0) pooled.set(k, numerator.get(k) / den);
-  const pooledTerminal = terminalRate(pooled);
+  const path = new Map();
+  for (const [k, den] of denominator) if (den > 0) path.set(k, numerator.get(k) / den);
+  return { donors, path, terminal: terminalRate(path) };
+}
+
+// A projected month has no revenue class breakdown to work from, so a cohort
+// carries its own realised margin forward rather than the flat assumption.
+// Same rule wherever a month is projected.
+export function realisedMargin(cohort, margin) {
+  const revenue = cohort.revenue.slice(0, cohort.maxOffset + 1).reduce((s, v) => s + v, 0);
+  const profit = (cohort.profit || []).slice(0, cohort.maxOffset + 1).reduce((s, v) => s + v, 0);
+  return revenue > 0 ? profit / revenue : margin;
+}
+
+export function projectedBreakEven(data, cohorts, options) {
+  const { csShare, partnershipsShare, margin, replicates = 300, horizon = 120 } = options;
+  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+
+  // Donors need enough history to lend a trajectory, and recent enough to be
+  // lending one from the same regime.
+  const { donors, path: pooled, terminal: pooledTerminal } = donorTrajectory(cohorts);
+  const donorPaths = donors.map(ratioPath);
+  const donorTerminals = donorPaths.map(p => terminalRate(p));
 
   // Observed months use the same per class gross profit as the cohort table.
   // Projected months have no class breakdown to work from, so they carry the
   // cohort's own realised profit margin forward rather than a flat assumption,
   // which keeps the two halves of a single curve on one definition.
   const monthsToCover = (cohort, cost, path, terminal) => {
-    const observedRevenue = cohort.revenue
-      .slice(0, cohort.maxOffset + 1).reduce((s, v) => s + v, 0);
-    const observedProfit = (cohort.profit || [])
-      .slice(0, cohort.maxOffset + 1).reduce((s, v) => s + v, 0);
-    const effective = observedRevenue > 0 ? observedProfit / observedRevenue : margin;
+    const effective = realisedMargin(cohort, margin);
 
     let cumulative = 0;
     let projected = null;
