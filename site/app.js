@@ -2368,11 +2368,27 @@ function renderSignups() {
     + 'opposite directions: fewer customers are charged, and those who are pay more. They are '
     + 'different decisions with different effects on conversion, and reading them as one '
     + 'movement hides which lever was pulled.';
+  // The tab is filled in by hand and runs behind, so the recent months of both
+  // signup charts sit on part of their intake. Said out loud, because a reader
+  // comparing months cannot see it, and because falling coverage reads exactly
+  // like falling sales.
+  const thin = sx.months.filter(m => m.coverage !== null && m.coverage < 0.85);
+  const coverageNote = thin.length
+    ? ' This tab is maintained by hand and runs behind the billing file, so the most recent '
+      + 'months hold only part of their intake: '
+      + thin.map(m => `${fmt.monthLabel(m.month)} ${fmt.int(m.count)} of `
+        + `${fmt.int(m.billedNew)} (${fmt.pct(m.coverage, 0)})`).join(', ')
+      + '. Those months are drawn from that share rather than from everyone who started, so '
+      + 'read them as provisional. It also means the count here is not a demand measure: the '
+      + 'billed count of new customers has held near its two year average while this tab has '
+      + 'thinned.'
+    : '';
+
   $('onboarding-note').textContent =
     'Attach rate is the share of the month with a setup fee above zero. The average is taken '
     + 'across those charged, not across everyone, because including the customers who were not '
     + 'charged would '
-    + 'blend the two movements back together.';
+    + 'blend the two movements back together.' + coverageNote;
 
   // 15. How much of a month is not a standard start.
   const types = sx.typeTotals.map(x => x.type);
@@ -2407,7 +2423,7 @@ function renderSignups() {
     'Share of each month by how the subscription started. '
     + sx.paidBelow.customers + ' customers across the whole source paid less in month one than '
     + 'their starting MRR, ' + fmt.money(sx.paidBelow.startingMrr) + ' of price, which is the '
-    + 'gap between what is billed and what arrives.';
+    + 'gap between what is billed and what arrives.' + coverageNote;
 }
 
 // 25. Arrivals against forward churn, at whatever horizon is chosen.

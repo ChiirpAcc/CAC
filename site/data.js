@@ -1986,15 +1986,34 @@ export function signupEconomics(data, { dropTrailing = true } = {}) {
     if (last.length < previous.length * 0.4) months = months.slice(0, -1);
   }
 
+  // How much of each month this tab actually holds.
+  //
+  // The signups tab is filled in by hand and it runs behind. Every customer
+  // who starts paying produces a `new` event in the customer file, so that is
+  // the count to measure it against. Coverage was complete in January and is
+  // near half by June, which means the recent months of any chart drawn from
+  // this tab rest on a part of their intake rather than all of it. Falling
+  // coverage also looks exactly like falling sales if nobody checks, and it is
+  // the reason the tab reads about 25 a month while the billed count holds
+  // near 46.
+  const billed = new Map();
+  for (const row of data.customers) {
+    if (row.eventType !== 'new') continue;
+    billed.set(row.month, (billed.get(row.month) || 0) + 1);
+  }
+
   const series = months.map(month => {
     const group = byMonth.get(month);
     const startingMrr = group.reduce((s, r) => s + r.startingMrr, 0);
     const withFee = group.filter(r => r.setupFee > 0);
     const feeTotal = withFee.reduce((s, r) => s + r.setupFee, 0);
     const paidBelow = group.filter(r => r.firstPayment < r.startingMrr).length;
+    const billedNew = billed.get(month) || 0;
     return {
       month,
       count: group.length,
+      billedNew,
+      coverage: billedNew ? group.length / billedNew : null,
       startingMrr,
       averagePrice: group.length ? startingMrr / group.length : null,
       attachRate: group.length ? withFee.length / group.length : null,
