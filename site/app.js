@@ -120,6 +120,7 @@ function renderLtvAtAge() {
   // censored boundary one, small and unrepresentative, and reading the story
   // off it and the last bar made the comparison swing on two noisy numbers.
   const above = shown.filter(r => r.ratio >= 1).length;
+  const observedAbove = shown.filter(r => (r.observed || 0) >= 1).length;
   const cut = Math.floor(shown.length / 2);
   const early = shown.slice(0, cut);
   const late = shown.slice(cut);
@@ -129,7 +130,16 @@ function renderLtvAtAge() {
     return `${Math.abs(pct).toFixed(0)}% ${pct >= 0 ? 'higher' : 'lower'}`;
   };
   $('ltv-finding').innerHTML =
-    `<strong>At month ${age}, ${above} of ${shown.length} cohorts have covered their cost.</strong> `
+    ''
+    // Two counts, because at a long age they diverge sharply and the headline
+    // is the sentence that gets quoted. At month 24 every cohort clears its
+    // cost, but only half of them do it on revenue anyone has seen: the rest
+    // is the donor trajectory. Reporting the first number alone reads as "the
+    // unit economics are fine" when what it means is "the model says so".
+    + `<strong>At month ${age}, ${above} of ${shown.length} cohorts have covered their cost`
+    + (observedAbove < above
+        ? `, ${observedAbove} of them on revenue already observed.</strong> `
+        : `.</strong> `)
     + `The earlier half averaged ${fmt.ratio(avg(early, 'ratio'))} and the later half `
     + `${fmt.ratio(avg(late, 'ratio'))}. Cost per logo is `
     + `${move(avg(early, 'costPerLogo'), avg(late, 'costPerLogo'))}, `
@@ -260,6 +270,29 @@ function renderPriceBands() {
 }
 
 
+
+// The settled allocations, in the footer, sized from the ledger.
+//
+// These were written down once and drifted: the page claimed $1.87m of
+// Customer Success and $1.06m of Technical Account Manager where the window
+// now holds $1.60m and $0.89m. They are the figures that justify two of the
+// three decisions on this page, so they are read rather than remembered.
+function renderSettledTotals(data) {
+  const sum = test => data.expenses
+    .filter(e => test(e))
+    .reduce((s, e) => s + (e.amount || 0), 0);
+
+  const cs = sum(e => e.bucket === 'SPLIT' && /Customer Success/i.test(e.account || ''));
+  const tam = sum(e => e.bucket === 'OPEN');
+  const cac = data.cacMonthly.reduce((s, r) => s + (r.cacTotalActual || 0), 0);
+
+  const money = v => (v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'm' : fmt.money(v));
+  const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+  set('cs-total', money(cs));
+  set('cs-share', cac + cs ? fmt.pct(cs / (cac + cs), 0) : '–');
+  set('tam-total', money(tam));
+}
+
 // 24. What acquisition costs, by category and month.
 //
 // Every other chart on this page reads the acquisition total as one number.
@@ -358,6 +391,7 @@ function boot() {
     renderSignups();
     renderPriceBands();
     renderCostTable(data);
+    renderSettledTotals(data);
     renderAnnotations();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
