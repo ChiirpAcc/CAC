@@ -507,6 +507,70 @@ export function departures(data) {
 
 
 
+
+// What the projected part of a cohort bar rests on.
+//
+// The hatched section of chart 1 is a model, and a reader is entitled to know
+// which one and whether it can be trusted. This assembles the answer from the
+// same donor set the projection uses, so the page states its own basis rather
+// than describing it from memory.
+//
+// The projection is a revenue path, but it is mostly a churn path: after the
+// first month, revenue per surviving customer is roughly flat, so almost all
+// of the monthly decay is customers leaving rather than the ones who stay
+// paying less. The first step is the exception and is not churn at all, it is
+// the first month's charge dropping out.
+//
+// The check that matters is the last one. The donors are the older cohorts by
+// construction, since only they have twelve months behind them. If the recent
+// cohorts churned faster, projecting them along the donor path would
+// understate their churn and flatter their LTV. They do not.
+export function projectionBasis(cohorts) {
+  const { donors, path, terminal } = donorTrajectory(cohorts);
+  const donorSet = new Set(donors.map(c => c.month));
+  const rest = cohorts.filter(c => !donorSet.has(c.month) && c.maxOffset >= 5);
+
+  // Pooled monthly survival over months 2 to 6, the range both groups reach.
+  const survivalStep = group => {
+    let kept = 0, from = 0;
+    for (const c of group) {
+      for (let k = 1; k <= 5 && k < c.survivors.length; k += 1) {
+        if (c.survivors[k - 1] > 0) { kept += c.survivors[k]; from += c.survivors[k - 1]; }
+      }
+    }
+    return from ? kept / from : null;
+  };
+  const toSix = group => {
+    let a = 0, b = 0;
+    for (const c of group) if (c.maxOffset >= 5) { a += c.survivors[5]; b += c.survivors[0]; }
+    return b ? a / b : null;
+  };
+
+  // How much of the steady-state monthly decay is customers leaving, as
+  // against survivors paying less. Month 1 is excluded because its step is
+  // the first month's charge coming off, not churn.
+  const steady = [...path.entries()].filter(([k]) => k >= 2 && k <= 12);
+  const revenueStep = steady.length
+    ? steady.reduce((s, [, v]) => s + v, 0) / steady.length : null;
+  const donorSurvival = survivalStep(donors);
+
+  return {
+    donors: donors.length,
+    minMonths: 12,
+    terminal,
+    revenueStep,
+    donorSurvival,
+    // Roughly what fraction of the monthly revenue decay is churn rather than
+    // shrinking spend per survivor.
+    churnShareOfDecay: (revenueStep !== null && donorSurvival !== null && revenueStep < 1)
+      ? Math.min(1, (1 - donorSurvival) / (1 - revenueStep)) : null,
+    recentSurvival: survivalStep(rest),
+    donorToSix: toSix(donors),
+    recentToSix: toSix(rest),
+    recentCohorts: rest.length,
+  };
+}
+
 // LTV:CAC with every cohort measured at the same age.
 //
 // The plain version of this chart is age-biased by construction: an old

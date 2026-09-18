@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """Render the animated charts straight from data/.
 
-  arrivals_vs_churn.gif   churn against arrivals, horizons 1 to 6
-  ltv_cac_by_age.gif      LTV:CAC as cohorts mature
+  arrivals_vs_churn.gif            churn against arrivals, horizons 1 to 6
+  arrivals_vs_churn_by_price.gif   the same, each month split at its own median
+  arrivals_by_month.gif            the same, built one starting month at a time
 
-Two files where there were four. The price-split scatter and the paired
-difference that corrected it are gone: the split version read as though
-nothing was there, the paired view existed only to say why that reading was
-wrong, and neither survived the question being answered. A chart kept to
-argue with a chart nobody is looking at any more is just maintenance.
+Three views of one question, because a single scatter cannot answer it. The
+first asks whether giving churn longer to happen changes the picture. The
+second asks whether the customers who pay more behave differently at the same
+intake volume, and is worth keeping even though its clouds overlap: the
+overlap is the honest picture of a comparison made between months, and the
+paired figures under it are what separate them. The third asks whether any of
+it changed over the two years, which the others cannot show at all.
 
-The arrivals animation anchors every horizon to the same starting months, the
-same rule the interactive chart uses, so stepping through the horizons changes
-the horizon and nothing else. Taking the last 24 complete windows at each
-setting instead slides the period backwards as the horizon grows, and the
-effect that appeared at one month turned out to be carried by the recent
-thin-intake months that only the short horizons could see.
+Every horizon is anchored to the same starting months, the same rule the
+interactive chart uses, so stepping through the horizons changes the horizon
+and nothing else. Taking the last 24 complete windows at each setting instead
+slides the period backwards as the horizon grows, and the effect that appeared
+at one month turned out to be carried by the recent thin-intake months that
+only the short horizons could see.
 
 Axes are fixed across every frame. If each frame rescaled to its own data the
 cloud would look much the same at every horizon and the movement would be
@@ -359,6 +362,77 @@ def build_arrivals_by_month(mrr, waterfall, eligible, anchor):
 
     save(frames, OUT / "arrivals_by_month.gif")
 
+def build_by_price(mrr, waterfall, eligible, anchor):
+    """The same scatter, each month split at its own median subscription.
+
+    Restored because the question it answers is one the single cloud cannot:
+    whether the customers who pay more behave differently from the ones who
+    pay less, at the same intake volume. Each month is split at its own median
+    rather than a fixed price, so a month is compared against itself and the
+    steady rise in price across the window does not leak into the split.
+
+    The two clouds overlap heavily, and that is the honest picture of a
+    comparison made between months. The paired test that conditions on the
+    month is what separates them, and it clears significance at every horizon.
+    """
+    y_pct = lambda v: f"{v * 100:.0f}%"
+    frames = []
+    for horizon in HORIZONS:
+        months = [m for m in eligible(horizon) if m in anchor]
+        xs, low, high, diffs = [], [], [], []
+        for month in months:
+            base = mrr[month]
+            later = set(mrr[month_add(month, horizon)])
+            median = sorted(base.values())[len(base) // 2]
+            cheap = [c for c, v in base.items() if v <= median]
+            dear = [c for c, v in base.items() if v > median]
+            if not cheap or not dear:
+                continue
+            xs.append(waterfall[month]["new_logos"])
+            lo = 1 - sum(1 for c in cheap if c in later) / len(cheap)
+            hi = 1 - sum(1 for c in dear if c in later) / len(dear)
+            low.append(lo)
+            high.append(hi)
+            diffs.append((lo - hi) * 100)
+
+        if len(diffs) < 4:
+            continue
+        n = len(diffs)
+        mean = sum(diffs) / n
+        sd = math.sqrt(sum((d - mean) ** 2 for d in diffs) / (n - 1))
+        tstat = mean / (sd / math.sqrt(n)) if sd else 0.0
+        wins = sum(1 for d in diffs if d > 0)
+
+        image, draw, px, py = frame(
+            "Churn against arrivals, split by what customers pay",
+            f"Churn over the following {horizon} month{'' if horizon == 1 else 's'}"
+            f"   ·   same {n} starting months, {months[0]} to {months[-1]}",
+            (0, 0.35), y_pct)
+        for x, y in zip(xs, low):
+            dot(draw, px(x), py(y), LOW)
+        for x, y in zip(xs, high):
+            dot(draw, px(x), py(y), HIGH)
+
+        lx = W - PAD["r"] - 250
+        dot(draw, lx + 6, 92, LOW, 6)
+        draw.text((lx + 20, 82), "pays below median", font=F_LABEL, fill=SOFT)
+        dot(draw, lx + 6, 114, HIGH, 6)
+        draw.text((lx + 20, 104), "pays above median", font=F_LABEL, fill=SOFT)
+
+        # The clouds overlap, so the number that separates them goes on the
+        # chart rather than being left for the reader to fail to see.
+        draw.text((PAD["l"], H - PAD["b"] + 82),
+                  f"higher payers churn {mean:+.1f} points less on average"
+                  f"     paired t = {tstat:+.2f}     {wins} of {n} months",
+                  font=F_LABEL, fill=SOFT)
+        draw.text((W - PAD["r"], H - PAD["b"] + 56),
+                  "the clouds overlap; the paired test does not",
+                  font=F_BIG, fill=SOFT, anchor="ra")
+        frames.append(image)
+
+    if frames:
+        save(frames, OUT / "arrivals_vs_churn_by_price.gif")
+
 def build():
     OUT.mkdir(parents=True, exist_ok=True)
     mrr, waterfall, last, eligible, anchor = read_months()
@@ -405,8 +479,8 @@ def build():
         frames.append(image)
     save(frames, OUT / "arrivals_vs_churn.gif")
 
-    build_ltv_by_age()
     build_arrivals_by_month(mrr, waterfall, eligible, anchor)
+    build_by_price(mrr, waterfall, eligible, anchor)
 
     print()
     print("  horizon   r        per 10 fewer     verdict")

@@ -6,7 +6,7 @@ import {
   hasRevenueClasses, CLASS_MARGINS, environmentSplit,
   signupEconomics, priceAgainstRetention,
   arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
-  ltvAtAge, signupPriceHistory, priceBands,
+  ltvAtAge, signupPriceHistory, priceBands, projectionBasis,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -57,6 +57,42 @@ function costByEra(shown) {
 }
 
 
+
+
+// The hatched part of a bar is a model. These two sentences say which model
+// and whether it can be trusted, because "projected" on its own invites a
+// reader either to ignore the bar or to believe it, and neither is right.
+function projectionNote(b) {
+  if (!b || !b.donors) return null;
+  // The share is a ratio of two small numbers and lands at or just over one,
+  // so printing it as a percentage gives a precision it does not have.
+  const share = b.churnShareOfDecay;
+  const how = share === null ? ''
+    : share >= 0.9 ? 'essentially all of that decay is'
+    : `roughly ${fmt.pct(share, 0)} of that decay is`;
+  return `The projection is a churn projection. It carries the pooled month-on-month revenue `
+    + `path of the ${b.donors} cohorts with at least ${b.minMonths} months behind them, which `
+    + `settles at ${(b.terminal * 100).toFixed(1)}% of the previous month`
+    + (how
+        ? `. Monthly survival across those donors is ${fmt.pct(b.donorSurvival, 1)}, so ${how} `
+          + `customers leaving rather than survivors paying less: revenue per surviving customer `
+          + `is roughly flat once the first month is past.`
+        : '.');
+}
+
+// The failure this projection could have, tested rather than asserted.
+function projectionCheck(b) {
+  if (!b || b.recentSurvival === null || b.donorSurvival === null) return null;
+  const gap = Math.abs(b.donorToSix - b.recentToSix) * 100;
+  return `Those donors are the older cohorts by construction, so if the newer ones churned `
+    + `faster the projection would flatter them. They do not: monthly survival runs `
+    + `${fmt.pct(b.donorSurvival, 1)} for the donors against ${fmt.pct(b.recentSurvival, 1)} `
+    + `for the ${b.recentCohorts} newer cohorts, and survival to month six `
+    + `${fmt.pct(b.donorToSix, 1)} against ${fmt.pct(b.recentToSix, 1)}, `
+    + `${gap < 2 ? 'which is the same within noise' : `a gap of ${gap.toFixed(1)} points`}. `
+    + `What it does not assume is that churn worsens: it carries today's rate forward `
+    + `unchanged, so a bar far past its last observed month is an extrapolation, not a forecast.`;
+}
 
 // 1. LTV:CAC at a chosen age, redrawn whenever the age changes.
 //
@@ -153,6 +189,7 @@ function renderLtvAtAge() {
           + `the half carrying most of that assumption.`
         : '');
 
+  const basis = projectionBasis(cohorts);
   const bestCohort = shown.reduce((x, y) => (y.ratio > x.ratio ? y : x));
   const worstCohort = shown.reduce((x, y) => (y.ratio < x.ratio ? y : x));
 
@@ -165,6 +202,8 @@ function renderLtvAtAge() {
     `Averaged across the halves: cost per logo ${fmt.money(avg(early, 'costPerLogo'))} then ${fmt.money(avg(late, 'costPerLogo'))}, gross profit per logo ${fmt.money(avg(early, 'gpPerLogo'))} then ${fmt.money(avg(late, 'gpPerLogo'))}.`,
   ], [
     `Cutting every cohort at the same age is what makes these comparable. A cohort that has not reached month ${age} yet carries what it has returned so far plus a projection of the rest, drawn hatched, so the bar shows which part is measured: ${settled.length} of ${shown.length} are fully observed here and ${partial.length} carry some projection.`,
+    projectionNote(basis),
+    projectionCheck(basis),
     'Cost per logo assumes a month of spend bought that month of logos. A long sales cycle would push spend into the wrong cohort.',
   ]);
 

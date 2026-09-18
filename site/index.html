@@ -198,7 +198,7 @@
 
     <div class="card wide control-card">
       <div class="chart-control">
-        <label for="forward-horizon">Charts 16 and 17: follow the whole base forward for</label>
+        <label for="forward-horizon">Charts 17 and 18: follow the whole base forward for</label>
         <input type="range" id="forward-horizon" min="1" max="9" step="1" value="4">
         <output id="forward-horizon-value">4 months</output>
       </div>
@@ -339,7 +339,30 @@
   <div class="wrap charts">
     <figure class="card wide">
       <figcaption>
-        <h3>23. The same question, month by month</h3>
+        <h3>23. The same, split by what customers pay</h3>
+      </figcaption>
+      <img class="animation" src="media/arrivals_vs_churn_by_price.gif" loading="lazy"
+           alt="The same scatter with each month split at its own median subscription, customers paying below the median in red and above it in blue.">
+      <p class="finding">
+        <strong>The two clouds overlap, and the paired test still separates
+        them.</strong> Splitting each month at its own median puts higher payers
+        below lower payers at every horizon, but the scatter hides it: almost all
+        the spread you can see is between months rather than between the two
+        halves within a month. The figures under the chart condition on the
+        month, which is what the comparison actually rests on.
+      </p>
+      <p class="note">
+        Each month is split at its own median subscription rather than at a fixed
+        price, so a month is compared against itself and the steady rise in price
+        across the window does not leak into the split. Same starting months and
+        same axes as the chart above, so the only thing changing between the two
+        is the split.
+      </p>
+    </figure>
+
+    <figure class="card wide">
+      <figcaption>
+        <h3>24. The same question, month by month</h3>
       </figcaption>
       <img class="animation" src="media/arrivals_by_month.gif" loading="lazy"
            alt="The arrivals against churn scatter built one starting month at a time, on fixed axes, with each new month marked as it lands.">
@@ -361,28 +384,6 @@
       </p>
     </figure>
 
-    <figure class="card wide">
-      <figcaption>
-        <h3>24. LTV:CAC as cohorts mature</h3>
-      </figcaption>
-      <img class="animation" src="media/ltv_cac_by_age.gif" loading="lazy"
-           alt="LTV:CAC by cohort with every cohort cut at the same age, stepping the age from one month to twelve. The axis is fixed, so only the bars move.">
-      <p class="finding">
-        <strong>The recent cohorts stay below the older ones at every age they
-        can both reach.</strong> Chart 1 shows one age at a time, so it can always
-        be answered with "that age is not representative". Stepping through all
-        twelve removes that: the gap is there at month 3 and still there at month
-        12, which is what rules out the calendar as the explanation.
-      </p>
-      <p class="note">
-        The same measure as chart 1, animated across the age its slider sets.
-        The axis is held at 0 to 2.0x in every frame; if each frame rescaled to
-        its own data the bars would look much the same at every age and the
-        movement would be invisible. Cohorts too young to reach an age drop out
-        of that frame rather than being drawn short, so later frames carry fewer
-        bars.
-      </p>
-    </figure>
 
     <figure class="card wide" id="fig-costs">
       <figcaption>
