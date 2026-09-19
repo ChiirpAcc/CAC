@@ -476,19 +476,20 @@ function renderPricing(data) {
   const worse = c.rows[0].left > c.rows[1].left ? c.rows[0] : c.rows[1];
   const milder = c.rows[0].left > c.rows[1].left ? c.rows[1] : c.rows[0];
 
-  node.innerHTML = head + '<tbody>' + body + '</tbody>'
-    + `<tfoot><tr><td colspan="4">`
-    + `A single price wins one rectangle under the demand curve: the price, times however `
-    + `many customers will pay it. Negotiating each deal down from a `
-    + `${money(c.anchor)} anchor toward a ${money(c.floor)} floor collects what each customer `
-    + `is actually willing to pay, which is the area under that curve rather than a rectangle `
-    + `inside it. At an elasticity of ${elasticity.toFixed(2)} that is `
-    + `${money(best.mrr)} a month against ${money(c.rows[1].mrr)} for a flat `
-    + `${money(c.floor)}. Buyers above the anchor still only pay the anchor and buyers below `
-    + `the floor are not served at all, so none of these three is credited with reading minds. `
-    + `Demand is ${c.baseQ.toFixed(0)} logos a month at ${money(c.baseP)}, which is what the `
-    + `business ran before it began raising price, scaled by the elasticity above.`
-    + '</td></tr></tfoot>';
+  node.innerHTML = head + '<tbody>' + body + '</tbody>';
+
+  // The method sits under the table rather than inside it. As a full width
+  // row it was a paragraph wearing a table's clothes, and it pushed the three
+  // numbers that matter off the bottom of the frame.
+  $('pricing-note').textContent =
+    `A single price wins one rectangle under the demand curve: the price, times however many `
+    + `customers will pay it. Negotiating each deal down from a ${money(c.anchor)} anchor `
+    + `toward a ${money(c.floor)} floor collects what each customer is actually willing to pay, `
+    + `which is the area under that curve rather than a rectangle inside it. Buyers above the `
+    + `anchor still only pay the anchor and buyers below the floor are not served at all, so `
+    + `none of these three is credited with reading minds. Demand is ${c.baseQ.toFixed(0)} `
+    + `logos a month at ${money(c.baseP)}, which is what the business ran before it began `
+    + `raising price, scaled by the elasticity above.`;
 
   $('pricing-finding').innerHTML =
     `<strong>Whatever one price you pick, you are leaving `
