@@ -536,118 +536,106 @@ function renderPricing(data) {
       + `${fmt.money(s.fitCeiling)}.`;
   }
 
-  // The answer itself, drawn rather than tabulated, because the point is that
-  // the ordering does not change as elasticity worsens. A table makes a reader
-  // check that column by column; lines that do not cross say it at a glance.
+  // The demand curve, rather than six chosen points on it.
+  //
+  // Strategy lines answered "which of these six", which is not the question.
+  // This is: hold one price, what does a month's intake return after the cost
+  // of winning it, and how much of the base still arrives. One curve per
+  // elasticity, because elasticity is not identified here and a single line
+  // would be a guess wearing a number.
+  //
+  // The sweep runs past -1 on purpose. With constant elasticity demand,
+  // revenue rises with price below -1 and falls above it, so curves only turn
+  // over on the far side. A sweep that stopped at -1 would show five rising
+  // lines and make "charge more" look like a discovery rather than a
+  // restatement of the assumption.
   if ($('chart-price-strategies')) {
-    // Every plan is drawn, the extrapolated one included, because it is now
-    // the recommendation and a recommendation that is not on its own chart is
-    // not really being put forward. It costs some vertical room: its line sits
-    // well above the rest and presses them together. That is itself worth
-    // seeing, since the size of the gap is the size of the assumption.
-    const drawn = s.plans;
-    // Six plans, six colours: with five they wrapped and the recommendation
-    // came out the same grey as the do-nothing line. The path actually taken
-    // is drawn in the negative colour, and the recommendation in the accent,
-    // so the chart reads before the legend does.
-    const palette = [INK.tertiary, INK.negative, INK.secondary, INK.positive,
-      INK.primary, INK.accent];
-    const winner = drawn.reduce((a, b) => (
-      b.byElasticity[b.byElasticity.length - 1].net > a.byElasticity[a.byElasticity.length - 1].net
-        ? b : a));
-    multiLineChart($('chart-price-strategies'), {
-      labels: s.elasticities.map(e => e.toFixed(2)),
-      series: drawn.map((plan, i) => ({
-        label: plan.label,
-        colour: palette[i % palette.length],
-        values: plan.byElasticity.map(x => x.net / 1e6),
-      })),
-      yFormat: v => '$' + v.toFixed(1) + 'm',
-      xTitle: 'Price elasticity assumed (0 = nobody minds, −1.0 = very sensitive)',
-      describe: i => `<strong>Elasticity ${s.elasticities[i].toFixed(2)}</strong>`
-        + drawn.map(plan =>
-          `<span>${plan.label} $${(plan.byElasticity[i].net / 1e6).toFixed(2)}m</span>`).join(''),
-    });
-    // Ranks read off the numbers at every elasticity, not asserted. Written
-    // this way after the first draft called skimming last: it is second
-    // everywhere, and it beats the path the business actually took. Saying
-    // otherwise in front of the people who ran that path would be the kind of
-    // error that costs the rest of the argument its credibility.
-    const last = s.elasticities.length - 1;
-    const rankOf = (plan, i) => [...drawn]
-      .sort((x, y) => y.byElasticity[i].net - x.byElasticity[i].net)
-      .findIndex(p => p.label === plan.label) + 1;
-    const alwaysFirst = s.elasticities.every((_, i) => rankOf(winner, i) === 1);
-    const skim = drawn.find(p => /skim/i.test(p.label));
-    const actual = drawn.find(p => /happened/i.test(p.label));
-    const worst = drawn.reduce((x, y) => (
-      y.byElasticity[last].net < x.byElasticity[last].net ? y : x));
-    const m = (plan, i) => '$' + (plan.byElasticity[i].net / 1e6).toFixed(2) + 'm';
-    const place = n => ['first', 'second', 'third', 'fourth', 'fifth'][n - 1] || `${n}th`;
-    const skimRanks = s.elasticities.map((_, i) => rankOf(skim, i));
-    const skimSteady = skimRanks.every(r => r === skimRanks[0]);
+    const curve = s.priceCurve;
+    // Perfectly inelastic demand is not a case anyone believes, and on a chart
+    // it is ruinous: its curve reaches fifty million at the right hand edge and
+    // presses every other line into the floor, including the two whose peaks
+    // are the entire point. Dropped here, kept in the table as a bound.
+    const lines = curve.series.filter(l => l.elasticity <= -0.5);
+    const palette = [INK.secondary, INK.primary, INK.positive, INK.negative, INK.tertiary];
+    const money = v => '$' + (v / 1e6).toFixed(1) + 'm';
 
-    // The recommended plan is the high skim, which is also the extrapolated
-    // one. The finding says so and says what it rests on in the same breath,
-    // rather than reporting the number and burying the condition in a note.
-    const atOrAbove = price => s.startPrices.filter(p => p >= price).length;
-    const top = s.plans.reduce((a, b) => (
-      b.byElasticity[last].net > a.byElasticity[last].net ? b : a));
-    const bestSupported = pool.reduce((a, b) => (
-      b.byElasticity[last].net > a.byElasticity[last].net ? b : a));
+    // Each curve against its own best, because the levels differ by a factor
+    // of seven across the family and the question here is where each one peaks
+    // rather than how tall it is. The table underneath carries the levels.
+    const indexed = lines.map(line => {
+      const best = Math.max(...line.net);
+      return line.net.map(v => (best ? v / best : null));
+    });
+
+    multiLineChart($('chart-price-strategies'), {
+      labels: curve.prices.map(price => (price % 400 === 0 ? '$' + price.toLocaleString() : '')),
+      series: lines.map((line, i) => ({
+        label: `elasticity ${line.elasticity.toFixed(2)}`,
+        colour: palette[i % palette.length],
+        values: indexed[i],
+      })),
+      yFormat: v => fmt.pct(v),
+      // Room for the loss-making end. Below break-even the contribution is
+      // negative, and clamping the axis at zero sent those points out of the
+      // frame as a near vertical line at the left edge. Where each curve
+      // crosses zero is worth seeing: it is the price at which a logo stops
+      // paying for itself.
+      yMin: Math.max(-1, Math.min(0, ...indexed.flat().filter(Number.isFinite))),
+      yMax: 1,
+      refs: [{ value: 0, label: 'covers its own acquisition cost' }],
+      xTitle: 'One price, held for the whole window',
+      describe: i => `<strong>$${curve.prices[i].toLocaleString()} a month</strong>`
+        + lines.map(line =>
+          `<span>${line.elasticity.toFixed(2)}: ${money(line.net[i])} on `
+          + `${line.volume[i].toFixed(0)} logos a month</span>`).join('')
+        + (curve.prices[i] > curve.fitCeiling
+          ? '<span class="muted">above the tested range</span>' : ''),
+    });
+
+    const turning = lines.filter(l => l.bestPrice < curve.prices[curve.prices.length - 1]);
+    const rising = lines.filter(l => !turning.includes(l));
+    const vol = (line, price) => line.volume[curve.prices.indexOf(price)];
+    const steepest = lines[lines.length - 1];
+    const mild = lines.find(l => l.elasticity === -0.5) || lines[0];
+
     $('price-strategies-finding').innerHTML =
-      `<strong>The high skim scores highest at every elasticity tested, and no two lines `
-      + `cross.</strong> ${top.label} returns ${m(top, 0)} at zero elasticity and `
-      + `${m(top, last)} at ${s.elasticities[last].toFixed(2)}, against ${m(bestSupported, last)} `
-      + `for ${bestSupported.label.toLowerCase()} and ${m(actual, last)} for what actually `
-      + `happened. The ranking holding across the whole sweep is the useful part: it does not `
-      + `depend on a price sensitivity nobody can measure from this data. `
-      + `<strong>The top of that path is thinly sold and the very top is not sold at all.</strong> `
-      + `Of ${fmt.int(s.startPrices.length)} customers ever started, ${fmt.int(atOrAbove(2000))} `
-      + `began at $2,000 or more and exactly ${fmt.int(atOrAbove(2500))} at $2,500 or more. So `
-      + `the opening price is not fantasy, it is the thin end of what is already being sold, `
-      + `but nothing tests the close rate up there. Above ${fmt.money(s.capsAtPrice)} the `
-      + `months-paid line is extrapolated and credits every extra dollar against a customer `
-      + `assumed not to leave inside the ${s.horizon} months. If a $2,500 ask closes at `
-      + `anything like the rate a $1,200 ask does, this is right by a wide margin. If it halves `
-      + `the close rate, it is not. That is the experiment, and it is cheap. `
-      + `<strong>Cost per logo is the other thing to push on, and the slider is there for `
-      + `it.</strong> It is the assumption with the most leverage and the one this page says `
-      + `has moved. Taking it from ${fmt.money(s.cacRange[0])} to ${fmt.money(s.cacRange[1])}, `
-      + `the whole range the business has actually run, changes every total a great deal and `
-      + `does not reorder a single line. What it does change is whether the weakest strategies `
-      + `make money at all: never raising price turns negative somewhere around $6,400 a logo, `
-      + `and the path actually taken follows it not far behind.`;
+      `<strong>Every recommendation on this page turns on one question: is demand more or `
+      + `less price sensitive than ${'−'}1?</strong> Below that the curve never peaks, so `
+      + `the model says charge as much as the market will bear; `
+      + `${rising.map(l => l.elasticity.toFixed(2)).join(', ')} all still rise at the right hand `
+      + `edge. Above it the curve turns over and the best price collapses to `
+      + `${turning.map(l => `$${l.bestPrice.toLocaleString()} at ${l.elasticity.toFixed(2)}`).join(' and ')}. `
+      + `<strong>That is why the floor is the safe half of the recommendation.</strong> `
+      + `$1,200 is roughly the optimum if customers are as price sensitive as `
+      + `${steepest.elasticity.toFixed(2)}, and a long way below it if they are not, so it is `
+      + `the one price that is defensible whichever side of the line we are on. `
+      + `What it costs is volume: at $1,200 a month the model keeps `
+      + `${vol(mild, 1200).toFixed(0)} of ${s.baseQ.toFixed(0)} logos a month at `
+      + `${mild.elasticity.toFixed(2)} and ${vol(steepest, 1200).toFixed(0)} at `
+      + `${steepest.elasticity.toFixed(2)}; at $2,500 it keeps `
+      + `${vol(mild, 2500).toFixed(0)} and ${vol(steepest, 2500).toFixed(0)}.`;
+
     $('price-strategies-note').textContent =
-      `Each line is total gross over ${s.horizon} months per customer won, less acquisition `
-      + `cost at ${fmt.money(s.cac)} a logo, summed across ${s.months} months of intake. `
-      + `Cost per logo is the slider above rather than a constant, because it is the `
-      + `assumption with the most leverage here and the one this page says has moved. It has `
-      + `run between ${fmt.money(s.cacRange[0])} and ${fmt.money(s.cacRange[1])} a month across `
-      + `the window, averaging ${fmt.money(s.cacWindow)} over all of it and `
-      + `${fmt.money(s.cacRecent)} over the last twelve months, which is where the slider `
-      + `opens. Move it and the levels fall a long way while the order of the lines does not `
-      + `change, so the ranking is the output and the totals are a comparison rather than a `
-      + `forecast. `
-      + `Volume is anchored at ${s.baseQ.toFixed(0)} logos a month at ${fmt.money(s.baseP)}, `
-      + `which is what the business was actually running before it began raising price. That `
-      + `is the right anchor for a counterfactual about the whole window and it is higher than `
-      + `the current run rate, so read the totals against each other rather than as money the `
-      + `business would have banked. `
-      + `Volume responds to price through the elasticity on the horizontal axis and months paid `
-      + `through a straight line fitted across the observed price bands, which adds `
-      + `${(s.slope * 1000).toFixed(1)} months paid per extra $1,000 of monthly price; `
-      + `acquisition cost is held flat, because cost per `
-      + `logo has no relationship to price in this data. Elasticity is swept rather than `
-      + `estimated because it is not identified here: volume against price gives −0.20, which `
-      + `does not clear significance, and adding a time trend flips the sign. The sweep runs `
-      + `well past anything the data suggests, and the ordering holds across all of it. The `
-      + `horizontal axis is the four cases tested set side by side, not a continuous scale, so `
-      + `the spacing between them carries no meaning; only the order of the lines does.`
-      + ` The strategies priced above ${fmt.money(s.fitCeiling)} are drawn with the rest but `
-      + `marked in the table below, because above that price both the months-paid line and the `
-      + `volume response are extrapolations rather than observations.`;
+      `Each curve is drawn against its own best rather than in money, because the levels `
+      + `differ several times over across the family and the question here is where each one `
+      + `peaks. The money is in the table below. Perfectly inelastic demand is left off the `
+      + `chart for the same reason, since its line runs away with the axis. `
+      + `Each curve holds one price for the whole ${s.months} month window and sums what that `
+      + `month's intake returns over ${s.horizon} months, less ${fmt.money(s.cac)} to win each `
+      + `logo, which is the slider above. Volume responds as `
+      + `${s.baseQ.toFixed(0)} logos a month at ${fmt.money(s.baseP)} scaled by the elasticity, `
+      + `that being what the business actually ran before it began raising price. Months paid `
+      + `rises ${(s.slope * 1000).toFixed(1)} per extra $1,000 and stops rising at `
+      + `${fmt.money(s.capsAtPrice)}, where it already asks for the whole horizon. `
+      + `Everything right of ${fmt.money(s.fitCeiling)} is extrapolation: no band of customers `
+      + `up there supports the months-paid line, and only one customer in the file has ever `
+      + `started above $2,500. Elasticity itself is not identified in this data, which is the `
+      + `reason for drawing a family of curves rather than picking one: measured against `
+      + `volume it is ${'−'}0.20, it does not clear significance, and adding a time trend `
+      + `flips the sign. The table below takes the same model and asks it about six specific `
+      + `strategies instead.`;
   }
+
 }
 
 

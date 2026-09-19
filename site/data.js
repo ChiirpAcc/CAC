@@ -1096,6 +1096,49 @@ export function pricingScenarios(data, { months = 23, horizon = 12, cac: cacOver
     topBand,
     aboveCeiling: aboveCeiling.length,
     everAboveCeiling: everAboveCeiling.length,
+    // The demand side drawn out as a curve rather than as six chosen points.
+    //
+    // Holding one price for the whole window, what share of the base intake
+    // still arrives, and what does the month's worth of them return after the
+    // cost of winning them. One curve per elasticity, because elasticity is
+    // not identified here and the honest picture is a family of curves rather
+    // than a line. The peak of each is the price that maximises contribution
+    // under that assumption, which is the number the six strategies are only
+    // ever approximating.
+    priceCurve: (() => {
+      const prices = [];
+      for (let price = 400; price <= 4000; price += 100) prices.push(price);
+      // A wider sweep than the table uses, and deliberately past the point
+      // where the answer changes. With constant elasticity demand, revenue
+      // rises with price for anything milder than -1 and falls for anything
+      // steeper, so a curve only turns over on the far side of -1. Stopping
+      // the sweep at -1, as the table does, shows only curves that rise and
+      // makes "charge more" look like a finding rather than an assumption.
+      const curveElasticities = [0, -0.5, -1, -1.5, -2];
+      return {
+        prices,
+        fitCeiling,
+        capsAtPrice,
+        elasticities: curveElasticities,
+        series: curveElasticities.map(elasticity => {
+          const volume = prices.map(price => baseQ * Math.pow(price / baseP, elasticity));
+          const perMonth = prices.map((price, i) =>
+            volume[i] * (price * paidAt(price) - cac));
+          const best = perMonth.reduce((bi, v, i) => (v > perMonth[bi] ? i : bi), 0);
+          return {
+            elasticity,
+            volume,
+            // A month's intake at that price, over the whole window, so the
+            // level is comparable with the table above.
+            net: perMonth.map(v => v * months),
+            bestPrice: prices[best],
+            bestNet: perMonth[best] * months,
+            bestVolume: volume[best],
+            shareOfBase: volume[best] / baseQ,
+          };
+        }),
+      };
+    })(),
     plans: plans.map(pl => {
       // The highest price the plan ever asks for, against the highest price
       // the fit was built on. A plan that opens above the ceiling is scored
