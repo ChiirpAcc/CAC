@@ -48,16 +48,6 @@
         move.</p>
     </div>
 
-    <div class="story-sub" data-figure="fig-era-revenue">
-      <p class="story-lead sub">
-        <strong>The same cohorts, in money.</strong>
-        Every customer capped at what they were paying when they arrived, so
-        the line falls when one leaves and when one stays on less, and
-        expansion cannot lift it. At month 6 the three years keep 78.3%, 77.9%
-        and 60.4% of their revenue against 81.1%, 85.0% and 78.8% of their
-        customers. 2026 is 18.4 points apart where 2024 is 2.8. The head count
-        is the flattering number, and it is getting more flattering.</p>
-    </div>
     <div class="story-means">
       <h3>What this means</h3>
       <p>Expect the head count reading in the room: our newest customers are
@@ -330,9 +320,9 @@
         <h3>8. Retention curve by era, logos kept</h3>
       </figcaption>
       <div class="chart-control">
-        <label for="era-depth">Draw the curves out to month</label>
-        <input type="range" id="era-depth" min="1" max="12" step="1" value="12">
-        <output id="era-depth-value">12</output>
+        <label for="era-depth">Draw the curves in, one point at a time</label>
+        <input type="range" id="era-depth" min="1" step="1">
+        <output id="era-depth-value"></output>
       </div>
       <div class="plot" id="chart-era"></div>
       <p class="finding negative" id="era-finding"></p>

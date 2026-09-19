@@ -674,16 +674,7 @@ function renderEra() {
   // ones it kept. Reading only the count would close a question the money
   // reopens, so both are drawn rather than hidden behind a switch somebody has
   // to know to flip.
-  // The slider walks the curves out along the age axis, a month at a time, so
-  // a reader watches each line extend rather than appear all at once. Both
-  // axes are pinned to the full twelve months regardless of where the slider
-  // sits: the lines have to grow into a fixed frame, because a frame that
-  // resized with them would make every position look the same.
   const MAX_AGE = 12;
-  const depth = $('era-depth') ? Math.min(Number($('era-depth').value) || MAX_AGE, MAX_AGE)
-    : MAX_AGE;
-  if ($('era-depth-value')) $('era-depth-value').textContent = String(depth);
-
   const eras = retentionByYear(cohorts, { maxMonths: MAX_AGE });
   const eraColours = [INK.tertiary, INK.secondary, INK.negative];
   if (!eras.length) {
@@ -696,10 +687,43 @@ function renderEra() {
   }
   const labels = Array.from({ length: MAX_AGE }, (_, i) => `M${i + 1}`);
 
-  // Everything the chart draws is cut at the slider; everything the axes are
-  // sized from is not. Keeping the two apart is what makes the sequence
-  // readable.
-  const toDepth = arr => arr.map((v, i) => (i < depth ? v : null));
+  // One point per slider position, laid out year by year: 2024 fills from
+  // month 1 to its last, then 2025 starts again at month 1 with 2024 left
+  // standing, then 2026. Each era is drawn in against the ones already
+  // finished, which is the comparison the chart exists to make.
+  const steps = [];
+  eras.forEach((era, ei) => {
+    era.points.forEach((v, mi) => {
+      if (v !== null && Number.isFinite(v)) steps.push({ ei, mi, year: era.year });
+    });
+  });
+
+  const slider = $('era-depth');
+  if (slider && !slider.dataset.ready) {
+    slider.max = String(steps.length);
+    slider.value = String(steps.length);
+    slider.dataset.ready = '1';
+  }
+  const position = slider
+    ? Math.min(Math.max(Number(slider.value) || steps.length, 1), steps.length)
+    : steps.length;
+  const here = steps[position - 1] || steps[steps.length - 1];
+  const depth = here ? here.mi + 1 : MAX_AGE;
+  if ($('era-depth-value')) {
+    $('era-depth-value').textContent = here
+      ? `${here.year}, month ${here.mi + 1} (${position} of ${steps.length})` : '--';
+  }
+
+  // Eras already finished stay whole, the one being drawn is cut at the
+  // current month, and the ones after it are not drawn at all. What the axes
+  // are sized from ignores all of this, so the lines grow into a fixed frame
+  // rather than the frame closing around them.
+  const cutFor = (eraIndex, arr) => arr.map((v, i) => {
+    if (!here) return v;
+    if (eraIndex < here.ei) return v;
+    if (eraIndex > here.ei) return null;
+    return i <= here.mi ? v : null;
+  });
 
   // The deepest age all three reach, so the eras are never compared at their
   // own line ends: that would set a 2026 cohort at month 6 against a 2024 one
@@ -722,7 +746,7 @@ function renderEra() {
       series: eras.map((era, i) => ({
         label: `${era.year} cohorts`,
         colour: eraColours[i],
-        values: shift(toDepth(pick(era))),
+        values: shift(cutFor(i, pick(era))),
       })),
       yFormat: v => fmt.pct(v),
       yMin: Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20),
@@ -752,12 +776,16 @@ function renderEra() {
     const v = era[key] ? era[key][depth - 1] : null;
     return v === null || v === undefined || !Number.isFinite(v) ? null : v;
   };
-  const ready = eras.filter(e => at(e, 'points') !== null);
-  const waiting = eras.filter(e => !ready.includes(e));
+  // Only years the chart has actually drawn by this point in the sequence. An
+  // era the slider has not reached yet has the number in the data but not on
+  // the screen, and quoting it would describe a line the reader cannot see.
+  const drawn = eras.filter((e, i) => !here || i <= here.ei);
+  const ready = drawn.filter(e => at(e, 'points') !== null);
+  const waiting = drawn.filter(e => !ready.includes(e));
   const logoSpread = ready.length > 1
     ? Math.max(...ready.map(e => at(e, 'points'))) - Math.min(...ready.map(e => at(e, 'points')))
     : null;
-  const moneyReady = eras.filter(e => at(e, 'grossRevenue') !== null);
+  const moneyReady = drawn.filter(e => at(e, 'grossRevenue') !== null);
 
   $('era-finding').innerHTML =
     (logoSpread === null
@@ -788,7 +816,7 @@ function renderEra() {
   const ranked = [...eras].sort((a, b) => gap(a) - gap(b));
   // Only years that have both numbers at the slider's month, for the same
   // reason as above.
-  const paired = eras.filter(e => gAt(e) !== null && lAt(e) !== null);
+  const paired = drawn.filter(e => gAt(e) !== null && lAt(e) !== null);
   const rankedPairs = [...paired].sort((a, b) => gap(a) - gap(b));
   const worst = rankedPairs[0];
   const mildest = rankedPairs[rankedPairs.length - 1];
@@ -816,7 +844,12 @@ function renderEra() {
     + `. Each year is drawn on a sample fixed to the cohorts that reach its far end, so a line `
     + `moves when retention moves rather than when its membership does. The ${newest.year} line `
     + `rests on ${newest.cohorts} of its ${newest.cohortsInYear} cohorts and will move as more `
-    + `months land.`;
+    + `months land.`
+    + (drawn.length < eras.length
+      ? ` The slider is part way through: `
+        + `${eras.slice(drawn.length).map(e => e.year).join(' and ')} `
+        + `${eras.length - drawn.length === 1 ? 'is' : 'are'} not drawn yet.`
+      : '');
 
   $('era-note').textContent = shared
     + ' Indexed to month 1, where nothing distorts the count.';
@@ -884,7 +917,7 @@ function renderEra() {
 //
 // Each figure remembers where it came from, so returning it puts it back in
 // its numbered position rather than at the end of the page.
-const STORY_FIGURES = ['fig-era', 'fig-era-revenue', 'fig-arrivals-months',
+const STORY_FIGURES = ['fig-era', 'fig-arrivals-months',
   'fig-arrivals-horizons'];
 const homes = new Map();
 
