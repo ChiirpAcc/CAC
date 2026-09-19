@@ -633,8 +633,35 @@ function renderEra() {
   // ones it kept. Reading only the count would close a question the money
   // reopens, so both are drawn rather than hidden behind a switch somebody has
   // to know to flip.
-  const eras = retentionByYear(cohorts, { maxMonths: 12 });
+  // The slider builds the curves cohort by cohort, oldest first, so a reader
+  // can watch each year's line appear and settle as its members arrive. A year
+  // is not drawn until three of its cohorts are in, which is the same minimum
+  // the chart uses at rest, so early positions legitimately show fewer lines
+  // than late ones.
+  const slider = $('era-through');
+  if (slider && !slider.max) {
+    slider.max = String(cohorts.length);
+    slider.value = String(cohorts.length);
+  }
+  const through = slider ? Math.min(Number(slider.value) || cohorts.length, cohorts.length)
+    : cohorts.length;
+  const shownCohorts = cohorts.slice(0, through);
+  if ($('era-through-value')) {
+    const last = shownCohorts[shownCohorts.length - 1];
+    $('era-through-value').textContent = last
+      ? `${fmt.monthLabel(last.month)} (${through} of ${cohorts.length})` : '--';
+  }
+
+  const eras = retentionByYear(shownCohorts, { maxMonths: 12 });
   const eraColours = [INK.tertiary, INK.secondary, INK.negative];
+  if (!eras.length) {
+    $('chart-era').innerHTML = '<p class="empty">Not enough cohorts yet.</p>';
+    $('chart-era-revenue').innerHTML = '<p class="empty">Not enough cohorts yet.</p>';
+    for (const id of ['era-finding', 'era-note', 'era-revenue-finding', 'era-revenue-note']) {
+      if ($(id)) $(id).textContent = '';
+    }
+    return;
+  }
   const labels = Array.from({ length: 12 }, (_, i) => `M${i + 1}`);
 
   // The deepest age all three reach, so the eras are never compared at their
@@ -678,16 +705,34 @@ function renderEra() {
   draw('chart-era-revenue', money, { money: true });
 
   const newest = eras[eras.length - 1];
-  const logoSpread = Math.max(...eras.map(e => e.month6 || 0)) - Math.min(...eras.map(e => e.month6 || 0));
+  // A year only enters the comparison once it has reached month 6. Treating one
+  // that has not got there yet as a zero put the spread at 79 points on the
+  // slider's early positions, which is the whole of the leading year rather
+  // than a difference between years.
+  const ready = eras.filter(e => e.month6 !== null && e.month6 !== undefined);
+  const waiting = eras.filter(e => !ready.includes(e));
+  const logoSpread = ready.length > 1
+    ? Math.max(...ready.map(e => e.month6)) - Math.min(...ready.map(e => e.month6)) : null;
+  const moneyReady = eras.filter(e => e.grossMonth6 !== null && e.grossMonth6 !== undefined);
 
   $('era-finding').innerHTML =
-    `<strong>On logos the three years sit within ${(logoSpread * 100).toFixed(1)} points of `
-    + `each other at month 6.</strong> `
-    + eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
-    + `. That is a narrow spread on thin samples, so on this measure there is no clear `
-    + `difference between the eras. Chart 9 asks the same question in money, weighting each `
-    + `customer by what they arrived on, and there the years separate: at month 6 it reads `
-    + `2024 78.3%, 2025 77.9% and 2026 60.4%.`;
+    (logoSpread === null
+      ? `<strong>Only ${ready.length ? ready[0].year : 'one year'} has reached month 6 so `
+        + `far.</strong> `
+      : `<strong>On logos the ${ready.length} years sit within `
+        + `${(logoSpread * 100).toFixed(1)} points of each other at month 6.</strong> `)
+    + ready.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
+    + (waiting.length ? `. ${waiting.map(e => e.year).join(' and ')} `
+      + `${waiting.length === 1 ? 'has' : 'have'} not reached month 6 yet` : '')
+    + (logoSpread === null
+      ? `. Add cohorts with the slider to compare the eras.`
+      : `. That is a narrow spread on thin samples, so on this measure there is no clear `
+        + `difference between the eras.`)
+    + (moneyReady.length
+      ? ` Chart 9 asks the same question in money, weighting each customer by what they `
+        + `arrived on, and there the years separate: at month 6 it reads `
+        + `${moneyReady.map(e => `${e.year} ${fmt.pct(e.grossMonth6, 1)}`).join(', ')}.`
+      : '');
 
   // Both read at month 6 off the month 2 base, so the gap between them is
   // downgrades and departures rather than a difference in indexing.
@@ -850,9 +895,11 @@ function boot() {
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
+    if ($('era-through')) $('era-through').addEventListener('input', renderEra);
     $('forward-horizon').addEventListener('input', renderForward);
     $('band-horizon').addEventListener('input', renderPriceBands);
     $('arrival-horizon').addEventListener('input', renderArrivals);
+    if ($('horizons-step')) $('horizons-step').addEventListener('input', renderHorizons);
     renderAssumptionDependent();
   }).catch(err => {
     $('loading').innerHTML =
@@ -1539,6 +1586,7 @@ function renderForward() {
     .map(s => ({ x: newByMonth.get(s.month), y: 1 - s.survival, month: s.month }));
 
   renderArrivals();
+  renderHorizons();
 }
 
 // 19. The same window, this year against one and two years ago. Driven by its
@@ -2039,10 +2087,15 @@ function renderAnnotations() {
       + `This chart is the record of what already happened, not a forecast.`
     : null;
 
-  const rank6 = [...eras].sort((a, b) => (b.month6 || 0) - (a.month6 || 0));
-  const best6 = rank6[0];
-  const worst6 = rank6[rank6.length - 1];
-  const best3 = [...eras].sort((a, b) => (b.month3 || 0) - (a.month3 || 0))[0];
+  // Years that have actually reached the age being quoted. Filtering here
+  // rather than coercing a missing value to zero, which is what made the
+  // spread read as the whole of the leading year.
+  const ready6 = eras.filter(e => e.month6 !== null && e.month6 !== undefined);
+  const rank6 = [...ready6].sort((a, b) => b.month6 - a.month6);
+  const best6 = rank6[0] || eras[0];
+  const worst6 = rank6[rank6.length - 1] || eras[0];
+  const ready3 = eras.filter(e => e.month3 !== null && e.month3 !== undefined);
+  const best3 = [...ready3].sort((a, b) => b.month3 - a.month3)[0] || eras[0];
   const gapAt6 = e => ((e.grossMonth6 || 0) - (e.logosMonth6FromMonth2 || 0)) * 100;
   const byGap = [...eras].sort((a, b) => gapAt6(a) - gapAt6(b));
   annotate('chart-era-revenue', [
@@ -2444,6 +2497,89 @@ function renderSignups() {
 }
 
 // 25. Arrivals against forward churn, at whatever horizon is chosen.
+// 23. The same scatter at every horizon, stepped rather than animated.
+//
+// This replaced a GIF. The point of the sequence is that the cloud lifts as
+// churn is given longer to happen and does not tilt, and that only reads if
+// the axes hold still: rescaled per step, every panel looks alike and the
+// lifting disappears. So both bounds are computed once across all six
+// horizons and pinned, which also means the six settings are directly
+// comparable to each other rather than each being its own picture.
+function renderHorizons() {
+  const slider = $('horizons-step');
+  if (!slider || !$('chart-horizons')) return;
+  const horizon = Number(slider.value) || 1;
+  $('horizons-step-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');
+
+  const all = [1, 2, 3, 4, 5, 6].map(hz => ({ hz, ...arrivalsAgainstChurn(data, { horizon: hz }) }));
+  const withPoints = all.filter(a => a.points.length);
+  if (!withPoints.length) {
+    $('chart-horizons').innerHTML = '<p class="empty">Not enough complete windows.</p>';
+    return;
+  }
+  const everyPoint = withPoints.flatMap(a => a.points);
+  const xMax = niceCeilLocal(Math.max(...everyPoint.map(p => p.x)));
+  const yMax = niceCeilLocal(Math.max(...everyPoint.map(p => p.y)));
+
+  const here = all.find(a => a.hz === horizon);
+  if (!here || !here.points.length) {
+    $('chart-horizons').innerHTML = '<p class="empty">Not enough complete windows at this horizon.</p>';
+    return;
+  }
+
+  scatterXY($('chart-horizons'), {
+    points: here.points,
+    xLabel: 'New logos in the starting month',
+    yLabel: 'Forward churn',
+    xFormat: v => Math.round(v),
+    yFormat: v => fmt.pct(v),
+    colour: INK.primary,
+    xMax,
+    yMax,
+    describe: i => '<strong>' + here.points[i].month + '</strong>'
+      + '<span>' + fmt.int(here.points[i].x) + ' new logos</span>'
+      + '<span>' + fmt.pct(here.points[i].y, 1) + ' churned within ' + horizon + ' month'
+      + (horizon === 1 ? '' : 's') + '</span>',
+  });
+
+  const sign = v => (v >= 0 ? '+' : '') + v.toFixed(2);
+  const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+  const lift = withPoints.map(a => ({ hz: a.hz, level: mean(a.points.map(p => p.y)) }));
+  const first = lift[0];
+  const last = lift[lift.length - 1];
+
+  $('horizons-finding').innerHTML =
+    `<strong>At ${horizon} month${horizon === 1 ? '' : 's'} the correlation is `
+    + `${here.r === null ? 'not measurable' : sign(here.r)} on ${here.points.length} starting `
+    + `months${here.significant ? '' : ', which does not clear significance'}.</strong> `
+    + `Step through the settings and the cloud lifts without tilting: average churn goes from `
+    + `${fmt.pct(first.level, 1)} at ${first.hz} month to ${fmt.pct(last.level, 1)} at `
+    + `${last.hz} months, while the correlation runs `
+    + `${withPoints.map(a => `${a.hz}mo ${a.r === null ? '--' : sign(a.r)}`).join(', ')}. `
+    + `None of them clears zero, so however long churn is given to happen, months with fewer `
+    + `arrivals do not churn more.`;
+
+  $('horizons-note').textContent =
+    `Both axes are fixed across all six settings, computed once from every point at every `
+    + `horizon, so the steps are comparable to one another. Rescaling each step would put the `
+    + `cloud in the same place every time and hide the one thing the sequence shows, which is `
+    + `that churn accumulates roughly equally across the whole range of intake volumes. `
+    + `Each point is one starting month: how many customers arrived, against the share of the `
+    + `base that had gone by the end of the window. A month is only drawn once its full `
+    + `window has elapsed, which is why the longer horizons have fewer points.`;
+}
+
+// niceCeil lives in charts.js and is not exported, so the pinned bounds need
+// their own copy. Kept identical on purpose: an axis that rounded differently
+// from the one the chart draws would defeat the point of pinning it.
+function niceCeilLocal(value) {
+  if (value <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const scaled = value / magnitude;
+  const step = scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 2.5 ? 2.5 : scaled <= 5 ? 5 : 10;
+  return step * magnitude;
+}
+
 function renderArrivals() {
   const horizon = Number($('arrival-horizon').value);
   $('arrival-horizon-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');

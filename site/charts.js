@@ -564,16 +564,21 @@ export function scatterOverTime(container, { labels, series, describe, yFormat =
 // quantities move together.
 export function scatterXY(container, { points, xLabel, yLabel,
                                        xFormat = fmt.int, yFormat = fmt.pct,
-                                       colour = INK.primary, describe }) {
+                                       colour = INK.primary, describe,
+                                       xMax = null, yMax = null }) {
   const svg = makeSvg(container);
   if (!points.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
 
   const xs = points.map(p => p.x);
   const ys = points.map(p => p.y);
   const xLo = 0;
-  const xHi = niceCeil(Math.max(...xs));
+  // Bounds can be pinned by the caller. A scatter that is stepped through a
+  // series of settings has to keep the same axes at every step, or the cloud
+  // appears to stay where it is while the numbers underneath it change, which
+  // is the opposite of what the sequence is for.
+  const xHi = xMax !== null ? xMax : niceCeil(Math.max(...xs));
   const yLo = 0;
-  const yHi = niceCeil(Math.max(...ys));
+  const yHi = yMax !== null ? yMax : niceCeil(Math.max(...ys));
 
   const y = frame(svg, { yMin: yLo, yMax: yHi, yFormat });
   const x = v => plot.x0 + ((v - xLo) / (xHi - xLo || 1)) * plot.width;

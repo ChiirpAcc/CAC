@@ -306,6 +306,11 @@
       <figcaption>
         <h3>8. Retention curve by era, logos kept</h3>
       </figcaption>
+      <div class="chart-control">
+        <label for="era-through">Build the curves one cohort at a time, through</label>
+        <input type="range" id="era-through" min="1" step="1">
+        <output id="era-through-value"></output>
+      </div>
       <div class="plot" id="chart-era"></div>
       <p class="finding negative" id="era-finding"></p>
       <p class="note" id="era-note"></p>
@@ -523,13 +528,14 @@
   </section>
 
   <div class="wrap section-break">
-    <h2>The same questions, animated</h2>
+    <h2>The same questions, one step at a time</h2>
     <p class="section-intro">
       Some questions above have a dimension that will not fit in one frame.
       These hold both axes fixed and move only the thing being varied, so a
-      point that shifts has really shifted rather than being rescaled.
-      They are redrawn from the data on every push, so they cannot fall behind
-      the page.
+      point that shifts has really shifted rather than being rescaled. The
+      first is stepped with a slider, so you can stop on any setting; the rest
+      play through on their own and are redrawn from the data on every push,
+      so they cannot fall behind the page.
     </p>
   </div>
 
@@ -539,17 +545,14 @@
       <figcaption>
         <h3>23. Churn against arrivals, one to six months</h3>
       </figcaption>
-      <img class="animation" src="media/arrivals_vs_churn.gif" loading="lazy"
-           alt="Animated scatter of forward churn against new logos, stepping the horizon from one to six months. The cloud rises as the horizon lengthens and does not tilt.">
-      <p class="note">
-        The cloud lifts as the horizon lengthens. What it does not do is tilt
-        enough to matter: the steepest setting, six months, correlates at
-        &minus;0.40 on eighteen starting months, which is t = &minus;1.75 and
-        does not clear significance. Churn
-        accumulates, and it accumulates about equally across the whole range of
-        intake volumes. On axes that rescaled each frame every panel would look
-        much the same and none of that would be visible.
-      </p>
+      <div class="chart-control">
+        <label for="horizons-step">Give churn this long to happen</label>
+        <input type="range" id="horizons-step" min="1" max="6" step="1" value="1">
+        <output id="horizons-step-value">1 month</output>
+      </div>
+      <div class="plot" id="chart-horizons"></div>
+      <p class="finding" id="horizons-finding"></p>
+      <p class="note" id="horizons-note"></p>
     </figure>
 
   </div>

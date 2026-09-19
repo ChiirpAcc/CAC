@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Render the animated charts straight from data/.
 
-  arrivals_vs_churn.gif            churn against arrivals, horizons 1 to 6
+  arrivals_vs_churn.gif            horizons 1 to 6; chart 23 is a slider now,
+                                   so nothing on the page serves this
   arrivals_vs_churn_by_price.gif   the same, each month split at its own median
   arrivals_by_month.gif            the same, built one starting month at a time
 
