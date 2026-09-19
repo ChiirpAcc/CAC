@@ -602,8 +602,9 @@ function renderPricing(data) {
       `<strong>Every recommendation on this page turns on one question: is demand more or `
       + `less price sensitive than ${'−'}1?</strong> Below that the curve never peaks, so `
       + `the model says charge as much as the market will bear; `
-      + `${rising.map(l => l.elasticity.toFixed(2)).join(', ')} all still rise at the right hand `
-      + `edge. Above it the curve turns over and the best price collapses to `
+      + `${rising.map(l => l.elasticity.toFixed(2)).join(' and ')} `
+      + `${rising.length === 1 ? 'still rises' : 'both still rise'} at the right hand edge. `
+      + `Above it the curve turns over and the best price collapses to `
       + `${turning.map(l => `$${l.bestPrice.toLocaleString()} at ${l.elasticity.toFixed(2)}`).join(' and ')}. `
       + `<strong>That is why the floor is the safe half of the recommendation.</strong> `
       + `$1,200 is roughly the optimum if customers are as price sensitive as `
