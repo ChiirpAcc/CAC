@@ -599,6 +599,20 @@ figcaption { margin-bottom: .9rem; }
 .story-means p { margin: 0 0 10px; color: var(--ink-mid); }
 .story-means p:last-child { margin-bottom: 0; }
 
+/* A sub-graph hangs off the step above it: same column, indented, and with a
+   quieter lead so it reads as the second half of one argument rather than as
+   a step of its own. */
+.story-sub {
+  margin: 18px 0 0 0;
+  padding-left: 18px;
+  border-left: 2px solid var(--rule);
+}
+.story-sub .story-lead.sub { font-size: .96rem; color: var(--ink-mid); }
+.story-sub .story-lead.sub strong { color: var(--ink); }
+@media (max-width: 640px) {
+  .story-sub { padding-left: 12px; }
+}
+
 .story-close { border-top: 1px solid var(--rule-strong); padding-top: 34px; margin-bottom: 48px; }
 .story-close h2 { margin: 0 0 14px; }
 .story-close h3 { margin: 30px 0 8px; font-size: 1.02rem; }

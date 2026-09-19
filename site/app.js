@@ -785,7 +785,7 @@ function renderEra() {
 //
 // Each figure remembers where it came from, so returning it puts it back in
 // its numbered position rather than at the end of the page.
-const STORY_FIGURES = ['fig-era', 'fig-arrivals-months',
+const STORY_FIGURES = ['fig-era', 'fig-era-revenue', 'fig-arrivals-months',
   'fig-arrivals-horizons'];
 const homes = new Map();
 
@@ -802,7 +802,7 @@ function showView(which) {
   if (story) {
     for (const id of STORY_FIGURES) {
       const fig = $(id);
-      const slot = document.querySelector(`.story-step[data-figure="${id}"]`);
+      const slot = document.querySelector(`[data-figure="${id}"]`);
       if (fig && slot) slot.appendChild(fig);
     }
   } else {
