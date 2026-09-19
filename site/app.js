@@ -786,7 +786,7 @@ function renderEra() {
 // Each figure remembers where it came from, so returning it puts it back in
 // its numbered position rather than at the end of the page.
 const STORY_FIGURES = ['fig-era', 'fig-arrivals-months',
-  'fig-arrivals-horizons', 'fig-ltv'];
+  'fig-arrivals-horizons'];
 const homes = new Map();
 
 function rememberHomes() {
