@@ -2094,6 +2094,26 @@ function renderAnnotations() {
   // cohorts were worse from month 2 onward while quoting a month 3 figure that
   // was the highest of the three, which is what happens when the prose outlives
   // the fix underneath it. The survival change moved these numbers.
+  // A cohort curve is a record of vintages that have already aged, not a
+  // forecast for one signed today. These cohorts lived their first year under
+  // 2025 conditions, when monthly losses ran two to four percent; the current
+  // rate is roughly double that, and no cohort has yet aged nine months under
+  // it. Projecting the current rate forward is the comparison a reader makes
+  // in their head anyway, so it is better made explicitly than left to guess.
+  const recentRates = departures(data).filter(d => d.rate !== null).slice(-6);
+  const currentRate = recentRates.length
+    ? recentRates.reduce((s, d) => s + d.rate, 0) / recentRates.length : null;
+  const survivalAt = k => Math.pow(1 - currentRate, k - 1);
+  const depthNote = currentRate
+    ? `These are ${eras.map(e => e.year).slice(0, -1).join(' and ')} vintages, and they aged `
+      + `through a calmer period than the one running now. At the loss rate of the last six `
+      + `months, ${fmt.pct(currentRate, 2)} a month, a customer signed today would have about a `
+      + `${fmt.pct(survivalAt(9), 0)} chance of reaching month 9 and `
+      + `${fmt.pct(survivalAt(13), 0)} of reaching the end of their first year. That is the `
+      + `number to plan on. `
+      + `This chart is the record of what already happened, not a forecast.`
+    : null;
+
   const rank6 = [...eras].sort((a, b) => (b.month6 || 0) - (a.month6 || 0));
   const best6 = rank6[0];
   const worst6 = rank6[rank6.length - 1];
@@ -2128,6 +2148,11 @@ function renderAnnotations() {
       + `There is no level shift here to find.`,
     `The ${newestEra.year} line rests on ${newestEra.reachedMonth6} cohorts at month 6, so its right hand end is thin and will move. `
       + `Chart 9 asks it again with each customer capped at what they arrived on, and there the years do separate.`,
+    // Why this chart reads higher than the churn rate suggests it should.
+    // Asked in the room as "I thought we lost half in nine months, this says
+    // a quarter". Both are right and they are different questions, so the
+    // chart should answer the one it is not otherwise asked.
+    depthNote,
   ], [
     'Indexed to <strong>month 1</strong> here, unlike charts 4 and 6, because this counts logos rather than revenue and there is no setup fee to distort the first month.',
     'A point is dropped once fewer than three cohorts in that year have reached that age, so the newest line is never drawn by its oldest member alone.',
