@@ -1157,6 +1157,76 @@ export function pricingScenarios(data, { months = 23, horizon = 12, cac: cacOver
   };
 }
 
+// Three ways to price the same demand curve, and what each leaves behind.
+//
+// The lesson rather than the model. A single price wins one rectangle under
+// the curve: price times however many buyers will pay it. Negotiating each
+// deal down from an anchor toward a floor instead collects what each buyer is
+// actually willing to pay, which is the area under the curve between those two
+// prices rather than a rectangle inside it. The difference between the two is
+// money left on the table, and it is large.
+//
+// Buyers above the anchor pay the anchor, not their true maximum, because an
+// anchor is a ceiling on what anyone is asked for. Buyers below the floor are
+// not served at all, under any of the three. So the comparison is honest about
+// both ends: nobody here is credited with perfect discrimination.
+export function priceComparison(data, { anchor = 2500, floor = 1250, elasticity = -0.5 } = {}) {
+  const s = pricingScenarios(data);
+  const baseP = s.baseP;
+  const baseQ = s.baseQ;
+  const quantity = price => baseQ * Math.pow(price / baseP, elasticity);
+  const willingness = units => baseP * Math.pow(units / baseQ, 1 / elasticity);
+
+  // Numerically, because the closed form has a singularity at unit elasticity
+  // and the slider runs straight through it.
+  const areaUnder = (from, to, steps = 4000) => {
+    const width = (to - from) / steps;
+    let total = 0;
+    for (let i = 0; i < steps; i += 1) total += willingness(from + width * (i + 0.5)) * width;
+    return total;
+  };
+
+  const atAnchor = quantity(anchor);
+  const atFloor = quantity(floor);
+  const negotiated = anchor * atAnchor + areaUnder(atAnchor, atFloor);
+
+  const rows = [
+    {
+      label: `Fixed at $${Math.round(anchor).toLocaleString()}`,
+      detail: 'One price, take it or leave it',
+      logos: atAnchor,
+      mrr: anchor * atAnchor,
+      missing: 'everyone who would pay between the floor and the anchor',
+    },
+    {
+      label: `Fixed at $${Math.round(floor).toLocaleString()}`,
+      detail: 'One price, set low enough to win the volume',
+      logos: atFloor,
+      mrr: floor * atFloor,
+      missing: 'the extra every high payer would have paid',
+    },
+    {
+      label: 'Anchor high, negotiate to the floor',
+      detail: 'Each deal closed at what that customer will pay',
+      logos: atFloor,
+      mrr: negotiated,
+      missing: null,
+    },
+  ];
+
+  return {
+    anchor,
+    floor,
+    elasticity,
+    baseP,
+    baseQ,
+    months: s.months,
+    rows: rows.map(row => ({ ...row, left: negotiated - row.mrr })),
+    best: negotiated,
+  };
+}
+
+
 // Acquisition cost broken out by category, month by month.
 //
 // The categories are the ones the spend actually divides into, not the

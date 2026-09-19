@@ -7,7 +7,7 @@ import {
   hasRevenueClasses, CLASS_MARGINS, environmentSplit,
   signupEconomics, priceAgainstRetention,
   arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
-  ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios,
+  ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -442,74 +442,70 @@ function renderPricing(data) {
   const node = $('pricing-table');
   if (!node) return;
 
-  // Cost per logo is the assumption with the most leverage over these numbers
-  // and the one the rest of the page says has moved, so it is a control rather
-  // than a constant. It opens on the trailing twelve month figure, not the
-  // cheaper average across the whole window, because the question is what to
-  // do next. Move it and the levels change a great deal; the ranking does not,
-  // which is the actual finding.
-  const defaults = pricingScenarios(data);
-  const slider = $('pricing-cac');
-  // A range input with no value attribute reports the midpoint of its bounds,
-  // which is truthy, so testing the value never initialises it. Flag the
-  // element instead.
-  if (slider && !slider.dataset.ready) {
-    slider.value = String(Math.round(defaults.cacRecent / 250) * 250);
-    slider.dataset.ready = '1';
+  // Elasticity drives the whole comparison and is the one thing this data
+  // cannot pin down, so it is a control rather than a constant. Moving it does
+  // not change the conclusion, only which of the two fixed prices is the worse
+  // mistake, and watching that swap is most of the lesson.
+  const slider = $('pricing-elasticity');
+  const elasticity = slider ? Number(slider.value) : -0.5;
+  if ($('pricing-elasticity-value')) {
+    $('pricing-elasticity-value').textContent = elasticity.toFixed(2);
   }
-  const chosen = slider ? Number(slider.value) : null;
-  const s = chosen ? pricingScenarios(data, { cac: chosen }) : defaults;
-  if ($('pricing-cac-value')) {
-    $('pricing-cac-value').textContent = fmt.money(s.cac)
-      + (Math.abs(s.cac - defaults.cacRecent) < 200 ? ' (last 12 months)' : '');
-  }
-  const money = v => '$' + (v / 1e6).toFixed(2) + 'm';
 
-  // Best among the plans the data can actually speak to. A plan priced above
-  // the top of the fit will always win, because the fitted line goes on
-  // rewarding price after the evidence for it has run out, and crowning it
-  // would be reporting the extrapolation rather than the finding.
-  const supported = s.plans.filter(p => !p.extrapolated);
-  const pool = supported.length ? supported : s.plans;
-  const best = s.elasticities.map((_, i) =>
-    pool.reduce((a, b) => (b.byElasticity[i].net > a.byElasticity[i].net ? b : a)).label);
+  const c = priceComparison(data, { elasticity });
+  const s = pricingScenarios(data);
+  const money = v => '$' + Math.round(v).toLocaleString();
+  const best = c.rows[c.rows.length - 1];
 
-  const head = '<thead><tr><th>Strategy</th>'
-    + s.elasticities.map(e => `<th class="n">elasticity ${e.toFixed(2)}</th>`).join('')
-    + '</tr></thead>';
+  const head = '<thead><tr><th>How you price</th>'
+    + '<th class="n">Logos a month</th>'
+    + '<th class="n">New MRR a month</th>'
+    + '<th class="n">Left on the table</th></tr></thead>';
 
-  const body = s.plans.map(p => `<tr${p.extrapolated ? ' class="untested"' : ''}>`
-    + `<td>${p.label}`
-    + (p.extrapolated
-      ? ` <span class="flag" title="Prices above ${fmt.money(s.fitCeiling)}, where the `
-        + `months-paid fit has no data behind it">untested range</span>`
-      : '')
-    + '</td>'
-    + p.byElasticity.map((x, i) => {
-      const win = best[i] === p.label;
-      return `<td class="n${win ? ' emphasis' : ''}">${money(x.net)}`
-        + (win ? ' <span class="best">best</span>' : '') + '</td>';
-    }).join('')
-    + '</tr>').join('');
+  const body = c.rows.map(row => {
+    const won = row.left <= 1;
+    return `<tr${won ? ' class="rule-above"' : ''}>`
+      + `<td><strong>${row.label}</strong><br><span class="muted">${row.detail}</span></td>`
+      + `<td class="n">${row.logos.toFixed(0)}</td>`
+      + `<td class="n${won ? ' emphasis' : ''}">${money(row.mrr)}`
+      + (won ? ' <span class="best">most</span>' : '') + '</td>'
+      + `<td class="n">${won ? '—' : money(row.left)}</td>`
+      + '</tr>';
+  }).join('');
+
+  const worse = c.rows[0].left > c.rows[1].left ? c.rows[0] : c.rows[1];
+  const milder = c.rows[0].left > c.rows[1].left ? c.rows[1] : c.rows[0];
 
   node.innerHTML = head + '<tbody>' + body + '</tbody>'
-    + `<tfoot><tr><td colspan="${s.elasticities.length + 1}">`
-    + `Gross over ${s.horizon} months per customer won, less acquisition cost at `
-    + `${fmt.money(s.cac)} a logo, summed across ${s.months} months of intake at `
-    + `${s.baseQ.toFixed(0)} logos a month before any price response. Months paid rises `
-    + `${(s.slope * 1000).toFixed(1)} per $1,000 of price, fitted across the observed bands.`
-    + (s.fitCeiling ? ` Rows marked untested price above ${fmt.money(s.fitCeiling)}, which is `
-      + `the top of the highest band with enough customers to fit. Only ${s.aboveCeiling} `
-      + `customers have ever started above it, so for those rows both the months-paid line and `
-      + `the volume response are extrapolations, and they are excluded from the best-of marking `
-      + `for that reason. They are shown because the question was asked, not because the data `
-      + `answers it.` : '')
+    + `<tfoot><tr><td colspan="4">`
+    + `A single price wins one rectangle under the demand curve: the price, times however `
+    + `many customers will pay it. Negotiating each deal down from a `
+    + `${money(c.anchor)} anchor toward a ${money(c.floor)} floor collects what each customer `
+    + `is actually willing to pay, which is the area under that curve rather than a rectangle `
+    + `inside it. At an elasticity of ${elasticity.toFixed(2)} that is `
+    + `${money(best.mrr)} a month against ${money(c.rows[1].mrr)} for a flat `
+    + `${money(c.floor)}. Buyers above the anchor still only pay the anchor and buyers below `
+    + `the floor are not served at all, so none of these three is credited with reading minds. `
+    + `Demand is ${c.baseQ.toFixed(0)} logos a month at ${money(c.baseP)}, which is what the `
+    + `business ran before it began raising price, scaled by the elasticity above.`
     + '</td></tr></tfoot>';
 
+  $('pricing-finding').innerHTML =
+    `<strong>Whatever one price you pick, you are leaving `
+    + `${money(Math.min(c.rows[0].left, c.rows[1].left))} a month or more on the table.</strong> `
+    + `Price high at ${money(c.anchor)} and you win ${c.rows[0].logos.toFixed(0)} logos and lose `
+    + `everyone who would have paid something between the floor and the anchor. Price low at `
+    + `${money(c.floor)} and you win ${c.rows[1].logos.toFixed(0)} but collect `
+    + `${money(c.floor)} from customers who would have gone far higher. At this elasticity the `
+    + `worse of the two is ${worse.label.toLowerCase()}, at ${money(worse.left)} against `
+    + `${money(milder.left)}. <strong>Neither is the choice.</strong> Anchoring high and `
+    + `negotiating down to a floor collects ${money(best.mrr)} a month, because it charges each `
+    + `customer something close to what they were willing to pay rather than charging all of `
+    + `them the same thing. Move the slider: which single price is the bigger mistake changes, `
+    + `and the negotiated answer wins at every setting.`;
+
   // The two controls that depend on the fit's own limits, written from the
-  // numbers so they cannot go stale. The first of them used to say the sample
-  // above $1,500 was 17 customers; it is 46 starts, of which 6 have a full
-  // year behind them.
+  // numbers so they cannot go stale.
   if ($('control-range') && s.bands.length) {
     const lowest = s.bands[0];
     const top = s.topBand;
@@ -523,120 +519,17 @@ function renderPricing(data) {
       + `recommendation deliberately goes past this edge, which is why it is put as a test to `
       + `run rather than a change to make.`;
   }
-  if ($('control-extrapolation') && s.capsAtPrice) {
+  if ($('control-extrapolation')) {
     $('control-extrapolation').innerHTML =
-      `<strong>Above ${fmt.money(s.capsAtPrice)} the model stops arguing with you.</strong> `
-      + `Months paid is fitted as a straight line in price, and at `
-      + `${fmt.money(s.capsAtPrice)} it already asks for the whole ${s.horizon} month horizon. `
-      + `Past that point every extra dollar is credited in full against a customer assumed `
-      + `never to leave inside the window, and the only thing pushing back is the elasticity. `
-      + `That is why the $2,500 skim scores as it does, and why it is marked untested rather `
-      + `than treated as the answer: it is not a finding about high prices, it is the shape of `
-      + `the assumption. Nothing here should be read as evidence for pricing above `
-      + `${fmt.money(s.fitCeiling)}.`;
+      `<strong>The demand curve is fitted, not observed, above `
+      + `${fmt.money(s.fitCeiling)}.</strong> Of ${fmt.int(s.startPrices.length)} customers ever `
+      + `started, exactly ${fmt.int(s.startPrices.filter(v => v >= 2500).length)} began at `
+      + `$2,500 or more, so the anchor sits in a stretch of the curve nothing in this file has `
+      + `tested. Elasticity is not identified either: measured against volume it is `
+      + `${'−'}0.20, it does not clear significance, and adding a time trend flips the `
+      + `sign. That is the reason for a slider rather than a number, and the reason the `
+      + `recommendation is a test.`;
   }
-
-  // The demand curve, rather than six chosen points on it.
-  //
-  // Strategy lines answered "which of these six", which is not the question.
-  // This is: hold one price, what does a month's intake return after the cost
-  // of winning it, and how much of the base still arrives. One curve per
-  // elasticity, because elasticity is not identified here and a single line
-  // would be a guess wearing a number.
-  //
-  // The sweep runs past -1 on purpose. With constant elasticity demand,
-  // revenue rises with price below -1 and falls above it, so curves only turn
-  // over on the far side. A sweep that stopped at -1 would show five rising
-  // lines and make "charge more" look like a discovery rather than a
-  // restatement of the assumption.
-  if ($('chart-price-strategies')) {
-    const curve = s.priceCurve;
-    // Perfectly inelastic demand is not a case anyone believes, and on a chart
-    // it is ruinous: its curve reaches fifty million at the right hand edge and
-    // presses every other line into the floor, including the two whose peaks
-    // are the entire point. Dropped here, kept in the table as a bound.
-    const lines = curve.series.filter(l => l.elasticity <= -0.5);
-    const palette = [INK.secondary, INK.primary, INK.positive, INK.negative, INK.tertiary];
-    const money = v => '$' + (v / 1e6).toFixed(1) + 'm';
-
-    // Each curve against its own best, because the levels differ by a factor
-    // of seven across the family and the question here is where each one peaks
-    // rather than how tall it is. The table underneath carries the levels.
-    const indexed = lines.map(line => {
-      const best = Math.max(...line.net);
-      return line.net.map(v => (best ? v / best : null));
-    });
-
-    multiLineChart($('chart-price-strategies'), {
-      labels: curve.prices.map(price => (price % 400 === 0 ? '$' + price.toLocaleString() : '')),
-      series: lines.map((line, i) => ({
-        label: `elasticity ${line.elasticity.toFixed(2)}`,
-        colour: palette[i % palette.length],
-        values: indexed[i],
-      })),
-      yFormat: v => fmt.pct(v),
-      // Room for the loss-making end. Below break-even the contribution is
-      // negative, and clamping the axis at zero sent those points out of the
-      // frame as a near vertical line at the left edge. Where each curve
-      // crosses zero is worth seeing: it is the price at which a logo stops
-      // paying for itself.
-      yMin: Math.max(-1, Math.min(0, ...indexed.flat().filter(Number.isFinite))),
-      yMax: 1,
-      refs: [{ value: 0, label: 'covers its own acquisition cost' }],
-      xTitle: 'One price, held for the whole window',
-      describe: i => `<strong>$${curve.prices[i].toLocaleString()} a month</strong>`
-        + lines.map(line =>
-          `<span>${line.elasticity.toFixed(2)}: ${money(line.net[i])} on `
-          + `${line.volume[i].toFixed(0)} logos a month</span>`).join('')
-        + (curve.prices[i] > curve.fitCeiling
-          ? '<span class="muted">above the tested range</span>' : ''),
-    });
-
-    const turning = lines.filter(l => l.bestPrice < curve.prices[curve.prices.length - 1]);
-    const rising = lines.filter(l => !turning.includes(l));
-    const vol = (line, price) => line.volume[curve.prices.indexOf(price)];
-    const steepest = lines[lines.length - 1];
-    const mild = lines.find(l => l.elasticity === -0.5) || lines[0];
-
-    $('price-strategies-finding').innerHTML =
-      `<strong>Every recommendation on this page turns on one question: is demand more or `
-      + `less price sensitive than ${'−'}1?</strong> Below that the curve never peaks, so `
-      + `the model says charge as much as the market will bear; `
-      + `${rising.map(l => l.elasticity.toFixed(2)).join(' and ')} `
-      + `${rising.length === 1 ? 'still rises' : 'both still rise'} at the right hand edge. `
-      + `Above it the curve turns over and the best price collapses to `
-      + `${turning.map(l => `$${l.bestPrice.toLocaleString()} at ${l.elasticity.toFixed(2)}`).join(' and ')}. `
-      + `<strong>That is why the floor is the safe half of the recommendation.</strong> `
-      + `$1,200 is roughly the optimum if customers are as price sensitive as `
-      + `${steepest.elasticity.toFixed(2)}, and a long way below it if they are not, so it is `
-      + `the one price that is defensible whichever side of the line we are on. `
-      + `What it costs is volume: at $1,200 a month the model keeps `
-      + `${vol(mild, 1200).toFixed(0)} of ${s.baseQ.toFixed(0)} logos a month at `
-      + `${mild.elasticity.toFixed(2)} and ${vol(steepest, 1200).toFixed(0)} at `
-      + `${steepest.elasticity.toFixed(2)}; at $2,500 it keeps `
-      + `${vol(mild, 2500).toFixed(0)} and ${vol(steepest, 2500).toFixed(0)}.`;
-
-    $('price-strategies-note').textContent =
-      `Each curve is drawn against its own best rather than in money, because the levels `
-      + `differ several times over across the family and the question here is where each one `
-      + `peaks. The money is in the table below. Perfectly inelastic demand is left off the `
-      + `chart for the same reason, since its line runs away with the axis. `
-      + `Each curve holds one price for the whole ${s.months} month window and sums what that `
-      + `month's intake returns over ${s.horizon} months, less ${fmt.money(s.cac)} to win each `
-      + `logo, which is the slider above. Volume responds as `
-      + `${s.baseQ.toFixed(0)} logos a month at ${fmt.money(s.baseP)} scaled by the elasticity, `
-      + `that being what the business actually ran before it began raising price. Months paid `
-      + `rises ${(s.slope * 1000).toFixed(1)} per extra $1,000 and stops rising at `
-      + `${fmt.money(s.capsAtPrice)}, where it already asks for the whole horizon. `
-      + `Everything right of ${fmt.money(s.fitCeiling)} is extrapolation: no band of customers `
-      + `up there supports the months-paid line, and only one customer in the file has ever `
-      + `started above $2,500. Elasticity itself is not identified in this data, which is the `
-      + `reason for drawing a family of curves rather than picking one: measured against `
-      + `volume it is ${'−'}0.20, it does not clear significance, and adding a time trend `
-      + `flips the sign. The table below takes the same model and asks it about six specific `
-      + `strategies instead.`;
-  }
-
 }
 
 
@@ -974,7 +867,7 @@ function boot() {
     if ($('era-depth')) $('era-depth').addEventListener('input', renderEra);
     $('forward-horizon').addEventListener('input', renderForward);
     $('band-horizon').addEventListener('input', renderPriceBands);
-    if ($('pricing-cac')) $('pricing-cac').addEventListener('input', () => renderPricing(data));
+    if ($('pricing-elasticity')) $('pricing-elasticity').addEventListener('input', () => renderPricing(data));
     $('arrival-horizon').addEventListener('input', renderArrivals);
     if ($('horizons-step')) $('horizons-step').addEventListener('input', renderHorizons);
     renderAssumptionDependent();
