@@ -515,83 +515,6 @@ function renderPricing(data) {
       + `${fmt.money(s.fitCeiling)}.`;
   }
 
-  // The mechanism, before the arithmetic that rests on it. The whole case for
-  // a fixed high price is that a dearer customer is also a longer one, so it
-  // is worth drawing that on its own rather than leaving it inside a slope
-  // quoted in a table footnote.
-  if ($('chart-price-months') && s.bands.length) {
-    const bandLabels = s.bands.map(b => fmt.money(b.price));
-    columnChart($('chart-price-months'), {
-      labels: bandLabels,
-      values: s.bands.map(b => b.paid),
-      yFormat: v => `${v.toFixed(1)}`,
-      colour: INK.secondary,
-      describe: i => `<strong>${bandLabels[i]} a month</strong>`
-        + `<span>${s.bands[i].paid.toFixed(1)} of ${s.horizon} months paid</span>`
-        + `<span class="muted">${s.bands[i].n} customers</span>`,
-    });
-    const lowest = s.bands[0];
-    const highest = s.bands[s.bands.length - 1];
-    // How much of the value gap is the price and how much is the extra months.
-    // Worth splitting, because the two carry different advice. If tenure drove
-    // it, cheap customers would be worth refusing; it does not, so they are
-    // not, and the case for charging more is simply that you are charged more.
-    const MARGIN = 0.757;
-    const valueRatio = (highest.price * highest.paid) / (lowest.price * lowest.paid);
-    const priceShare = Math.log(highest.price / lowest.price) / Math.log(valueRatio);
-    const worth = band => band.price * band.paid * MARGIN;
-    const clears = s.bands.filter(b => worth(b) >= s.cac);
-    const floor = clears.length ? clears[0] : null;
-    // The same fit the scenarios run on, rebuilt from the bands the data layer
-    // exposes: months paid is a straight line through them, so the break-even
-    // price is where price times months paid times margin first covers a logo.
-    const meanPrice = s.bands.reduce((a, b) => a + b.price, 0) / s.bands.length;
-    const meanPaid = s.bands.reduce((a, b) => a + b.paid, 0) / s.bands.length;
-    const paidAt = price =>
-      Math.max(1, Math.min(s.horizon, meanPaid + s.slope * (price - meanPrice)));
-    let breakEven = null;
-    for (let price = 50; price <= 5000; price += 5) {
-      if (price * paidAt(price) * MARGIN >= s.cac) { breakEven = price; break; }
-    }
-
-    $('price-months-finding').innerHTML =
-      `<strong>Dearer customers do stay longer, but only just, and it is not the `
-      + `reason to charge more.</strong> Across a price range of `
-      + `${(highest.price / lowest.price).toFixed(1)} times, from `
-      + `${fmt.money(lowest.price)} to ${fmt.money(highest.price)}, months paid moves from `
-      + `${lowest.paid.toFixed(1)} to ${highest.paid.toFixed(1)} out of ${s.horizon}. That is `
-      + `${(highest.paid - lowest.paid).toFixed(1)} months, or `
-      + `${(s.slope * 1000).toFixed(1)} per extra $1,000 of monthly price. Split the `
-      + `${valueRatio.toFixed(1)} times difference in what the two bands are worth and about `
-      + `${(priceShare * 100).toFixed(0)}% of it is the price itself and only about `
-      + `${((1 - priceShare) * 100).toFixed(0)}% is the extra time. `
-      + (floor
-        ? `<strong>So cheaper customers are worth selling to.</strong> Every band from `
-          + `${fmt.money(floor.price)} up clears acquisition cost, at `
-          + `${(worth(floor) / s.cac).toFixed(1)} times for that one and `
-          + `${(worth(highest) / s.cac).toFixed(1)} times at the top. `
-          + (worth(lowest) < s.cac
-            ? `Only the ${fmt.money(lowest.price)} band fails, returning `
-              + `${(worth(lowest) / s.cac).toFixed(2)} times what it costs to win. `
-              + `The break-even price is about ${fmt.money(breakEven)} a month, and that, `
-              + `rather than the retention curve, is the real floor.`
-            : `Nothing in the observed range fails to cover it.`)
-        : '');
-
-    $('price-months-note').textContent =
-      `Price is each customer's MRR in their second month, clean of the first-month charge `
-      + `that was booked as MRR until mid-2025. Only customers with a full ${s.horizon} months `
-      + `behind them are counted, so none of the bands is flattered by being young, and a band `
-      + `is dropped below twelve customers, which leaves the top band resting on `
-      + `${highest.n} against ${lowest.n} in the lowest. Worth per customer is `
-      + `${s.horizon} months of price at the ${(MARGIN * 100).toFixed(1)}% platform gross `
-      + `margin, against ${fmt.money(s.cac)} to acquire. This is a comparison between `
-      + `customers, not a prediction about one: a customer paying more is usually a larger `
-      + `business rather than the same business charged more. That matters for what you can do `
-      + `with it. It says the customers you win at higher prices are better; it does not say `
-      + `that talking a given customer up would make them stay longer.`;
-  }
-
   // The answer itself, drawn rather than tabulated, because the point is that
   // the ordering does not change as elasticity worsens. A table makes a reader
   // check that column by column; lines that do not cross say it at a glance.
@@ -671,7 +594,9 @@ function renderPricing(data) {
       `Each line is total gross over ${s.horizon} months per customer won, less acquisition `
       + `cost at ${fmt.money(s.cac)} a logo, summed across ${s.months} months of intake. `
       + `Volume responds to price through the elasticity on the horizontal axis and months paid `
-      + `through the fit in the chart above; acquisition cost is held flat, because cost per `
+      + `through a straight line fitted across the observed price bands, which adds `
+      + `${(s.slope * 1000).toFixed(1)} months paid per extra $1,000 of monthly price; `
+      + `acquisition cost is held flat, because cost per `
       + `logo has no relationship to price in this data. Elasticity is swept rather than `
       + `estimated because it is not identified here: volume against price gives −0.20, which `
       + `does not clear significance, and adding a time trend flips the sign. The sweep runs `
