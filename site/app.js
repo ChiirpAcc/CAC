@@ -633,26 +633,17 @@ function renderEra() {
   // ones it kept. Reading only the count would close a question the money
   // reopens, so both are drawn rather than hidden behind a switch somebody has
   // to know to flip.
-  // The slider builds the curves cohort by cohort, oldest first, so a reader
-  // can watch each year's line appear and settle as its members arrive. A year
-  // is not drawn until three of its cohorts are in, which is the same minimum
-  // the chart uses at rest, so early positions legitimately show fewer lines
-  // than late ones.
-  const slider = $('era-through');
-  if (slider && !slider.max) {
-    slider.max = String(cohorts.length);
-    slider.value = String(cohorts.length);
-  }
-  const through = slider ? Math.min(Number(slider.value) || cohorts.length, cohorts.length)
-    : cohorts.length;
-  const shownCohorts = cohorts.slice(0, through);
-  if ($('era-through-value')) {
-    const last = shownCohorts[shownCohorts.length - 1];
-    $('era-through-value').textContent = last
-      ? `${fmt.monthLabel(last.month)} (${through} of ${cohorts.length})` : '--';
-  }
+  // The slider walks the curves out along the age axis, a month at a time, so
+  // a reader watches each line extend rather than appear all at once. Both
+  // axes are pinned to the full twelve months regardless of where the slider
+  // sits: the lines have to grow into a fixed frame, because a frame that
+  // resized with them would make every position look the same.
+  const MAX_AGE = 12;
+  const depth = $('era-depth') ? Math.min(Number($('era-depth').value) || MAX_AGE, MAX_AGE)
+    : MAX_AGE;
+  if ($('era-depth-value')) $('era-depth-value').textContent = String(depth);
 
-  const eras = retentionByYear(shownCohorts, { maxMonths: 12 });
+  const eras = retentionByYear(cohorts, { maxMonths: MAX_AGE });
   const eraColours = [INK.tertiary, INK.secondary, INK.negative];
   if (!eras.length) {
     $('chart-era').innerHTML = '<p class="empty">Not enough cohorts yet.</p>';
@@ -662,7 +653,12 @@ function renderEra() {
     }
     return;
   }
-  const labels = Array.from({ length: 12 }, (_, i) => `M${i + 1}`);
+  const labels = Array.from({ length: MAX_AGE }, (_, i) => `M${i + 1}`);
+
+  // Everything the chart draws is cut at the slider; everything the axes are
+  // sized from is not. Keeping the two apart is what makes the sequence
+  // readable.
+  const toDepth = arr => arr.map((v, i) => (i < depth ? v : null));
 
   // The deepest age all three reach, so the eras are never compared at their
   // own line ends: that would set a 2026 cohort at month 6 against a 2024 one
@@ -685,7 +681,7 @@ function renderEra() {
       series: eras.map((era, i) => ({
         label: `${era.year} cohorts`,
         colour: eraColours[i],
-        values: shift(pick(era)),
+        values: shift(toDepth(pick(era))),
       })),
       yFormat: v => fmt.pct(v),
       yMin: Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20),
@@ -705,54 +701,71 @@ function renderEra() {
   draw('chart-era-revenue', money, { money: true });
 
   const newest = eras[eras.length - 1];
-  // A year only enters the comparison once it has reached month 6. Treating one
-  // that has not got there yet as a zero put the spread at 79 points on the
-  // slider's early positions, which is the whole of the leading year rather
-  // than a difference between years.
-  const ready = eras.filter(e => e.month6 !== null && e.month6 !== undefined);
+  // Everything below is read at whatever month the slider is showing, not at a
+  // fixed month 6, so the text describes the picture rather than a picture the
+  // reader cannot currently see. A year only enters the comparison once it has
+  // actually reached that age: coercing a year that has not got there to zero
+  // once put the spread at 79 points, which is the whole of the leading year
+  // rather than a gap between years.
+  const at = (era, key) => {
+    const v = era[key] ? era[key][depth - 1] : null;
+    return v === null || v === undefined || !Number.isFinite(v) ? null : v;
+  };
+  const ready = eras.filter(e => at(e, 'points') !== null);
   const waiting = eras.filter(e => !ready.includes(e));
   const logoSpread = ready.length > 1
-    ? Math.max(...ready.map(e => e.month6)) - Math.min(...ready.map(e => e.month6)) : null;
-  const moneyReady = eras.filter(e => e.grossMonth6 !== null && e.grossMonth6 !== undefined);
+    ? Math.max(...ready.map(e => at(e, 'points'))) - Math.min(...ready.map(e => at(e, 'points')))
+    : null;
+  const moneyReady = eras.filter(e => at(e, 'grossRevenue') !== null);
 
   $('era-finding').innerHTML =
     (logoSpread === null
-      ? `<strong>Only ${ready.length ? ready[0].year : 'one year'} has reached month 6 so `
-        + `far.</strong> `
+      ? `<strong>Only ${ready.length ? ready[0].year : 'one year'} has reached month ${depth} `
+        + `so far.</strong> `
       : `<strong>On logos the ${ready.length} years sit within `
-        + `${(logoSpread * 100).toFixed(1)} points of each other at month 6.</strong> `)
-    + ready.map(e => `${e.year} ${fmt.pct(e.month6, 1)} on ${e.cohorts} cohorts`).join(', ')
+        + `${(logoSpread * 100).toFixed(1)} points of each other at month ${depth}.</strong> `)
+    + ready.map(e => `${e.year} ${fmt.pct(at(e, 'points'), 1)} on ${e.cohorts} cohorts`).join(', ')
     + (waiting.length ? `. ${waiting.map(e => e.year).join(' and ')} `
-      + `${waiting.length === 1 ? 'has' : 'have'} not reached month 6 yet` : '')
+      + `${waiting.length === 1 ? 'has' : 'have'} not reached month ${depth} yet` : '')
     + (logoSpread === null
-      ? `. Add cohorts with the slider to compare the eras.`
-      : `. That is a narrow spread on thin samples, so on this measure there is no clear `
-        + `difference between the eras.`)
+      ? `. Pull the slider further out to compare the eras.`
+      : logoSpread < 0.05
+        ? `. That is a narrow spread on thin samples, so at this age there is no clear `
+          + `difference between the eras.`
+        : `. The years have separated by this age.`)
     + (moneyReady.length
       ? ` Chart 9 asks the same question in money, weighting each customer by what they `
-        + `arrived on, and there the years separate: at month 6 it reads `
-        + `${moneyReady.map(e => `${e.year} ${fmt.pct(e.grossMonth6, 1)}`).join(', ')}.`
+        + `arrived on: at month ${depth} it reads `
+        + `${moneyReady.map(e => `${e.year} ${fmt.pct(at(e, 'grossRevenue'), 1)}`).join(', ')}.`
       : '');
 
-  // Both read at month 6 off the month 2 base, so the gap between them is
-  // downgrades and departures rather than a difference in indexing.
-  const gAt = e => e.grossMonth6;
-  const lAt = e => e.logosMonth6FromMonth2;
+  // Both read at the slider's month off the month 2 base, so the gap between
+  // them is downgrades and departures rather than a difference in indexing.
+  const gAt = e => at(e, 'grossRevenue');
+  const lAt = e => at(e, 'logosFromMonth2');
   const gap = e => (gAt(e) || 0) - (lAt(e) || 0);
   const ranked = [...eras].sort((a, b) => gap(a) - gap(b));
-  const worst = ranked[0];
-  const mildest = ranked[ranked.length - 1];
+  // Only years that have both numbers at the slider's month, for the same
+  // reason as above.
+  const paired = eras.filter(e => gAt(e) !== null && lAt(e) !== null);
+  const rankedPairs = [...paired].sort((a, b) => gap(a) - gap(b));
+  const worst = rankedPairs[0];
+  const mildest = rankedPairs[rankedPairs.length - 1];
   const pts = e => Math.abs(gap(e) * 100).toFixed(1);
 
-  $('era-revenue-finding').innerHTML =
-    `<strong>Every year loses more revenue than it loses customers, and the gap widens `
-    + `with each one.</strong> Measured from month 2, at month 6 the three years keep `
-    + `${eras.map(e => `${e.year} ${fmt.pct(gAt(e), 1)}`).join(', ')} of their revenue, `
-    + `against ${eras.map(e => `${fmt.pct(lAt(e), 1)}`).join(', ')} of their customers. `
-    + `That is a shortfall of ${eras.map(e => `${pts(e)} points in ${e.year}`).join(', ')}. `
-    + `${worst.year} is the worst of them: it keeps ${fmt.pct(lAt(worst), 1)} of the `
-    + `customers it had at month 2 and ${fmt.pct(gAt(worst), 1)} of the money, `
-    + `${pts(worst)} points apart, against ${pts(mildest)} in ${mildest.year}. `
+  $('era-revenue-finding').innerHTML = !paired.length
+    ? `<strong>Nothing to compare yet at month ${depth}.</strong> This line is indexed to `
+      + `month 2, so pull the slider past it.`
+    : `<strong>Every year loses more revenue than it loses customers, and the gap widens `
+    + `with each one.</strong> Measured from month 2, at month ${depth} the `
+    + `${paired.length === 1 ? 'one year so far keeps' : `${paired.length} years keep`} `
+    + `${paired.map(e => `${e.year} ${fmt.pct(gAt(e), 1)}`).join(', ')} of their revenue, `
+    + `against ${paired.map(e => `${fmt.pct(lAt(e), 1)}`).join(', ')} of their customers. `
+    + `That is a shortfall of ${paired.map(e => `${pts(e)} points in ${e.year}`).join(', ')}. `
+    + (paired.length > 1
+      ? `${worst.year} is the worst of them: it keeps ${fmt.pct(lAt(worst), 1)} of the `
+        + `customers it had at month 2 and ${fmt.pct(gAt(worst), 1)} of the money, `
+        + `${pts(worst)} points apart, against ${pts(mildest)} in ${mildest.year}. ` : '')
     + `The head count is the flattering number, and it is getting more flattering.`;
 
   const shared =
@@ -895,7 +908,7 @@ function boot() {
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
-    if ($('era-through')) $('era-through').addEventListener('input', renderEra);
+    if ($('era-depth')) $('era-depth').addEventListener('input', renderEra);
     $('forward-horizon').addEventListener('input', renderForward);
     $('band-horizon').addEventListener('input', renderPriceBands);
     $('arrival-horizon').addEventListener('input', renderArrivals);

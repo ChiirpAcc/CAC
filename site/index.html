@@ -307,9 +307,9 @@
         <h3>8. Retention curve by era, logos kept</h3>
       </figcaption>
       <div class="chart-control">
-        <label for="era-through">Build the curves one cohort at a time, through</label>
-        <input type="range" id="era-through" min="1" step="1">
-        <output id="era-through-value"></output>
+        <label for="era-depth">Draw the curves out to month</label>
+        <input type="range" id="era-depth" min="1" max="12" step="1" value="12">
+        <output id="era-depth-value">12</output>
       </div>
       <div class="plot" id="chart-era"></div>
       <p class="finding negative" id="era-finding"></p>
