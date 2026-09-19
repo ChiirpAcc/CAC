@@ -970,7 +970,7 @@ export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500
 // with price, fitted across the observed bands, which is why a cheap customer
 // is a short customer twice over. And cost per logo has no relationship to
 // price, so a pricing choice is not allowed to move it.
-export function pricingScenarios(data, { months = 23, horizon = 12 } = {}) {
+export function pricingScenarios(data, { months = 23, horizon = 12, cac: cacOverride = null } = {}) {
   const live = new Map();
   const cash = new Map();
   const mrr = new Map();
@@ -1045,7 +1045,16 @@ export function pricingScenarios(data, { months = 23, horizon = 12 } = {}) {
   const cpl = data.waterfall
     .filter(w => w.newLogos && byMonth.has(w.month))
     .map(w => byMonth.get(w.month) / w.newLogos);
-  const cac = cpl.reduce((s, v) => s + v, 0) / cpl.length;
+  // Two costs per logo, because which one you use is a real decision rather
+  // than a detail. The mean across the whole window is the cheaper, historical
+  // figure; the trailing twelve months is what a logo costs now and is the one
+  // a forward looking recommendation should be judged against. The caller can
+  // override either, which is what the chart's slider does.
+  const cacWindow = cpl.reduce((s, v) => s + v, 0) / cpl.length;
+  const recentCpl = cpl.slice(-12);
+  const cacRecent = recentCpl.length
+    ? recentCpl.reduce((s, v) => s + v, 0) / recentCpl.length : cacWindow;
+  const cac = cacOverride !== null ? cacOverride : cacRecent;
   const basePrices = starts.filter(s => s.month < '2025-08').map(s => s.price);
   const baseP = basePrices.reduce((s, v) => s + v, 0) / basePrices.length;
 
@@ -1072,7 +1081,9 @@ export function pricingScenarios(data, { months = 23, horizon = 12 } = {}) {
 
   const elasticities = [0, -0.25, -0.5, -1];
   return {
-    baseP, baseQ, cac, horizon, months, bands, slope,
+    baseP, baseQ, cac, cacWindow, cacRecent,
+    cacRange: cpl.length ? [Math.min(...cpl), Math.max(...cpl)] : null,
+    horizon, months, bands, slope,
     elasticities,
     fitCeiling,
     capsAtPrice,

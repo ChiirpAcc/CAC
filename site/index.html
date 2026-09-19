@@ -139,6 +139,11 @@
         <figcaption>
           <h3>Every strategy, at every price sensitivity worth testing</h3>
         </figcaption>
+        <div class="chart-control">
+          <label for="pricing-cac">Cost to win a logo</label>
+          <input type="range" id="pricing-cac" min="3000" max="10000" step="250">
+          <output id="pricing-cac-value"></output>
+        </div>
         <div class="plot" id="chart-price-strategies"></div>
         <p class="finding" id="price-strategies-finding"></p>
         <p class="note" id="price-strategies-note"></p>
@@ -204,11 +209,24 @@
       </ul>
 
       <h3>The recommendation</h3>
-      <p><strong>Open at $2,500 and hold a $1,200 floor.</strong> Anchor every
-        new conversation at $2,500, negotiate down only as far as $1,200, and
-        walk from anything below it unless there is a reason on the deal that
-        has nothing to do with price. Over time the opening comes down toward
-        the floor as the market tells you where it clears.</p>
+      <p><strong>First, hold a $1,200 floor.</strong> This is the part the data
+        can vouch for and the part worth doing whatever else happens. A deal
+        closed at $1,200 stays at $1,200, because cohorts do not re-rate, so
+        the floor is the single decision that compounds. Roughly one signup in
+        five already clears it.</p>
+      <p><strong>Then test opening at $2,500.</strong> Anchor new conversations
+        there and negotiate down toward the floor, letting the opening fall over
+        time as the market shows where it clears. This is the part that is not
+        yet evidenced, and the next paragraph says why.</p>
+      <p>One thing to settle before a rep hears it, because the two halves of
+        this look contradictory and the wrong half is the memorable one. A
+        $700 customer is profitable: break-even is about $555 a month, and the
+        $669 band returns 1.3 times what it costs to win. The floor is not a
+        judgement that cheaper customers are bad business. It is a negotiating
+        instruction, and it exists because a floor that moves is not a floor.
+        The rule is hold the line at $1,200 in the negotiation; the exception
+        is a deal that is worth taking for a reason that has nothing to do with
+        price, and that exception is a manager's call rather than a rep's.</p>
       <p>What this rests on, stated plainly so it can be checked rather than
         assumed: <strong>the close rate at $2,500 is unknown.</strong> One
         customer out of more than nine hundred has ever started there, so
@@ -229,10 +247,15 @@
     </section>
 
     <footer class="story-foot">
-      <p>Move the slider on the last chart. The gap holds at every age both
-        halves can reach, which is what rules out the calendar as the
-        explanation. Every figure here is drawn from the same push as the rest
-        of the page.</p>
+      <p>Three sliders are worth moving before you decide anything here. The
+        first chart draws the era curves out month by month, so you can see
+        where the years actually separate rather than taking month 6 on trust.
+        The third steps churn from one month to six on fixed axes, which is how
+        you check that the cloud lifts without tilting. And the cost per logo
+        on the pricing chart is the assumption with the most leverage on this
+        page: move it across the range the business has really run and the
+        totals change a great deal while the ranking does not. Every figure
+        here is drawn from the same push as the rest of the page.</p>
     </footer>
   </section>
 
@@ -648,12 +671,22 @@
       an open question rather than a measurement.
     </p>
     <p>
-      Two limits worth carrying. Gross profit here is what a cohort has actually
+      One limit worth carrying: gross profit here is what a cohort has actually
       returned to date rather than a projection, so young cohorts are understated
-      by construction. And departures are counted two ways: the push books a churn
-      when it sees the transition, while a customer whose subscription drops out of
-      the Stripe export simply stops appearing. The second count is about two thirds
-      higher, and which one you use decides whether the base is growing or shrinking.
+      by construction.
+    </p>
+    <p>
+      Departures are counted two ways, and this page uses one of them on purpose.
+      The push books a churn when it sees the transition; a customer whose
+      subscription drops out of the Stripe export simply stops appearing and never
+      generates one. Counting everyone who stops appearing finds about two thirds
+      more. That is not an open question between two defensible numbers, because
+      only one of them reconciles: over 2026 the booked count gives 311 out against
+      353 in, which would be a base growing by 42, while the base actually fell from
+      1,160 to 1,048. Counting everyone who stops appearing gives 493 out against
+      381 in, a fall of 112, which is exactly what happened. So the larger count is
+      the rate and the booked one is a floor, and every churn figure on this page
+      is the larger count unless it says otherwise.
     </p>
   </footer>
 

@@ -441,7 +441,28 @@ const CHURN_THRESHOLD = 0.05;
 function renderPricing(data) {
   const node = $('pricing-table');
   if (!node) return;
-  const s = pricingScenarios(data);
+
+  // Cost per logo is the assumption with the most leverage over these numbers
+  // and the one the rest of the page says has moved, so it is a control rather
+  // than a constant. It opens on the trailing twelve month figure, not the
+  // cheaper average across the whole window, because the question is what to
+  // do next. Move it and the levels change a great deal; the ranking does not,
+  // which is the actual finding.
+  const defaults = pricingScenarios(data);
+  const slider = $('pricing-cac');
+  // A range input with no value attribute reports the midpoint of its bounds,
+  // which is truthy, so testing the value never initialises it. Flag the
+  // element instead.
+  if (slider && !slider.dataset.ready) {
+    slider.value = String(Math.round(defaults.cacRecent / 250) * 250);
+    slider.dataset.ready = '1';
+  }
+  const chosen = slider ? Number(slider.value) : null;
+  const s = chosen ? pricingScenarios(data, { cac: chosen }) : defaults;
+  if ($('pricing-cac-value')) {
+    $('pricing-cac-value').textContent = fmt.money(s.cac)
+      + (Math.abs(s.cac - defaults.cacRecent) < 200 ? ' (last 12 months)' : '');
+  }
   const money = v => '$' + (v / 1e6).toFixed(2) + 'm';
 
   // Best among the plans the data can actually speak to. A plan priced above
@@ -589,10 +610,30 @@ function renderPricing(data) {
       + `months-paid line is extrapolated and credits every extra dollar against a customer `
       + `assumed not to leave inside the ${s.horizon} months. If a $2,500 ask closes at `
       + `anything like the rate a $1,200 ask does, this is right by a wide margin. If it halves `
-      + `the close rate, it is not. That is the experiment, and it is cheap.`;
+      + `the close rate, it is not. That is the experiment, and it is cheap. `
+      + `<strong>Cost per logo is the other thing to push on, and the slider is there for `
+      + `it.</strong> It is the assumption with the most leverage and the one this page says `
+      + `has moved. Taking it from ${fmt.money(s.cacRange[0])} to ${fmt.money(s.cacRange[1])}, `
+      + `the whole range the business has actually run, changes every total a great deal and `
+      + `does not reorder a single line. What it does change is whether the weakest strategies `
+      + `make money at all: never raising price turns negative somewhere around $6,400 a logo, `
+      + `and the path actually taken follows it not far behind.`;
     $('price-strategies-note').textContent =
       `Each line is total gross over ${s.horizon} months per customer won, less acquisition `
       + `cost at ${fmt.money(s.cac)} a logo, summed across ${s.months} months of intake. `
+      + `Cost per logo is the slider above rather than a constant, because it is the `
+      + `assumption with the most leverage here and the one this page says has moved. It has `
+      + `run between ${fmt.money(s.cacRange[0])} and ${fmt.money(s.cacRange[1])} a month across `
+      + `the window, averaging ${fmt.money(s.cacWindow)} over all of it and `
+      + `${fmt.money(s.cacRecent)} over the last twelve months, which is where the slider `
+      + `opens. Move it and the levels fall a long way while the order of the lines does not `
+      + `change, so the ranking is the output and the totals are a comparison rather than a `
+      + `forecast. `
+      + `Volume is anchored at ${s.baseQ.toFixed(0)} logos a month at ${fmt.money(s.baseP)}, `
+      + `which is what the business was actually running before it began raising price. That `
+      + `is the right anchor for a counterfactual about the whole window and it is higher than `
+      + `the current run rate, so read the totals against each other rather than as money the `
+      + `business would have banked. `
       + `Volume responds to price through the elasticity on the horizontal axis and months paid `
       + `through a straight line fitted across the observed price bands, which adds `
       + `${(s.slope * 1000).toFixed(1)} months paid per extra $1,000 of monthly price; `
@@ -911,6 +952,7 @@ function boot() {
     if ($('era-depth')) $('era-depth').addEventListener('input', renderEra);
     $('forward-horizon').addEventListener('input', renderForward);
     $('band-horizon').addEventListener('input', renderPriceBands);
+    if ($('pricing-cac')) $('pricing-cac').addEventListener('input', () => renderPricing(data));
     $('arrival-horizon').addEventListener('input', renderArrivals);
     if ($('horizons-step')) $('horizons-step').addEventListener('input', renderHorizons);
     renderAssumptionDependent();
