@@ -734,8 +734,36 @@ function renderEra() {
         + `${eras.length - drawn.length === 1 ? 'is' : 'are'} not drawn yet.`
       : '');
 
+  // The sample rule selects the oldest cohorts of a part-finished year, which
+  // in 2026 means the only three with no first month departures at all. Said
+  // in the finding rather than the note, because a reader who takes the left
+  // hand end of that line at face value has been misled by it.
+  const biased = eras.filter(e => e.cohortsUndrawn > 0
+    && e.month1LossUndrawn !== null && e.month1LossDrawn !== null
+    && e.month1LossUndrawn - e.month1LossDrawn > 0.03);
+  const firstMonthLine = eras
+    .filter(e => e.month1LossAll !== null)
+    .map(e => `${e.year} ${fmt.pct(e.month1LossAll, 1)}`).join(', ');
+
+  $('era-finding').innerHTML += biased.length
+    ? ` <strong>Read the left hand end of the ${biased.map(e => e.year).join(' and ')} `
+      + `${biased.length === 1 ? 'line' : 'lines'} with care.</strong> A year is drawn on the `
+      + `cohorts old enough to reach the far end, which for an unfinished year means its oldest `
+      + `ones, and in ${biased[0].year} those are the only `
+      + `${biased[0].cohortsWithFirstMonth - biased[0].cohortsUndrawn} with no first month `
+      + `departures at all. The ${biased[0].cohortsUndrawn} left out lose `
+      + `${fmt.pct(biased[0].month1LossUndrawn, 1)} in month 1. Counting every cohort of each `
+      + `year, first month loss runs ${firstMonthLine}, so on that measure the newest intakes `
+      + `are the worst rather than the best, and chart 23 is the one to believe about whether `
+      + `customers leave in their first month.`
+    : ` Counting every cohort of each year, first month loss runs ${firstMonthLine}.`;
+
   $('era-note').textContent = shared
-    + ' Indexed to month 1, where nothing distorts the count.';
+    + ' Indexed to month 1, where nothing distorts the count.'
+    + ' The fixed sample keeps a line from moving when its membership moves, which is what it'
+    + ' is for, but in a part-finished year it also selects that year’s oldest cohorts.'
+    + ' The first month figures quoted in the finding are taken across every cohort of each'
+    + ' year instead, drawn or not, and are the ones to compare between years.';
 
   // Why the 2026 line is flat, from the business rather than from the file,
   // with the file checked against it. Both changes keep a customer in this

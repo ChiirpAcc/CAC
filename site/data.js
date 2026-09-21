@@ -1581,6 +1581,23 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
     const logosFromMonth2 = points.map((v, i) => (
       i < 1 || v === null || !points[1] ? null : v / points[1]));
 
+    // Month 1 churn across every cohort of the year, not just the ones the
+    // fixed sample keeps.
+    //
+    // The sample rule takes the cohorts that reach the far end, which for a
+    // part-finished year means the oldest ones. That is right for comparing
+    // curve shapes and badly wrong as a description of the year: in 2026 the
+    // three cohorts old enough to be drawn happen to be the only three with no
+    // first month departures at all, while the four left out average sixteen
+    // per cent. Carried so the page can say what the whole year did rather
+    // than only what the drawable part of it did.
+    const withFirstMonth = group.filter(c => c.maxOffset >= 1 && c.survivors[0] > 0);
+    const firstMonthLoss = rows => (rows.length
+      ? rows.reduce((s, c) => s + (1 - c.survivors[1] / c.survivors[0]), 0) / rows.length
+      : null);
+    const drawn = withFirstMonth.filter(c => inSample.includes(c));
+    const undrawn = withFirstMonth.filter(c => !inSample.includes(c));
+
     const reached = offset => group.filter(c => c.maxOffset >= offset).length;
     return {
       year,
@@ -1599,6 +1616,11 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
       month3: points[2],
       month6: points[5],
       reachedMonth6: reached(5),
+      month1LossAll: firstMonthLoss(withFirstMonth),
+      month1LossDrawn: firstMonthLoss(drawn),
+      month1LossUndrawn: firstMonthLoss(undrawn),
+      cohortsWithFirstMonth: withFirstMonth.length,
+      cohortsUndrawn: undrawn.length,
     };
   });
 }
