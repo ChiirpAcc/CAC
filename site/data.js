@@ -1338,20 +1338,21 @@ export const COST_GROUPS = [
     hint: 'Software, hosting and merchant processing. The closest thing here to a true per-customer cost.',
     match: r => r.bucket === 'COGS' && /^5000-00/.test(r.section || '') },
 
+  // Support, technical account management and customer success are one team
+  // from a customer's point of view and are split three ways only because the
+  // chart of accounts splits them. Rolled up, because a reader deciding
+  // whether to charge "the people who look after customers" against a cohort
+  // is not going to want to tick that box three times.
+  //
+  // Customer Success reaches this group through the SPLIT bucket, where it is
+  // settled at 0% acquisition. Partnerships is the other half of that bucket
+  // and goes to acquisition at 100%, which is why the test excludes it by name
+  // rather than by bucket.
   { key: 'support', label: 'Customer Support', defaultOn: true,
-    hint: 'Salaries, bonuses, taxes and benefits.',
-    match: r => r.bucket === 'COGS' && /^5050-10/.test(r.section || '') },
-
-  { key: 'tam', label: 'Technical Account Manager', defaultOn: true,
-    hint: 'Settled into cost of sales rather than acquisition.',
-    match: r => r.bucket === 'COGS' && /^5050-20/.test(r.section || '') },
-
-  // Settled at 0% acquisition, so all of it is a cost of keeping customers.
-  // Partnerships is the other half of the same bucket and goes to acquisition
-  // at 100%, which is why the test excludes it by name rather than by bucket.
-  { key: 'success', label: 'Customer Success', defaultOn: true,
-    hint: 'Settled at 0% acquisition, so every dollar of it is a cost of keeping customers.',
-    match: r => r.bucket === 'SPLIT' && !/Partnerships/i.test(r.account || '') },
+    hint: 'Support, technical account management and customer success together. '
+        + 'Salaries, bonuses, taxes and benefits.',
+    match: r => (r.bucket === 'COGS' && /^5050-[12]0/.test(r.section || ''))
+      || (r.bucket === 'SPLIT' && !/Partnerships/i.test(r.account || '')) },
 
   { key: 'affiliate', label: 'Affiliate and other S&M booked to cost of sales', defaultOn: true,
     hint: 'Sits in cost of sales in the source. It is an acquisition cost by any normal reading.',
