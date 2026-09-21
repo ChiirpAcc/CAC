@@ -2013,21 +2013,58 @@ export function priceFloors(data, { window = 6 } = {}) {
     if (key) bucket[key] = (bucket[key] || 0) + row.amount;
   }
 
-  let logoMonths = 0;
-  let revenue = 0;
+  // Per month rather than pooled, so the summary can be a median.
+  //
+  // A pooled mean over the window is the obvious choice and it is wrong here.
+  // The ledger books an invoice and its credit note in different months, and
+  // the window closes between them: in 2026-08 a $69,847 revenue-share bill
+  // was raised and credited in full, the credit landed in 2026-09, and the
+  // window ends at 2026-08. So the charge is counted and the reversal never
+  // is. That single month reads 18.9% of revenue against a usual 9.7% and
+  // drags the pooled rate to 11.1%.
+  //
+  // A median across the months ignores it without anyone having to hand-code
+  // which month to drop, and it will ignore the next one too.
+  const byMonth = [];
   for (const month of months.slice(-window)) {
     const rows = data.customers.filter(r => r.active && r.month === month);
-    logoMonths += rows.length;
-    revenue += rows.reduce((s, r) => s + (r.eopMrr || 0), 0);
+    const mrr = rows.reduce((s, r) => s + (r.eopMrr || 0), 0);
+    if (!rows.length || !mrr) continue;
+    const spend = {};
+    for (const row of data.expenses) {
+      if (row.month !== month || row.amount === null) continue;
+      const a = row.account || '';
+      let key = null;
+      if (/^5000-04/.test(a)) key = 'merchant';
+      else if (/^6100-06/.test(a)) key = 'revshare';
+      else if (/^5000-02/.test(a)) key = 'software';
+      else if (/^5000-03/.test(a)) key = 'hosting';
+      else if (/^5050-/.test(a)) key = 'support';
+      else if (row.bucket === 'SPLIT' && !/Partnerships/i.test(a)) key = 'success';
+      else if (/^6100-0/.test(a)) key = 'otherSM';
+      else if (/^6200-|^6300-|^8000-/.test(a)) key = 'overhead';
+      if (key) spend[key] = (spend[key] || 0) + row.amount;
+    }
+    byMonth.push({ month, logos: rows.length, mrr, spend });
   }
-  if (!logoMonths || !revenue) return null;
-  const per = k => (bucket[k] || 0) / logoMonths;
-  const share = k => (bucket[k] || 0) / revenue;
+  if (!byMonth.length) return null;
+
+  const median = values => {
+    const s = values.slice().sort((a, b) => a - b);
+    if (!s.length) return 0;
+    const mid = s.length >> 1;
+    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+  };
+  const per = k => median(byMonth.map(r => (r.spend[k] || 0) / r.logos));
+  const share = k => median(byMonth.map(r => (r.spend[k] || 0) / r.mrr));
+  const logoMonths = byMonth.reduce((s, r) => s + r.logos, 0);
+  const revenue = byMonth.reduce((s, r) => s + r.mrr, 0);
 
   const variablePct = share('merchant') + share('revshare');
   const marginalPerLogo = per('software') + per('hosting');
-  const fixedPerMonth = ((bucket.software || 0) + (bucket.hosting || 0) + (bucket.support || 0)
-    + (bucket.success || 0) + (bucket.otherSM || 0) + (bucket.overhead || 0)) / window;
+  const fixedPerMonth = median(byMonth.map(r =>
+    (r.spend.software || 0) + (r.spend.hosting || 0) + (r.spend.support || 0)
+    + (r.spend.success || 0) + (r.spend.otherSM || 0) + (r.spend.overhead || 0)));
 
   const base = data.customers.filter(r => r.active && r.month === last)
     .map(r => r.eopMrr || 0);
@@ -2049,7 +2086,16 @@ export function priceFloors(data, { window = 6 } = {}) {
     allocatedFloor,
     // What actually comes out if enough customers go that headcount follows.
     removablePayrollPerLogo: per('support') + per('success'),
-    components: Object.fromEntries(Object.keys(bucket).map(k => [k, per(k)])),
+    components: Object.fromEntries(
+      ['merchant', 'revshare', 'software', 'hosting', 'support', 'success', 'otherSM', 'overhead']
+        .map(k => [k, per(k)])),
+    // Months whose variable rate sits far from the median, which on this
+    // ledger means an invoice booked in one month and credited in another.
+    // Reported rather than silently smoothed.
+    outliers: byMonth
+      .map(r => ({ month: r.month,
+        rate: ((r.spend.merchant || 0) + (r.spend.revshare || 0)) / r.mrr }))
+      .filter(r => r.rate > variablePct * 1.5 || r.rate < variablePct * 0.5),
   };
 }
 

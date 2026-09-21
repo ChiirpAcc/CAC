@@ -1055,7 +1055,13 @@ function renderCostDrivers() {
     + 'A category with no spend in a month sits at zero rather than leaving a gap, '
     + 'because zero is the true value there. The dashed line is the total and equals '
     + 'the bottom row of the table. Months with no new logos have no cost per logo '
-    + 'and break the lines rather than dropping them to the axis.';
+    + 'and break the lines rather than dropping them to the axis. '
+    + 'One category break to know about before reading a trend into it: marketing '
+    + 'salaries ran about $12,000 a month to 2025-08, then sat at zero for five '
+    + 'months and returned at around $3,500, while the same work moved into '
+    + 'professional services. Both are acquisition so no total moves, but the two '
+    + 'category lines are not comparable across that break — a fall in one and a '
+    + 'rise in the other there is a reclassification rather than a decision.';
 }
 
 
@@ -1252,6 +1258,11 @@ function renderServeTeams() {
     + 'general cost of sales account rather than a named team, which is a reporting '
     + 'limit rather than a finding: half the cost of serving customers is not '
     + 'attributed to anybody in the source. One line here '
+    + 'has a spike in the latest month that is not a cost increase: a $69,847 revenue '
+    + 'share invoice was raised in 2026-08 and credited in full on the 31st, and the '
+    + 'credit lands in 2026-09 which is outside this window. The charge is in and the '
+    + 'reversal is not, so August reads about $70,000 high. Underlying August is close '
+    + 'to July. One more line '
     + 'is worth explaining, because it looks wrong and is not: the Sales & Marketing '
     + 'line inside cost of sales. That is the Service Titan revenue share and partner '
     + 'rebates, both paid on what customers who have already been won go on to bill. '
@@ -1971,7 +1982,18 @@ function renderFloors() {
     + fmt.money(f.removablePayrollPerLogo) + ' a logo is payroll that could come out if '
     + 'enough customers went for headcount to follow — that is a step change across '
     + 'hundreds of accounts, not a saving available one at a time. Acquisition is not in '
-    + 'either floor.';
+    + 'either floor. '
+    + 'Every rate here is the median of the last six months rather than the pooled '
+    + 'mean, because this ledger books an invoice and its credit note in different '
+    + 'months and the window closes between them, so a reversed charge is counted '
+    + 'once and never taken back.'
+    + (f.outliers.length
+        ? ' ' + f.outliers.map(o => fmt.monthLabel(o.month) + ' at '
+            + fmt.pct(o.rate, 1)).join(', ')
+          + ' sits far enough from the median to be one of those, against a usual '
+          + fmt.pct(f.variablePct, 1) + '. A median ignores it without anyone having '
+          + 'to hand-pick which month to drop.'
+        : '');
 
   // ------------------------------------------------------------------ 38
   const labels = r.acceptance.map(a => fmt.pct(a.rate, 0) + ' accept');
