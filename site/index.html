@@ -561,6 +561,23 @@
       <p class="note" id="zero-mrr-note"></p>
     </figure>
 
+    <figure class="card wide" id="fig-full-cost">
+      <figcaption>
+        <h3>33. Everything a cohort has returned, against everything it has cost</h3>
+      </figcaption>
+      <div class="chart-control">
+        <label for="full-cost-age">Measure every cohort at month</label>
+        <input type="range" id="full-cost-age" min="1" max="24" step="1" value="6">
+        <output id="full-cost-age-value">6</output>
+      </div>
+      <fieldset class="cost-toggles" id="full-cost-groups">
+        <legend>Costs to charge against the cohort</legend>
+      </fieldset>
+      <div class="plot" id="chart-full-cost"></div>
+      <p class="finding" id="full-cost-finding"></p>
+      <p class="note" id="full-cost-note"></p>
+    </figure>
+
   </div>
 
   </div><!-- view-all -->

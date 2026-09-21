@@ -1293,6 +1293,245 @@ export function priceComparison(data, { anchor = 2500, floor = 1250, elasticity 
 }
 
 
+// Every cost the business carries, sorted into groups a reader can switch on
+// and off, and defined so that switching them all on counts each dollar once.
+//
+// The groups partition the expense lines rather than describing them: the
+// tests are mutually exclusive and, between them, catch every cost row in the
+// file. That is the property the whole chart depends on. Overlapping groups
+// would let a reader tick two boxes and charge the same salary twice, and
+// gaps would let a cost vanish from a chart whose whole claim is that it holds
+// all of them.
+//
+// What is deliberately outside every group: revenue (4000 and Other Income)
+// and taxes. Taxes are a consequence of profit rather than a cost of serving
+// anybody, and putting them in the denominator of a recovery ratio would make
+// a good month look worse than a bad one.
+export const COST_GROUPS = [
+  // Charged once, in the month the cohort arrived, because that is when it was
+  // spent. Read from the same derived total every other chart divides by, so
+  // this chart and chart 1 cannot drift apart.
+  { key: 'acquisition', label: 'Acquisition', once: true, defaultOn: true,
+    hint: 'Sales, marketing and partnerships. One charge, in the month the cohort signed.',
+    match: isAcquisition },
+
+  { key: 'platform', label: 'Platform cost of sales', defaultOn: true,
+    hint: 'Software, hosting and merchant processing. The closest thing here to a true per-customer cost.',
+    match: r => r.bucket === 'COGS' && /^5000-00/.test(r.section || '') },
+
+  { key: 'support', label: 'Customer Support', defaultOn: true,
+    hint: 'Salaries, bonuses, taxes and benefits.',
+    match: r => r.bucket === 'COGS' && /^5050-10/.test(r.section || '') },
+
+  { key: 'tam', label: 'Technical Account Manager', defaultOn: true,
+    hint: 'Settled into cost of sales rather than acquisition.',
+    match: r => r.bucket === 'COGS' && /^5050-20/.test(r.section || '') },
+
+  // Settled at 0% acquisition, so all of it is a cost of keeping customers.
+  // Partnerships is the other half of the same bucket and goes to acquisition
+  // at 100%, which is why the test excludes it by name rather than by bucket.
+  { key: 'success', label: 'Customer Success', defaultOn: true,
+    hint: 'Settled at 0% acquisition, so every dollar of it is a cost of keeping customers.',
+    match: r => r.bucket === 'SPLIT' && !/Partnerships/i.test(r.account || '') },
+
+  { key: 'affiliate', label: 'Affiliate and other S&M booked to cost of sales', defaultOn: true,
+    hint: 'Sits in cost of sales in the source. It is an acquisition cost by any normal reading.',
+    match: r => r.bucket === 'COGS' && /^6100-00/.test(r.section || '') },
+
+  { key: 'ga', label: 'General and administrative', defaultOn: false,
+    hint: 'Rent, insurance, legal, accounting and the G&A payroll. Spread evenly across active logos.',
+    match: r => /^6200-/.test(r.section || '') },
+
+  { key: 'rd', label: 'Research and development', defaultOn: false,
+    hint: 'The product engineering payroll and its software. Spread evenly across active logos.',
+    match: r => /^6300-/.test(r.section || '') },
+
+  { key: 'da', label: 'Depreciation and amortisation', defaultOn: false,
+    hint: 'Non-cash. Off by default, because a recovery ratio is a cash question.',
+    match: r => /^8000-/.test(r.section || '') },
+];
+
+
+// Monthly cost per active logo for each group, plus the acquisition total.
+//
+// Everything ongoing divides by the company-wide active logo count for the
+// month, which is the same denominator chart 28 uses. Acquisition does not: it
+// divides by the size of the cohort that arrived. The two are different
+// questions and the numbers are not interchangeable, which is why the
+// acquisition group is flagged `once` and handled apart from the rest.
+export function costRates(data) {
+  const liveByMonth = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    liveByMonth.set(row.month, (liveByMonth.get(row.month) || 0) + 1);
+  }
+
+  const ongoing = COST_GROUPS.filter(g => !g.once);
+  const totals = new Map();
+  for (const row of data.expenses) {
+    if (row.amount === null) continue;
+    const group = ongoing.find(g => g.match(row));
+    if (!group) continue;
+    if (!totals.has(row.month)) totals.set(row.month, new Map());
+    const bucket = totals.get(row.month);
+    bucket.set(group.key, (bucket.get(group.key) || 0) + row.amount);
+  }
+
+  const months = [...liveByMonth.keys()].filter(m => totals.has(m)).sort();
+  const rates = new Map();
+  for (const month of months) {
+    const logos = liveByMonth.get(month);
+    if (!logos) continue;
+    const row = {};
+    for (const g of ongoing) row[g.key] = (totals.get(month).get(g.key) || 0) / logos;
+    rates.set(month, row);
+  }
+
+  // A cohort measured at month 18 runs past the end of the file, and those
+  // months need a rate. The mean of the last three is used, and the fact that
+  // it is a carried figure rather than a measured one is reported alongside so
+  // the chart can say how much of its own cost side is assumed.
+  const tail = months.slice(-3);
+  const carried = {};
+  for (const g of ongoing) {
+    carried[g.key] = tail.length
+      ? tail.reduce((s, m) => s + rates.get(m)[g.key], 0) / tail.length
+      : 0;
+  }
+
+  return { rates, carried, months, lastMonth: months[months.length - 1] || null };
+}
+
+
+// What each cohort has returned against everything it has cost, at a matched
+// age, with the cost side assembled from whichever groups are switched on.
+//
+// This is chart 1 with the assumed margin taken out and replaced by the actual
+// cost lines. Chart 1 multiplies revenue by a fixed 75.7% and compares the
+// result against acquisition alone; here the numerator is the revenue itself
+// and every cost sits in the denominator where it can be seen and switched
+// off. The two answer the same question and only this one shows its working.
+//
+// Months a cohort has not lived through yet are projected, both the revenue it
+// will bring and the logos that will still be there to cost money. Projecting
+// one without the other would be the flattering version of this chart: revenue
+// carried forward while the cost of serving it stops.
+export function fullCostRecovery(data, cohorts, { age = 6, groups = null } = {}) {
+  const on = groups || new Set(COST_GROUPS.filter(g => g.defaultOn).map(g => g.key));
+  const offset = age - 1;
+  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const { rates, carried, lastMonth } = costRates(data);
+  const { path, terminal } = donorTrajectory(cohorts);
+  const logoPath = donorLogoPath(cohorts);
+
+  const ongoingOn = COST_GROUPS.filter(g => !g.once && on.has(g.key)).map(g => g.key);
+  const rateAt = month => {
+    const row = rates.has(month) ? rates.get(month) : carried;
+    let total = 0;
+    for (const key of ongoingOn) total += row[key] || 0;
+    return { total, measured: rates.has(month) };
+  };
+
+  return cohorts.map(cohort => {
+    const spend = cac.get(cohort.month);
+    const acquisition = on.has('acquisition') && spend !== undefined ? spend : 0;
+
+    // No recorded acquisition spend and acquisition switched on means no
+    // denominator, and inventing one would invent the whole ratio.
+    if (on.has('acquisition') && (spend === undefined || !cohort.size)) {
+      return { month: cohort.month, size: cohort.size, ratio: null, observed: null,
+               projected: null, costPerLogo: null, revenuePerLogo: null,
+               complete: false, monthsObserved: cohort.maxOffset + 1 };
+    }
+
+    let observedRevenue = 0;
+    let projectedRevenue = 0;
+    let ongoing = 0;
+    let assumedCost = 0;
+    let carriedRevenue = null;
+    let carriedLogos = null;
+
+    for (let k = 0; k <= offset; k += 1) {
+      const month = monthAdd(cohort.month, k);
+      const { total: rate, measured } = rateAt(month);
+
+      let logos;
+      if (k <= cohort.maxOffset) {
+        observedRevenue += cohort.revenue[k];
+        logos = cohort.logos[k];
+      } else {
+        const step = path.has(k) ? path.get(k) : terminal;
+        carriedRevenue = (carriedRevenue === null ? cohort.revenue[cohort.maxOffset]
+                                                  : carriedRevenue) * step;
+        projectedRevenue += carriedRevenue;
+
+        const logoStep = logoPath.path.has(k) ? logoPath.path.get(k) : logoPath.terminal;
+        carriedLogos = (carriedLogos === null ? cohort.logos[cohort.maxOffset]
+                                              : carriedLogos) * logoStep;
+        logos = carriedLogos;
+      }
+
+      const cost = rate * logos;
+      ongoing += cost;
+      if (!measured || k > cohort.maxOffset) assumedCost += cost;
+    }
+
+    const totalCost = acquisition + ongoing;
+    const revenue = observedRevenue + projectedRevenue;
+    const complete = cohort.maxOffset >= offset
+      && monthAdd(cohort.month, offset) <= (lastMonth || '9999-99');
+
+    return {
+      month: cohort.month,
+      size: cohort.size,
+      complete,
+      monthsObserved: cohort.maxOffset + 1,
+      acquisition,
+      acquisitionPerLogo: cohort.size ? acquisition / cohort.size : null,
+      ongoingPerLogo: cohort.size ? ongoing / cohort.size : null,
+      costPerLogo: cohort.size ? totalCost / cohort.size : null,
+      revenuePerLogo: cohort.size ? revenue / cohort.size : null,
+      ratio: totalCost > 0 ? revenue / totalCost : null,
+      observed: totalCost > 0 ? observedRevenue / totalCost : null,
+      projected: totalCost > 0 ? projectedRevenue / totalCost : null,
+      // How much of the cost side is a carried rate rather than a measured
+      // one, so the chart can say when it is mostly describing its own
+      // assumptions.
+      assumedCostShare: totalCost > 0 ? assumedCost / totalCost : null,
+    };
+  });
+}
+
+
+// The same donor pooling as donorTrajectory, run on logo counts instead of
+// revenue.
+//
+// The revenue path alone is not enough here. A projected month needs to know
+// how many customers are still there to cost money, and reusing the revenue
+// step for that would assume revenue per logo never moves — which is exactly
+// the assumption the rest of this page spends its time disproving.
+function donorLogoPath(cohorts) {
+  const donors = cohorts.filter(c => c.month >= '2023-01' && c.maxOffset >= 6);
+  const numerator = new Map();
+  const denominator = new Map();
+  const counts = new Map();
+  for (const cohort of donors) {
+    for (let k = 1; k < cohort.logos.length; k += 1) {
+      if (cohort.logos[k - 1] <= 0) continue;
+      numerator.set(k, (numerator.get(k) || 0) + cohort.logos[k]);
+      denominator.set(k, (denominator.get(k) || 0) + cohort.logos[k - 1]);
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+  }
+  const minDonors = Math.max(2, Math.ceil(donors.length / 2));
+  const path = new Map();
+  for (const [k, den] of denominator) {
+    if (den > 0 && (counts.get(k) || 0) >= minDonors) path.set(k, numerator.get(k) / den);
+  }
+  return { path, terminal: terminalRate(path, 6, counts, minDonors) };
+}
+
+
 // What it costs to keep a logo, against what a logo pays.
 //
 // Until this tab arrived, margin was a single assumption applied to

@@ -9,6 +9,7 @@ import {
   arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
   ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
+  fullCostRecovery, COST_GROUPS,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -1289,6 +1290,152 @@ function renderZeroMrr() {
 }
 
 
+// 33. Chart 1 with the assumed margin taken out and every real cost put in.
+//
+// Chart 1 multiplies revenue by a fixed margin and compares the result against
+// acquisition alone, which buries the entire cost of keeping a customer inside
+// one number nobody can argue with. Here the numerator is revenue and every
+// cost is a line in the denominator that a reader can switch off and watch the
+// answer move. Ticking every box is the question "does a customer at these
+// prices pay for the whole company", and ticking the first six is the question
+// every outside benchmark actually asks.
+function wireCostToggles() {
+  const box = $('full-cost-groups');
+  if (!box || box.dataset.ready) return;
+
+  const grid = document.createElement('div');
+  grid.className = 'toggles';
+  for (const g of COST_GROUPS) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = g.key;
+    input.checked = g.defaultOn;
+    const text = document.createElement('span');
+    text.innerHTML = `<span class="${g.once ? 'group-once' : ''}">${g.label}</span>`
+      + `<span class="group-hint">${g.hint}</span>`;
+    label.append(input, text);
+    grid.append(label);
+  }
+  box.append(grid);
+  box.addEventListener('change', renderFullCost);
+  box.dataset.ready = '1';
+}
+
+function renderFullCost() {
+  wireCostToggles();
+  const age = Number($('full-cost-age').value);
+  $('full-cost-age-value').textContent = age;
+
+  const on = new Set(
+    [...$('full-cost-groups').querySelectorAll('input:checked')].map(i => i.value));
+
+  if (!on.size) {
+    $('chart-full-cost').innerHTML =
+      '<p class="empty">No costs selected, so there is nothing to divide by.</p>';
+    $('full-cost-finding').textContent = '';
+    return;
+  }
+
+  const rows = fullCostRecovery(data, cohorts, { age, groups: on });
+  const shown = rows.filter(r => r.ratio !== null);
+  if (!shown.length) {
+    $('chart-full-cost').innerHTML = '<p class="empty">No cohort has reached this age yet.</p>';
+    $('full-cost-finding').textContent = '';
+    return;
+  }
+
+  const verdict = v => (v >= 3 ? INK.positive : v >= 1 ? INK.tertiary : INK.negative);
+  const chosen = COST_GROUPS.filter(g => on.has(g.key));
+
+  stackedColumnChart($('chart-full-cost'), {
+    labels: shown.map(r => fmt.monthLabel(r.month)),
+    observed: shown.map(r => r.observed),
+    projected: shown.map(r => r.projected),
+    yFormat: v => v.toFixed(1) + 'x',
+    colourFor: v => verdict(v),
+    refs: [
+      { value: 3, label: '3.0x', variant: 'ref-goal' },
+      { value: 1, label: '1.0x, cost covered', variant: 'ref-floor' },
+    ],
+    legendItems: [
+      { label: 'At or above 3.0x', colour: 'var(--series-pos)' },
+      { label: 'Between 1.0x and 3.0x', colour: 'var(--series-3)' },
+      { label: 'Below cost', colour: 'var(--series-neg)' },
+      { label: 'Hatched: projected, not yet observed', colour: 'var(--depends)' },
+    ],
+    describe: i => {
+      const r = shown[i];
+      const head = `<strong>${r.month} cohort at month ${age}</strong>
+        <span>Returned ${fmt.ratio(r.ratio)} of what it cost</span>`;
+      const split = r.complete
+        ? '<span class="muted">Fully observed</span>'
+        : `<span>Observed ${fmt.ratio(r.observed)} through month ${r.monthsObserved}</span>
+           <span>Projected ${fmt.ratio(r.projected)} over the next `
+           + `${age - r.monthsObserved} month${age - r.monthsObserved === 1 ? '' : 's'}</span>`;
+      return head + split + `
+        <span>Revenue per logo ${fmt.money(r.revenuePerLogo)}</span>
+        <span>Cost per logo ${fmt.money(r.costPerLogo)}</span>
+        <span class="muted">Acquisition ${fmt.money(r.acquisitionPerLogo)}, `
+        + `ongoing ${fmt.money(r.ongoingPerLogo)} over ${age} month`
+        + `${age === 1 ? '' : 's'}</span>
+        <span class="muted">${fmt.int(r.size)} logos</span>`;
+    },
+  });
+
+  const above = shown.filter(r => r.ratio >= 1).length;
+  const observedAbove = shown.filter(r => (r.observed || 0) >= 1).length;
+  const cut = Math.floor(shown.length / 2);
+  const avg = (g, k) => g.reduce((s, r) => s + r[k], 0) / g.length;
+  const early = avg(shown.slice(0, cut), 'ratio');
+  const late = avg(shown.slice(cut), 'ratio');
+  const assumed = avg(shown, 'assumedCostShare');
+
+  // What ticking or unticking the boxes actually did, stated in money rather
+  // than left for the reader to infer from the bars moving.
+  const meanCost = avg(shown, 'costPerLogo');
+  const meanAcq = avg(shown, 'acquisitionPerLogo');
+  const meanOngoing = avg(shown, 'ongoingPerLogo');
+
+  $('full-cost-finding').innerHTML =
+    `<strong>Charging ${chosen.length} cost group${chosen.length === 1 ? '' : 's'}, `
+    + `${above} of ${shown.length} cohorts have covered their cost by month ${age}`
+    + (observedAbove < above
+        ? `, ${observedAbove} of them on revenue already observed.</strong> `
+        : `.</strong> `)
+    + `The average cohort has cost ${fmt.money(meanCost)} a logo by then — `
+    + `${fmt.money(meanAcq)} to win and ${fmt.money(meanOngoing)} to keep — against `
+    + `${fmt.money(avg(shown, 'revenuePerLogo'))} of revenue. The earlier half sits at `
+    + `${fmt.ratio(early)} and the later half at ${fmt.ratio(late)}. `
+    + (on.has('ga') && on.has('rd')
+        ? 'With G&A and R&D switched on this is the whole company, so 1.0x means a '
+          + 'customer pays for every desk behind them and not just their own service.'
+        : 'G&A and R&D are off, so 1.0x here means a customer covers what it took to '
+          + 'win and serve them and nothing else. Switch them on for the question of '
+          + 'whether they pay for the company.')
+    + (assumed > 0.15
+        ? ` At this age ${fmt.pct(assumed)} of the cost side is a carried rate rather `
+          + `than a measured one, so read the level loosely and the ordering closely.`
+        : '');
+
+  $('full-cost-note').textContent =
+    'One bar per cohort, every one measured at the same age, so a young cohort is '
+    + 'not penalised for being young. The numerator is revenue rather than gross '
+    + 'profit: applying a margin here as well as charging the cost lines would take '
+    + 'the same cost off twice. Ongoing costs are charged month by month against the '
+    + 'logos still present, at that month’s real cost per active logo, so a cohort '
+    + 'that loses customers stops paying for them. Acquisition is charged once, in '
+    + 'full, in the month the cohort arrived, and divides by that cohort rather than '
+    + 'by the active base. Months a cohort has not lived through yet are projected on '
+    + 'the pooled donor path — both the revenue and the logos, because carrying '
+    + 'revenue forward while the cost of serving it stops would be the flattering '
+    + 'version of this chart. Months past the end of the ledger carry the mean cost '
+    + 'rate of the last three. The groups partition the expense file: every cost row '
+    + 'belongs to exactly one, so ticking everything counts each dollar once and '
+    + 'nothing is missed. Revenue and taxes sit outside all of them.';
+}
+
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -1310,6 +1457,7 @@ function boot() {
     renderRecoveryAge();
     renderTenureChurn();
     renderZeroMrr();
+    renderFullCost();
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
@@ -1319,6 +1467,7 @@ function boot() {
     if ($('pricing-elasticity')) $('pricing-elasticity').addEventListener('input', () => renderPricing(data));
     $('arrival-horizon').addEventListener('input', renderArrivals);
     if ($('horizons-step')) $('horizons-step').addEventListener('input', renderHorizons);
+    if ($('full-cost-age')) $('full-cost-age').addEventListener('input', renderFullCost);
     renderAssumptionDependent();
   }).catch(err => {
     $('loading').innerHTML =
