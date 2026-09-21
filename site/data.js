@@ -412,6 +412,18 @@ export function buildCohorts(data) {
     const oneTimeRevenue = [];
     const passThroughRevenue = [];
 
+    // Until mid-2025 a joining charge was booked into eop_mrr in a customer's
+    // first month and came off again the next, so month 0 carries roughly
+    // double what the cohort actually pays per month. Every 2024 cohort runs
+    // between 1.9x and 2.9x its own month 1; by 2026 the ratio is 1.0.
+    //
+    // It is real money and is not thrown away, but leaving it inside MRR makes
+    // a recurring measure carry a one-off and makes the eras incomparable:
+    // a 2024 cohort recovers more than half its acquisition cost in month 0
+    // purely because it charged a fee that 2026 does not. It is separated here
+    // and offered as a revenue switch, which is where a one-off belongs.
+    const joiningFee = [];
+
     // Survival, which is not the same as presence.
     //
     // logos[] counts who is present at each age, so a customer who leaves and
@@ -533,9 +545,25 @@ export function buildCohorts(data) {
       cappedRetainedRevenue.push(intactCappedMrr);
     }
 
+    // The fee is whatever month 0 carries above the per-logo rate the cohort
+    // settles at in month 1. Measured against the cohort's own next month
+    // rather than a fixed figure, because the charge changed size over the
+    // period and then stopped. Never negative: a cohort whose month 0 is
+    // already at or below its month 1 simply has no fee to separate.
+    for (let k = 0; k <= maxOffset; k += 1) joiningFee.push(0);
+    if (maxOffset >= 1 && logos[0] > 0 && logos[1] > 0) {
+      const settled = revenue[1] / logos[1];
+      const excess = revenue[0] - settled * logos[0];
+      if (excess > 0) joiningFee[0] = excess;
+    }
+
+    // What the cohort pays on a recurring basis, with the one-off taken out.
+    const recurringRevenue = revenue.map((v, k) => v - (joiningFee[k] || 0));
+
     return { month, size: logos[0] || ids.length, ids, logos, survivors, revenue,
              survivorRevenue, retainedStartingRevenue, cappedRetainedRevenue,
-             profit, usageRevenue, oneTimeRevenue, passThroughRevenue, maxOffset };
+             profit, usageRevenue, oneTimeRevenue, passThroughRevenue,
+             joiningFee, recurringRevenue, maxOffset };
   });
 
   const built = cohorts.filter(c => c.size > 0);
@@ -1407,16 +1435,21 @@ export const COST_GROUPS = [
 // happens rather than be told it does not matter.
 export const REVENUE_GROUPS = [
   { key: 'subscription', label: 'Subscription', defaultOn: true,
-    hint: 'End-of-period MRR. The only stream every other chart on this page counts.',
-    pick: (c, k) => c.revenue[k] || 0 },
+    hint: 'Recurring MRR, with the old first-month joining charge taken out of it.',
+    pick: (c, k) => (c.recurringRevenue ? c.recurringRevenue[k] : c.revenue[k]) || 0 },
 
   { key: 'usage', label: 'Usage: message and AI credits', defaultOn: true,
     hint: 'Metered messaging, AI and voice. The largest of the three.',
     pick: (c, k) => (c.usageRevenue && c.usageRevenue[k]) || 0 },
 
-  { key: 'setup', label: 'Setup and one-time charges', defaultOn: true,
-    hint: 'Onboarding and setup fees, charged once and mostly in the first month.',
-    pick: (c, k) => (c.oneTimeRevenue && c.oneTimeRevenue[k]) || 0 },
+  // The joining charge joins the other one-offs here. Switching this off is
+  // the only way to compare a 2024 cohort with a 2026 one on equal terms,
+  // because 2024 charged the fee and 2026 does not.
+  { key: 'setup', label: 'Setup, onboarding and the old joining charge', defaultOn: true,
+    hint: 'Charged once, in the first month. 2024 cohorts carry a large joining fee here '
+        + 'that was phased out during 2025 — switch this off to compare eras fairly.',
+    pick: (c, k) => ((c.oneTimeRevenue && c.oneTimeRevenue[k]) || 0)
+      + ((c.joiningFee && c.joiningFee[k]) || 0) },
 
   { key: 'passthrough', label: '10DLC and carrier pass-through', defaultOn: true,
     hint: 'Registration and carrier fees. Arrives and leaves again, so arguably not ours.',
