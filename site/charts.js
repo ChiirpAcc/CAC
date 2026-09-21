@@ -403,7 +403,12 @@ export function stackedColumnChart(container, { labels, observed, projected,
   // different unit, so drawing it as a line would invite reading the two
   // against each other. Dropped entirely once the columns are too narrow to
   // carry a legible label.
-  if (columnLabels && band.width >= 13) {
+  // Gated on the centre-to-centre spacing rather than the bar width. A label is
+  // centred on the column and may use the gap either side of it, so the bar
+  // width understates the room available and dropped the labels entirely the
+  // first time the window widened from 24 columns to 32.
+  const pitch = labels.length > 1 ? band.centre(1) - band.centre(0) : plot.width;
+  if (columnLabels && pitch >= 15) {
     if (columnLabelTitle) {
       el('text', { x: plot.x0, y: plot.y0 - 6, class: 'column-label-title' }, svg)
         .textContent = columnLabelTitle;

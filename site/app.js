@@ -1291,8 +1291,7 @@ function renderZeroMrr() {
     + 'charges at all, which makes them hard to describe as customers in any sense '
     + 'that matters. This is a good part of the gap between the logo lines and the '
     + 'money lines earlier on, and it is the plainest argument for a floor: a customer '
-    + 'discounted to nothing still costs what the chart above says it costs to serve '
-    + 'them.';
+    + 'discounted to nothing still costs what chart 28 says it costs to serve them.';
 
   $('zero-mrr-note').textContent =
     'Presence on this page is an event type rather than an amount, so a customer '
@@ -1578,7 +1577,9 @@ function renderStatic() {
   const censored = cohorts.censoredCount || 0;
   $('stamp').textContent =
     (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
-    + `Months ${data.historyStarts} to ${data.lastMonth}, a rolling two year window.`
+    + `Months ${data.historyStarts} to ${data.lastMonth}, `
+    + `${monthDiff(data.historyStarts, data.lastMonth) + 1} months, `
+    + `reaching back as far as the finance tabs go.`
     + (censored
         ? ` ${fmt.int(censored)} customers existed before the data window opens at `
           + `${cohorts.windowStart} and have no knowable cohort, so they are excluded from `
@@ -2236,14 +2237,31 @@ function renderForward() {
 
   const live = cap.rollingArrivals.filter(v => v !== null);
   const liveCap = cap.rollingCapacity.filter(v => v !== null);
+  // Written off the numbers rather than around them. An earlier version of this
+  // asserted that one relationship "was never there" and the other "has barely
+  // moved", which was true of the sample it was written for and became false
+  // the moment the window widened — it went on quoting a swing of more than
+  // a full point while calling it barely moved. Everything below is computed.
+  const rangeOf = xs => Math.max(...xs) - Math.min(...xs);
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const signFlips = xs => xs.slice(1).filter((v, i) => (v < 0) !== (xs[i] < 0)).length;
+  const widest = rangeOf(liveCap) >= rangeOf(live)
+    ? { label: 'Customer Success', xs: liveCap }
+    : { label: 'New arrivals', xs: live };
+
   $('momentum-finding').innerHTML =
-    '<strong>One was never there; the other has not moved.</strong> The link between new '
-    + 'arrivals and churn ran at ' + sign(live[0]) + ' over the earliest twelve month window and '
-    + sign(live[live.length - 1]) + ' over the latest, weak at both ends rather than a '
-    + 'relationship that faded. Customer Success has barely moved, ' + sign(liveCap[0]) + ' to '
-    + sign(liveCap[liveCap.length - 1]) + ', and is the stronger of the two throughout. On '
-    + live.length + ' overlapping windows neither movement is worth reading as a trend, which '
-    + 'is also why chart 22 finds nothing pooled.';
+    '<strong>Neither line holds a direction long enough to be one.</strong> Over '
+    + live.length + ' overlapping twelve month windows, new arrivals against churn runs '
+    + sign(Math.min(...live)) + ' to ' + sign(Math.max(...live)) + ' and changes sign '
+    + plural(signFlips(live), 'time') + '; Customer Success runs ' + sign(Math.min(...liveCap)) + ' to '
+    + sign(Math.max(...liveCap)) + ' and changes sign ' + plural(signFlips(liveCap), 'time') + '. '
+    + 'A relationship that had genuinely faded would walk toward zero and stay there. '
+    + 'These wander across it. ' + widest.label + ' covers the wider range, '
+    + rangeOf(widest.xs).toFixed(2) + ' points end to end, which is most of the space a '
+    + 'correlation can occupy and is what a series with no underlying relationship looks '
+    + 'like when it is cut into short overlapping windows. Read this as a reason to '
+    + 'distrust any single pooled figure from these two series, including the ones on the '
+    + 'chart above.';
 
   $('momentum-note').textContent =
     'Correlation against forward churn computed over a moving ' + cap.rollingWidth
@@ -2651,7 +2669,7 @@ function renderAnnotations() {
     'This pools every era, so it is an average that conceals the deterioration visible in the era chart below.',
   ], [
     'Indexed to <strong>month 2</strong>, not month 1. Month 1 carries setup and onboarding fees, and indexing there turns a one-off charge ending into an apparent churn cliff.',
-    `Drawn while at least ${lastPoint ? lastPoint.cohorts : 12} cohorts remain in sample, and held to a 24 month horizon. The logo line is survival rather than presence, so a customer who leaves and returns is counted once.`,
+    `Drawn while at least ${lastPoint ? lastPoint.cohorts : 12} cohorts remain in sample, and held to a two year horizon. The logo line is survival rather than presence, so a customer who leaves and returns is counted once.`,
   ]);
 
   const recent = w.slice(-36);

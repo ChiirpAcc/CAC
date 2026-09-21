@@ -13,12 +13,19 @@ export const DATA_DIR = 'data';
 // a credit posted before the month's spend has landed.
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
 
-// Nothing reaches a chart from more than two years back. A hard limit rather
+// How far back anything on this page is allowed to reach. A hard limit rather
 // than a per chart window, applied once where the data is read, so no chart
-// can quietly reach further: several of the findings on this page turned on
-// exactly that, where a longer reach pulled in an era that behaved
-// differently and the extra months did the work.
-const MONTHS_OF_HISTORY = 24;
+// can quietly reach further: several of the findings here turned on exactly
+// that, where a longer reach pulled in an era that behaved differently and the
+// extra months did the work.
+//
+// Set to land on 2024-01, which is not a preference but a floor. The finance
+// tabs — QB Expenses, Serve Monthly and CAC Monthly — all begin there, so a
+// cohort older than that has revenue and no denominator. The customer file
+// itself runs back to 2018-12 and is clean well before 2024 (its live counts
+// match the summary exactly in every month checked), so the day the ledger
+// reaches further back, this number is the only thing that has to move.
+const MONTHS_OF_HISTORY = 32;
 
 function earliestMonth(reference = CURRENT_MONTH) {
   const [year, month] = reference.split('-').map(Number);
@@ -2521,7 +2528,7 @@ export function projectedBreakEven(data, cohorts, options) {
 // Nothing in this function is touched by the Customer Success slider. That
 // slider decides how much of the spend counts as acquisition cost, which
 // changes CAC. The spend itself is what it is.
-export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
+export function capacityAnalysis(data, { horizon = 4, windows = null } = {}) {
   const activeByMonth = new Map();
   for (const row of data.customers) {
     if (!row.active) continue;
@@ -2568,7 +2575,7 @@ export function capacityAnalysis(data, { horizon = 4, windows = 24 } = {}) {
   // shorter one threw away four months of the thing being asked about.
   const points = months
     .filter(m => csTotal.has(m) && newLogos.get(m) != null)
-    .slice(-(windows + horizon))
+    .slice(windows ? -(windows + horizon) : 0)
     .map(month => {
       const base = activeByMonth.get(month);
       const complete = monthAdd(month, horizon) <= last;
@@ -3054,7 +3061,12 @@ export function priceAgainstRetention(data, { ages = [3, 6, 12], minCohort = 16 
 // The slope is reported per ten fewer arrivals with a 95% interval, because a
 // correlation coefficient on two dozen points is easy to over-read and an
 // interval that straddles zero says plainly that nothing has been measured.
-export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
+// `windows` caps how many starting months are used. It was 24 when nothing on
+// this page could reach further than 24 months anyway, so it did nothing; once
+// the window widened to the full reach of the finance data it silently became
+// the binding constraint and held this chart at its old sample. Null means use
+// every eligible month, which is what it always meant to do.
+export function arrivalsAgainstChurn(data, { horizon = 4, windows = null } = {}) {
   const active = new Map();
   for (const row of data.customers) {
     if (!row.active) continue;
@@ -3078,7 +3090,8 @@ export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
   // Comparing like with like costs a few months of sample and is worth it.
   const maxHorizon = 6;
   const eligible = hz => all.filter(m => monthAdd(m, hz) <= last && arrivals.get(m) != null);
-  const anchor = new Set(eligible(maxHorizon).slice(-windows));
+  const eligibleAtMax = eligible(maxHorizon);
+  const anchor = new Set(windows ? eligibleAtMax.slice(-windows) : eligibleAtMax);
   const months = eligible(horizon).filter(m => anchor.has(m));
 
   // Everyone active in the starting month, followed forward.
