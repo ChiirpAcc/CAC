@@ -2048,10 +2048,14 @@ function renderForward() {
 
   const spread = Math.max(...starts.map(s => s.survival)) - Math.min(...starts.map(s => s.survival));
   $('forward-finding').innerHTML =
-    '<strong>It is getting worse, and not by a little.</strong> ' + horizon + '-month survival ran at '
+    (fw.recent.rate < fw.earlier.rate
+      ? '<strong>It is getting worse, and not by a little.</strong> '
+      : '<strong>It has stopped getting worse.</strong> ')
+    + horizon + '-month survival ran at '
     + fmt.pct(fw.earlier.rate, 1) + ' across ' + earlier.length + ' earlier windows and '
     + fmt.pct(fw.recent.rate, 1) + ' across the last ' + recent.length + ', a fall of '
-    + Math.abs((fw.recent.rate - fw.earlier.rate) * 100).toFixed(1) + ' points on '
+    + Math.abs((fw.recent.rate - fw.earlier.rate) * 100).toFixed(1)
+    + (fw.recent.rate < fw.earlier.rate ? ' points on ' : ' points the other way on ')
     + (fw.recent.total + fw.earlier.total).toLocaleString() + ' customer observations. '
     + 'The gap between the best and worst window is ' + (spread * 100).toFixed(1) + ' points.';
 
@@ -2096,6 +2100,12 @@ function renderForward() {
   const s2Share = s2 / data.customers.length;
   const s2Ids = new Set(s2Rows.map(r => r.id));
   const s2WithMrr = new Set(s2Rows.filter(r => r.eopMrr > 0).map(r => r.id));
+  // "all of them paying" was asserted here and was not true: two of the 58 carry
+  // no money of any kind. Counted rather than claimed.
+  const s2WithMoney = new Set(s2Rows
+    .filter(r => (r.netCash || 0) > 0 || (r.eopMrr || 0) > 0
+      || (r.usage || 0) > 0 || (r.oneTime || 0) > 0)
+    .map(r => r.id));
   const trailing = data.waterfall[data.waterfall.length - 1].month;
   const newest = data.customers.filter(r => r.month === trailing && r.eventType === 'new');
   const newestS2 = newest.filter(r => r.source === 'S2');
@@ -2111,6 +2121,23 @@ function renderForward() {
       + 'recognised MRR rather than dividing it: eop_mrr tracks platform recurring revenue in '
       + 'the ledger, and usage, one-time and pass-through are billed on top of it. Each is '
       + 'therefore margined in its own right and none is subtracted from the platform base. '
+      // The footer used to present these as settled with nothing to argue
+      // against. Chart 28 measures the same quantity from the cost ledger and
+      // gets a different answer, and a reader who reaches the footer first
+      // should not have to find that out on their own.
+      + (() => {
+        const served = costToServe(data);
+        if (!served) return '';
+        return 'One caveat, and it is the largest open question on this page: '
+          + 'the platform figure is an assumption, not a measurement. Chart 28 works the '
+          + 'same quantity out from the cost ledger and gets '
+          + fmt.pct(served.recentGrossMargin, 1) + ', which is '
+          + fmt.pct(CLASS_MARGINS.platform - served.recentGrossMargin, 1)
+          + ' of revenue lower. Every ratio above that chart uses the assumption and is '
+          + 'that much too kind. They have not been rewired to the measured figure, '
+          + 'because moving the margin under thirty charts without saying so is how a '
+          + 'page stops being checkable. ';
+      })()
       + (() => {
         // Whether this environment reaches the revenue columns is a fact to be
         // read, not a claim to be carried. It did not for months, the numbers
@@ -2122,8 +2149,9 @@ function renderForward() {
           : '<strong>The second Stripe environment is not reaching the revenue columns.</strong> ';
         const body = 'It carries ' + fmt.int(s2) + ' of ' + fmt.int(data.customers.length)
           + ' customer months, ' + fmt.pct(s2Share, 2) + '. ' + fmt.int(s2Ids.size)
-          + ' customers have arrived in it since ' + S2_FIRST + ', all of them paying, and '
-          + fmt.int(s2WithMrr.size) + ' register MRR. In ' + fmt.monthLabel(trailing)
+          + ' customers have arrived in it since ' + S2_FIRST + ', '
+          + fmt.int(s2WithMoney.size) + ' of them carrying money of some kind and '
+          + fmt.int(s2WithMrr.size) + ' registering MRR. In ' + fmt.monthLabel(trailing)
           + ' it was ' + fmt.int(newestS2.length) + ' of ' + fmt.int(newest.length)
           + ' new logos, so it is most of the new business rather than a rounding error. ';
         return head + body + (recognised >= 0.9
@@ -2377,14 +2405,38 @@ function renderSeasonal() {
   $('seasonal-revenue-finding').innerHTML = revGap === null
     ? '<strong>' + fmt.pct(latest.revenueRetention, 1) + ' of the revenue kept after '
       + horizon + ' months.</strong>'
-    : '<strong>No, the trade is not better. Revenue fell further than headcount.</strong> '
-      + fmt.pct(latest.revenueRetention, 1) + ' of ' + fmt.monthLabel(latest.month)
-      + ' revenue survived ' + horizon + ' months, against '
-      + fmt.pct(yearAgo.revenueRetention, 1) + ' a year earlier, a drop of '
-      + Math.abs(revGap).toFixed(1) + ' points where logos fell '
-      + Math.abs((latest.survival - yearAgo.survival) * 100).toFixed(1) + '. '
-      + 'Expansion by the survivors covered ' + yearAgoCushion.toFixed(1)
-      + ' points of the loss a year ago and only ' + latestCushion.toFixed(1) + ' now.';
+    : (() => {
+      // Both halves of this were asserted rather than measured: that the trade
+      // is worse, and that revenue is what moved. Either can flip.
+      const logoGap = (latest.survival - yearAgo.survival) * 100;
+      const revenueLedTheFall = Math.abs(revGap) > Math.abs(logoGap);
+      const head = revGap < 0
+        ? (revenueLedTheFall
+            ? '<strong>No, the trade is not better. Revenue fell further than headcount.</strong> '
+            : '<strong>No, the trade is not better, but headcount led the fall rather than revenue.</strong> ')
+        : '<strong>Revenue held up better than it did a year ago.</strong> ';
+      // With the window reaching back to 2024 there is a third point, and it
+      // changes the reading: the year-on-year comparison alone made a single
+      // exceptional year look like the baseline.
+      const twoBack = twoYears || null;
+      const context = twoBack
+        ? ' Against two years earlier the picture is not a straight decline: '
+          + fmt.monthLabel(twoBack.month) + ' kept '
+          + fmt.pct(twoBack.revenueRetention, 1) + ' of its revenue, so '
+          + fmt.monthLabel(yearAgo.month) + ' at '
+          + fmt.pct(yearAgo.revenueRetention, 1) + ' is the outlier in the series rather '
+          + 'than the standard the latest window is failing to meet.'
+        : '';
+      return head
+        + fmt.pct(latest.revenueRetention, 1) + ' of ' + fmt.monthLabel(latest.month)
+        + ' revenue survived ' + horizon + ' months, against '
+        + fmt.pct(yearAgo.revenueRetention, 1) + ' a year earlier, a move of '
+        + Math.abs(revGap).toFixed(1) + ' points where logos moved '
+        + Math.abs(logoGap).toFixed(1) + '. '
+        + 'Expansion by the survivors covered ' + yearAgoCushion.toFixed(1)
+        + ' points of the loss a year ago and ' + latestCushion.toFixed(1) + ' now.'
+        + context;
+    })();
 
   $('seasonal-revenue-note').textContent =
     'The same customers as chart 11, followed by what they pay rather than by whether they '
