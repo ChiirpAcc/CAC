@@ -9,7 +9,7 @@ import {
   arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
   ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
-  fullCostRecovery, COST_GROUPS,
+  fullCostRecovery, COST_GROUPS, REVENUE_GROUPS,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -1299,13 +1299,13 @@ function renderZeroMrr() {
 // answer move. Ticking every box is the question "does a customer at these
 // prices pay for the whole company", and ticking the first six is the question
 // every outside benchmark actually asks.
-function wireCostToggles() {
-  const box = $('full-cost-groups');
+function buildToggles(id, definitions) {
+  const box = $(id);
   if (!box || box.dataset.ready) return;
 
   const grid = document.createElement('div');
   grid.className = 'toggles';
-  for (const g of COST_GROUPS) {
+  for (const g of definitions) {
     const label = document.createElement('label');
     const input = document.createElement('input');
     input.type = 'checkbox';
@@ -1322,22 +1322,36 @@ function wireCostToggles() {
   box.dataset.ready = '1';
 }
 
+function wireCostToggles() {
+  buildToggles('full-cost-revenue', REVENUE_GROUPS);
+  buildToggles('full-cost-groups', COST_GROUPS);
+}
+
+const ticked = id => new Set(
+  [...$(id).querySelectorAll('input:checked')].map(i => i.value));
+
+const horizonOf = rows => (rows.length ? rows[0].horizon : 60);
+
 function renderFullCost() {
   wireCostToggles();
   const age = Number($('full-cost-age').value);
   $('full-cost-age-value').textContent = age;
 
-  const on = new Set(
-    [...$('full-cost-groups').querySelectorAll('input:checked')].map(i => i.value));
+  const on = ticked('full-cost-groups');
+  const revOn = ticked('full-cost-revenue');
 
-  if (!on.size) {
-    $('chart-full-cost').innerHTML =
-      '<p class="empty">No costs selected, so there is nothing to divide by.</p>';
+  if (!on.size || !revOn.size) {
+    $('chart-full-cost').innerHTML = '<p class="empty">'
+      + (!revOn.size
+          ? 'No revenue selected, so there is nothing to recover with.'
+          : 'No costs selected, so there is nothing to divide by.')
+      + '</p>';
     $('full-cost-finding').textContent = '';
     return;
   }
 
-  const rows = fullCostRecovery(data, cohorts, { age, groups: on });
+  const rows = fullCostRecovery(data, cohorts,
+    { age, groups: on, revenueGroups: revOn });
   const shown = rows.filter(r => r.ratio !== null);
   if (!shown.length) {
     $('chart-full-cost').innerHTML = '<p class="empty">No cohort has reached this age yet.</p>';
@@ -1364,6 +1378,9 @@ function renderFullCost() {
       { label: 'Below cost', colour: 'var(--series-neg)' },
       { label: 'Hatched: projected, not yet observed', colour: 'var(--depends)' },
     ],
+    columnLabelTitle: 'Months to full break-even',
+    columnLabels: shown.map(r =>
+      (r.breakEven === null ? r.horizon + '+' : String(r.breakEven))),
     describe: i => {
       const r = shown[i];
       const head = `<strong>${r.month} cohort at month ${age}</strong>
@@ -1379,6 +1396,10 @@ function renderFullCost() {
         <span class="muted">Acquisition ${fmt.money(r.acquisitionPerLogo)}, `
         + `ongoing ${fmt.money(r.ongoingPerLogo)} over ${age} month`
         + `${age === 1 ? '' : 's'}</span>
+        <span>${r.breakEven === null
+          ? 'Not covered inside ' + r.horizon + ' months'
+          : 'Full break-even at month ' + r.breakEven
+            + (r.breakEvenProjected ? ', projected' : ', observed')}</span>
         <span class="muted">${fmt.int(r.size)} logos</span>`;
     },
   });
@@ -1396,6 +1417,19 @@ function renderFullCost() {
   const meanCost = avg(shown, 'costPerLogo');
   const meanAcq = avg(shown, 'acquisitionPerLogo');
   const meanOngoing = avg(shown, 'ongoingPerLogo');
+
+  // Break-even is reported as a median rather than a mean, because the cohorts
+  // that never cover themselves have no number to average and dropping them
+  // would report the survivors as though they were everybody.
+  const covered = shown.filter(r => r.breakEven !== null);
+  const never = shown.length - covered.length;
+  const ranked = covered.map(r => r.breakEven).sort((a, b) => a - b);
+  const median = ranked.length
+    ? (ranked.length % 2
+        ? ranked[(ranked.length - 1) / 2]
+        : (ranked[ranked.length / 2 - 1] + ranked[ranked.length / 2]) / 2)
+    : null;
+  const observedBreak = covered.filter(r => !r.breakEvenProjected).length;
 
   $('full-cost-finding').innerHTML =
     `<strong>Charging ${chosen.length} cost group${chosen.length === 1 ? '' : 's'}, `
@@ -1416,13 +1450,36 @@ function renderFullCost() {
     + (assumed > 0.15
         ? ` At this age ${fmt.pct(assumed)} of the cost side is a carried rate rather `
           + `than a measured one, so read the level loosely and the ordering closely.`
-        : '');
+        : '')
+    // The row of numbers along the top, summarised. It does not move with the
+    // slider: break-even is a property of the cohort, not of the age you
+    // happen to be looking at.
+    + (median === null
+        ? ` No cohort covers itself inside ${horizonOf(shown)} months on these costs.`
+        : ` The numbers along the top are months to full break-even, and they do not `
+          + `move with the slider. The median cohort covers everything charged here `
+          + `in ${median} months`
+          + (observedBreak
+              ? `, ${observedBreak} of ${covered.length} of them on months the ledger `
+                + `has actually seen`
+              : ', every one of them on projected months rather than observed ones')
+          + (never
+              ? `. ${never} of ${shown.length} never cover themselves inside `
+                + `${horizonOf(shown)} months and are marked ${horizonOf(shown)}+.`
+              : '.'));
 
   $('full-cost-note').textContent =
     'One bar per cohort, every one measured at the same age, so a young cohort is '
     + 'not penalised for being young. The numerator is revenue rather than gross '
     + 'profit: applying a margin here as well as charging the cost lines would take '
-    + 'the same cost off twice. Ongoing costs are charged month by month against the '
+    + 'the same cost off twice. Revenue here is everything a customer pays — '
+    + 'subscription, message and AI usage, setup and 10DLC registration, and carrier '
+    + 'pass-through — which is about a tenth more than subscription alone. Every '
+    + 'other chart on this page counts subscription only, so this one reads a little '
+    + 'better than they do on the same cohorts, and the difference is real money '
+    + 'rather than a change of method: the hosting and carrier lines in the '
+    + 'denominator are largely there to serve exactly that usage. '
+    + 'Ongoing costs are charged month by month against the '
     + 'logos still present, at that month’s real cost per active logo, so a cohort '
     + 'that loses customers stops paying for them. Acquisition is charged once, in '
     + 'full, in the month the cohort arrived, and divides by that cohort rather than '
@@ -1432,7 +1489,13 @@ function renderFullCost() {
     + 'version of this chart. Months past the end of the ledger carry the mean cost '
     + 'rate of the last three. The groups partition the expense file: every cost row '
     + 'belongs to exactly one, so ticking everything counts each dollar once and '
-    + 'nothing is missed. Revenue and taxes sit outside all of them.';
+    + 'nothing is missed. Revenue and taxes sit outside all of them. '
+    + 'The numbers along the top are months to full break-even, the month cumulative '
+    + 'revenue first covers cumulative cost with the signup month counted as month 1. '
+    + 'They are a property of the cohort rather than of the age being shown, so they '
+    + 'do not move when the slider does — only when the cost boxes change. A cohort '
+    + 'that never covers itself inside five years is marked 60+ rather than given a '
+    + 'number, because that is a different statement from a large one.';
 }
 
 

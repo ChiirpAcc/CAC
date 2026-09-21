@@ -389,6 +389,16 @@ export function buildCohorts(data) {
     const revenue = [];
     const profit = [];
 
+    // Everything a customer pays that is not subscription, kept one stream per
+    // array rather than folded into revenue[]. Every existing chart on this
+    // page is built on subscription alone, and silently widening that would
+    // move twenty of them at once; keeping the streams apart also lets chart 33
+    // switch them on and off individually. Together they are about a tenth more
+    // than subscription over the last twelve months.
+    const usageRevenue = [];
+    const oneTimeRevenue = [];
+    const passThroughRevenue = [];
+
     // Survival, which is not the same as presence.
     //
     // logos[] counts who is present at each age, so a customer who leaves and
@@ -471,17 +481,26 @@ export function buildCohorts(data) {
       let live = 0;
       let mrr = 0;
       let gp = 0;
+      let usage = 0;
+      let oneTime = 0;
+      let passThrough = 0;
       for (const id of ids) {
         if (activeByCustomer.get(id).has(at)) {
           live += 1;
           const row = rowByCustomerMonth.get(id + '|' + at);
           mrr += row ? (row.eopMrr || 0) : 0;
           gp += row ? grossProfit(row) : 0;
+          usage += row ? (row.usage || 0) : 0;
+          oneTime += row ? (row.oneTime || 0) : 0;
+          passThrough += row ? (row.passThrough || 0) : 0;
         }
       }
       logos.push(live);
       revenue.push(mrr);
       profit.push(gp);
+      usageRevenue.push(usage);
+      oneTimeRevenue.push(oneTime);
+      passThroughRevenue.push(passThrough);
       let intact = 0;
       let intactMrr = 0;
       let intactStartingMrr = 0;
@@ -503,7 +522,7 @@ export function buildCohorts(data) {
 
     return { month, size: logos[0] || ids.length, ids, logos, survivors, revenue,
              survivorRevenue, retainedStartingRevenue, cappedRetainedRevenue,
-             profit, maxOffset };
+             profit, usageRevenue, oneTimeRevenue, passThroughRevenue, maxOffset };
   });
 
   const built = cohorts.filter(c => c.size > 0);
@@ -1352,6 +1371,38 @@ export const COST_GROUPS = [
 ];
 
 
+// The revenue side, split the same way the cost side is.
+//
+// Every other chart on this page counts subscription and stops. That is the
+// conservative reading and it is also the wrong one for a recovery ratio: the
+// hosting, carrier and merchant lines sitting in the denominator are largely
+// there to carry exactly the usage that subscription-only leaves out. Over the
+// last twelve months the three non-subscription streams are about a tenth more
+// on top of subscription, so leaving them out is not a rounding choice.
+//
+// They are switches rather than a decision because they are genuinely
+// arguable. Pass-through in particular is money that arrives and leaves again,
+// and a reader who wants it out should be able to take it out and watch what
+// happens rather than be told it does not matter.
+export const REVENUE_GROUPS = [
+  { key: 'subscription', label: 'Subscription', defaultOn: true,
+    hint: 'End-of-period MRR. The only stream every other chart on this page counts.',
+    pick: (c, k) => c.revenue[k] || 0 },
+
+  { key: 'usage', label: 'Usage: message and AI credits', defaultOn: true,
+    hint: 'Metered messaging, AI and voice. The largest of the three.',
+    pick: (c, k) => (c.usageRevenue && c.usageRevenue[k]) || 0 },
+
+  { key: 'setup', label: 'Setup and one-time charges', defaultOn: true,
+    hint: 'Onboarding and setup fees, charged once and mostly in the first month.',
+    pick: (c, k) => (c.oneTimeRevenue && c.oneTimeRevenue[k]) || 0 },
+
+  { key: 'passthrough', label: '10DLC and carrier pass-through', defaultOn: true,
+    hint: 'Registration and carrier fees. Arrives and leaves again, so arguably not ours.',
+    pick: (c, k) => (c.passThroughRevenue && c.passThroughRevenue[k]) || 0 },
+];
+
+
 // Monthly cost per active logo for each group, plus the acquisition total.
 //
 // Everything ongoing divides by the company-wide active logo count for the
@@ -1416,8 +1467,12 @@ export function costRates(data) {
 // will bring and the logos that will still be there to cost money. Projecting
 // one without the other would be the flattering version of this chart: revenue
 // carried forward while the cost of serving it stops.
-export function fullCostRecovery(data, cohorts, { age = 6, groups = null } = {}) {
+export function fullCostRecovery(data, cohorts, { age = 6, groups = null,
+                                                 revenueGroups = null,
+                                                 horizon = 60 } = {}) {
   const on = groups || new Set(COST_GROUPS.filter(g => g.defaultOn).map(g => g.key));
+  const revOn = revenueGroups
+    || new Set(REVENUE_GROUPS.filter(g => g.defaultOn).map(g => g.key));
   const offset = age - 1;
   const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
   const { rates, carried, lastMonth } = costRates(data);
@@ -1432,6 +1487,19 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null } = {})
     return { total, measured: rates.has(month) };
   };
 
+  // What a customer pays, counting only the streams switched on. Charging every
+  // cost against subscription alone would be asking the wrong question: the
+  // hosting and carrier lines in the denominator are largely there to serve
+  // exactly the usage that leaves out.
+  const streams = REVENUE_GROUPS.filter(g => revOn.has(g.key));
+  const paid = (cohort, k) => {
+    let total = 0;
+    for (const s of streams) total += s.pick(cohort, k);
+    return total;
+  };
+
+  if (!streams.length) return [];
+
   return cohorts.map(cohort => {
     const spend = cac.get(cohort.month);
     const acquisition = on.has('acquisition') && spend !== undefined ? spend : 0;
@@ -1441,9 +1509,15 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null } = {})
     if (on.has('acquisition') && (spend === undefined || !cohort.size)) {
       return { month: cohort.month, size: cohort.size, ratio: null, observed: null,
                projected: null, costPerLogo: null, revenuePerLogo: null,
+               breakEven: null, breakEvenProjected: false,
                complete: false, monthsObserved: cohort.maxOffset + 1 };
     }
 
+    // One walk forward, long enough to answer both questions. The ratio stops
+    // at the chosen age; break-even keeps going until the cohort has covered
+    // itself or the horizon runs out, because a break-even that only ever
+    // reported ages the slider happened to be sitting on would be useless.
+    const deepest = Math.max(offset, horizon);
     let observedRevenue = 0;
     let projectedRevenue = 0;
     let ongoing = 0;
@@ -1451,19 +1525,26 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null } = {})
     let carriedRevenue = null;
     let carriedLogos = null;
 
-    for (let k = 0; k <= offset; k += 1) {
+    let cumRevenue = 0;
+    let cumCost = acquisition;
+    let breakEven = null;
+    let breakEvenProjected = false;
+
+    for (let k = 0; k <= deepest; k += 1) {
       const month = monthAdd(cohort.month, k);
       const { total: rate, measured } = rateAt(month);
 
       let logos;
-      if (k <= cohort.maxOffset) {
-        observedRevenue += cohort.revenue[k];
+      let revenue;
+      const seen = k <= cohort.maxOffset;
+      if (seen) {
+        revenue = paid(cohort, k);
         logos = cohort.logos[k];
       } else {
         const step = path.has(k) ? path.get(k) : terminal;
-        carriedRevenue = (carriedRevenue === null ? cohort.revenue[cohort.maxOffset]
+        carriedRevenue = (carriedRevenue === null ? paid(cohort, cohort.maxOffset)
                                                   : carriedRevenue) * step;
-        projectedRevenue += carriedRevenue;
+        revenue = carriedRevenue;
 
         const logoStep = logoPath.path.has(k) ? logoPath.path.get(k) : logoPath.terminal;
         carriedLogos = (carriedLogos === null ? cohort.logos[cohort.maxOffset]
@@ -1472,8 +1553,21 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null } = {})
       }
 
       const cost = rate * logos;
-      ongoing += cost;
-      if (!measured || k > cohort.maxOffset) assumedCost += cost;
+
+      if (k <= offset) {
+        if (seen) observedRevenue += revenue; else projectedRevenue += revenue;
+        ongoing += cost;
+        if (!measured || !seen) assumedCost += cost;
+      }
+
+      if (breakEven === null) {
+        cumRevenue += revenue;
+        cumCost += cost;
+        if (cumRevenue >= cumCost) {
+          breakEven = k + 1;
+          breakEvenProjected = !seen;
+        }
+      }
     }
 
     const totalCost = acquisition + ongoing;
@@ -1494,9 +1588,16 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null } = {})
       ratio: totalCost > 0 ? revenue / totalCost : null,
       observed: totalCost > 0 ? observedRevenue / totalCost : null,
       projected: totalCost > 0 ? projectedRevenue / totalCost : null,
-      // How much of the cost side is a carried rate rather than a measured
-      // one, so the chart can say when it is mostly describing its own
-      // assumptions.
+      // The month cumulative revenue first covers cumulative cost, counting
+      // the signup month as month 1. Null means it has not covered itself
+      // inside the horizon, which is a different statement from a large
+      // number and is drawn differently.
+      breakEven,
+      // Whether that crossing happened in a month anybody has observed or in
+      // a projected one. A break-even the model reached on its own is worth
+      // less than one the ledger did.
+      breakEvenProjected,
+      horizon,
       assumedCostShare: totalCost > 0 ? assumedCost / totalCost : null,
     };
   });

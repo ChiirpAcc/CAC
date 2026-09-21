@@ -694,3 +694,17 @@ figcaption { margin-bottom: .9rem; }
   color: var(--ink-soft);
   margin-top: .05rem;
 }
+
+.column-label {
+  font-size: 9px;
+  text-anchor: middle;
+  fill: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.column-label-over { fill: var(--series-neg); }
+.column-label-title {
+  font-size: 9.5px;
+  fill: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}

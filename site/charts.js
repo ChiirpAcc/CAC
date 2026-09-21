@@ -351,7 +351,8 @@ function hatchPattern(svg, colour) {
 export function stackedColumnChart(container, { labels, observed, projected,
                                                 yFormat = fmt.int, describe, colourFor,
                                                 colour = INK.primary, refs = [], yMax = null,
-                                                legendItems = null }) {
+                                                legendItems = null, columnLabels = null,
+                                                columnLabelTitle = null }) {
   const svg = makeSvg(container);
   const totals = labels.map((_, i) => {
     const seen = observed[i];
@@ -396,6 +397,26 @@ export function stackedColumnChart(container, { labels, observed, projected,
   });
 
   for (const ref of refs) referenceLine(svg, y, ref.value, ref.label, ref.variant || '');
+
+  // A second number per column, printed along the top rather than given its
+  // own axis. It answers a different question from the bar height and has a
+  // different unit, so drawing it as a line would invite reading the two
+  // against each other. Dropped entirely once the columns are too narrow to
+  // carry a legible label.
+  if (columnLabels && band.width >= 13) {
+    if (columnLabelTitle) {
+      el('text', { x: plot.x0, y: plot.y0 - 6, class: 'column-label-title' }, svg)
+        .textContent = columnLabelTitle;
+    }
+    columnLabels.forEach((text, i) => {
+      if (text === null || text === undefined || text === '') return;
+      el('text', {
+        x: band.centre(i), y: plot.y0 + 8,
+        class: 'column-label' + (String(text).endsWith('+') ? ' column-label-over' : ''),
+      }, svg).textContent = text;
+    });
+  }
+
   xLabels(svg, labels, band);
   attachHover(svg, container, band, labels.length, describe);
   if (legendItems) legend(container, legendItems);
