@@ -120,19 +120,10 @@ LIVE_EVENTS = {"new", "reactivation", "flat", "expansion", "contraction"}
 
 def read_months():
     mrr = defaultdict(dict)
-    joined = defaultdict(dict)
     for row in load("customer_waterfall.json")["rows"]:
         if row.get("event_type") not in LIVE_EVENTS:
             continue
         mrr[row["month"]][row["customer_id"]] = number(row.get("eop_mrr")) or 0.0
-        # The month's own intake, kept separately. These animations used to
-        # follow everyone active in a starting month, which put a question
-        # about new customers on a denominator that is mostly tenured ones and
-        # left them measuring something different from the retention curve they
-        # sit beside. Following the arrivals instead puts every chart in this
-        # family on one footing.
-        if row.get("event_type") == "new":
-            joined[row["month"]][row["customer_id"]] = number(row.get("eop_mrr")) or 0.0
 
     waterfall = {r["month"]: r for r in load("waterfall_summary.json")["rows"]}
     last = max(mrr)
@@ -149,7 +140,7 @@ def read_months():
     # the recent thin-intake months only the short horizons could reach.
     # Inside the window, not merely the most recent 24 that qualify.
     anchor = set(m for m in eligible(max(HORIZONS)) if m >= HISTORY_STARTS)
-    return mrr, joined, waterfall, last, eligible, anchor
+    return mrr, waterfall, last, eligible, anchor
 
 
 def fit(xs, ys):
@@ -320,7 +311,7 @@ def build_ltv_by_age():
 
     save(frames, OUT / "ltv_cac_by_age.gif")
 
-def build_arrivals_by_month(mrr, joined, waterfall, eligible, anchor):
+def build_arrivals_by_month(mrr, waterfall, eligible, anchor):
     """The same scatter, built one starting month at a time.
 
     The horizon animation asks whether the relationship changes as churn is
@@ -345,7 +336,7 @@ def build_arrivals_by_month(mrr, joined, waterfall, eligible, anchor):
     months = [m for m in eligible(HORIZON) if m in anchor]
     xs, ys = [], []
     for month in months:
-        base = joined[month]
+        base = mrr[month]
         later = set(mrr[month_add(month, HORIZON)])
         xs.append(waterfall[month]["new_logos"])
         ys.append(1 - sum(1 for c in base if c in later) / len(base))
@@ -380,7 +371,7 @@ def build_arrivals_by_month(mrr, joined, waterfall, eligible, anchor):
 
     save(frames, OUT / "arrivals_by_month.gif")
 
-def build_by_price(mrr, joined, waterfall, eligible, anchor):
+def build_by_price(mrr, waterfall, eligible, anchor):
     """The same scatter, each month split at its own median subscription.
 
     Restored because the question it answers is one the single cloud cannot:
@@ -391,8 +382,7 @@ def build_by_price(mrr, joined, waterfall, eligible, anchor):
 
     The two clouds overlap heavily, and that is the honest picture of a
     comparison made between months. The paired test that conditions on the
-    month is what separates them, and it clears significance from four months
-    onward. At one, two and three the gap has the same sign and does not clear.
+    month is what separates them, and it clears significance at every horizon.
     """
     y_pct = lambda v: f"{v * 100:.0f}%"
     frames = []
@@ -400,7 +390,7 @@ def build_by_price(mrr, joined, waterfall, eligible, anchor):
         months = [m for m in eligible(horizon) if m in anchor]
         xs, low, high, diffs = [], [], [], []
         for month in months:
-            base = joined[month]
+            base = mrr[month]
             later = set(mrr[month_add(month, horizon)])
             median = sorted(base.values())[len(base) // 2]
             cheap = [c for c, v in base.items() if v <= median]
@@ -454,7 +444,7 @@ def build_by_price(mrr, joined, waterfall, eligible, anchor):
 
 def build():
     OUT.mkdir(parents=True, exist_ok=True)
-    mrr, joined, waterfall, last, eligible, anchor = read_months()
+    mrr, waterfall, last, eligible, anchor = read_months()
 
     # Same anchored window the interactive chart uses: every horizon is
     # measured from the same starting months, so moving through the horizons
@@ -467,7 +457,7 @@ def build():
         months = [m for m in eligible(horizon) if m in anchor]
         xs, whole = [], []
         for month in months:
-            base = joined[month]
+            base = mrr[month]
             later = set(mrr[month_add(month, horizon)])
             xs.append(waterfall[month]["new_logos"])
             whole.append(1 - sum(1 for c in base if c in later) / len(base))
@@ -498,8 +488,8 @@ def build():
         frames.append(image)
     save(frames, OUT / "arrivals_vs_churn.gif")
 
-    build_arrivals_by_month(mrr, joined, waterfall, eligible, anchor)
-    build_by_price(mrr, joined, waterfall, eligible, anchor)
+    build_arrivals_by_month(mrr, waterfall, eligible, anchor)
+    build_by_price(mrr, waterfall, eligible, anchor)
 
     print()
     print("  horizon   r        per 10 fewer     verdict")

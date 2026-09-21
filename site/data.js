@@ -2365,14 +2365,6 @@ export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
 
   const arrivals = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
 
-  // Who actually arrived in each month, so the cohort followed forward is the
-  // same population the x axis counts.
-  const joined = new Map();
-  for (const row of data.customers) {
-    if (row.eventType !== 'new' || !row.active) continue;
-    if (!joined.has(row.month)) joined.set(row.month, new Set());
-    joined.get(row.month).add(row.id);
-  }
   const all = [...active.keys()].sort();
   const last = all[all.length - 1];
 
@@ -2390,23 +2382,25 @@ export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
   const anchor = new Set(eligible(maxHorizon).slice(-windows));
   const months = eligible(horizon).filter(m => anchor.has(m));
 
-  // The month's own intake, not the whole standing base.
+  // Everyone active in the starting month, followed forward.
   //
-  // This used to take everyone active in the starting month and follow that
-  // set forward, which put a question about new customers on a denominator
-  // that is mostly tenured ones. It also put this chart on a different footing
-  // from chart 8, so the two disagreed about whether anybody leaves in their
-  // first month: chart 8 followed intakes and this followed the base. Now both
-  // follow intakes, and the one month setting here is the same measurement as
-  // chart 8's first step.
+  // Briefly changed to follow the month's own intake instead, so this and
+  // chart 8 measured the same population. That was not needed: what made the
+  // two disagree was a sample rule inside chart 8, and fixing that removed the
+  // contradiction on its own. Following the intake also cost most of the
+  // precision here, since a month brings about forty five customers against a
+  // standing base of eleven hundred, and on forty five the values quantise in
+  // two point steps and a month with no departures reads as a flat zero. The
+  // question this chart asks is whether a thin month costs the business
+  // customers, which is about the book rather than the intake, so the book is
+  // what it follows.
   const points = months.map(month => {
-    const base = joined.get(month) || new Set();
-    if (!base.size) return null;
+    const base = active.get(month);
     const later = active.get(monthAdd(month, horizon)) || new Set();
     let kept = 0;
     for (const id of base) if (later.has(id)) kept += 1;
     return { month, x: arrivals.get(month), y: 1 - kept / base.size, base: base.size };
-  }).filter(Boolean);
+  });
 
   const n = points.length;
   if (n < 4) return { horizon, points, n, r: null, slope: null, low: null, high: null };
