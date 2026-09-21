@@ -2563,6 +2563,7 @@ function renderHorizons() {
   const sign = v => (v >= 0 ? '+' : '') + v.toFixed(2);
   const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
   const lift = withPoints.map(a => ({ hz: a.hz, level: mean(a.points.map(p => p.y)) }));
+  const clears = withPoints.filter(a => a.significant);
   const first = lift[0];
   const last = lift[lift.length - 1];
 
@@ -2574,8 +2575,17 @@ function renderHorizons() {
     + `${fmt.pct(first.level, 1)} at ${first.hz} month to ${fmt.pct(last.level, 1)} at `
     + `${last.hz} months, while the correlation runs `
     + `${withPoints.map(a => `${a.hz}mo ${a.r === null ? '--' : sign(a.r)}`).join(', ')}. `
-    + `None of them clears zero, so however long churn is given to happen, months with fewer `
-    + `arrivals do not churn more.`;
+    + (clears.length === 0
+      ? `None of them clears zero, so however long churn is given to happen, months with fewer `
+        + `arrivals do not churn more.`
+      : `${clears.length} of ${withPoints.length} clears zero, at `
+        + `${clears.map(a => `${a.hz} month${a.hz === 1 ? '' : 's'}`).join(' and ')}, and it `
+        + `points the wrong way for the theory: the sign there says months with more arrivals `
+        + `churn more, not fewer. Six horizons are tested, so one marginal result is about what `
+        + `chance produces, and the correlation changes sign across the range rather than `
+        + `holding a direction, which is the signature of noise rather than an effect. The `
+        + `reading stays that no relationship has been measured, but it is one marginal result `
+        + `short of clean.`);
 
   $('horizons-note').textContent =
     `Both axes are fixed across all six settings, computed once from every point at every `

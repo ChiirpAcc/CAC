@@ -709,10 +709,13 @@ export function departures(data) {
 // paying less. The first step is the exception and is not churn at all, it is
 // the first month's charge dropping out.
 //
-// The check that matters is the last one. The donors are the older cohorts by
-// construction, since only they have twelve months behind them. If the recent
-// cohorts churned faster, projecting them along the donor path would
-// understate their churn and flatter their LTV. They do not.
+// The check that matters is the last one. The donors skew old by construction,
+// since a cohort needs months behind it to contribute a path, and at a twelve
+// month threshold that excluded every 2026 cohort outright and built the path
+// projecting them entirely out of the two years that retained better. Six
+// months lets the newest cohorts into the steps they have. The deep steps
+// still come from older cohorts and always will, which is why the comparison
+// below is run and reported rather than assumed.
 export function projectionBasis(cohorts) {
   const { donors, path, terminal } = donorTrajectory(cohorts);
   const donorSet = new Set(donors.map(c => c.month));
@@ -744,7 +747,7 @@ export function projectionBasis(cohorts) {
 
   return {
     donors: donors.length,
-    minMonths: 12,
+    minMonths: 6,
     terminal,
     revenueStep,
     donorSurvival,
@@ -1684,7 +1687,14 @@ function terminalRate(path, depth = 6, counts = null, minDonors = 1) {
 // cost-per-logo figures: one number, two implementations, and the quiet one
 // stays wrong.
 export function donorTrajectory(cohorts) {
-  const donors = cohorts.filter(c => c.month >= '2023-01' && c.maxOffset >= 12);
+  // Donors need enough history to be worth pooling, but requiring a full year
+  // of it excluded every recent cohort by construction: nothing from 2026 can
+  // be twelve months old, so the path projecting 2026 cohorts was built
+  // entirely from 2024 and 2025, the era that retained better. Six months
+  // lets the newest cohorts contribute to the steps they actually have while
+  // the deep steps still fall back on the older ones, which is unavoidable and
+  // is what the per-step donor count below makes visible.
+  const donors = cohorts.filter(c => c.month >= '2023-01' && c.maxOffset >= 6);
   const numerator = new Map();
   const denominator = new Map();
   const counts = new Map();
@@ -2353,6 +2363,15 @@ export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
   }
 
   const arrivals = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+
+  // Who actually arrived in each month, so the cohort followed forward is the
+  // same population the x axis counts.
+  const joined = new Map();
+  for (const row of data.customers) {
+    if (row.eventType !== 'new' || !row.active) continue;
+    if (!joined.has(row.month)) joined.set(row.month, new Set());
+    joined.get(row.month).add(row.id);
+  }
   const all = [...active.keys()].sort();
   const last = all[all.length - 1];
 
@@ -2370,13 +2389,23 @@ export function arrivalsAgainstChurn(data, { horizon = 4, windows = 24 } = {}) {
   const anchor = new Set(eligible(maxHorizon).slice(-windows));
   const months = eligible(horizon).filter(m => anchor.has(m));
 
+  // The month's own intake, not the whole standing base.
+  //
+  // This used to take everyone active in the starting month and follow that
+  // set forward, which put a question about new customers on a denominator
+  // that is mostly tenured ones. It also put this chart on a different footing
+  // from chart 8, so the two disagreed about whether anybody leaves in their
+  // first month: chart 8 followed intakes and this followed the base. Now both
+  // follow intakes, and the one month setting here is the same measurement as
+  // chart 8's first step.
   const points = months.map(month => {
-    const base = active.get(month);
+    const base = joined.get(month) || new Set();
+    if (!base.size) return null;
     const later = active.get(monthAdd(month, horizon)) || new Set();
     let kept = 0;
     for (const id of base) if (later.has(id)) kept += 1;
     return { month, x: arrivals.get(month), y: 1 - kept / base.size, base: base.size };
-  });
+  }).filter(Boolean);
 
   const n = points.length;
   if (n < 4) return { horizon, points, n, r: null, slope: null, low: null, high: null };
