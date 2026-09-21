@@ -1339,6 +1339,17 @@ export function blendedRetention(cohorts, { minAtRisk = 150, minCohorts = 4, max
       atRisk: logoBase,
     });
   }
+
+  // Where the logo line reads better than the month before. Survival cannot
+  // rise, so it is always a cohort ageing out of the sample. Detected rather
+  // than described, because the sample thins as the line runs right and which
+  // months kink will move as new data lands.
+  points.rises = points.filter((p, i) => i > 0 && p.logos > points[i - 1].logos + 1e-9)
+    .map(p => {
+      const before = points[points.indexOf(p) - 1];
+      return { offset: p.offset, from: before.logos, to: p.logos,
+               lostFromSample: before.atRisk - p.atRisk };
+    });
   return points;
 }
 

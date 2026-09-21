@@ -977,20 +977,27 @@ function renderStatic() {
       + `part-billed first month, so indexing there turns a one-off charge ending into an `
       + `apparent cliff. Indexing both the same way is what makes the gap between them mean `
       + `something: it is expansion and contraction among the survivors and nothing else. The `
-      + `logo line is survival, so a customer who leaves and returns is not counted twice and `
-      + `it can only fall. At each age the count is every cohort that has had that long to run, `
+      + `logo line is survival, so a customer who leaves and returns is not counted twice. `
+      + `At each age the count is every cohort that has had that long to run, `
       + `the same rule chart 8 uses, so the sample shrinks as the line goes right: it starts on `
       + `${blended[0].cohorts} cohorts and ${fmt.int(blended[0].atRisk)} customers and is `
       + `stopped at month ${blended[blended.length - 1].offset}, where `
       + `${blended[blended.length - 1].cohorts} cohorts and `
       + `${fmt.int(blended[blended.length - 1].atRisk)} customers remain. `
-      + `The step at the right hand end is an age effect and not a calendar one. Revenue per `
-      + `surviving customer falls about a fifth in the thirteenth month for cohorts of every `
-      + `vintage, from the 2024-09 intake reaching that age in September 2025 to the 2025-08 `
-      + `intake reaching it in August 2026, while the head count those months behaves `
-      + `normally. Read by calendar month instead, no month since mid-2025 moves more than a `
-      + `few points, so there is no shared shock to find. What the rows show at that age is `
-      + `customers booked as a contraction to zero MRR and still counted as present.`
+      + (blended.rises && blended.rises.length
+        ? `Where the logo line reads better than the month before it is the sample changing, `
+          + `not customers returning, which survival forbids: `
+          + blended.rises.map(r => `month ${r.offset} rises as `
+            + `${fmt.int(r.lostFromSample)} customers age out of the count`).join(', ')
+          + `. `
+        : '')
+      + `The step a year in is an age effect and not a calendar one. Revenue per surviving `
+      + `customer falls about a fifth twelve months after signup for cohorts of every vintage, `
+      + `from the 2024-09 intake reaching that age in September 2025 to the 2025-08 intake `
+      + `reaching it in August 2026, while the head count those months behaves normally. Read `
+      + `by calendar month instead, no month since mid-2025 moves more than a few points, so `
+      + `there is no shared shock to find. What the rows show at that age is customers booked `
+      + `as a contraction to zero MRR and still counted as present.`
     : 'Not enough cohort history yet.';
 
   // 5. Monthly logo churn, both ways of counting it.
