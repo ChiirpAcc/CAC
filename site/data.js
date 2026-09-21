@@ -1302,43 +1302,41 @@ export function acquisitionCosts(data, { months = 12 } = {}) {
   };
 }
 
-// Blended retention, indexed to month 2.
+// The whole book pooled, in logos and in money, on the same basis as chart 8.
 //
-// Month 1 carries setup and onboarding fees, so indexing there turns a
-// one-off charge ending into what reads as a cliff. The sample rule keeps the
-// tail from being drawn by a handful of old cohorts.
-export function blendedRetention(cohorts, { minCohorts = 12, maxMonths = 24 } = {}) {
-  // One sample for the whole curve, not one per point.
-  //
-  // Recomputing the sample at every age meant each point was drawn from a
-  // different set of cohorts: 23 of them at month 2, twelve by month 13. The
-  // curve then moved when its membership moved rather than when retention did,
-  // and the last step dropped revenue fourteen points against four for logos
-  // purely because the cohorts behind it had changed. Same fault the era chart
-  // had, same fix: take the cohorts that reach the far end and read every
-  // point off those.
+// At each age the count is every customer of every cohort that has had that
+// long to run, so nothing is excluded for being young and the line stops where
+// the time does. The sample therefore shrinks as the line runs right, and the
+// count behind each point is returned so the chart can show it.
+//
+// Both lines are indexed to month 1 rather than month 0. Month 0 carries the
+// joining charge that was booked as MRR until mid-2025 and a part-billed first
+// month besides, so indexing there would put a fee dropping out into the
+// revenue line as though it were churn. Indexing both the same way is what
+// makes the gap between them mean something: it is expansion and contraction
+// among the survivors and nothing else.
+export function blendedRetention(cohorts, { minAtRisk = 150, minCohorts = 4, maxMonths = 24 } = {}) {
   const eligible = cohorts.filter(c => c.survivors[1] > 0);
-  let reach = 0;
-  for (let offset = Math.min(maxMonths - 1, 23); offset >= 1; offset -= 1) {
-    if (eligible.filter(c => c.maxOffset >= offset).length >= minCohorts) { reach = offset; break; }
-  }
-  if (!reach) return [];
-
-  const inSample = eligible.filter(c => c.maxOffset >= reach);
-  const logoBase = inSample.reduce((sum, c) => sum + c.survivors[1], 0);
-  const revenueBase = inSample.reduce((sum, c) => sum + c.survivorRevenue[1], 0);
+  if (!eligible.length) return [];
 
   const points = [];
-  for (let offset = 1; offset <= reach; offset += 1) {
+  for (let age = 1; age < maxMonths; age += 1) {
+    const live = eligible.filter(c => c.maxOffset >= age);
+    const logoBase = live.reduce((s, c) => s + c.survivors[1], 0);
+    const revenueBase = live.reduce((s, c) => s + (c.survivorRevenue[1] || 0), 0);
+    // A tail resting on one or two cohorts is the oldest customers talking,
+    // not the book, so the line stops before it gets there.
+    if (live.length < minCohorts || logoBase < minAtRisk) break;
     points.push({
-      offset: offset + 1,
-      // Both lines on the survivors, so the gap between them is expansion and
+      offset: age,
+      logos: logoBase ? live.reduce((s, c) => s + c.survivors[age], 0) / logoBase : null,
+      // Both on the survivors, so the gap between the lines is expansion and
       // contraction among the customers who stayed rather than a difference in
       // who is being counted.
-      logos: logoBase ? inSample.reduce((s, c) => s + c.survivors[offset], 0) / logoBase : null,
       revenue: revenueBase
-        ? inSample.reduce((s, c) => s + c.survivorRevenue[offset], 0) / revenueBase : null,
-      cohorts: inSample.length,
+        ? live.reduce((s, c) => s + (c.survivorRevenue[age] || 0), 0) / revenueBase : null,
+      cohorts: live.length,
+      atRisk: logoBase,
     });
   }
   return points;
@@ -1348,12 +1346,15 @@ export function blendedRetention(cohorts, { minCohorts = 12, maxMonths = 24 } = 
 // Retention at a fixed age, one point per cohort. A cohort is only plotted
 // once that age is behind it, otherwise its last observed month doubles as
 // its retention and every recent cohort reads as perfect.
-export function retentionAtAge(cohorts, offset) {
+export function retentionAtAge(cohorts, age) {
   return cohorts.map(cohort => {
-    if (cohort.maxOffset < offset || !cohort.survivors[1]) {
+    if (cohort.maxOffset < age || !cohort.survivors[0]) {
       return { month: cohort.month, value: null };
     }
-    return { month: cohort.month, value: cohort.survivors[offset] / cohort.survivors[1] };
+    // Against the signup month, so age 6 means six months after signing up
+    // rather than five. Indexing to the second month, as this did, quietly
+    // made every figure one month younger than its label.
+    return { month: cohort.month, value: cohort.survivors[age] / cohort.survivors[0] };
   });
 }
 

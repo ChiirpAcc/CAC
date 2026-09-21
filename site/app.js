@@ -964,12 +964,17 @@ function renderStatic() {
     },
   });
   $('retention-note').textContent = blended.length
-    ? `Indexed to month 2, because month 1 carries setup and onboarding fees and indexing there `
-      + `turns a one-off charge ending into an apparent cliff. The logo line is survival, so a `
-      + `customer who leaves and returns is not counted twice and the line can only fall. Held to `
-      + `a 24 month horizon and drawn while at least ${blended[blended.length - 1].cohorts} `
-      + `cohorts remain in sample, which carries it to month ${blended[blended.length - 1].offset}, `
-      + `on one sample throughout rather than a different one at every age. `
+    ? `Both lines indexed to month 1, because month 0 carries setup and onboarding fees and a `
+      + `part-billed first month, so indexing there turns a one-off charge ending into an `
+      + `apparent cliff. Indexing both the same way is what makes the gap between them mean `
+      + `something: it is expansion and contraction among the survivors and nothing else. The `
+      + `logo line is survival, so a customer who leaves and returns is not counted twice and `
+      + `it can only fall. At each age the count is every cohort that has had that long to run, `
+      + `the same rule chart 8 uses, so the sample shrinks as the line goes right: it starts on `
+      + `${blended[0].cohorts} cohorts and ${fmt.int(blended[0].atRisk)} customers and is `
+      + `stopped at month ${blended[blended.length - 1].offset}, where `
+      + `${blended[blended.length - 1].cohorts} cohorts and `
+      + `${fmt.int(blended[blended.length - 1].atRisk)} customers remain. `
       + `The step at the right hand end is an age effect and not a calendar one. Revenue per `
       + `surviving customer falls about a fifth in the thirteenth month for cohorts of every `
       + `vintage, from the 2024-09 intake reaching that age in September 2025 to the 2025-08 `
@@ -1034,9 +1039,9 @@ function renderStatic() {
 
   // 6. Retention at month 3 and month 6, one point per cohort.
   const windowed = cohorts.slice(-COHORT_WINDOW);
-  const m3 = retentionAtAge(windowed, 2);
-  const m6 = retentionAtAge(windowed, 5);
-  const m12 = retentionAtAge(windowed, 11);
+  const m3 = retentionAtAge(windowed, 3);
+  const m6 = retentionAtAge(windowed, 6);
+  const m12 = retentionAtAge(windowed, 12);
 
   // Two clouds of dots with a flat mean through each made the comparison
   // between the ages easy and the trend within each age nearly invisible,
@@ -2036,8 +2041,8 @@ function renderAnnotations() {
   ]);
 
   const windowed = cohorts.slice(-COHORT_WINDOW);
-  const m3 = mean(retentionAtAge(windowed, 2).map(p => p.value));
-  const m6 = mean(retentionAtAge(windowed, 5).map(p => p.value));
+  const m3 = mean(retentionAtAge(windowed, 3).map(p => p.value));
+  const m6 = mean(retentionAtAge(windowed, 6).map(p => p.value));
   annotate('chart-age-retention', [
     `<strong>Month 3 averages ${fmt.pct(m3, 1)} and month 6 averages ${fmt.pct(m6, 1)}</strong>, so about ${((m3 - m6) * 100).toFixed(0)} points of a cohort is lost between those two ages.`,
     'The spread between cohorts at the same age is wide, which means cohort quality varies more than the blended curve suggests.',
