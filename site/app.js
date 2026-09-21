@@ -1117,11 +1117,15 @@ function renderServeTeams() {
     + 'general cost of sales account rather than a named team, which is a reporting '
     + 'limit rather than a finding: half the cost of serving customers is not '
     + 'attributed to anybody in the source. One line here '
-    + 'is worth flagging upstream: the affiliate marketing spend sitting inside cost '
-    + 'of sales is an acquisition cost by any normal reading, and it appears nowhere '
-    + 'in the acquisition table. It is not double counted, but it is on the wrong '
-    + 'side, and moving it would raise cost per logo and improve gross margin at the '
-    + 'same time.';
+    + 'is worth explaining, because it looks wrong and is not: the Sales & Marketing '
+    + 'line inside cost of sales. That is the Service Titan revenue share and partner '
+    + 'rebates, both paid on what customers who have already been won go on to bill. '
+    + 'They scale with those customers’ usage, they recur while the customer '
+    + 'stays, and they would carry on if acquisition stopped tomorrow, so they belong '
+    + 'here rather than in the acquisition table. Strictly they are contra-revenue '
+    + 'and sit in cost of sales because there is nothing to net them against. They '
+    + 'are counted once: the acquisition total reconciles from its own categories '
+    + 'with no affiliate line in it.';
 }
 
 

@@ -1354,8 +1354,15 @@ export const COST_GROUPS = [
     match: r => (r.bucket === 'COGS' && /^5050-[12]0/.test(r.section || ''))
       || (r.bucket === 'SPLIT' && !/Partnerships/i.test(r.account || '')) },
 
-  { key: 'affiliate', label: 'Affiliate and other S&M booked to cost of sales', defaultOn: true,
-    hint: 'Sits in cost of sales in the source. It is an acquisition cost by any normal reading.',
+  // Booked to cost of sales, and correctly: this is the Service Titan revenue
+  // share and partner rebates, both paid on revenue from customers already
+  // won. They scale with what those customers bill, they recur while the
+  // customer stays, and they would carry on if acquisition stopped tomorrow.
+  // Strictly it is contra-revenue; it sits in cost of sales because there is
+  // nothing here to net it against.
+  { key: 'revshare', label: 'Revenue share and partner rebates', defaultOn: true,
+    hint: 'Paid on what existing customers bill, so it recurs while they stay. '
+        + 'A cost of keeping them, not of winning them.',
     match: r => r.bucket === 'COGS' && /^6100-00/.test(r.section || '') },
 
   { key: 'ga', label: 'General and administrative', defaultOn: false,
