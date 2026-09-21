@@ -188,7 +188,7 @@ const INK = {
 // A single line over months.
 export function lineChart(container, { labels, values, yFormat = fmt.int, describe,
                                        colour = INK.primary, yMin = null, yMax = null,
-                                       refs = [], area = false }) {
+                                       refs = [], area = false, legendItems = null }) {
   const svg = makeSvg(container);
   const real = values.filter(v => v !== null && Number.isFinite(v));
   if (!real.length) { container.innerHTML = '<p class="empty">No data.</p>'; return; }
@@ -226,6 +226,7 @@ export function lineChart(container, { labels, values, yFormat = fmt.int, descri
 
   xLabels(svg, labels, band);
   attachHover(svg, container, band, labels.length, describe);
+  if (legendItems) legend(container, legendItems);
 }
 
 // Several lines sharing an axis.

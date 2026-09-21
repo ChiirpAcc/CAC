@@ -104,7 +104,10 @@ function projectionCheck(b) {
     + `unchanged, so a bar far past its last observed month is an extrapolation, not a forecast.`;
 }
 
-function buildToggles(id, definitions) {
+// The redraw is a parameter. It was hardcoded to renderFullCost, so chart 28
+// reused this helper and silently redrew chart 33 instead of itself: ticking a
+// box moved nothing a reader could see.
+function buildToggles(id, definitions, onChange = renderFullCost) {
   const box = $(id);
   if (!box || box.dataset.ready) return;
 
@@ -123,7 +126,7 @@ function buildToggles(id, definitions) {
     grid.append(label);
   }
   box.append(grid);
-  box.addEventListener('change', renderFullCost);
+  box.addEventListener('change', onChange);
   box.dataset.ready = '1';
 }
 
@@ -1063,7 +1066,7 @@ function renderContribution() {
   // divides by NEW logos and everything here divides by ACTIVE ones, so
   // putting it on this chart would invite subtracting one from the other.
   const groups = COST_GROUPS.filter(g => !g.once);
-  buildToggles('contribution-groups', groups);
+  buildToggles('contribution-groups', groups, renderContribution);
   const on = ticked('contribution-groups');
 
   const rates = costRates(data);
@@ -2144,16 +2147,49 @@ function renderForward() {
     + ', best read as large rather than as a p-value.';
 
   // 12. The same thing as one number per starting month.
+  const monthsWord = horizon + ' month' + (horizon === 1 ? '' : 's');
   lineChart($('chart-forward-trend'), {
     labels: starts.map(s => fmt.monthLabel(s.month)),
     values: starts.map(s => s.survival),
     colour: INK.negative,
     yFormat: v => fmt.pct(v),
-    refs: [{ value: fw.earlier.rate, label: 'earlier average', variant: 'ref-floor' }],
+    refs: [
+      { value: fw.earlier.rate,
+        label: 'average of the earlier ' + earlier.length, variant: 'ref-floor' },
+      { value: fw.recent.rate,
+        label: 'average of the latest ' + recent.length, variant: 'ref-goal' },
+    ],
+    // The chart drew one unlabelled line against one unlabelled dashed rule,
+    // which left the reader to guess what either was.
+    legendItems: [
+      { label: 'Share of that month’s base still active ' + monthsWord + ' later',
+        colour: 'var(--series-neg)' },
+      { label: 'Average of the earlier ' + earlier.length + ' starting months',
+        colour: 'var(--series-neg)' },
+      { label: 'Average of the latest ' + recent.length, colour: 'var(--series-pos)' },
+    ],
     describe: i => '<strong>' + starts[i].month + ' start</strong>'
-      + '<span>' + fmt.pct(starts[i].survival, 1) + ' still active four months on</span>'
+      + '<span>' + fmt.pct(starts[i].survival, 1) + ' still active ' + monthsWord + ' on</span>'
       + '<span class="muted">' + fmt.int(starts[i].n) + ' active at the start</span>',
   });
+
+  const best = starts.reduce((a, b) => (b.survival > a.survival ? b : a));
+  const worst = starts.reduce((a, b) => (b.survival < a.survival ? b : a));
+  $('forward-trend-finding').innerHTML =
+    '<strong>Each point is one starting month: take everyone active in it, wait '
+    + monthsWord + ', and count who is left.</strong> '
+    + 'The line runs from ' + fmt.pct(worst.survival, 1) + ' in '
+    + fmt.monthLabel(worst.month) + ' to ' + fmt.pct(best.survival, 1) + ' in '
+    + fmt.monthLabel(best.month) + ' across ' + starts.length + ' starting months. '
+    + 'The two rules are the period averages the chart above compares, so a point below '
+    + 'the lower rule is a month that did worse than the recent average rather than '
+    + 'merely worse than history. '
+    + (fw.recent.rate < fw.earlier.rate
+        ? 'Move the slider and the whole line drops, because more time means more loss; '
+          + 'what matters is whether the gap between the two rules survives that, and it '
+          + 'does at every horizon, which makes it structural rather than a recent shock.'
+        : 'The recent average now sits above the earlier one, so the decline this chart '
+          + 'was built to show has stopped at this horizon.');
   $('forward-trend-note').textContent =
     'One point per starting month, at the horizon set above. Lengthening the horizon lowers '
     + 'every point, because more time means more loss, and the question is whether the slope '
