@@ -1186,58 +1186,69 @@ function renderRecoveryAge() {
 // Several notes on this page assert that what went wrong is not only a new
 // customer problem. This is the measurement behind that claim.
 function renderTenureChurn() {
-  const SPLIT = 6;
-  const rows = churnByTenure(data, { split: SPLIT }).filter(r => r.young !== null);
+  const CUTS = [3, 6];
+  const rows = churnByTenure(data, { cuts: CUTS })
+    .filter(r => r.bands.every(b => b.rate !== null));
   if (!rows.length) return;
 
+  const bands = rows.bands || rows[0].bands;
+  const palette = [INK.negative, INK.secondary, INK.primary];
   const labels = rows.map(r => fmt.monthLabel(r.month));
+
   multiLineChart($('chart-tenure-churn'), {
     labels,
     yFormat: v => fmt.pct(v, 1),
-    series: [
-      { label: 'Under ' + SPLIT + ' months', colour: INK.negative,
-        values: rows.map(r => r.young) },
-      { label: SPLIT + ' months and over', colour: INK.primary,
-        values: rows.map(r => r.old) },
-    ],
+    series: bands.map((b, i) => ({
+      label: b.label,
+      colour: palette[i] || INK.tertiary,
+      values: rows.map(r => r.bands[i].rate),
+    })),
     describe: i => {
       const r = rows[i];
-      const share = r.youngShare + r.oldShare;
-      return labels[i] + ': ' + fmt.pct(r.young, 1) + ' of ' + fmt.int(r.youngBase)
-        + ' newer customers left, ' + fmt.pct(r.old, 1) + ' of ' + fmt.int(r.oldBase)
-        + ' tenured ones. Of everyone who left that month, the tenured half was '
-        + (share ? fmt.pct(r.oldShare / share) : '--') + ' of the losses.';
+      return `<strong>${labels[i]}</strong>`
+        + r.bands.map(b =>
+            `<span>${b.label}: ${fmt.pct(b.rate, 1)} of ${fmt.int(b.base)} left, `
+            + `${fmt.pct(b.shareOfLosses)} of the month\u2019s losses</span>`).join('')
+        + `<span class="muted">${fmt.int(r.totalGone)} of ${fmt.int(r.base)} gone in total</span>`;
     },
   });
 
   const recent = rows.slice(-6);
-  const meanOf = pick => recent.reduce((s, r) => s + pick(r), 0) / recent.length;
-  const youngNow = meanOf(r => r.young);
-  const oldNow = meanOf(r => r.old);
-  const oldSum = meanOf(r => r.oldShare);
-  const youngSum = meanOf(r => r.youngShare);
-  const oldWeight = oldSum + youngSum ? oldSum / (oldSum + youngSum) : null;
+  const meanRate = i => recent.reduce((s, r) => s + r.bands[i].rate, 0) / recent.length;
+  const meanShare = i => recent.reduce((s, r) => s + r.bands[i].shareOfLosses, 0) / recent.length;
+  const rates = bands.map((_, i) => meanRate(i));
+  const shares = bands.map((_, i) => meanShare(i));
+  const worst = rates.indexOf(Math.max(...rates));
+  const oldest = bands.length - 1;
 
   $('tenure-churn-finding').innerHTML =
-    '<strong>New customers leave at ' + fmt.pct(youngNow, 1) + ' a month against '
-    + fmt.pct(oldNow, 1) + ' for tenured ones, and the tenured half is still '
-    + fmt.pct(oldWeight) + ' of everyone who leaves.</strong> The rate answers "are we '
-    + 'selling to the wrong people"; the weight answers "where would fixing it '
-    + 'actually help". They point at different teams. A first month problem is an '
-    + 'intake problem and lands on sales and onboarding, but most of the customers '
-    + 'actually walking out have been here long enough that intake is no longer the '
-    + 'explanation for them.';
+    `<strong>${bands[worst].label.replace(/^U/, 'u')} is the worst band at `
+    + `${fmt.pct(rates[worst], 1)} a month, and the tenured band is still `
+    + `${fmt.pct(shares[oldest])} of everyone who leaves.</strong> `
+    + bands.map((b, i) =>
+        `${b.label.toLowerCase()} ${fmt.pct(rates[i], 1)}`).join(', ')
+    + `. Splitting the newest band at three months is what makes this readable: `
+    + (rates[0] > rates[1]
+        ? `the first three months churn harder than the three after them, so the `
+          + `damage is concentrated at the very front rather than spread across `
+          + `onboarding.`
+        : `the first three months are not the worst of it, which rules out the `
+          + `simplest story — that customers arrive, take one look and go.`)
+    + ` The rate answers "are we selling to the wrong people"; the share answers `
+    + `"where would fixing it actually help". They point at different teams.`;
 
   $('tenure-churn-note').textContent =
-    'Presence month to month across the whole standing base, cut at ' + SPLIT
-    + ' months of tenure. Not a cohort chart: it describes the book as it stood each '
-    + 'month rather than a single intake followed forward, so a customer moves from '
-    + 'one line to the other as they age. Customers already present when the data '
-    + 'window opens have no knowable signup date and are counted as tenured, which is '
-    + 'the conservative choice — it puts them in the half this chart is trying not to '
-    + 'blame. A customer booked down to zero MRR is still present here, because '
-    + 'presence on this page is an event type and not an amount; the chart below '
-    + 'shows how many of those there are.';
+    'Presence month to month across the whole standing base, cut at '
+    + CUTS.join(' and ') + ' months of tenure. Not a cohort chart: it describes the '
+    + 'book as it stood each month rather than a single intake followed forward, so '
+    + 'a customer moves from one band to the next as they age. Customers already '
+    + 'present when the data window opens have no knowable signup date and go in the '
+    + 'oldest band, which is the conservative choice \u2014 it puts them in the band '
+    + 'this chart is trying not to blame, and it is also why that band is the largest. '
+    + 'A customer booked down to zero MRR is still present here, because presence on '
+    + 'this page is an event type and not an amount; the chart below shows how many '
+    + 'of those there are. Share of losses is each band against everyone who left '
+    + 'that month, so the three shares sum to one and the rates do not.';
 }
 
 
@@ -1486,8 +1497,23 @@ function renderFullCost() {
     + 'by the active base. Months a cohort has not lived through yet are projected on '
     + 'the pooled donor path — both the revenue and the logos, because carrying '
     + 'revenue forward while the cost of serving it stops would be the flattering '
-    + 'version of this chart. Months past the end of the ledger carry the mean cost '
-    + 'rate of the last three. The groups partition the expense file: every cost row '
+    + 'version of this chart. That path is age-specific rather than one churn rate '
+    + 'applied flat: each step is the pooled month-to-month ratio at that age, so '
+    + 'month 4 is projected on how cohorts behave at month 4. Donors are weighted by '
+    + 'recency on a nine month half-life, because a cohort that arrived last month '
+    + 'will live in this year’s conditions rather than in 2024’s, and an '
+    + 'unweighted pool would project recent intakes on the era chart 8 argues is '
+    + 'over. That correction is not a level shift and could not be done with one '
+    + 'multiplier: recent cohorts retain better at month 1, because deferred '
+    + 'cancellation holds a leaver in for another billing period, and about two '
+    + 'points a month worse by months four to seven. Past month 15 the donor pool '
+    + 'thins and a single terminal rate takes over, which is the one place a '
+    + 'constant churn assumption does any work — on current data only three of '
+    + 'the twenty-four columns reach it. Chart 1 and the projected break-even chart '
+    + 'still use an unweighted pool, so they read a little kinder on recent cohorts '
+    + 'than this one does. Months past the end of the ledger carry the mean cost '
+    + 'rate of the last three, with no age curve at all. The groups partition the '
+    + 'expense file: every cost row '
     + 'belongs to exactly one, so ticking everything counts each dollar once and '
     + 'nothing is missed. Revenue and taxes sit outside all of them. '
     + 'The numbers along the top are months to full break-even, the month cumulative '

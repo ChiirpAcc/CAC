@@ -1470,6 +1470,7 @@ export function costRates(data) {
 // carried forward while the cost of serving it stops.
 export function fullCostRecovery(data, cohorts, { age = 6, groups = null,
                                                  revenueGroups = null,
+                                                 halfLife = 9,
                                                  horizon = 60 } = {}) {
   const on = groups || new Set(COST_GROUPS.filter(g => g.defaultOn).map(g => g.key));
   const revOn = revenueGroups
@@ -1477,8 +1478,12 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null,
   const offset = age - 1;
   const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
   const { rates, carried, lastMonth } = costRates(data);
-  const { path, terminal } = donorTrajectory(cohorts);
-  const logoPath = donorLogoPath(cohorts);
+  // Projected on recency-weighted retention rather than a flat pool, because a
+  // cohort that arrived last month will live in this year's conditions and not
+  // in 2024's. Chart 1 and the projected break-even chart still use the flat
+  // pool, so this one reads slightly harder on recent cohorts than they do.
+  const { path, terminal } = donorTrajectory(cohorts, { halfLife });
+  const logoPath = donorLogoPath(cohorts, { halfLife });
 
   const ongoingOn = COST_GROUPS.filter(g => !g.once && on.has(g.key)).map(g => g.key);
   const rateAt = month => {
@@ -1599,6 +1604,7 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null,
       // less than one the ledger did.
       breakEvenProjected,
       horizon,
+      halfLife,
       assumedCostShare: totalCost > 0 ? assumedCost / totalCost : null,
     };
   });
@@ -1612,25 +1618,62 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null,
 // how many customers are still there to cost money, and reusing the revenue
 // step for that would assume revenue per logo never moves — which is exactly
 // the assumption the rest of this page spends its time disproving.
-function donorLogoPath(cohorts) {
+function donorLogoPath(cohorts, { halfLife = null } = {}) {
   const donors = cohorts.filter(c => c.month >= '2023-01' && c.maxOffset >= 6);
+  const weigh = donorWeights(donors, halfLife);
   const numerator = new Map();
   const denominator = new Map();
   const counts = new Map();
   for (const cohort of donors) {
+    const w = weigh(cohort);
     for (let k = 1; k < cohort.logos.length; k += 1) {
       if (cohort.logos[k - 1] <= 0) continue;
-      numerator.set(k, (numerator.get(k) || 0) + cohort.logos[k]);
-      denominator.set(k, (denominator.get(k) || 0) + cohort.logos[k - 1]);
-      counts.set(k, (counts.get(k) || 0) + 1);
+      numerator.set(k, (numerator.get(k) || 0) + w * cohort.logos[k]);
+      denominator.set(k, (denominator.get(k) || 0) + w * cohort.logos[k - 1]);
+      counts.set(k, (counts.get(k) || 0) + w);
     }
   }
-  const minDonors = Math.max(2, Math.ceil(donors.length / 2));
+  const minDonors = Math.max(2, weigh.total / 2);
   const path = new Map();
   for (const [k, den] of denominator) {
     if (den > 0 && (counts.get(k) || 0) >= minDonors) path.set(k, numerator.get(k) / den);
   }
   return { path, terminal: terminalRate(path, 6, counts, minDonors) };
+}
+
+
+// How much each donor cohort counts toward the pooled path.
+//
+// Without this every donor counts the same, which quietly makes a projection
+// for a 2026 cohort mostly a statement about how 2024 behaved. That is the one
+// assumption this page spends its time disproving: chart 8 is an argument that
+// the retention era changed, and a projection built on the old era contradicts
+// it. Weighting by recency does not throw the old cohorts away — they are the
+// only evidence that exists past month eight — but it stops them outvoting the
+// recent ones at ages where both have something to say.
+//
+// The effect is not a level shift and cannot be done with one multiplier. At
+// month 1 recent cohorts retain BETTER, because deferred cancellation holds a
+// leaver in for another billing period; by months four to seven they retain
+// two points a month worse. A flat factor averages those to nothing.
+//
+// Half-life is in months and is measured back from the newest donor, so the
+// weights move with the data rather than being pinned to a date.
+function donorWeights(donors, halfLife) {
+  if (!halfLife || !donors.length) {
+    const flat = () => 1;
+    flat.total = donors.length;
+    return flat;
+  }
+  const newest = donors.reduce((a, c) => (c.month > a ? c.month : a), donors[0].month);
+  const weigh = cohort => Math.pow(0.5, monthDiff(cohort.month, newest) / halfLife);
+  // The threshold below counts weight rather than cohorts, so it has to be
+  // measured against the weight that exists. With flat weights this is the
+  // donor count and the rule is exactly the one it replaces; the first version
+  // of this left the threshold at half the raw count, which no weighted age
+  // could reach, and the revenue path lost half its depth without saying so.
+  weigh.total = donors.reduce((s, c) => s + weigh(c), 0);
+  return weigh;
 }
 
 
@@ -1750,15 +1793,20 @@ export function costRecovery(data, cohorts, { age = 6 } = {}) {
 // Monthly churn split by how long a customer has been here.
 //
 // The cohort charts describe intakes and this describes the standing book, cut
-// at six months of tenure. It exists to answer one objection directly: that
-// what has gone wrong is a new customer problem. Both halves moved, and the
-// tenured half is the larger share of the base, so it carries more of the
-// damage in absolute terms even when its rate is lower.
+// into tenure bands. It exists to answer one objection directly: that what has
+// gone wrong is a new customer problem. Every band moved, and the tenured one
+// is the largest share of the base, so it carries more of the damage in
+// absolute terms even when its rate is lower.
+//
+// Three bands rather than two, because "new" and "everyone else" hides the
+// thing worth seeing. The first months and the months just after onboarding
+// ends behave differently from each other, and lumping them together reports
+// one rate for two populations.
 //
 // Customers already present when the window opens have unknowable tenure and
-// are counted as tenured, which is the conservative choice: it puts them in
-// the half this is trying not to blame.
-export function churnByTenure(data, { split = 6 } = {}) {
+// go in the oldest band, which is the conservative choice: it puts them in the
+// band this is trying not to blame.
+export function churnByTenure(data, { cuts = [3, 6] } = {}) {
   const live = new Map();
   const firstSeen = new Map();
   for (const row of data.customers) {
@@ -1772,42 +1820,61 @@ export function churnByTenure(data, { split = 6 } = {}) {
   const months = [...live.keys()].sort();
   const position = new Map(months.map((m, i) => [m, i]));
 
-  return months.slice(1).map((month, i) => {
+  // Bands are built from the cut points so the labels and the arithmetic can
+  // never disagree: [0,3) then [3,6) then [6,infinity).
+  const edges = [0, ...cuts, Infinity];
+  const bands = edges.slice(0, -1).map((from, i) => {
+    const to = edges[i + 1];
+    return {
+      from,
+      to,
+      key: to === Infinity ? `${from}plus` : `${from}-${to}`,
+      label: to === Infinity
+        ? `${from} months and over`
+        : (from === 0 ? `Under ${to} months` : `${from} to ${to} months`),
+    };
+  });
+
+  const rows = months.slice(1).map((month, i) => {
     const before = live.get(months[i]);
     const now = live.get(month);
-    let youngBase = 0;
-    let youngGone = 0;
-    let oldBase = 0;
-    let oldGone = 0;
+    const tally = bands.map(() => ({ base: 0, gone: 0 }));
+    let totalGone = 0;
+
     for (const id of before) {
       const censored = firstSeen.get(id) === months[0];
       const tenure = position.get(months[i]) - position.get(firstSeen.get(id));
       const gone = !now.has(id);
-      if (!censored && tenure < split) {
-        youngBase += 1;
-        if (gone) youngGone += 1;
-      } else {
-        oldBase += 1;
-        if (gone) oldGone += 1;
-      }
+      // A censored customer has no knowable tenure and goes in the last band.
+      const index = censored
+        ? bands.length - 1
+        : bands.findIndex(b => tenure >= b.from && tenure < b.to);
+      tally[index].base += 1;
+      if (gone) { tally[index].gone += 1; totalGone += 1; }
     }
-    const total = youngBase + oldBase;
+
     return {
       month,
-      young: youngBase ? youngGone / youngBase : null,
-      old: oldBase ? oldGone / oldBase : null,
-      youngBase,
-      oldBase,
-      // What each half contributes to the blended rate, which is the part that
-      // decides where the losses actually are.
-      youngShare: total ? youngGone / total : null,
-      oldShare: total ? oldGone / total : null,
+      bands: bands.map((b, k) => ({
+        ...b,
+        base: tally[k].base,
+        gone: tally[k].gone,
+        rate: tally[k].base ? tally[k].gone / tally[k].base : null,
+        // What this band contributes to everyone who left that month, which is
+        // the part that decides where fixing it would actually help.
+        shareOfLosses: totalGone ? tally[k].gone / totalGone : null,
+      })),
+      totalGone,
+      base: tally.reduce((s, x) => s + x.base, 0),
     };
   });
+
+  rows.bands = bands;
+  return rows;
 }
 
 
-// Customers counted as present who are paying nothing.
+// Customers present in every count who are paying nothing.
 //
 // Presence on this page is an event type, not an amount, so a customer booked
 // down to zero MRR is still a live logo in every count that follows. This is
@@ -2310,7 +2377,7 @@ function terminalRate(path, depth = 6, counts = null, minDonors = 1) {
 // the same young cohort is worth, which is the defect that produced three
 // cost-per-logo figures: one number, two implementations, and the quiet one
 // stays wrong.
-export function donorTrajectory(cohorts) {
+export function donorTrajectory(cohorts, { halfLife = null } = {}) {
   // Donors need enough history to be worth pooling, but requiring a full year
   // of it excluded every recent cohort by construction: nothing from 2026 can
   // be twelve months old, so the path projecting 2026 cohorts was built
@@ -2319,15 +2386,17 @@ export function donorTrajectory(cohorts) {
   // the deep steps still fall back on the older ones, which is unavoidable and
   // is what the per-step donor count below makes visible.
   const donors = cohorts.filter(c => c.month >= '2023-01' && c.maxOffset >= 6);
+  const weigh = donorWeights(donors, halfLife);
   const numerator = new Map();
   const denominator = new Map();
   const counts = new Map();
   for (const cohort of donors) {
+    const w = weigh(cohort);
     for (let k = 1; k < cohort.revenue.length; k += 1) {
       if (cohort.revenue[k - 1] <= 0) continue;
-      numerator.set(k, (numerator.get(k) || 0) + cohort.revenue[k]);
-      denominator.set(k, (denominator.get(k) || 0) + cohort.revenue[k - 1]);
-      counts.set(k, (counts.get(k) || 0) + 1);
+      numerator.set(k, (numerator.get(k) || 0) + w * cohort.revenue[k]);
+      denominator.set(k, (denominator.get(k) || 0) + w * cohort.revenue[k - 1]);
+      counts.set(k, (counts.get(k) || 0) + w);
     }
   }
 
@@ -2335,7 +2404,7 @@ export function donorTrajectory(cohorts) {
   // on one or two cohorts and move with them. Steps below half the donor pool
   // are dropped rather than drawn, and the terminal rate is taken from the
   // deepest steps that survive that rule.
-  const minDonors = Math.max(2, Math.ceil(donors.length / 2));
+  const minDonors = Math.max(2, weigh.total / 2);
   const path = new Map();
   for (const [k, den] of denominator) {
     if (den > 0 && (counts.get(k) || 0) >= minDonors) path.set(k, numerator.get(k) / den);
