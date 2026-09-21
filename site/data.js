@@ -1071,23 +1071,59 @@ export function pricingScenarios(data, { months = 23, horizon = 12, cac: cacOver
       at: t => Math.max(1200, 2500 - 1300 * t / (months - 1)) },
   ];
 
-  const run = (at, elasticity) => {
-    let gross = 0, customers = 0;
-    for (let t = 0; t < months; t += 1) {
+  // The real months, not a flat assumption repeated.
+  //
+  // This ran on one cost per logo and one monthly volume held constant across
+  // the window. Both were contradicted by the same page: cost per logo has run
+  // between $2,231 and $7,000 a month and the intake between 29 and 63, and a
+  // page arguing that acquisition cost is the problem cannot then hold it
+  // still in the model that follows. Each month now carries its own cost and
+  // its own volume, and the elasticity scales that month's actual intake
+  // rather than a constant.
+  //
+  // The flat figure is kept as an override so the sensitivity rows can ask
+  // what happens at a cost per logo the business has not yet seen.
+  const series = data.waterfall
+    .filter(w => w.newLogos && byMonth.has(w.month))
+    .map(w => ({ month: w.month, logos: w.newLogos, cpl: byMonth.get(w.month) / w.newLogos }));
+
+  const run = (at, elasticity, cacOverrideForRun = null) => {
+    let gross = 0;
+    let customers = 0;
+    let cost = 0;
+    series.forEach((m, t) => {
       const p = at(t);
-      const q = baseQ * Math.pow(p / baseP, elasticity);
+      const q = m.logos * Math.pow(p / baseP, elasticity);
       gross += q * p * paidAt(p);
       customers += q;
-    }
-    return { gross, customers, net: gross - customers * cac };
+      cost += q * (cacOverrideForRun !== null ? cacOverrideForRun : m.cpl);
+    });
+    return { gross, customers, net: gross - cost };
   };
 
   const elasticities = [0, -0.25, -0.5, -1];
+  // What the ranking does if a logo costs more than it ever has. Asked because
+  // the flat version of this model was fairly accused of assuming the problem
+  // away, and the answer is worth having on the page rather than in a drawer.
+  const sensitivity = [null, 6000, 8000].map(level => ({
+    level,
+    label: level === null ? 'Each month at its own cost per logo' : `Every month at $${level.toLocaleString()} a logo`,
+    plans: plans.map(pl => ({
+      label: pl.label,
+      net: run(pl.at, -0.5, level).net,
+    })),
+  }));
   return {
     baseP, baseQ, cac, cacWindow, cacRecent,
     cacRange: cpl.length ? [Math.min(...cpl), Math.max(...cpl)] : null,
     horizon, months, bands, slope,
     elasticities,
+    series,
+    sensitivity,
+    realMonths: series.length,
+    realVolume: series.length ? series.reduce((s, m) => s + m.logos, 0) / series.length : null,
+    realCplRange: series.length
+      ? [Math.min(...series.map(m => m.cpl)), Math.max(...series.map(m => m.cpl))] : null,
     fitCeiling,
     capsAtPrice,
     maxObservedStart: starts.reduce((hi, x) => Math.max(hi, x.price), 0),
