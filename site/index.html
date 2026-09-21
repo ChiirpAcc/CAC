@@ -29,9 +29,9 @@
        is one of each and they cannot drift apart. -->
   <section id="view-story" class="wrap story" hidden>
     <header class="story-head">
-      <h2>What changed, in three charts</h2>
-      <p>Read in order. Each one rules something out, and what is left is the
-        pricing question at the bottom.</p>
+      <h2>What changed, in two charts</h2>
+      <p>The first says what a year's customers do after they sign up. The
+        second asks whether a thin month of arrivals is what makes them go.</p>
     </header>
 
     <div class="story-step" data-figure="fig-era">
@@ -67,31 +67,8 @@
         themselves.</p>
     </div>
 
-    <div class="story-step" data-figure="fig-arrivals-months">
-      <p class="story-lead"><span class="story-num">2</span>
-        <strong>It is not that thin months are poisoning the base.</strong>
-        Each frame is one starting month: how many customers arrived, against
-        the share of the base gone a month later. Watch it build and the recent
-        months land inside the same cloud as the early ones. Nothing about the
-        relationship moved across the two years.</p>
-    </div>
-    <div class="story-means">
-      <h3>What this means</h3>
-      <p>Two things to say here, and the second matters more. A quiet pipeline
-        is not costing you customers elsewhere: the fear that thin months
-        distract the team into losing accounts is not supported at any point in
-        the two years. And the pipeline has not in fact been quiet. New
-        customers have run 52, 43, 51 and 40 over the last four full months
-        against a two year average near 46, so the intake is flat. The sales
-        record reads lower than that only because it is filled in by hand and
-        has fallen behind the billing file.</p>
-      <p>So acquisition and retention can be run as separate problems by
-        separate owners, and neither the level nor the variation in arrivals
-        explains what churn has done.</p>
-    </div>
-
     <div class="story-step" data-figure="fig-arrivals-horizons">
-      <p class="story-lead"><span class="story-num">3</span>
+      <p class="story-lead"><span class="story-num">2</span>
         <strong>And it is not hiding at a longer horizon.</strong>
         Give churn one month to happen or six and the cloud lifts without
         tilting. However long you wait, months with fewer arrivals do not churn
@@ -103,100 +80,6 @@
         merely unproven. Waiting longer for the effect to appear will not help,
         so nothing further should be spent looking for it.</p>
     </div>
-
-    <div class="story-means">
-      <h3>Where that leaves it</h3>
-      <p>None of the usual explanations survives. Cohorts do not decay faster
-        than they used to, thin months do not poison the base, and nothing
-        appears at a longer horizon. What has moved is on the other side of the
-        ledger: what a customer costs to win has risen far faster than what one
-        returns, and acquisition spend is not available to cut. That leaves
-        price, which is the one lever with room in it and the subject of the
-        rest of this page.</p>
-    </div>
-
-    <section class="story-close">
-      <h2>What a single price leaves on the table</h2>
-
-      <div class="chart-control">
-        <label for="pricing-elasticity">How price sensitive customers are</label>
-        <input type="range" id="pricing-elasticity" min="-2" max="-0.25" step="0.25" value="-0.5">
-        <output id="pricing-elasticity-value">-0.50</output>
-      </div>
-
-      <div class="table-scroll">
-        <table class="data-table" id="pricing-table"></table>
-      </div>
-      <p class="finding" id="pricing-finding"></p>
-      <p class="note" id="pricing-note"></p>
-
-      <h3>The anchor is already done. The floor is the open question.</h3>
-      <p>New conversations already open at $2,500, so the half of this that
-        needed testing has been tested. What has not moved is the bottom of the
-        range, and that is where the money is now. Every prospect who will not
-        pay the floor but would have paid something above break-even is a deal
-        turned down after the cost of finding them has already been spent.
-        Acquisition cost is sunk by the time a price is being negotiated: the
-        same $5,217 was spent whether the deal closes at $2,500, at $800, or
-        not at all.</p>
-
-      <p>Break-even is about <strong>$680 a month</strong> at today's cost per
-        logo. A floor at $1,250 turns away everyone between those two numbers.
-        On the fitted demand curve that is roughly nine prospects a month and
-        about <strong>$9,300 of new MRR</strong> given up, none of which needed
-        a single extra dollar of acquisition spend to reach.</p>
-
-      <h3>Why the floor is a capacity valve, not a price</h3>
-      <p>There is one good reason to hold a high floor: onboarding can only
-        absorb so many customers, and taking more than it can carry is how a
-        cohort gets a bad first ninety days, which chart 6 shows is where
-        retention is won or lost. That makes the floor a throttle on volume
-        rather than a judgement about which customers are worth having. When
-        onboarding is the binding constraint, raise it. When it is not, lower
-        it toward break-even and take the deals.</p>
-      <p>Onboarding is not currently the constraint, so the floor should come
-        down.</p>
-
-      <h3>What has to be true, and what we controlled for</h3>
-      <ul class="story-controls">
-        <li id="control-range"></li>
-        <li id="control-extrapolation"></li>
-        <li><strong>Break-even moves with acquisition cost.</strong> $680 is
-          computed at $5,217 a logo, the trailing twelve month figure. Cost per
-          logo has run between $2,231 and $7,000 a month across the window, and
-          break-even moves with it, so the floor is better set as a return on
-          cost than as a fixed dollar figure.</li>
-        <li><strong>Capacity is asserted, not measured.</strong> That
-          onboarding can absorb more customers is a judgement from the team
-          that does it, not something this data can confirm. If it turns out to
-          be wrong the cost lands in chart 6, as a worse first ninety days for
-          the cohorts taken on at the lower floor.</li>
-        <li><strong>The demand curve is fitted.</strong> How many extra
-          prospects a lower floor actually wins is the curve talking, not
-          something observed. The direction is safe; the nine a month is not.</li>
-      </ul>
-
-      <h3>The recommendation</h3>
-      <p><strong>Keep the $2,500 anchor and drop the floor to about $800.</strong>
-        That is roughly 1.2 times what a logo costs to win, which leaves room
-        for a bad month on acquisition cost without taking deals that lose
-        money. Below about $700 the margin is too thin to be worth the
-        onboarding slot at today's cost.</p>
-      <p><strong>Set the floor as a return, not a number.</strong> The rule
-        that survives a change in acquisition cost is: take anything returning
-        about 1.2 times cost per logo over its first year. At $5,217 that is
-        $800 a month. If cost per logo climbs back to $7,000 the floor should
-        climb with it, to roughly $1,050, automatically and without a meeting.</p>
-      <p><strong>Raise it when onboarding becomes the constraint, and not
-        before.</strong> The floor is the throttle. The signal to pull it up is
-        the first ninety day retention on chart 6 deteriorating for the newest
-        cohorts, not a view about whether cheap customers are worth having.
-        Review it monthly against that chart and against cost per logo.</p>
-      <p>What this does not change: the anchor. Nothing here argues for opening
-        lower. The point of a wide range is that the top of it is still
-        collected from customers who will pay it, and the bottom is no longer
-        left unserved.</p>
-    </section>
 
     <footer class="story-foot">
       <p>Three sliders are worth moving before you decide anything here. The

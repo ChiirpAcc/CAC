@@ -1496,16 +1496,26 @@ export function correlate(input) {
   return pairs.reduce((s, p) => s + (p[0] - mx) * (p[1] - my), 0) / (sx * sy);
 }
 
-// Retention by era, grouped by the calendar year a cohort started.
+// Retention by the year a customer arrived, on every cohort of that year.
 //
-// Indexed to month 1 rather than month 2. The month 2 rule exists because
-// month 1 carries setup and onboarding fees, which distorts revenue
-// retention. This curve counts logos, not revenue, so month 1 is simply
-// everybody and 100% is the honest starting point.
+// At age k the denominator is every customer of the year whose cohort has had
+// k months to run, and the numerator is how many of those are still there.
+// Cohorts too young to have reached age k are not in either, so the line
+// extends only as far as there is time for it to.
 //
-// A point is dropped once fewer than three cohorts in that year have reached
-// that age, otherwise the newest line is drawn by its oldest cohort alone.
-export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}) {
+// The sample therefore shrinks as the line runs right, and that has a visible
+// consequence: the curve can rise. It is not customers coming back, which the
+// survival rule forbids. It is a bad cohort ageing out of the denominator. In
+// 2026 the June intake lost 43% in its first month, and when it drops out at
+// age 3 the remaining customers read better than the month before. The count
+// behind every point is returned so the chart can show it, because a reader
+// who cannot see the denominator move cannot interpret the line.
+//
+// Survival, not presence: once a customer is absent they stay absent, so a
+// customer who leaves and returns is not counted back in. Pooled by customer
+// rather than averaged over cohorts, so a large intake carries more weight
+// than a small one.
+export function retentionByYear(cohorts, { maxMonths = 12, minAtRisk = 20 } = {}) {
   const byYear = new Map();
   for (const cohort of cohorts) {
     const year = cohort.month.slice(0, 4);
@@ -1518,128 +1528,100 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
   return years.map(year => {
     const group = byYear.get(year).filter(c => c.survivors[0] > 0);
 
-    // The sample has to be the same at every age, or the line moves because
-    // its membership moved. Recomputing it per point let the 2026 curve run
-    // 86.7% then 91.6%: the cohorts that had reached month four were simply
-    // better than the ones that had only reached month three. Fix the set to
-    // the cohorts that reach the far end, then read every point off it, and
-    // stop the line where that set would have to change.
-    let reach = 0;
-    for (let offset = maxMonths - 1; offset >= 0; offset -= 1) {
-      if (group.filter(c => c.maxOffset >= offset).length >= minCohorts) { reach = offset; break; }
-    }
-    const inSample = group.filter(c => c.maxOffset >= reach);
-    const base = inSample.reduce((s, c) => s + c.survivors[0], 0);
+    // Everything below is computed on the cohorts that have reached the age in
+    // question, recomputed at every age rather than fixed once.
+    const reached = age => group.filter(c => c.maxOffset >= age);
+    const sum = (rows, pick) => rows.reduce((s, c) => s + (pick(c) || 0), 0);
 
     const points = [];
-    for (let offset = 0; offset < maxMonths; offset += 1) {
-      if (offset > reach || !base || inSample.length < minCohorts) { points.push(null); continue; }
-      points.push(inSample.reduce((s, c) => s + c.survivors[offset], 0) / base);
+    const atRisk = [];
+    const cohortsAt = [];
+    const grossRevenue = [];
+    const revenue = [];
+    const logosFromMonth2 = [];
+
+    for (let age = 0; age < maxMonths; age += 1) {
+      const live = reached(age);
+      const base = sum(live, c => c.survivors[0]);
+      const enough = live.length && base >= minAtRisk;
+      atRisk.push(enough ? base : null);
+      cohortsAt.push(enough ? live.length : null);
+      points.push(enough ? sum(live, c => c.survivors[age]) / base : null);
+
+      // Money on the same footing: same cohorts, same age, indexed to month 2
+      // because month 1 carried a joining charge as MRR until mid-2025 and a
+      // part-billed first month leaves a customer under the rate they arrive
+      // on.
+      const capBase = sum(live, c => (c.cappedRetainedRevenue || [])[1]);
+      grossRevenue.push(enough && capBase && age >= 1
+        ? sum(live, c => (c.cappedRetainedRevenue || [])[age]) / capBase : null);
+
+      const startBase = sum(live, c => (c.retainedStartingRevenue || [])[0]);
+      revenue.push(enough && startBase
+        ? sum(live, c => (c.retainedStartingRevenue || [])[age]) / startBase : null);
+
+      const logoBase = sum(live, c => c.survivors[1]);
+      logosFromMonth2.push(enough && logoBase && age >= 1
+        ? sum(live, c => c.survivors[age]) / logoBase : null);
     }
 
-    // The same cohorts in money rather than in logos, on the same base and
-    // the same sample so the two charts can be read against each other.
-    //
-    // Both revenue paths are divided by what the cohort was paying at the
-    // start, taken from each member's second month: until mid-2025 the first
-    // month carried a joining charge as MRR that came off again the next
-    // month, so indexing on month one would overstate every early cohort by
-    // roughly the size of that fee and turn it dropping out into a cliff.
-    const revBase = inSample.reduce((s, c) => s + (c.retainedStartingRevenue[0] || 0), 0);
-    const pathOn = key => {
-      const out = [];
-      for (let offset = 0; offset < maxMonths; offset += 1) {
-        if (offset > reach || !revBase) { out.push(null); continue; }
-        out.push(inSample.reduce((s, c) => s + (c[key][offset] || 0), 0) / revBase);
-      }
-      return out;
-    };
+    const deepest = points.reduce((last, v, i) => (v === null ? last : i), 0);
 
-    // Gross revenue retention: every customer capped at what they arrived on,
-    // so this falls for departures and for downgrades and cannot be lifted by
-    // expansion. This is the one worth reading. The departures-only path below
-    // isolates whether the customers leaving are larger or smaller than
-    // average, which turns out to be a small effect, so on its own it draws
-    // as very nearly the logo curve again.
-    const revenue = pathOn('retainedStartingRevenue');
-
-    // Indexed to month 2 and drawn from month 2, because that is where the
-    // cap is set. Month 1 is not a clean 100% on this measure: a customer
-    // billed for part of their first month pays less then than the rate they
-    // arrive on, and capping them at that rate leaves them short of it. The
-    // 2026 cohorts read 88.8% at month 1 for that reason alone, which is a
-    // billing calendar rather than a loss. Starting the line where its own
-    // base is set removes the artefact instead of explaining it away.
-    const grossRaw = pathOn('cappedRetainedRevenue');
-    const grossBase = grossRaw[1];
-    const grossRevenue = grossRaw.map((v, i) => (
-      i < 1 || v === null || !grossBase ? null : v / grossBase));
-
-    // The logo curve on the same footing, so the gap between the two is
-    // downgrades and departures rather than a difference in where each line
-    // was indexed. Quoted anywhere the two are compared.
-    const logosFromMonth2 = points.map((v, i) => (
-      i < 1 || v === null || !points[1] ? null : v / points[1]));
-
-    // Month 1 churn across every cohort of the year, not just the ones the
-    // fixed sample keeps.
-    //
-    // The sample rule takes the cohorts that reach the far end, which for a
-    // part-finished year means the oldest ones. That is right for comparing
-    // curve shapes and badly wrong as a description of the year: in 2026 the
-    // three cohorts old enough to be drawn happen to be the only three with no
-    // first month departures at all, while the four left out average sixteen
-    // per cent. Carried so the page can say what the whole year did rather
-    // than only what the drawable part of it did.
+    // First month loss across every cohort of the year that has one. Reported
+    // as a median as well as a mean, because a single bad intake moves a mean
+    // by several points and a year holds only a handful of cohorts.
     const withFirstMonth = group.filter(c => c.maxOffset >= 1 && c.survivors[0] > 0);
     const lossOf = c => 1 - c.survivors[1] / c.survivors[0];
-    const firstMonthLoss = rows => (rows.length
-      ? rows.reduce((s, c) => s + lossOf(c), 0) / rows.length
-      : null);
-    // The mean across cohorts is not safe here. One 2026 cohort loses 43% in
-    // its first month and carries the whole year with it: the mean reads 9.3%
-    // and the median 3.8%, against 3.4% for 2025. Both are reported, and the
-    // worst cohort is named, so nobody has to take a year's verdict from a
-    // single month of intake.
-    const firstMonthMedian = rows => {
+    const meanLoss = rows => (rows.length
+      ? rows.reduce((s, c) => s + lossOf(c), 0) / rows.length : null);
+    const medianLoss = rows => {
       if (!rows.length) return null;
       const sorted = rows.map(lossOf).sort((a, b) => a - b);
       return sorted[Math.floor(sorted.length / 2)];
     };
-    const worstFirstMonth = withFirstMonth.length
+    const worst = withFirstMonth.length
       ? withFirstMonth.reduce((x, c) => (lossOf(c) > lossOf(x) ? c : x)) : null;
-    const drawn = withFirstMonth.filter(c => inSample.includes(c));
-    const undrawn = withFirstMonth.filter(c => !inSample.includes(c));
 
-    const reached = offset => group.filter(c => c.maxOffset >= offset).length;
+    // Where the line reads better than the month before. Always the sample
+    // changing rather than customers returning, and worth naming rather than
+    // leaving for someone to spot.
+    const rises = [];
+    for (let age = 1; age < points.length; age += 1) {
+      if (points[age] !== null && points[age - 1] !== null
+        && points[age] > points[age - 1] + 1e-9) {
+        rises.push({ age, from: points[age - 1], to: points[age],
+                     lostFromSample: (atRisk[age - 1] || 0) - (atRisk[age] || 0) });
+      }
+    }
+
     return {
       year,
-      cohorts: inSample.length,
-      cohortsInYear: group.length,
-      reach,
-      grossRevenue,
-      grossMonth6: grossRevenue[5],
-      grossMonth12: grossRevenue[11],
-      logosFromMonth2,
-      logosMonth6FromMonth2: logosFromMonth2[5],
-      revenue,
-      revenueMonth6: revenue[5],
-      revenueMonth12: revenue[11],
       points,
-      month3: points[2],
-      month6: points[5],
-      reachedMonth6: reached(5),
-      month1LossAll: firstMonthLoss(withFirstMonth),
-      month1MedianAll: firstMonthMedian(withFirstMonth),
-      month1ExWorst: firstMonthLoss(withFirstMonth.filter(c => c !== worstFirstMonth)),
-      month1WorstCohort: worstFirstMonth
-        ? { month: worstFirstMonth.month, loss: lossOf(worstFirstMonth) } : null,
+      atRisk,
+      cohortsAt,
+      deepest,
+      rises,
+      cohorts: group.length,
+      cohortsInYear: group.length,
+      reach: deepest,
+      reachedMonth6: reached(5).length,
+      month3: points[3],
+      month6: points[6],
+      grossRevenue,
+      grossMonth6: grossRevenue[6],
+      grossMonth12: grossRevenue[12],
+      revenue,
+      revenueMonth6: revenue[6],
+      revenueMonth12: revenue[12],
+      logosFromMonth2,
+      logosMonth6FromMonth2: logosFromMonth2[6],
+      month1LossAll: meanLoss(withFirstMonth),
+      month1MedianAll: medianLoss(withFirstMonth),
+      month1ExWorst: meanLoss(withFirstMonth.filter(c => c !== worst)),
+      month1WorstCohort: worst ? { month: worst.month, loss: lossOf(worst) } : null,
+      cohortsWithFirstMonth: withFirstMonth.length,
       monthsCovered: withFirstMonth.length
         ? `${withFirstMonth[0].month} to ${withFirstMonth[withFirstMonth.length - 1].month}` : null,
-      month1LossDrawn: firstMonthLoss(drawn),
-      month1LossUndrawn: firstMonthLoss(undrawn),
-      cohortsWithFirstMonth: withFirstMonth.length,
-      cohortsUndrawn: undrawn.length,
     };
   });
 }

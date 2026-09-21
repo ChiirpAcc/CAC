@@ -568,7 +568,7 @@ function renderEra() {
     }
     return;
   }
-  const labels = Array.from({ length: MAX_AGE }, (_, i) => `M${i + 1}`);
+  const labels = Array.from({ length: MAX_AGE }, (_, i) => `M${i}`);
 
   // One point per slider position, laid out year by year: 2024 fills from
   // month 1 to its last, then 2025 starts again at month 1 with 2024 left
@@ -591,10 +591,10 @@ function renderEra() {
     ? Math.min(Math.max(Number(slider.value) || steps.length, 1), steps.length)
     : steps.length;
   const here = steps[position - 1] || steps[steps.length - 1];
-  const depth = here ? here.mi + 1 : MAX_AGE;
+  const depth = here ? here.mi : MAX_AGE - 1;
   if ($('era-depth-value')) {
     $('era-depth-value').textContent = here
-      ? `${here.year}, month ${here.mi + 1} (${position} of ${steps.length})` : '--';
+      ? `${here.year}, month ${here.mi} (${position} of ${steps.length})` : '--';
   }
 
   // Eras already finished stay whole, the one being drawn is cut at the
@@ -621,6 +621,8 @@ function renderEra() {
     // note in retentionByYear: month 1 is not a clean 100% once each customer
     // is capped at the rate they arrive on, because a part-billed first month
     // leaves them under it.
+    // Month 0 is the signup month and is 100% by construction on the count.
+    // The money line has no month 0 at all, because it is indexed to month 1.
     const from = money ? 1 : 0;
     const shift = arr => arr.slice(from);
     const real = eras.flatMap(e => pick(e)).filter(v => v !== null && Number.isFinite(v));
@@ -636,7 +638,7 @@ function renderEra() {
       yMax: Math.max(1, Math.ceil(Math.max(...real) * 20) / 20),
       xTitle: 'Months since first revenue',
       refs: [],
-      describe: i => `<strong>Month ${i + 1 + from}</strong>` + eras.map(era => {
+      describe: i => `<strong>Month ${i + from}</strong>` + eras.map(era => {
         const v = pick(era)[i + from];
         return `<span>${era.year} ${v === null || !Number.isFinite(v) ? 'not yet' : fmt.pct(v, 1)}</span>`;
       }).join(''),
@@ -656,7 +658,7 @@ function renderEra() {
   // once put the spread at 79 points, which is the whole of the leading year
   // rather than a gap between years.
   const at = (era, key) => {
-    const v = era[key] ? era[key][depth - 1] : null;
+    const v = era[key] ? era[key][depth] : null;
     return v === null || v === undefined || !Number.isFinite(v) ? null : v;
   };
   // Only years the chart has actually drawn by this point in the sequence. An
@@ -738,49 +740,50 @@ function renderEra() {
   // in 2026 means the only three with no first month departures at all. Said
   // in the finding rather than the note, because a reader who takes the left
   // hand end of that line at face value has been misled by it.
-  const biased = eras.filter(e => e.cohortsUndrawn > 0
-    && e.month1LossUndrawn !== null && e.month1LossDrawn !== null
-    && e.month1LossUndrawn - e.month1LossDrawn > 0.03);
+  // Every cohort of the year is now used at every age it has reached, so the
+  // old warning about which cohorts were drawn no longer applies. What does
+  // apply is the opposite: the sample shrinks as the line runs right, and
+  // where a bad intake ages out of it the line reads better than the month
+  // before. Named here rather than left for a reader to trip over.
   const ready1 = eras.filter(e => e.month1MedianAll !== null);
   const medianLine = ready1.map(e => `${e.year} ${fmt.pct(e.month1MedianAll, 1)}`).join(', ');
   const newestYear = ready1[ready1.length - 1];
-  // The median rather than the mean, because one cohort carries the mean.
-  // Reported together with what the mean says and which cohort does it, so the
-  // gap between the two is visible instead of being a choice made off-page.
   const outlier = newestYear && newestYear.month1WorstCohort;
   const skewed = outlier && newestYear.month1LossAll !== null
     && newestYear.month1LossAll - newestYear.month1MedianAll > 0.03;
+  const kinked = eras.filter(e => e.rises && e.rises.length);
 
-  $('era-finding').innerHTML += biased.length
-    ? ` <strong>Read the left hand end of the ${biased.map(e => e.year).join(' and ')} `
-      + `${biased.length === 1 ? 'line' : 'lines'} with care.</strong> A year is drawn on the `
-      + `cohorts old enough to reach the far end, which for an unfinished year means its oldest `
-      + `ones, and in ${biased[0].year} those are the only `
-      + `${biased[0].cohortsWithFirstMonth - biased[0].cohortsUndrawn} with no first month `
-      + `departures at all. The ${biased[0].cohortsUndrawn} left out lose `
-      + `${fmt.pct(biased[0].month1LossUndrawn, 1)} in month 1. Across every cohort of each `
-      + `year the median loses ${medianLine} in its first month, so the newest intakes are `
-      + `somewhat worse rather than dramatically so, and chart 23 is the one to believe about `
-      + `whether customers leave in month 1.`
-      + (skewed
-        ? ` The mean for ${newestYear.year} reads ${fmt.pct(newestYear.month1LossAll, 1)}, but `
-          + `that is one cohort: ${outlier.month} lost ${fmt.pct(outlier.loss, 1)} in a month `
-          + `and drags the year with it. Without it the rest of ${newestYear.year} averages `
-          + `${fmt.pct(newestYear.month1ExWorst, 1)}. Worth treating as its own problem rather `
-          + `than as the year's rate.`
-        : '')
-    : ` Across every cohort of each year the median loses ${medianLine} in its first month.`;
+  $('era-finding').innerHTML +=
+    ` Across every cohort of each year the median loses ${medianLine} in its first month.`
+    + (skewed
+      ? ` The mean for ${newestYear.year} reads ${fmt.pct(newestYear.month1LossAll, 1)}, but `
+        + `that is one cohort: ${outlier.month} lost ${fmt.pct(outlier.loss, 1)} in a month. `
+        + `Without it the rest of ${newestYear.year} averages `
+        + `${fmt.pct(newestYear.month1ExWorst, 1)}, so it is worth treating as its own problem `
+        + `rather than as the year's rate.`
+      : '')
+    + (kinked.length
+      ? ` <strong>Where a line rises, the sample changed and not the customers.</strong> `
+        + kinked.map(e => e.rises.map(r =>
+          `${e.year} reads ${fmt.pct(r.to, 1)} at month ${r.age} against `
+          + `${fmt.pct(r.from, 1)} at month ${r.age - 1} because ${fmt.int(r.lostFromSample)} `
+          + `customers are too recent to have reached that age and drop out of the count`)
+          .join('; ')).join('; ')
+      + `. Survival here only falls, so a rise is always the denominator moving.`
+      : '');
 
   $('era-note').textContent = shared
-    + ' Indexed to month 1, where nothing distorts the count.'
-    + ' The fixed sample keeps a line from moving when its membership moves, which is what it'
-    + ' is for, but in a part-finished year it also selects that year’s oldest cohorts.'
-    + ' The first month figures quoted in the finding are taken across every cohort of each'
-    + ' year instead, drawn or not, and are the ones to compare between years. They are'
-    + ' medians rather than means because a single bad intake moves a mean by several points'
-    + ' and a year has only a handful of cohorts in it. Note also that the earliest year here'
-    + ' covers only the months inside the data window, so it is a part year rather than a'
-    + ' full one.';
+    + ' Month 0 is the month a customer first paid, so it is 100% by construction, and month 1'
+    + ' is that year’s customers one month after signing up.'
+    + ' At each age the count behind the point is every customer of that year whose cohort has'
+    + ' had that long to run. Cohorts too young are in neither the numerator nor the'
+    + ' denominator, which is why a line stops where it does and why the count beneath it'
+    + ' falls as it runs right. The count is on the chart at every point and a line is dropped'
+    + ' once fewer than twenty customers are left in it.'
+    + ' First month figures are medians rather than means, because a single bad intake moves a'
+    + ' mean by several points and a year holds only a handful of cohorts. The earliest year'
+    + ' covers only the months inside the data window, so it is a part year rather than a full'
+    + ' one.';
 
   // Why the 2026 line is flat, from the business rather than from the file,
   // with the file checked against it. Both changes keep a customer in this
@@ -845,8 +848,7 @@ function renderEra() {
 //
 // Each figure remembers where it came from, so returning it puts it back in
 // its numbered position rather than at the end of the page.
-const STORY_FIGURES = ['fig-era', 'fig-arrivals-months',
-  'fig-arrivals-horizons'];
+const STORY_FIGURES = ['fig-era', 'fig-arrivals-horizons'];
 const homes = new Map();
 
 function rememberHomes() {
