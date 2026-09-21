@@ -9,7 +9,7 @@ import {
   arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
   ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
-  fullCostRecovery, COST_GROUPS, REVENUE_GROUPS,
+  fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -19,7 +19,14 @@ import {
 // Settled, and applied in the pipeline rather than here. Kept as named
 // constants so a different decision stays a one line change: the controls are
 // gone, the flexibility is not.
+// margin here is the old flat assumption. It is kept as a named fallback for
+// the case where no cost ledger has been pushed, and as the figure the page
+// quotes when it explains what changed. Everything that can be measured is
+// measured: see platformMargins.
 const SETTLED = { csShare: 0, partnershipsShare: 1, margin: 0.757 };
+
+// Filled at boot from the ledger, so a chart can say which basis it is on.
+let MARGIN = null;
 
 // First month the second environment appears, read from the data.
 let S2_FIRST = '';
@@ -109,7 +116,13 @@ function renderLtvAtAge() {
   const age = Number($('ltv-age').value);
   $('ltv-age-value').textContent = age;
 
-  const rows = ltvAtAge(data, cohorts, { age, margin: state.margin });
+  const rows = ltvAtAge(data, cohorts, {
+    age,
+    // Only reached for a cohort with no recorded profit at all; the cohort's
+    // own realised margin wins wherever it exists, and that is now built on
+    // the measured monthly figure rather than the flat assumption.
+    margin: MARGIN && MARGIN.measured ? MARGIN.mean : state.margin,
+  });
   const shown = rows.filter(r => r.ratio !== null);
 
   if (!shown.length) {
@@ -351,10 +364,12 @@ function renderCostTable(data) {
   // covers the period the rest of the page argues over rather than only the
   // most recent year of it. Counted from the last month in the file so it
   // extends itself as new months land.
-  const FROM = '2025-01';
-  const span = data.lastMonth
-    ? (Number(data.lastMonth.slice(0, 4)) - 2025) * 12
-      + (Number(data.lastMonth.slice(5, 7)) - 1) + 1
+  // Was pinned to 2025-01 when the page could not reach further back anyway.
+  // It runs to the start of the window now, which is as far as the acquisition
+  // ledger goes.
+  const FROM = data.historyStarts;
+  const span = data.lastMonth && FROM
+    ? monthDiff(FROM, data.lastMonth) + 1
     : 12;
   const c = acquisitionCosts(data, { months: Math.max(span, 12) });
   if (!c.months.length) {
@@ -911,9 +926,8 @@ function wireTabs() {
 // the same window divided by the same new logo counts, which turns "what did
 // we spend" into "what did each customer cost, and which line moved".
 function renderCostDrivers() {
-  const span = data.lastMonth
-    ? (Number(data.lastMonth.slice(0, 4)) - 2025) * 12
-      + (Number(data.lastMonth.slice(5, 7)) - 1) + 1
+  const span = data.lastMonth && data.historyStarts
+    ? monthDiff(data.historyStarts, data.lastMonth) + 1
     : 12;
   const c = acquisitionCosts(data, { months: Math.max(span, 12) });
   if (!c.months.length) return;
@@ -1029,21 +1043,25 @@ function renderContribution() {
     },
   });
 
+  // This finding used to be the page's disclosure that its margin was an
+  // assumption the ledger disagreed with. The charts above are built on the
+  // measured figure now, so the disclosure would be false; what is worth
+  // saying instead is how much moved when they were rewired.
   const ASSUMED = SETTLED.margin;
   const gap = ASSUMED - c.recentGrossMargin;
   $('contribution-finding').innerHTML =
-    '<strong>The measured gross margin is ' + fmt.pct(c.recentGrossMargin, 1)
-    + ', not the ' + fmt.pct(ASSUMED, 1) + ' every ratio above this chart '
-    + 'assumes.</strong> That is ' + fmt.pct(gap, 1) + ' of revenue, and it runs '
-    + 'through everything: an LTV built at ' + fmt.pct(ASSUMED, 1) + ' is about '
-    + (ASSUMED / c.recentGrossMargin).toFixed(2) + ' times the one the cost tab '
-    + 'supports, so every payback period and every LTV:CAC ratio earlier on is that '
-    + 'much too kind. Those charts have deliberately not been rewired to this number, '
-    + 'because swapping the margin under twenty-seven charts without saying so is how '
-    + 'a deck stops being checkable — read them as the assumed case and this as the '
-    + 'measured one. After G&A and R&D the average customer clears '
-    + fmt.money(c.recentNetPerLogo) + ' a month, ' + fmt.pct(c.recentNetMargin, 1)
-    + ' of what they pay.';
+    `<strong>Serving a customer costs ${fmt.pct(1 - c.recentGrossMargin, 1)} of what they `
+    + `pay, leaving ${fmt.money(c.recentGrossPerLogo)} a month per logo.</strong> `
+    + `This page used to assume a flat ${fmt.pct(ASSUMED, 1)} gross margin, carried from `
+    + `before there was a cost ledger to check it against. The measured figure is `
+    + `${fmt.pct(c.recentGrossMargin, 1)}, ${fmt.pct(gap, 1)} of revenue lower, and every `
+    + `profit, payback and LTV:CAC figure above is now built on the measured number rather `
+    + `than the assumption. That is the single largest change made to these numbers and it `
+    + `made all of them worse — the footer says what the margin is on each month and how `
+    + `far it moves. After G&A and R&D the average customer clears `
+    + `${fmt.money(c.recentNetPerLogo)} a month, ${fmt.pct(c.recentNetMargin, 1)} of what `
+    + `they pay, which is the figure to use for whether a customer pays for the whole `
+    + `business rather than just their own service.`;
 
   $('contribution-note').textContent =
     'ARPA is total end-of-period MRR across every active logo in the customer file, '
@@ -1531,6 +1549,7 @@ function renderFullCost() {
 function boot() {
   load().then(loaded => {
     data = loaded;
+    MARGIN = platformMargins(data);
     cohorts = buildCohorts(data);
     $('loading').hidden = true;
     $('dashboard').hidden = false;
@@ -2112,7 +2131,12 @@ function renderForward() {
   const hasClasses = hasRevenueClasses(data);
   $('margin-statement').innerHTML = hasClasses
     ? '<strong>Margins are applied per revenue class.</strong> Platform '
-      + fmt.pct(CLASS_MARGINS.platform, 1) + ', usage ' + fmt.pct(CLASS_MARGINS.usage)
+      + (MARGIN && MARGIN.measured
+          ? fmt.pct(MARGIN.mean, 1) + ' on average, solved month by month from the cost '
+            + 'ledger rather than assumed and running ' + fmt.pct(MARGIN.low, 1) + ' to '
+            + fmt.pct(MARGIN.high, 1) + ' across ' + MARGIN.months + ' months'
+          : fmt.pct(CLASS_MARGINS.platform, 1))
+      + ', usage ' + fmt.pct(CLASS_MARGINS.usage)
       + ', one-time ' + fmt.pct(CLASS_MARGINS.oneTime) + ', and pass-through and '
       + 'recognised-elsewhere at zero. Pass-through is carrier fees, which sit in revenue and '
       + 'in cost of sales at once, so any margin on them would credit profit that does not '
@@ -2126,17 +2150,14 @@ function renderForward() {
       // gets a different answer, and a reader who reaches the footer first
       // should not have to find that out on their own.
       + (() => {
-        const served = costToServe(data);
-        if (!served) return '';
-        return 'One caveat, and it is the largest open question on this page: '
-          + 'the platform figure is an assumption, not a measurement. Chart 28 works the '
-          + 'same quantity out from the cost ledger and gets '
-          + fmt.pct(served.recentGrossMargin, 1) + ', which is '
-          + fmt.pct(CLASS_MARGINS.platform - served.recentGrossMargin, 1)
-          + ' of revenue lower. Every ratio above that chart uses the assumption and is '
-          + 'that much too kind. They have not been rewired to the measured figure, '
-          + 'because moving the margin under thirty charts without saying so is how a '
-          + 'page stops being checkable. ';
+        if (!MARGIN || !MARGIN.measured) return '';
+        return 'This used to be a flat ' + fmt.pct(SETTLED.margin, 1)
+          + ' assumption carried from the beginning, and the cost ledger disagreed with '
+          + 'it by about twenty points. The platform figure is now whatever makes the '
+          + 'book add up to what the ledger says, month by month, so every profit and '
+          + 'payback figure on this page moves when the cost of serving customers moves. '
+          + 'It is the single largest change made to these numbers and it made all of '
+          + 'them worse. ';
       })()
       + (() => {
         // Whether this environment reaches the revenue columns is a fact to be

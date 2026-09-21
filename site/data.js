@@ -320,6 +320,12 @@ export async function load() {
 // counting them from signature would credit the wrong month with the
 // acquisition and stretch every retention curve.
 export function buildCohorts(data) {
+  // Gross profit is measured against the month a customer was actually served
+  // in, not against a flat assumption. See platformMargins.
+  const platform = platformMargins(data);
+  const marginsAt = month => (platform.measured
+    ? { ...CLASS_MARGINS, platform: platform.byMonth.get(month) ?? platform.mean }
+    : CLASS_MARGINS);
   const firstRevenueMonth = new Map();
   const activeByCustomer = new Map();
   const revenueByCustomer = new Map();
@@ -496,7 +502,7 @@ export function buildCohorts(data) {
           live += 1;
           const row = rowByCustomerMonth.get(id + '|' + at);
           mrr += row ? (row.eopMrr || 0) : 0;
-          gp += row ? grossProfit(row) : 0;
+          gp += row ? grossProfit(row, marginsAt(at)) : 0;
           usage += row ? (row.usage || 0) : 0;
           oneTime += row ? (row.oneTime || 0) : 0;
           passThrough += row ? (row.passThrough || 0) : 0;
@@ -3183,6 +3189,68 @@ export function grossProfit(row, margins = CLASS_MARGINS) {
     + (row.oneTime || 0) * margins.oneTime
     + (row.passThrough || 0) * margins.passThrough
     + (row.recognisedElsewhere || 0) * margins.recognisedElsewhere;
+}
+
+// The platform margin, solved for rather than assumed.
+//
+// 0.757 was an estimate carried on this page from the beginning, and the cost
+// ledger disagrees with it by about twenty points. Now that cost of sales is
+// measured monthly there is no reason to keep guessing: the other classes have
+// defensible margins of their own, so the platform figure is whatever makes
+// the whole book add up to what the ledger actually says.
+//
+//   platform = (all revenue - cost of sales - 0.60 x usage - 0.90 x one-time)
+//              / platform revenue
+//
+// Pass-through and recognised-elsewhere stay at zero and so drop out. The
+// result runs between 0.44 and 0.66 across the window, against the flat 0.757
+// it replaces, and it moves month to month because the cost of serving the
+// book moves month to month. A cohort passing through an expensive month is
+// charged for it.
+//
+// Months with no cost row fall back to the mean of the months that have one,
+// which is stated wherever this is used rather than hidden.
+export function platformMargins(data) {
+  const cogs = new Map((data.serve || []).map(r => [r.month, r.cogsTotal]));
+  if (!cogs.size) return { byMonth: new Map(), mean: CLASS_MARGINS.platform, measured: false };
+
+  const totals = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    const a = totals.get(row.month) || { P: 0, U: 0, O: 0, T: 0, R: 0 };
+    a.P += row.eopMrr || 0;
+    a.U += row.usage || 0;
+    a.O += row.oneTime || 0;
+    a.T += row.passThrough || 0;
+    a.R += row.recognisedElsewhere || 0;
+    totals.set(row.month, a);
+  }
+
+  const byMonth = new Map();
+  for (const [month, a] of totals) {
+    const cost = cogs.get(month);
+    if (cost === undefined || cost === null || a.P <= 0) continue;
+    const revenue = a.P + a.U + a.O + a.T + a.R;
+    const margin = (revenue - cost
+      - CLASS_MARGINS.usage * a.U
+      - CLASS_MARGINS.oneTime * a.O) / a.P;
+    // A month that lands outside [0, 1] is a data problem rather than a
+    // finding, and letting it through would put a negative margin into every
+    // cohort passing through it.
+    if (margin > 0 && margin < 1) byMonth.set(month, margin);
+  }
+
+  const values = [...byMonth.values()];
+  return {
+    byMonth,
+    mean: values.length
+      ? values.reduce((s, v) => s + v, 0) / values.length
+      : CLASS_MARGINS.platform,
+    measured: values.length > 0,
+    months: values.length,
+    low: values.length ? Math.min(...values) : null,
+    high: values.length ? Math.max(...values) : null,
+  };
 }
 
 export function hasRevenueClasses(data) {
