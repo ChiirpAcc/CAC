@@ -1077,12 +1077,19 @@ function renderContribution() {
   const ACQ_SPREAD = {
     key: 'acqspread',
     label: 'Acquisition, spread over the active base',
-    defaultOn: false,
+    defaultOn: true,
     hint: 'The whole month\u2019s acquisition bill divided by every active logo, not just '
         + 'the new ones. A different basis from the rows above \u2014 it answers whether '
         + 'the business as a whole washes its face.',
   };
-  const groups = COST_GROUPS.filter(g => !g.once).concat(ACQ_SPREAD);
+  // Chart 28 opens with every cost ticked, because what is left after
+  // everything is the question people actually ask of it. Chart 33 keeps the
+  // gross defaults, since there acquisition is charged properly against the
+  // cohort that caused it and the gross view is what outside comparisons use.
+  // The two charts share the definitions and not the starting state.
+  const groups = COST_GROUPS.filter(g => !g.once)
+    .map(g => ({ ...g, defaultOn: true }))
+    .concat(ACQ_SPREAD);
   buildToggles('contribution-groups', groups, renderContribution);
   const on = ticked('contribution-groups');
 
@@ -1161,10 +1168,11 @@ function renderContribution() {
           + 'its face; it does not tell you whether an individual customer pays back, '
           + 'because the spend lands in one month and the return arrives over the '
           + 'following year. Chart 33 is where that question is answered properly.'
-        : '<strong>It is not profit and it is not money left over.</strong> Nothing '
-          + 'ticked so far subtracts what it cost to win the customer, which is several '
-          + 'thousand of one-off spend per new logo against a few hundred a month of '
-          + 'recurring contribution. Tick the last box to spread acquisition across the '
+        : '<strong>Acquisition is unticked, so it is not in this figure.</strong> What it '
+          + 'cost to win the customer is several thousand of one-off spend per new logo '
+          + 'against a few hundred a month of recurring contribution, and leaving it out '
+          + 'is what separates a contribution figure from a profit one. '
+          + 'Tick the last box to spread acquisition across the '
           + 'active base and see the all-in number, or read chart 33, which puts both '
           + 'sides together over a cohort\u2019s life.');
 
