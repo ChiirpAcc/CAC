@@ -1592,9 +1592,22 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
     // per cent. Carried so the page can say what the whole year did rather
     // than only what the drawable part of it did.
     const withFirstMonth = group.filter(c => c.maxOffset >= 1 && c.survivors[0] > 0);
+    const lossOf = c => 1 - c.survivors[1] / c.survivors[0];
     const firstMonthLoss = rows => (rows.length
-      ? rows.reduce((s, c) => s + (1 - c.survivors[1] / c.survivors[0]), 0) / rows.length
+      ? rows.reduce((s, c) => s + lossOf(c), 0) / rows.length
       : null);
+    // The mean across cohorts is not safe here. One 2026 cohort loses 43% in
+    // its first month and carries the whole year with it: the mean reads 9.3%
+    // and the median 3.8%, against 3.4% for 2025. Both are reported, and the
+    // worst cohort is named, so nobody has to take a year's verdict from a
+    // single month of intake.
+    const firstMonthMedian = rows => {
+      if (!rows.length) return null;
+      const sorted = rows.map(lossOf).sort((a, b) => a - b);
+      return sorted[Math.floor(sorted.length / 2)];
+    };
+    const worstFirstMonth = withFirstMonth.length
+      ? withFirstMonth.reduce((x, c) => (lossOf(c) > lossOf(x) ? c : x)) : null;
     const drawn = withFirstMonth.filter(c => inSample.includes(c));
     const undrawn = withFirstMonth.filter(c => !inSample.includes(c));
 
@@ -1617,6 +1630,12 @@ export function retentionByYear(cohorts, { maxMonths = 12, minCohorts = 3 } = {}
       month6: points[5],
       reachedMonth6: reached(5),
       month1LossAll: firstMonthLoss(withFirstMonth),
+      month1MedianAll: firstMonthMedian(withFirstMonth),
+      month1ExWorst: firstMonthLoss(withFirstMonth.filter(c => c !== worstFirstMonth)),
+      month1WorstCohort: worstFirstMonth
+        ? { month: worstFirstMonth.month, loss: lossOf(worstFirstMonth) } : null,
+      monthsCovered: withFirstMonth.length
+        ? `${withFirstMonth[0].month} to ${withFirstMonth[withFirstMonth.length - 1].month}` : null,
       month1LossDrawn: firstMonthLoss(drawn),
       month1LossUndrawn: firstMonthLoss(undrawn),
       cohortsWithFirstMonth: withFirstMonth.length,

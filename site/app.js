@@ -741,9 +741,15 @@ function renderEra() {
   const biased = eras.filter(e => e.cohortsUndrawn > 0
     && e.month1LossUndrawn !== null && e.month1LossDrawn !== null
     && e.month1LossUndrawn - e.month1LossDrawn > 0.03);
-  const firstMonthLine = eras
-    .filter(e => e.month1LossAll !== null)
-    .map(e => `${e.year} ${fmt.pct(e.month1LossAll, 1)}`).join(', ');
+  const ready1 = eras.filter(e => e.month1MedianAll !== null);
+  const medianLine = ready1.map(e => `${e.year} ${fmt.pct(e.month1MedianAll, 1)}`).join(', ');
+  const newestYear = ready1[ready1.length - 1];
+  // The median rather than the mean, because one cohort carries the mean.
+  // Reported together with what the mean says and which cohort does it, so the
+  // gap between the two is visible instead of being a choice made off-page.
+  const outlier = newestYear && newestYear.month1WorstCohort;
+  const skewed = outlier && newestYear.month1LossAll !== null
+    && newestYear.month1LossAll - newestYear.month1MedianAll > 0.03;
 
   $('era-finding').innerHTML += biased.length
     ? ` <strong>Read the left hand end of the ${biased.map(e => e.year).join(' and ')} `
@@ -752,18 +758,29 @@ function renderEra() {
       + `ones, and in ${biased[0].year} those are the only `
       + `${biased[0].cohortsWithFirstMonth - biased[0].cohortsUndrawn} with no first month `
       + `departures at all. The ${biased[0].cohortsUndrawn} left out lose `
-      + `${fmt.pct(biased[0].month1LossUndrawn, 1)} in month 1. Counting every cohort of each `
-      + `year, first month loss runs ${firstMonthLine}, so on that measure the newest intakes `
-      + `are the worst rather than the best, and chart 23 is the one to believe about whether `
-      + `customers leave in their first month.`
-    : ` Counting every cohort of each year, first month loss runs ${firstMonthLine}.`;
+      + `${fmt.pct(biased[0].month1LossUndrawn, 1)} in month 1. Across every cohort of each `
+      + `year the median loses ${medianLine} in its first month, so the newest intakes are `
+      + `somewhat worse rather than dramatically so, and chart 23 is the one to believe about `
+      + `whether customers leave in month 1.`
+      + (skewed
+        ? ` The mean for ${newestYear.year} reads ${fmt.pct(newestYear.month1LossAll, 1)}, but `
+          + `that is one cohort: ${outlier.month} lost ${fmt.pct(outlier.loss, 1)} in a month `
+          + `and drags the year with it. Without it the rest of ${newestYear.year} averages `
+          + `${fmt.pct(newestYear.month1ExWorst, 1)}. Worth treating as its own problem rather `
+          + `than as the year's rate.`
+        : '')
+    : ` Across every cohort of each year the median loses ${medianLine} in its first month.`;
 
   $('era-note').textContent = shared
     + ' Indexed to month 1, where nothing distorts the count.'
     + ' The fixed sample keeps a line from moving when its membership moves, which is what it'
     + ' is for, but in a part-finished year it also selects that year’s oldest cohorts.'
     + ' The first month figures quoted in the finding are taken across every cohort of each'
-    + ' year instead, drawn or not, and are the ones to compare between years.';
+    + ' year instead, drawn or not, and are the ones to compare between years. They are'
+    + ' medians rather than means because a single bad intake moves a mean by several points'
+    + ' and a year has only a handful of cohorts in it. Note also that the earliest year here'
+    + ' covers only the months inside the data window, so it is a part year rather than a'
+    + ' full one.';
 
   // Why the 2026 line is flat, from the business rather than from the file,
   // with the file checked against it. Both changes keep a customer in this
