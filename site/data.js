@@ -1890,6 +1890,151 @@ function fmtMonth(m) {
 }
 
 
+// What a customer has to pay to be worth keeping, and what happens if you act
+// on it. Two different floors, and confusing them is the expensive mistake.
+//
+// The MARGINAL floor is what one more or one fewer customer actually changes:
+// the per-seat licence and hosting that follow a logo, plus the merchant fee
+// and revenue share that follow a payment. Nothing else moves this month if a
+// single customer leaves. A customer above this line puts cash in the bank.
+//
+// The ALLOCATED floor spreads every fixed cost — support, customer success,
+// G&A, R&D — evenly across the paying base. It is the right number for pricing
+// new business and for setting a discount limit, because a book priced below
+// it cannot cover the company. It is the wrong number for deciding whether to
+// keep an individual customer, because none of that cost leaves with them.
+//
+// The gap between the two is the whole argument: on current numbers it is
+// $120 against $665.
+export function priceFloors(data, { window = 6 } = {}) {
+  const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
+  if (!months.length) return null;
+  const last = months[months.length - 1];
+  const recent = new Set(months.slice(-window));
+
+  const bucket = {};
+  for (const row of data.expenses) {
+    if (!recent.has(row.month) || row.amount === null) continue;
+    const a = row.account || '';
+    let key = null;
+    if (/^5000-04/.test(a)) key = 'merchant';
+    else if (/^6100-06/.test(a)) key = 'revshare';
+    else if (/^5000-02/.test(a)) key = 'software';
+    else if (/^5000-03/.test(a)) key = 'hosting';
+    else if (/^5050-/.test(a)) key = 'support';
+    else if (row.bucket === 'SPLIT' && !/Partnerships/i.test(a)) key = 'success';
+    else if (/^6100-0/.test(a)) key = 'otherSM';
+    else if (/^6200-|^6300-|^8000-/.test(a)) key = 'overhead';
+    if (key) bucket[key] = (bucket[key] || 0) + row.amount;
+  }
+
+  let logoMonths = 0;
+  let revenue = 0;
+  for (const month of months.slice(-window)) {
+    const rows = data.customers.filter(r => r.active && r.month === month);
+    logoMonths += rows.length;
+    revenue += rows.reduce((s, r) => s + (r.eopMrr || 0), 0);
+  }
+  if (!logoMonths || !revenue) return null;
+  const per = k => (bucket[k] || 0) / logoMonths;
+  const share = k => (bucket[k] || 0) / revenue;
+
+  const variablePct = share('merchant') + share('revshare');
+  const marginalPerLogo = per('software') + per('hosting');
+  const fixedPerMonth = ((bucket.software || 0) + (bucket.hosting || 0) + (bucket.support || 0)
+    + (bucket.success || 0) + (bucket.otherSM || 0) + (bucket.overhead || 0)) / window;
+
+  const base = data.customers.filter(r => r.active && r.month === last)
+    .map(r => r.eopMrr || 0);
+  const paying = base.filter(v => v > 0).sort((a, b) => a - b);
+  const zeros = base.length - paying.length;
+
+  const marginalFloor = marginalPerLogo / (1 - variablePct);
+  const allocatedFloor = (fixedPerMonth / paying.length) / (1 - variablePct);
+
+  return {
+    month: last,
+    paying, zeros,
+    totalMrr: paying.reduce((s, v) => s + v, 0),
+    variablePct,
+    marginalPerLogo,
+    marginalFloor,
+    fixedPerMonth,
+    fixedPerLogo: fixedPerMonth / paying.length,
+    allocatedFloor,
+    // What actually comes out if enough customers go that headcount follows.
+    removablePayrollPerLogo: per('support') + per('success'),
+    components: Object.fromEntries(Object.keys(bucket).map(k => [k, per(k)])),
+  };
+}
+
+
+// Cut them or re-price them, run both to their conclusion.
+//
+// Cutting is modelled honestly: the customer's revenue and variable cost go,
+// the fixed cost stays, so the floor rises for everyone left and more of them
+// fall under it. Repeat until nobody is below the line. It does not converge
+// anywhere useful, which is the finding.
+export function repriceOutcomes(data) {
+  const f = priceFloors(data);
+  if (!f) return null;
+
+  const spiral = [];
+  let keep = f.paying.slice();
+  for (let round = 0; round < 10 && keep.length; round += 1) {
+    const floor = (f.fixedPerMonth / keep.length) / (1 - f.variablePct);
+    const below = keep.filter(v => v < floor);
+    spiral.push({ round: round + 1, logos: keep.length, floor, below: below.length,
+      mrr: keep.reduce((s, v) => s + v, 0) });
+    if (!below.length) break;
+    keep = keep.filter(v => v >= floor);
+  }
+
+  // Re-pricing, by how many of the under-floor customers accept. The ones who
+  // refuse are assumed to leave, cheapest first, which is the kind end of the
+  // assumption: in practice the cheapest are also the likeliest to go.
+  const below = f.paying.filter(v => v < f.allocatedFloor);
+  const acceptance = [0, 0.25, 0.5, 0.75, 1].map(rate => {
+    const upgraded = Math.round(below.length * rate);
+    const churned = below.length - upgraded;
+    const lost = below.slice(0, churned).reduce((s, v) => s + v, 0);
+    const kept = f.paying.length - churned;
+    const newFloor = kept ? (f.fixedPerMonth / kept) / (1 - f.variablePct) : Infinity;
+    const gained = below.slice(churned)
+      .reduce((s, v) => s + Math.max(0, newFloor - v), 0);
+    return {
+      rate, upgraded, churned, logos: kept, floor: newFloor,
+      mrr: f.totalMrr - lost + gained,
+      change: gained - lost,
+    };
+  });
+
+  // Where re-pricing stops being worth doing at all.
+  const breakEven = (() => {
+    for (let r = 0; r <= 100; r += 1) {
+      const rate = r / 100;
+      const upgraded = Math.round(below.length * rate);
+      const churned = below.length - upgraded;
+      const lost = below.slice(0, churned).reduce((s, v) => s + v, 0);
+      const kept = f.paying.length - churned;
+      if (!kept) continue;
+      const newFloor = (f.fixedPerMonth / kept) / (1 - f.variablePct);
+      const gained = below.slice(churned).reduce((s, v) => s + Math.max(0, newFloor - v), 0);
+      if (gained - lost >= 0) return rate;
+    }
+    return null;
+  })();
+
+  // Converting a zero-MRR account works the recursion the other way: it adds a
+  // payer to the denominator, so the floor falls for everybody.
+  const floorIfZerosConvert = f.zeros
+    ? (f.fixedPerMonth / (f.paying.length + f.zeros)) / (1 - f.variablePct)
+    : f.allocatedFloor;
+
+  return { floors: f, spiral, acceptance, breakEven, below, floorIfZerosConvert };
+}
+
+
 // What it costs to keep a logo, against what a logo pays.
 //
 // Until this tab arrived, margin was a single assumption applied to

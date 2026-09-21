@@ -10,7 +10,7 @@ import {
   ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
-  projectBase, arrivalScenarios,
+  projectBase, arrivalScenarios, priceFloors, repriceOutcomes,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -1078,8 +1078,8 @@ function renderContribution() {
     key: 'acqspread',
     label: 'Acquisition, spread over the active base',
     defaultOn: true,
-    hint: 'The whole month\u2019s acquisition bill divided by every active logo, not just '
-        + 'the new ones. A different basis from the rows above \u2014 it answers whether '
+    hint: 'The whole month’s acquisition bill divided by every active logo, not just '
+        + 'the new ones. A different basis from the rows above — it answers whether '
         + 'the business as a whole washes its face.',
   };
   // Chart 28 opens with every cost ticked, because what is left after
@@ -1174,14 +1174,14 @@ function renderContribution() {
           + 'is what separates a contribution figure from a profit one. '
           + 'Tick the last box to spread acquisition across the '
           + 'active base and see the all-in number, or read chart 33, which puts both '
-          + 'sides together over a cohort\u2019s life.');
+          + 'sides together over a cohort’s life.');
 
   $('contribution-note').textContent =
     'What a customer pays is total end-of-period MRR across every active logo in the '
     + 'customer file, divided by that logo count. The costs are the real monthly figures '
     + 'from the finance tab over the same active count'
     + (c.logosAgree
-        ? ' \u2014 and the two sources agree on that count in every month, which is the '
+        ? ' — and the two sources agree on that count in every month, which is the '
           + 'main thing making this chart trustworthy'
         : ', and the two sources disagree on that count in at least one month')
     + '. G&A and R&D are spread evenly across active logos, because nothing ties a '
@@ -1324,7 +1324,7 @@ function renderTenureChurn() {
       return `<strong>${labels[i]}</strong>`
         + r.bands.map(b =>
             `<span>${b.label}: ${fmt.pct(b.rate, 1)} of ${fmt.int(b.base)} left, `
-            + `${fmt.pct(b.shareOfLosses)} of the month\u2019s losses</span>`).join('')
+            + `${fmt.pct(b.shareOfLosses)} of the month’s losses</span>`).join('')
         + `<span class="muted">${fmt.int(r.totalGone)} of ${fmt.int(r.base)} gone in total</span>`;
     },
   });
@@ -1349,7 +1349,7 @@ function renderTenureChurn() {
         ? `The first three months churn harder than the three after them, so the damage `
           + `is at the very front.`
         : `The first three months are not the worst of it, which rules out the simplest `
-          + `story \u2014 that customers arrive, take one look and go. The worst band sits `
+          + `story — that customers arrive, take one look and go. The worst band sits `
           + `after onboarding has ended.`);
 
   $('tenure-churn-note').textContent =
@@ -1359,7 +1359,7 @@ function renderTenureChurn() {
     + 'month rather than a single intake followed forward, so a customer moves from one '
     + 'band to the next as they age. Customers already present when the data window '
     + 'opens have no knowable signup date and go in the oldest band, which is the '
-    + 'conservative choice \u2014 it puts them in the band this chart is trying not to '
+    + 'conservative choice — it puts them in the band this chart is trying not to '
     + 'blame, and it is also why that band is the largest. A customer booked down to '
     + 'zero MRR is still present here, because presence on this page is an event type '
     + 'and not an amount. Share of losses is each band against everyone who left that '
@@ -1877,6 +1877,161 @@ function renderProjection() {
 }
 
 
+// 37 and 38. Which customers are worth keeping, and what to do about the rest.
+function renderFloors() {
+  const r = repriceOutcomes(data);
+  if (!r) return;
+  const f = r.floors;
+
+  // ------------------------------------------------------------------ 37
+  const edges = [0, 1, 120, 300, 500, 665, 900, 1200, 1600, Infinity];
+  const names = ['Pays nothing', '$1-119', '$120-299', '$300-499', '$500-664',
+                 '$665-899', '$900-1,199', '$1,200-1,599', '$1,600+'];
+  const counts = names.map(() => 0);
+  const money = names.map(() => 0);
+  for (const v of f.paying) {
+    for (let i = 1; i < edges.length - 1 + 1; i += 1) {
+      if (v >= edges[i] && v < edges[i + 1]) { counts[i] += 1; money[i] += v; break; }
+    }
+  }
+  counts[0] = f.zeros;
+
+  // Three colours for three verdicts, because the whole chart is an argument
+  // about which of them a customer falls into.
+  const verdict = i => {
+    const lo = edges[i];
+    if (lo < f.marginalFloor) return INK.negative;
+    if (lo < f.allocatedFloor) return INK.secondary;
+    return INK.positive;
+  };
+
+  columnChart($('chart-floor'), {
+    labels: names,
+    values: counts,
+    yFormat: fmt.int,
+    colourFor: (v, i) => verdict(i),
+    refs: [],
+    legendItems: [
+      { label: `Costs more than it brings, below ${fmt.money(f.marginalFloor)}`,
+        colour: 'var(--series-neg)' },
+      { label: `Contributes cash but not its share of the company`,
+        colour: 'var(--series-2)' },
+      { label: `Covers everything, above ${fmt.money(f.allocatedFloor)}`,
+        colour: 'var(--series-pos)' },
+    ],
+    describe: i => `<strong>${names[i]}</strong>`
+      + `<span>${fmt.int(counts[i])} customers, `
+      + `${fmt.pct(counts[i] / (f.paying.length + f.zeros), 1)} of the base</span>`
+      + `<span>${fmt.money(money[i])} a month between them, `
+      + `${fmt.pct(money[i] / f.totalMrr, 1)} of revenue</span>`
+      + (edges[i] < f.marginalFloor
+          ? '<span class="muted">Below the marginal floor: leaving would save money</span>'
+          : edges[i] < f.allocatedFloor
+            ? '<span class="muted">Above marginal, below allocated: worth keeping, worth re-pricing</span>'
+            : '<span class="muted">Covers its full allocated cost</span>'),
+  });
+
+  const belowMarginal = f.paying.filter(v => v < f.marginalFloor);
+  const belowAllocated = f.paying.filter(v => v < f.allocatedFloor);
+  const cutList = belowMarginal.length + f.zeros;
+
+  $('floor-finding').innerHTML =
+    `<strong>Only ${fmt.int(cutList)} accounts actually cost more than they bring, and `
+    + `${fmt.int(f.zeros)} of those already pay nothing.</strong> `
+    + `One more or one fewer customer changes ${fmt.money(f.marginalPerLogo)} of licence `
+    + `and hosting plus ${fmt.pct(f.variablePct, 1)} of what they pay, so the price at `
+    + `which a customer starts putting cash in the bank is `
+    + `${fmt.money(f.marginalFloor)} a month \— not `
+    + `${fmt.money(f.allocatedFloor)}. `
+    + `${fmt.int(belowMarginal.length)} paying customers sit under that, between them `
+    + `worth ${fmt.money(belowMarginal.reduce((s, v) => s + v, 0))} a month. `
+    + `<strong>The other ${fmt.int(belowAllocated.length - belowMarginal.length)} `
+    + `customers below the allocated floor are a pricing problem, not a cutting `
+    + `problem.</strong> Cutting one of them at ${fmt.money(300)} a month loses `
+    + `${fmt.money(300)} and saves ${fmt.money(300 * f.variablePct + f.marginalPerLogo)}, `
+    + `because support, customer success, G&A and R&D do not leave with the customer. `
+    + `The allocated floor is what to price new business at and what to refuse to `
+    + `discount below. It is not a cull list.`;
+
+  $('floor-note').textContent =
+    'Every active logo in ' + fmt.monthLabel(f.month) + ', bucketed by what it pays. '
+    + 'Two floors, and the difference between them is the point. The marginal floor of '
+    + fmt.money(f.marginalFloor) + ' counts only what moves when one customer arrives or '
+    + 'leaves: per-seat software at ' + fmt.money(f.components.software) + ' a logo, '
+    + 'hosting at ' + fmt.money(f.components.hosting) + ', and the merchant fee and '
+    + 'revenue share that follow a payment at ' + fmt.pct(f.variablePct, 1) + ' of it. '
+    + 'The allocated floor of ' + fmt.money(f.allocatedFloor) + ' adds support, customer '
+    + 'success, G&A and R&D spread evenly across the paying base, which is right for '
+    + 'pricing and wrong for keep-or-cut, because none of it is saved by losing one '
+    + 'customer. Of the fixed cost, roughly '
+    + fmt.money(f.removablePayrollPerLogo) + ' a logo is payroll that could come out if '
+    + 'enough customers went for headcount to follow — that is a step change across '
+    + 'hundreds of accounts, not a saving available one at a time. Acquisition is not in '
+    + 'either floor.';
+
+  // ------------------------------------------------------------------ 38
+  const labels = r.acceptance.map(a => fmt.pct(a.rate, 0) + ' accept');
+  multiLineChart($('chart-reprice'), {
+    labels,
+    yFormat: fmt.money,
+    series: [
+      { label: 'Monthly revenue after the exercise', colour: INK.primary,
+        values: r.acceptance.map(a => a.mrr) },
+      { label: 'What the survivors then have to pay', colour: INK.negative,
+        dashed: true, values: r.acceptance.map(a => a.floor) },
+    ],
+    refs: [{ value: f.totalMrr, label: 'revenue today', variant: 'ref-goal' }],
+    describe: i => {
+      const a = r.acceptance[i];
+      return `<strong>${labels[i]}</strong>`
+        + `<span>${fmt.int(a.upgraded)} re-priced, ${fmt.int(a.churned)} leave</span>`
+        + `<span>${fmt.int(a.logos)} paying logos left</span>`
+        + `<span>Revenue ${fmt.money(a.mrr)}, `
+        + `${a.change >= 0 ? 'up' : 'down'} ${fmt.money(Math.abs(a.change))}</span>`
+        + `<span class="muted">New floor ${fmt.money(a.floor)}</span>`;
+    },
+  });
+
+  const end = r.spiral[r.spiral.length - 1];
+  $('reprice-finding').innerHTML =
+    `<strong>Cutting everyone below the allocated floor does not converge \— it `
+    + `runs the base from ${fmt.int(f.paying.length)} paying logos to `
+    + `${fmt.int(end.logos)}.</strong> The fixed cost stays when the customer goes, so `
+    + `every round raises the floor and pushes more customers under it: `
+    + r.spiral.slice(0, 4).map(s =>
+        `${fmt.int(s.logos)} logos at a ${fmt.money(s.floor)} floor`).join(', then ')
+    + `. Re-pricing is the other path, and it turns on how many accept. `
+    + (r.breakEven !== null
+        ? `<strong>Below about ${fmt.pct(r.breakEven, 0)} acceptance you are worse off `
+          + `than doing nothing.</strong> `
+        : '')
+    + `At full acceptance revenue goes to ${fmt.money(r.acceptance[4].mrr)}, `
+    + `${fmt.money(r.acceptance[4].change)} up. At half it is `
+    + `${fmt.money(r.acceptance[2].change)}, and the customers who stayed now need `
+    + `${fmt.money(r.acceptance[2].floor)} rather than ${fmt.money(f.allocatedFloor)}, `
+    + `because the ones who left took their share of the overhead with them and left the `
+    + `overhead behind. `
+    + `<strong>The cheapest move is neither.</strong> Converting the `
+    + `${fmt.int(f.zeros)} accounts that pay nothing adds payers to the denominator `
+    + `instead of removing them, which drops the floor for every existing customer from `
+    + `${fmt.money(f.allocatedFloor)} to ${fmt.money(r.floorIfZerosConvert)} without `
+    + `anyone paying more.`;
+
+  $('reprice-note').textContent =
+    'Both paths start from the same place: '
+    + fmt.int(r.below.length) + ' paying customers below the allocated floor of '
+    + fmt.money(f.allocatedFloor) + ', worth '
+    + fmt.money(r.below.reduce((s, v) => s + v, 0)) + ' a month between them. The cutting '
+    + 'path removes them, leaves the fixed cost where it is, recomputes the floor on the '
+    + 'survivors and repeats. The re-pricing path moves them to the floor and assumes '
+    + 'anyone who refuses leaves, cheapest first, which is the kind end of that '
+    + 'assumption. Neither models a change in churn behaviour after a price rise, which '
+    + 'is the largest thing this cannot tell you: the acceptance rate on the axis is the '
+    + 'assumption, not a finding. Acquisition is excluded throughout, so these are '
+    + 'operating numbers on the existing book rather than a view of the whole business.';
+}
+
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -1899,6 +2054,7 @@ function boot() {
     renderTenureChurn();
     renderZeroMrr();
     renderProjection();
+    renderFloors();
     renderFullCost();
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
@@ -2642,7 +2798,7 @@ function renderForward() {
     + 'rate-limited by how much is spent on the team that does retention, so the churn '
     + 'this page is about will not be fixed by adding headcount there. And the cost of '
     + 'serving customers can be argued about on its own terms rather than treated as '
-    + 'untouchable insurance against churn \u2014 which matters, because chart 29 shows '
+    + 'untouchable insurance against churn — which matters, because chart 29 shows '
     + 'that is where the money actually goes.';
 
   $('capacity-note').textContent =
@@ -2722,7 +2878,7 @@ function renderForward() {
     + widest.label + ' alone covers ' + rangeOf(widest.xs).toFixed(2) + ' points end to '
     + 'end, which is most of the range a correlation can occupy. '
     + 'Read it as the reason not to quote any single pooled figure from these two '
-    + 'series \u2014 including the ones on the chart above.';
+    + 'series — including the ones on the chart above.';
 
   $('momentum-note').textContent =
     'Correlation against forward churn computed over a moving ' + cap.rollingWidth
