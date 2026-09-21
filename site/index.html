@@ -22,6 +22,7 @@
   <nav class="wrap tabs" role="tablist" aria-label="Views">
     <button id="tab-story" role="tab" aria-selected="false" aria-controls="view-story">The argument</button>
     <button id="tab-all" role="tab" aria-selected="true" aria-controls="view-all">Every chart</button>
+    <button id="tab-list" role="tab" aria-selected="false" aria-controls="view-list">Upgrade list</button>
   </nav>
 
   <!-- The story view holds no charts of its own. The four it presents are
@@ -644,6 +645,34 @@
   </div>
 
   </div><!-- view-all -->
+
+  <section id="view-list" class="wrap" hidden>
+    <header class="story-head">
+      <h2>Accounts worth a conversation</h2>
+      <p>Every active account paying less than it costs to serve, named, with
+        the Stripe identifier to look them up. Two groups, because they need
+        two different conversations.</p>
+    </header>
+    <div class="chart-control" id="list-actions">
+      <button type="button" id="list-download">Download both lists as CSV</button>
+      <output id="list-status"></output>
+    </div>
+    <figure class="card wide">
+      <figcaption><h3 id="list-zero-title">Paying nothing</h3></figcaption>
+      <p class="finding" id="list-zero-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="list-zero-table"></table>
+      </div>
+    </figure>
+    <figure class="card wide">
+      <figcaption><h3 id="list-low-title">Paying something, below cost to serve</h3></figcaption>
+      <p class="finding" id="list-low-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="list-low-table"></table>
+      </div>
+    </figure>
+    <p class="note" id="list-note"></p>
+  </section>
 
   <footer class="wrap site-footer">
     <h2>What is solid and what is not</h2>

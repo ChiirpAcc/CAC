@@ -1890,6 +1890,91 @@ function fmtMonth(m) {
 }
 
 
+// The accounts worth a conversation, named.
+//
+// Two groups, and they need different conversations. The zero-MRR accounts are
+// not a price rise, they are a customer who stopped paying and stayed on the
+// platform: the ask is to start paying anything at all. The under-$306 group
+// pays something but less than it costs to serve once support and overhead are
+// counted, so the ask there is an upgrade to a supported tier.
+//
+// Sorted by how much the account is short of the target rather than by size,
+// because the sales effort per conversation is roughly constant and the
+// biggest gaps are where that effort pays.
+export function upgradeList(data, { lowBand = 306 } = {}) {
+  const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
+  if (!months.length) return null;
+  const last = months[months.length - 1];
+
+  const firstSeen = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!firstSeen.has(row.id) || row.month < firstSeen.get(row.id)) {
+      firstSeen.set(row.id, row.month);
+    }
+  }
+
+  // Six months of history per account, so a caller can see whether this is a
+  // customer who has always been small or one who has fallen.
+  const window = months.slice(-6);
+  const historyBy = new Map();
+  for (const row of data.customers) {
+    if (!row.active || !window.includes(row.month)) continue;
+    if (!historyBy.has(row.id)) historyBy.set(row.id, new Map());
+    historyBy.get(row.id).set(row.month, row.eopMrr || 0);
+  }
+
+  const build = row => {
+    const hist = historyBy.get(row.id) || new Map();
+    const series = window.map(m => (hist.has(m) ? hist.get(m) : null));
+    const seen = series.filter(v => v !== null);
+    const peak = seen.length ? Math.max(...seen) : 0;
+    return {
+      id: row.id,
+      canonicalId: row.canonicalId || null,
+      name: row.name || null,
+      source: row.source || null,
+      since: firstSeen.get(row.id) || null,
+      tenure: firstSeen.has(row.id) ? monthDiff(firstSeen.get(row.id), last) : null,
+      mrr: row.eopMrr || 0,
+      cash: row.netCash || 0,
+      usage: row.usage || 0,
+      oneTime: row.oneTime || 0,
+      series,
+      peak,
+      // A customer who used to pay more is a different conversation from one
+      // who never did: the first is a recovery, the second is an upgrade.
+      fallen: peak > (row.eopMrr || 0),
+    };
+  };
+
+  const live = data.customers.filter(r => r.active && r.month === last);
+  const zeros = live.filter(r => !(r.eopMrr > 0)).map(build);
+  const low = live.filter(r => r.eopMrr > 0 && r.eopMrr < lowBand).map(build);
+
+  const byGap = (a, b) => (b.peak - b.mrr) - (a.peak - a.mrr) || a.mrr - b.mrr;
+  zeros.sort(byGap);
+  low.sort((a, b) => a.mrr - b.mrr);
+
+  return {
+    month: last, window, lowBand,
+    zeros, low,
+    totals: {
+      accounts: zeros.length + low.length,
+      zeroCount: zeros.length,
+      lowCount: low.length,
+      lowMrr: low.reduce((s, r) => s + r.mrr, 0),
+      zerosWithCash: zeros.filter(r => r.cash > 0 || r.usage > 0).length,
+      zerosFallen: zeros.filter(r => r.fallen).length,
+      namesMissing: zeros.concat(low).filter(r => !r.name).length,
+      // What each group is worth if it moves to the band edge.
+      upliftToLow: zeros.reduce((s) => s + lowBand, 0)
+        + low.reduce((s, r) => s + (lowBand - r.mrr), 0),
+    },
+  };
+}
+
+
 // What a customer has to pay to be worth keeping, and what happens if you act
 // on it. Two different floors, and confusing them is the expensive mistake.
 //

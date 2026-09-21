@@ -708,3 +708,18 @@ figcaption { margin-bottom: .9rem; }
   text-transform: uppercase;
   letter-spacing: .04em;
 }
+
+/* Upgrade list ------------------------------------------------------------ */
+
+.data-table .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; }
+.data-table .trend { font-size: .76rem; color: var(--ink-mid); white-space: nowrap; }
+#list-actions button {
+  font: inherit;
+  padding: .35rem .8rem;
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+#list-actions button:hover { background: var(--surface-sunk); }
+#list-status { color: var(--ink-soft); font-size: .82rem; }

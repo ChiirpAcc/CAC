@@ -10,7 +10,7 @@ import {
   ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
-  projectBase, arrivalScenarios, priceFloors, repriceOutcomes,
+  projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -945,9 +945,12 @@ function showView(which) {
     }
   }
 
-  $('view-story').hidden = !story;
-  $('view-all').hidden = story;
-  for (const [id, on] of [['tab-story', story], ['tab-all', !story]]) {
+  $('view-story').hidden = which !== 'story';
+  $('view-all').hidden = which !== 'all';
+  if ($('view-list')) $('view-list').hidden = which !== 'list';
+  for (const [id, on] of [['tab-story', which === 'story'], ['tab-all', which === 'all'],
+                          ['tab-list', which === 'list']]) {
+    if (!$(id)) continue;
     $(id).setAttribute('aria-selected', String(on));
     $(id).classList.toggle('is-on', on);
   }
@@ -959,6 +962,7 @@ function wireTabs() {
   rememberHomes();
   $('tab-story').addEventListener('click', () => showView('story'));
   $('tab-all').addEventListener('click', () => showView('all'));
+  if ($('tab-list')) $('tab-list').addEventListener('click', () => showView('list'));
   showView('all');
 }
 
@@ -2032,6 +2036,125 @@ function renderFloors() {
 }
 
 
+// The upgrade list tab. A working document rather than a chart: the point is
+// that somebody can read a row, look the account up and make a call.
+function renderUpgradeList() {
+  if (!$('list-zero-table')) return;
+  const l = upgradeList(data, { lowBand: 306 });
+  if (!l) return;
+
+  const money = v => (v ? fmt.money(v) : '–');
+  const spark = series => series
+    .map(v => (v === null ? '<span class="muted">·</span>' : (v > 0 ? fmt.int(v) : '0')))
+    .join(' <span class="muted">→</span> ');
+
+  const table = (rows, target) => {
+    const head = '<thead><tr><th>Company</th><th>Stripe ID</th><th>Chiirp ID</th>'
+      + '<th class="n">Now</th><th class="n">Peak</th><th class="n">To ' + fmt.money(target)
+      + '</th><th class="n">Months here</th><th>Env</th>'
+      + '<th>Last six months</th></tr></thead>';
+    const body = rows.map(r => {
+      const gap = Math.max(0, target - r.mrr);
+      return '<tr>'
+        + `<td>${r.name ? r.name : '<span class="muted">no name in the file</span>'}</td>`
+        + `<td class="mono">${r.id}</td>`
+        + `<td class="mono">${r.canonicalId || '<span class="muted">–</span>'}</td>`
+        + `<td class="n">${money(r.mrr)}</td>`
+        + `<td class="n">${money(r.peak)}</td>`
+        + `<td class="n">${money(gap)}</td>`
+        + `<td class="n">${r.tenure === null ? '–' : fmt.int(r.tenure)}</td>`
+        + `<td>${r.source || '–'}</td>`
+        + `<td class="trend">${spark(r.series)}</td>`
+        + '</tr>';
+    }).join('');
+    return head + '<tbody>' + body + '</tbody>';
+  };
+
+  $('list-zero-title').textContent =
+    `Paying nothing — ${fmt.int(l.zeros.length)} accounts`;
+  $('list-zero-table').innerHTML = table(l.zeros, l.lowBand);
+
+  const recoverable = l.zeros.filter(r => r.fallen).length;
+  $('list-zero-finding').innerHTML =
+    `<strong>${fmt.int(l.zeros.length)} accounts carrying no subscription, `
+    + `${fmt.int(recoverable)} of which were paying something inside the last six `
+    + `months.</strong> Those ${fmt.int(recoverable)} are a recovery conversation and the `
+    + `rest are a fresh one. ${fmt.int(l.totals.zerosWithCash)} are still sending money `
+    + `through usage or one-off charges despite carrying no subscription, which makes them `
+    + `the warmest calls on this page: they are using the product and paying for parts of `
+    + `it. Sorted by how far each has fallen from its own recent peak, so the top of the `
+    + `list is where the most was lost rather than where the account is largest.`;
+
+  $('list-low-title').textContent =
+    `Paying something, under ${fmt.money(l.lowBand)} — ${fmt.int(l.low.length)} accounts`;
+  $('list-low-table').innerHTML = table(l.low, l.lowBand);
+
+  $('list-low-finding').innerHTML =
+    `<strong>${fmt.int(l.low.length)} accounts paying `
+    + `${fmt.money(l.totals.lowMrr)} a month between them, against a cost to serve of `
+    + `about ${fmt.money(l.lowBand)} each.</strong> Bringing this group alone to `
+    + `${fmt.money(l.lowBand)} is worth `
+    + `${fmt.money(l.low.reduce((s, r) => s + (l.lowBand - r.mrr), 0))} a month. Sorted `
+    + `cheapest first, which is also roughly hardest first: the accounts at the top have `
+    + `the furthest to move and are the most likely to refuse.`;
+
+  $('list-note').textContent =
+    'Every active account in ' + fmt.monthLabel(l.month) + ' paying less than '
+    + fmt.money(l.lowBand) + ' a month, which is where a customer starts covering the '
+    + 'measured cost of serving it. Chart 37 has the arithmetic. The Stripe identifier is '
+    + 'the one in the billing export and is present for every account; the Chiirp '
+    + 'identifier is not in the pushed data — canonical_id is populated on 34 rows out of '
+    + 'more than a thousand — so that column is mostly empty and would need the workbook '
+    + 'to carry it. '
+    + (l.totals.namesMissing
+        ? fmt.int(l.totals.namesMissing) + ' accounts have no company name in the file and '
+          + 'will need looking up by Stripe ID. '
+        : '')
+    + 'Peak is the highest month in the last six, so an account showing a peak above its '
+    + 'current figure has fallen rather than always been small. The last six months run '
+    + 'oldest to newest and a dot means the account was not active that month. Nothing '
+    + 'here is a churn risk score: it is what each account pays against what it costs, '
+    + 'and the judgement about which are worth a call is yours.';
+
+  // A sales list that cannot be exported is a list nobody uses.
+  const csv = () => {
+    const head = ['group', 'company', 'stripe_id', 'chiirp_id', 'mrr_now', 'mrr_peak',
+      'gap_to_' + l.lowBand, 'months_here', 'environment', 'cash_last_month',
+      'usage_last_month'].concat(l.window);
+    const line = (group, r) => [group, r.name || '', r.id, r.canonicalId || '',
+      r.mrr, r.peak, Math.max(0, l.lowBand - r.mrr), r.tenure === null ? '' : r.tenure,
+      r.source || '', r.cash, r.usage]
+      .concat(r.series.map(v => (v === null ? '' : v)))
+      .map(v => {
+        const s = String(v);
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',');
+    return [head.join(',')]
+      .concat(l.zeros.map(r => line('pays_nothing', r)))
+      .concat(l.low.map(r => line('under_' + l.lowBand, r)))
+      .join('\n');
+  };
+
+  const button = $('list-download');
+  if (button && !button.dataset.ready) {
+    button.addEventListener('click', () => {
+      const blob = new Blob([csv()], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chiirp-upgrade-list-${l.month}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      $('list-status').textContent =
+        `${fmt.int(l.totals.accounts)} accounts exported.`;
+    });
+    button.dataset.ready = '1';
+  }
+}
+
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -2055,6 +2178,7 @@ function boot() {
     renderZeroMrr();
     renderProjection();
     renderFloors();
+    renderUpgradeList();
     renderFullCost();
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
