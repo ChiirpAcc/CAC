@@ -2344,16 +2344,27 @@ function renderStatic() {
   const depRecent = departures(data).filter(d => d.rate !== null).slice(-6);
   const sumLeft = depRecent.reduce((s, d) => s + d.left, 0);
   const sumRep = recent.slice(-depRecent.length).reduce((s, r) => s + (r.churnedLogos || 0), 0);
+  // This note described a gap between the two lines for as long as the gap
+  // existed. It closed on the 2026-09-21 17:05 push, and a note that goes on
+  // explaining a difference of zero is worse than no note, so it reads the
+  // numbers and says which of the two situations it is in.
+  const bookingGap = sumLeft - sumRep;
   $('churn-note').innerHTML =
     'Not two versions of the data, one measure and the part of it that gets recorded. The solid '
     + 'line is every customer present one month and absent the next. The dashed line is how many '
     + 'of those the push booked as a churn. Over the last ' + depRecent.length + ' months it books '
     + fmt.int(sumRep) + ' departures and the file loses ' + fmt.int(sumLeft) + ', '
-    + (sumRep ? ((sumLeft / sumRep - 1) * 100).toFixed(0) : '0') + '% more. The difference is '
-    + 'customers whose subscription drops out of the Stripe export without generating a churn '
-    + 'event. They are not test accounts: in 2026 there are 182 of them, 179 carried cash in '
-    + 'their last six months, and the subscription export itself marks 156 as churned with an '
-    + 'end date. Read the solid line as the rate and the dashed one as a floor.';
+    + (Math.abs(bookingGap) <= Math.max(2, sumLeft * 0.01)
+        ? 'which is the same number. '
+          + 'That is recent: until the September 2026 push the booked figure missed 122 '
+          + 'departures over six months, about a third of them, all of them customers who had '
+          + 'been contracted to zero MRR and then dropped out of the file without a churn event. '
+          + 'The two lines now agree because both are right rather than because both are wrong, '
+          + 'and the pair is kept on the chart so that if they separate again it is visible.'
+        : (sumRep ? ((sumLeft / sumRep - 1) * 100).toFixed(0) : '0') + '% more. The difference is '
+          + 'customers whose subscription drops out of the Stripe export without generating a '
+          + 'churn event, which is a booking gap rather than a measurement disagreement. Read '
+          + 'the solid line as the rate and the dashed one as a floor.');
 
   // 6. Retention at month 3 and month 6, one point per cohort.
   const windowed = cohorts.slice(-COHORT_WINDOW);
