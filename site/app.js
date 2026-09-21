@@ -345,7 +345,16 @@ function renderSettledTotals(data) {
 // is which line moved. The bottom three rows are the whole CAC calculation:
 // what was spent, what arrived, and the division of one by the other.
 function renderCostTable(data) {
-  const c = acquisitionCosts(data, { months: 12 });
+  // Back to January 2025 rather than a rolling twelve months, so the table
+  // covers the period the rest of the page argues over rather than only the
+  // most recent year of it. Counted from the last month in the file so it
+  // extends itself as new months land.
+  const FROM = '2025-01';
+  const span = data.lastMonth
+    ? (Number(data.lastMonth.slice(0, 4)) - 2025) * 12
+      + (Number(data.lastMonth.slice(5, 7)) - 1) + 1
+    : 12;
+  const c = acquisitionCosts(data, { months: Math.max(span, 12) });
   if (!c.months.length) {
     $('cost-table').innerHTML = '<tbody><tr><td>No acquisition spend in the window.</td></tr></tbody>';
     return;
@@ -354,7 +363,7 @@ function renderCostTable(data) {
   const money = v => (v ? '$' + Math.round(v).toLocaleString() : '–');
   const head = '<thead><tr><th>Category</th>'
     + c.months.map(m => `<th class="n">${fmt.monthLabel(m)}</th>`).join('')
-    + '<th class="n total-col">12 months</th></tr></thead>';
+    + `<th class="n total-col">${c.months.length} months</th></tr></thead>`;
 
   const sum = vals => vals.reduce((s, v) => s + v, 0);
   const body = c.categories
