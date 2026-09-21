@@ -8,6 +8,7 @@ import {
   signupEconomics, priceAgainstRetention,
   arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
   ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
+  costToServe, costRecovery, churnByTenure, zeroMrrShare,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -903,6 +904,391 @@ function wireTabs() {
   showView('all');
 }
 
+// 27. Acquisition cost per logo, one line per category.
+//
+// The table above it holds every number and is unreadable as a shape. This is
+// the same window divided by the same new logo counts, which turns "what did
+// we spend" into "what did each customer cost, and which line moved".
+function renderCostDrivers() {
+  const span = data.lastMonth
+    ? (Number(data.lastMonth.slice(0, 4)) - 2025) * 12
+      + (Number(data.lastMonth.slice(5, 7)) - 1) + 1
+    : 12;
+  const c = acquisitionCosts(data, { months: Math.max(span, 12) });
+  if (!c.months.length) return;
+
+  const sum = vals => vals.reduce((s, v) => s + v, 0);
+  const perLogo = cat => cat.values.map((v, i) => {
+    const n = c.logos[i];
+    return n ? v / n : null;
+  });
+
+  // Five lines is the most a reader can follow. Everything else is summed into
+  // one so the total still reconciles rather than quietly losing money.
+  const ranked = [...c.categories].sort((a, b) => sum(b.values) - sum(a.values));
+  const shown = ranked.slice(0, 5);
+  const rest = ranked.slice(5);
+  const palette = [INK.primary, INK.secondary, INK.tertiary, INK.accent, INK.negative];
+
+  const series = shown.map((cat, i) => ({
+    label: cat.label, colour: palette[i], values: perLogo(cat),
+  }));
+  if (rest.length) {
+    series.push({
+      label: 'Everything else (' + rest.length + ')',
+      colour: 'var(--ink-soft)',
+      thin: true,
+      values: c.months.map((m, i) => {
+        const n = c.logos[i];
+        return n ? rest.reduce((s, cat) => s + cat.values[i], 0) / n : null;
+      }),
+    });
+  }
+  series.push({
+    label: 'Total per logo', colour: 'var(--ink)', dashed: true, values: c.costPerLogo,
+  });
+
+  const labels = c.months.map(fmt.monthLabel);
+  multiLineChart($('chart-cost-drivers'), {
+    labels, series, yFormat: fmt.money,
+    describe: i => labels[i] + ': ' + fmt.money(c.costPerLogo[i]) + ' per logo on '
+      + fmt.int(c.logos[i]) + ' new logos. '
+      + series.slice(0, -1).map(s => s.label + ' ' + fmt.money(s.values[i])).join(', '),
+  });
+
+  // Which line actually moved. Comparing the first and last quarter of the
+  // window rather than two single months, so one bad month does not decide it.
+  const q = Math.max(Math.round(c.months.length / 4), 1);
+  const meanOf = (vals, from, to) => {
+    const slice = vals.slice(from, to).filter(v => v !== null);
+    return slice.length ? slice.reduce((s, v) => s + v, 0) / slice.length : null;
+  };
+  const moves = shown.map(cat => {
+    const v = perLogo(cat);
+    const early = meanOf(v, 0, q);
+    const late = meanOf(v, c.months.length - q);
+    return { label: cat.label, early, late, delta: (late || 0) - (early || 0) };
+  }).sort((a, b) => b.delta - a.delta);
+
+  const totalEarly = meanOf(c.costPerLogo, 0, q);
+  const totalLate = meanOf(c.costPerLogo, c.months.length - q);
+  const top = moves[0];
+  const shareOfMove = totalLate - totalEarly ? top.delta / (totalLate - totalEarly) : null;
+
+  $('cost-drivers-finding').innerHTML =
+    '<strong>Cost per logo went from ' + fmt.money(totalEarly) + ' to '
+    + fmt.money(totalLate) + ', and ' + top.label.toLowerCase() + ' is '
+    + (shareOfMove === null ? 'most' : fmt.pct(shareOfMove)) + ' of the move.</strong> '
+    + 'That line alone went from ' + fmt.money(top.early) + ' to '
+    + fmt.money(top.late) + ' per logo. '
+    + (moves[1] && moves[1].delta > 0
+        ? moves[1].label + ' added ' + fmt.money(moves[1].delta) + ' on top of it. '
+        : '')
+    + 'Read this against the new logo counts in the table above rather than on its '
+    + 'own: a category can rise here without anybody spending an extra dollar, '
+    + 'because the denominator is new logos and that is the number that fell.';
+
+  $('cost-drivers-note').textContent =
+    'Each category from the table above, divided by the new logos booked in the '
+    + 'same month, so this is the cost table read per customer rather than per month. '
+    + 'A category with no spend in a month sits at zero rather than leaving a gap, '
+    + 'because zero is the true value there. The dashed line is the total and equals '
+    + 'the bottom row of the table. Months with no new logos have no cost per logo '
+    + 'and break the lines rather than dropping them to the axis.';
+}
+
+
+// 28. What a customer pays against what is left after serving them.
+//
+// The first chart on this page built on measured cost rather than an assumed
+// margin, which is why the finding leads with the gap between the two.
+function renderContribution() {
+  const c = costToServe(data);
+  if (!c) return;
+
+  const labels = c.months.map(m => fmt.monthLabel(m.month));
+  multiLineChart($('chart-contribution'), {
+    labels,
+    yFormat: fmt.money,
+    series: [
+      { label: 'What a customer pays (ARPA)', colour: INK.primary,
+        values: c.months.map(m => m.arpa) },
+      { label: 'Left after cost to serve', colour: INK.secondary,
+        values: c.months.map(m => m.grossPerLogo) },
+      { label: 'Left after everything', colour: INK.negative,
+        values: c.months.map(m => m.netPerLogo) },
+    ],
+    describe: i => {
+      const m = c.months[i];
+      return labels[i] + ': ' + fmt.money(m.arpa) + ' per logo across '
+        + fmt.int(m.activeLogos) + ' active. Cost to serve ' + fmt.money(m.cogsPerLogo)
+        + ' leaves ' + fmt.money(m.grossPerLogo) + ' (' + fmt.pct(m.grossMargin) + '); '
+        + 'G&A and R&D take another ' + fmt.money(m.opexPerLogo) + ', leaving '
+        + fmt.money(m.netPerLogo) + ' (' + fmt.pct(m.netMargin) + ').';
+    },
+  });
+
+  const ASSUMED = SETTLED.margin;
+  const gap = ASSUMED - c.recentGrossMargin;
+  $('contribution-finding').innerHTML =
+    '<strong>The measured gross margin is ' + fmt.pct(c.recentGrossMargin, 1)
+    + ', not the ' + fmt.pct(ASSUMED, 1) + ' every ratio above this chart '
+    + 'assumes.</strong> That is ' + fmt.pct(gap, 1) + ' of revenue, and it runs '
+    + 'through everything: an LTV built at ' + fmt.pct(ASSUMED, 1) + ' is about '
+    + (ASSUMED / c.recentGrossMargin).toFixed(2) + ' times the one the cost tab '
+    + 'supports, so every payback period and every LTV:CAC ratio earlier on is that '
+    + 'much too kind. Those charts have deliberately not been rewired to this number, '
+    + 'because swapping the margin under twenty-seven charts without saying so is how '
+    + 'a deck stops being checkable — read them as the assumed case and this as the '
+    + 'measured one. After G&A and R&D the average customer clears '
+    + fmt.money(c.recentNetPerLogo) + ' a month, ' + fmt.pct(c.recentNetMargin, 1)
+    + ' of what they pay.';
+
+  $('contribution-note').textContent =
+    'ARPA is total end-of-period MRR across every active logo in the customer file, '
+    + 'divided by that logo count. Cost to serve is the cost of sales total from the '
+    + 'finance tab over the same active count'
+    + (c.logosAgree
+        ? ' — and the two sources agree on that count in every month, which is the '
+          + 'main thing making this chart trustworthy'
+        : ', and the two sources disagree on that count in at least one month')
+    + '. G&A and R&D are spread evenly across active logos, because nothing ties a '
+    + 'landlord or a developer to a particular customer. Gross contribution is the '
+    + 'line to use for ratios and for any outside comparison; net contribution answers '
+    + 'the different question of whether a customer at this price pays for the whole '
+    + 'business. Neither is the other. Both divide by ACTIVE logos, where everything '
+    + 'on the acquisition side divides by NEW ones, so no number here should be '
+    + 'divided by a number from those charts.';
+}
+
+
+// 29. Cost of sales per logo, split by the team carrying it.
+function renderServeTeams() {
+  const c = costToServe(data);
+  if (!c || !c.teamTotals.length) return;
+
+  const labels = c.months.map(m => fmt.monthLabel(m.month));
+  const palette = [INK.primary, INK.secondary, INK.tertiary, INK.accent, INK.negative];
+  const top = c.teamTotals.slice(0, 5);
+
+  // The general "Cost of Sales" account is a sibling of the named teams rather
+  // than their parent — the five sum exactly to the total — but the bare name
+  // reads like a total and makes the finding sound circular.
+  const name = label => (label === 'Cost of Sales' ? 'Cost of sales, unsplit' : label);
+
+  const series = top.map((team, i) => ({
+    label: name(team.label),
+    colour: palette[i],
+    values: c.months.map(m => {
+      const row = m.teams.find(t => t.label === team.label);
+      return row && m.activeLogos ? row.amount / m.activeLogos : null;
+    }),
+  }));
+  series.push({
+    label: 'All cost of sales', colour: 'var(--ink)', dashed: true,
+    values: c.months.map(m => m.cogsPerLogo),
+  });
+
+  multiLineChart($('chart-serve-teams'), {
+    labels, series, yFormat: fmt.money,
+    describe: i => labels[i] + ': ' + fmt.money(c.months[i].cogsPerLogo)
+      + ' per active logo. '
+      + series.slice(0, -1).map(s => s.label + ' ' + fmt.money(s.values[i])).join(', '),
+  });
+
+  const grand = c.teamTotals.reduce((s, t) => s + t.amount, 0);
+  const biggest = c.teamTotals[0];
+  $('serve-teams-finding').innerHTML =
+    '<strong>' + name(biggest.label) + ' is ' + fmt.pct(biggest.amount / grand)
+    + ' of what it costs to serve the base.</strong> ' + fmt.money(biggest.amount)
+    + ' of ' + fmt.money(grand) + ' across ' + c.months.length + ' months. '
+    + c.teamTotals.slice(1, 4).map(t => name(t.label) + ' ' + fmt.pct(t.amount / grand)).join(', ')
+    + '. This is the chart to argue over if the answer to thin margins is to serve '
+    + 'customers more cheaply rather than to charge more, because it names where the '
+    + 'money actually goes — people, not infrastructure. A headcount answer and a '
+    + 'pricing answer are the only two on the table, and this says which one is big '
+    + 'enough to matter.';
+
+  $('serve-teams-note').textContent =
+    'Every account booked to cost of sales, divided by active logos in the same '
+    + 'month. There are five and they sum exactly to the total, which the dashed line '
+    + 'draws, so nothing is hidden and nothing is counted twice. The largest is the '
+    + 'general cost of sales account rather than a named team, which is a reporting '
+    + 'limit rather than a finding: half the cost of serving customers is not '
+    + 'attributed to anybody in the source. One line here '
+    + 'is worth flagging upstream: the affiliate marketing spend sitting inside cost '
+    + 'of sales is an acquisition cost by any normal reading, and it appears nowhere '
+    + 'in the acquisition table. It is not double counted, but it is on the wrong '
+    + 'side, and moving it would raise cost per logo and improve gross margin at the '
+    + 'same time.';
+}
+
+
+// 30. Share of its own acquisition cost each cohort has earned back by month 6.
+//
+// The payback chart answers this in months, and reads as catastrophic at an age
+// where a healthy cohort is legitimately still short. A share recovered at a
+// matched age compares cohorts against each other rather than against a finish
+// line none of the recent ones has had time to reach.
+function renderRecoveryAge() {
+  const AGE = 6;
+  const rows = costRecovery(data, cohorts, { age: AGE }).filter(r => r.value !== null);
+  if (!rows.length) return;
+
+  const labels = rows.map(r => fmt.monthLabel(r.month));
+  columnChart($('chart-recovery-age'), {
+    labels,
+    values: rows.map(r => r.value),
+    yFormat: v => fmt.pct(v),
+    refs: [{ value: 1, label: 'cost fully recovered', variant: 'ref-goal' }],
+    colourFor: v => (v >= 1 ? INK.positive : INK.negative),
+    describe: i => labels[i] + ': ' + fmt.pct(rows[i].value)
+      + ' of acquisition cost back within ' + AGE + ' months, on '
+      + fmt.int(rows[i].size) + ' logos.',
+  });
+
+  const half = Math.floor(rows.length / 2);
+  const meanOf = arr => arr.reduce((s, r) => s + r.value, 0) / arr.length;
+  const early = meanOf(rows.slice(0, half));
+  const late = meanOf(rows.slice(half));
+  const cleared = rows.filter(r => r.value >= 1).length;
+  const lastCleared = [...rows].reverse().find(r => r.value >= 1);
+
+  $('recovery-age-finding').innerHTML =
+    '<strong>' + cleared + ' of ' + rows.length + ' cohorts had earned their '
+    + 'acquisition cost back within ' + AGE + ' months, and the recent half sits at '
+    + fmt.pct(late) + ' against ' + fmt.pct(early) + ' for the earlier one.</strong> '
+    + (lastCleared
+        ? 'The last cohort to clear its own cost inside ' + AGE + ' months started in '
+          + fmt.monthLabel(lastCleared.month) + '. '
+        : 'No cohort in the window cleared its cost inside ' + AGE + ' months. ')
+    + 'Two things moved at once and this chart cannot separate them: each logo cost '
+    + 'more to win, and each one returns less per month once real cost to serve is '
+    + 'taken off. Both push the same way, which is why the bars fall faster than '
+    + 'either cause on its own would explain.';
+
+  $('recovery-age-note').textContent =
+    'Every cohort old enough to have run ' + AGE + ' months, and only those, so each '
+    + 'bar is measured at the same age and the recent ones are not penalised for being '
+    + 'young. The numerator is the cohort’s revenue over its first ' + (AGE + 1)
+    + ' months less the measured cost of serving the logos still present in each of '
+    + 'those months; the denominator is the whole acquisition spend of the month it '
+    + 'arrived. Cost to serve is the real monthly figure rather than an assumed '
+    + 'margin, so a month when serving got more expensive pulls every cohort passing '
+    + 'through it down. Bars past the top of the axis are clipped and marked rather '
+    + 'than being allowed to rescale it.';
+}
+
+
+// 31. Monthly churn split by tenure.
+//
+// Several notes on this page assert that what went wrong is not only a new
+// customer problem. This is the measurement behind that claim.
+function renderTenureChurn() {
+  const SPLIT = 6;
+  const rows = churnByTenure(data, { split: SPLIT }).filter(r => r.young !== null);
+  if (!rows.length) return;
+
+  const labels = rows.map(r => fmt.monthLabel(r.month));
+  multiLineChart($('chart-tenure-churn'), {
+    labels,
+    yFormat: v => fmt.pct(v, 1),
+    series: [
+      { label: 'Under ' + SPLIT + ' months', colour: INK.negative,
+        values: rows.map(r => r.young) },
+      { label: SPLIT + ' months and over', colour: INK.primary,
+        values: rows.map(r => r.old) },
+    ],
+    describe: i => {
+      const r = rows[i];
+      const share = r.youngShare + r.oldShare;
+      return labels[i] + ': ' + fmt.pct(r.young, 1) + ' of ' + fmt.int(r.youngBase)
+        + ' newer customers left, ' + fmt.pct(r.old, 1) + ' of ' + fmt.int(r.oldBase)
+        + ' tenured ones. Of everyone who left that month, the tenured half was '
+        + (share ? fmt.pct(r.oldShare / share) : '--') + ' of the losses.';
+    },
+  });
+
+  const recent = rows.slice(-6);
+  const meanOf = pick => recent.reduce((s, r) => s + pick(r), 0) / recent.length;
+  const youngNow = meanOf(r => r.young);
+  const oldNow = meanOf(r => r.old);
+  const oldSum = meanOf(r => r.oldShare);
+  const youngSum = meanOf(r => r.youngShare);
+  const oldWeight = oldSum + youngSum ? oldSum / (oldSum + youngSum) : null;
+
+  $('tenure-churn-finding').innerHTML =
+    '<strong>New customers leave at ' + fmt.pct(youngNow, 1) + ' a month against '
+    + fmt.pct(oldNow, 1) + ' for tenured ones, and the tenured half is still '
+    + fmt.pct(oldWeight) + ' of everyone who leaves.</strong> The rate answers "are we '
+    + 'selling to the wrong people"; the weight answers "where would fixing it '
+    + 'actually help". They point at different teams. A first month problem is an '
+    + 'intake problem and lands on sales and onboarding, but most of the customers '
+    + 'actually walking out have been here long enough that intake is no longer the '
+    + 'explanation for them.';
+
+  $('tenure-churn-note').textContent =
+    'Presence month to month across the whole standing base, cut at ' + SPLIT
+    + ' months of tenure. Not a cohort chart: it describes the book as it stood each '
+    + 'month rather than a single intake followed forward, so a customer moves from '
+    + 'one line to the other as they age. Customers already present when the data '
+    + 'window opens have no knowable signup date and are counted as tenured, which is '
+    + 'the conservative choice — it puts them in the half this chart is trying not to '
+    + 'blame. A customer booked down to zero MRR is still present here, because '
+    + 'presence on this page is an event type and not an amount; the chart below '
+    + 'shows how many of those there are.';
+}
+
+
+// 32. Customers present in every count who are paying nothing.
+function renderZeroMrr() {
+  const rows = zeroMrrShare(data).filter(r => r.base >= 50);
+  if (!rows.length) return;
+
+  const labels = rows.map(r => fmt.monthLabel(r.month));
+  multiLineChart($('chart-zero-mrr'), {
+    labels,
+    yFormat: v => fmt.pct(v, 1),
+    series: [
+      { label: 'Active, but no MRR booked', colour: INK.negative,
+        values: rows.map(r => r.share) },
+      { label: 'Active, and no money at all', colour: INK.secondary,
+        values: rows.map(r => r.noMoneyShare) },
+    ],
+    describe: i => {
+      const r = rows[i];
+      return labels[i] + ': ' + fmt.int(r.zero) + ' of ' + fmt.int(r.base)
+        + ' active logos (' + fmt.pct(r.share, 1) + ') carry no MRR, and '
+        + fmt.int(r.noMoneyAtAll) + ' (' + fmt.pct(r.noMoneyShare, 1)
+        + ') have no cash, usage or one-off charges either.';
+    },
+  });
+
+  const last = rows[rows.length - 1];
+  const first = rows[0];
+  $('zero-mrr-finding').innerHTML =
+    '<strong>' + fmt.pct(last.share, 1) + ' of the active base pays nothing, against '
+    + fmt.pct(first.share, 1) + ' at the start of the window.</strong> That is '
+    + fmt.int(last.zero) + ' logos counted as present in every logo retention curve on '
+    + 'this page and contributing nothing to any revenue curve. '
+    + fmt.int(last.noMoneyAtAll) + ' of them have no cash, no usage and no one-off '
+    + 'charges at all, which makes them hard to describe as customers in any sense '
+    + 'that matters. This is a good part of the gap between the logo lines and the '
+    + 'money lines earlier on, and it is the plainest argument for a floor: a customer '
+    + 'discounted to nothing still costs what the chart above says it costs to serve '
+    + 'them.';
+
+  $('zero-mrr-note').textContent =
+    'Presence on this page is an event type rather than an amount, so a customer '
+    + 'booked down to zero is still a live logo in every count that follows. The two '
+    + 'lines separate two different problems: the upper one includes customers whose '
+    + 'MRR is simply not booked but who are paying in some other way, and the lower '
+    + 'one is the subset with nothing attached at all. Months with fewer than fifty '
+    + 'active logos are dropped, because a share of a small base moves for reasons '
+    + 'that have nothing to do with pricing.';
+}
+
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -918,6 +1304,12 @@ function boot() {
     renderSettledTotals(data);
     renderAnnotations();
     renderPricing(data);
+    renderCostDrivers();
+    renderContribution();
+    renderServeTeams();
+    renderRecoveryAge();
+    renderTenureChurn();
+    renderZeroMrr();
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);

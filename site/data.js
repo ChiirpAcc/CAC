@@ -94,7 +94,8 @@ async function readFile(name) {
 // new tabs have arrived unannounced more than once, and fetching every file
 // meant one bad or renamed file took the whole page down rather than one chart.
 const REQUIRED_TABS = ['Waterfall Summary', 'CAC Monthly', 'QB Expenses', 'Customer Waterfall'];
-const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Cohorts'];
+const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Cohorts',
+  'Serve Monthly', 'Event Costs'];
 
 export async function load() {
   const index = await fetch(`${DATA_DIR}/index.json`, { cache: 'no-store' }).then(r => r.json());
@@ -121,6 +122,31 @@ export async function load() {
   // still accruing.
   const inWindow = month => month && month >= HISTORY_STARTS && month < CURRENT_MONTH;
   const complete = rows => rows.filter(r => inWindow(r.month));
+
+  // What it costs to keep a logo, as opposed to winning one. The revenue side
+  // of this tab is not populated, so arpa and every contribution column in it
+  // are null; the costs are real and are what the build uses. Contribution is
+  // computed here from the base's own MRR instead, which is the same
+  // arithmetic the tab intends.
+  const serveRows = byTab['Serve Monthly'] ? complete(byTab['Serve Monthly'].rows) : [];
+  const serve = serveRows.map(r => ({
+    month: r.month,
+    activeLogos: num(r.active_logos),
+    cogsTotal: num(r.cogs_total),
+    cogsPerLogo: num(r.cogs_per_logo),
+    fromSplit: num(r.from_split),
+    opexTotal: num(r.opex_total),
+    opexPerLogo: num(r.opex_per_logo),
+    totalCost: num(r.total_cost),
+    totalPerLogo: num(r.total_per_logo),
+    teams: Object.entries(r)
+      .filter(([key]) => /^\d{4}-\d{2} /.test(key))
+      .map(([key, value]) => ({
+        code: key.slice(0, 7),
+        label: key.slice(8),
+        amount: num(String(value).replace(/[$,]/g, '')),
+      })),
+  })).filter(r => r.cogsPerLogo !== null && r.activeLogos);
 
   const waterfall = complete(byTab['Waterfall Summary'].rows).map(r => ({
     month: r.month,
@@ -272,6 +298,7 @@ export async function load() {
     lifetimes,
     lifetimeRecords,
     signups,
+    serve,
     missingTabs: missing,
     lastMonth: waterfall.length ? waterfall[waterfall.length - 1].month : null,
   };
@@ -1263,6 +1290,214 @@ export function priceComparison(data, { anchor = 2500, floor = 1250, elasticity 
     rows: rows.map(row => ({ ...row, left: negotiated - row.mrr })),
     best: negotiated,
   };
+}
+
+
+// What it costs to keep a logo, against what a logo pays.
+//
+// Until this tab arrived, margin was a single assumption applied to
+// everything. It is measured now, and it is not what was assumed: cost of
+// sales alone runs around forty per cent of what the average customer pays.
+//
+// Two figures, deliberately kept apart. Gross contribution is what a customer
+// pays less what it costs to serve them, which is the number ratios like
+// LTV:CAC are built on and the one every outside benchmark uses. Net
+// contribution takes off G&A and R&D too, and answers a different question:
+// whether a customer at a given price pays for the whole business rather than
+// just its own cost of service. Neither should be presented as the other.
+//
+// G&A and R&D are spread evenly across active logos, because nothing ties a
+// landlord or a developer to a particular customer and per active logo is the
+// plainest convention available. Note the denominator: cost to serve divides
+// by ACTIVE logos where acquisition divides by NEW ones. They answer different
+// questions and nothing here should divide one by the other's base.
+export function costToServe(data) {
+  if (!data.serve || !data.serve.length) return null;
+
+  const mrrByMonth = new Map();
+  const liveByMonth = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    mrrByMonth.set(row.month, (mrrByMonth.get(row.month) || 0) + (row.eopMrr || 0));
+    liveByMonth.set(row.month, (liveByMonth.get(row.month) || 0) + 1);
+  }
+
+  const months = data.serve
+    .filter(r => mrrByMonth.has(r.month) && liveByMonth.get(r.month))
+    .map(r => {
+      const logos = liveByMonth.get(r.month);
+      const arpa = mrrByMonth.get(r.month) / logos;
+      return {
+        month: r.month,
+        activeLogos: logos,
+        // The tab's own count, carried so the page can show the two agree
+        // rather than asserting it.
+        reportedLogos: r.activeLogos,
+        arpa,
+        cogsPerLogo: r.cogsPerLogo,
+        opexPerLogo: r.opexPerLogo,
+        totalPerLogo: r.totalPerLogo,
+        grossPerLogo: arpa - r.cogsPerLogo,
+        grossMargin: arpa ? (arpa - r.cogsPerLogo) / arpa : null,
+        netPerLogo: arpa - r.totalPerLogo,
+        netMargin: arpa ? (arpa - r.totalPerLogo) / arpa : null,
+        teams: r.teams,
+      };
+    });
+
+  if (!months.length) return null;
+  const recent = months.slice(-6);
+  const meanOf = (rows, pick) => rows.reduce((s, m) => s + pick(m), 0) / rows.length;
+
+  return {
+    months,
+    meanGrossMargin: meanOf(months, m => m.grossMargin),
+    recentGrossMargin: meanOf(recent, m => m.grossMargin),
+    recentNetMargin: meanOf(recent, m => m.netMargin),
+    recentGrossPerLogo: meanOf(recent, m => m.grossPerLogo),
+    recentNetPerLogo: meanOf(recent, m => m.netPerLogo),
+    recentArpa: meanOf(recent, m => m.arpa),
+    // Every team that carries cost of sales, totalled across the window.
+    teamTotals: (() => {
+      const totals = new Map();
+      for (const m of months) {
+        for (const team of m.teams) {
+          totals.set(team.label, (totals.get(team.label) || 0) + (team.amount || 0));
+        }
+      }
+      return [...totals.entries()]
+        .map(([label, amount]) => ({ label, amount }))
+        .sort((a, b) => b.amount - a.amount);
+    })(),
+    logosAgree: months.every(m => !m.reportedLogos || m.reportedLogos === m.activeLogos),
+  };
+}
+
+
+// How much of what a cohort cost to win it has earned back by a given age.
+//
+// The ratio chart answers this with a multiple, which reads as alarming at an
+// age where a healthy cohort is legitimately still below one. A share of cost
+// recovered says the same thing without the arithmetic getting in the way:
+// recovering half your cost by month six against a previous year's full
+// recovery is a fact that needs no explaining.
+//
+// Contribution uses the measured cost of sales for the month rather than an
+// assumed margin, so this moves when the cost of serving customers moves.
+export function costRecovery(data, cohorts, { age = 6 } = {}) {
+  const spend = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const cogs = new Map((data.serve || []).map(r => [r.month, r.cogsPerLogo]));
+  if (!cogs.size) return [];
+
+  return cohorts.map(cohort => {
+    const cost = spend.get(cohort.month);
+    if (cost === undefined || !cohort.size || cohort.maxOffset < age) {
+      return { month: cohort.month, value: null, size: cohort.size };
+    }
+    let recovered = 0;
+    for (let k = 0; k <= age; k += 1) {
+      const at = monthAdd(cohort.month, k);
+      const perLogo = cogs.get(at);
+      if (perLogo === undefined || perLogo === null) continue;
+      recovered += (cohort.revenue[k] || 0) - perLogo * (cohort.logos[k] || 0);
+    }
+    return { month: cohort.month, value: recovered / cost, size: cohort.size };
+  });
+}
+
+
+// Monthly churn split by how long a customer has been here.
+//
+// The cohort charts describe intakes and this describes the standing book, cut
+// at six months of tenure. It exists to answer one objection directly: that
+// what has gone wrong is a new customer problem. Both halves moved, and the
+// tenured half is the larger share of the base, so it carries more of the
+// damage in absolute terms even when its rate is lower.
+//
+// Customers already present when the window opens have unknowable tenure and
+// are counted as tenured, which is the conservative choice: it puts them in
+// the half this is trying not to blame.
+export function churnByTenure(data, { split = 6 } = {}) {
+  const live = new Map();
+  const firstSeen = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!live.has(row.month)) live.set(row.month, new Set());
+    live.get(row.month).add(row.id);
+    if (!firstSeen.has(row.id) || row.month < firstSeen.get(row.id)) {
+      firstSeen.set(row.id, row.month);
+    }
+  }
+  const months = [...live.keys()].sort();
+  const position = new Map(months.map((m, i) => [m, i]));
+
+  return months.slice(1).map((month, i) => {
+    const before = live.get(months[i]);
+    const now = live.get(month);
+    let youngBase = 0;
+    let youngGone = 0;
+    let oldBase = 0;
+    let oldGone = 0;
+    for (const id of before) {
+      const censored = firstSeen.get(id) === months[0];
+      const tenure = position.get(months[i]) - position.get(firstSeen.get(id));
+      const gone = !now.has(id);
+      if (!censored && tenure < split) {
+        youngBase += 1;
+        if (gone) youngGone += 1;
+      } else {
+        oldBase += 1;
+        if (gone) oldGone += 1;
+      }
+    }
+    const total = youngBase + oldBase;
+    return {
+      month,
+      young: youngBase ? youngGone / youngBase : null,
+      old: oldBase ? oldGone / oldBase : null,
+      youngBase,
+      oldBase,
+      // What each half contributes to the blended rate, which is the part that
+      // decides where the losses actually are.
+      youngShare: total ? youngGone / total : null,
+      oldShare: total ? oldGone / total : null,
+    };
+  });
+}
+
+
+// Customers counted as present who are paying nothing.
+//
+// Presence on this page is an event type, not an amount, so a customer booked
+// down to zero MRR is still a live logo in every count that follows. This is
+// the measurement underneath the cancellation policy, the gap between the logo
+// and money retention curves, and a good deal of the revenue churn. It has
+// been asserted in several notes and never drawn.
+export function zeroMrrShare(data) {
+  const live = new Map();
+  const zero = new Map();
+  const zeroCash = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    live.set(row.month, (live.get(row.month) || 0) + 1);
+    if (!(row.eopMrr > 0)) {
+      zero.set(row.month, (zero.get(row.month) || 0) + 1);
+      // Some of these are real customers whose MRR is simply not booked; the
+      // rest have no money attached at all. Worth separating, because they are
+      // different problems.
+      const anyMoney = (row.netCash || 0) > 0 || (row.usage || 0) > 0
+        || (row.oneTime || 0) > 0;
+      if (!anyMoney) zeroCash.set(row.month, (zeroCash.get(row.month) || 0) + 1);
+    }
+  }
+  return [...live.keys()].sort().map(month => ({
+    month,
+    base: live.get(month),
+    zero: zero.get(month) || 0,
+    share: live.get(month) ? (zero.get(month) || 0) / live.get(month) : null,
+    noMoneyAtAll: zeroCash.get(month) || 0,
+    noMoneyShare: live.get(month) ? (zeroCash.get(month) || 0) / live.get(month) : null,
+  }));
 }
 
 
