@@ -124,6 +124,30 @@
       <p class="note" id="full-cost-note"></p>
     </figure>
 
+<figure class="card wide" id="fig-contribution">
+      <figcaption>
+        <h3>28. What a customer pays, and what is left after serving them</h3>
+      </figcaption>
+      <fieldset class="cost-toggles" id="contribution-groups">
+        <legend>Costs to take off what they pay</legend>
+      </fieldset>
+      <div class="plot" id="chart-contribution"></div>
+      <p class="finding negative" id="contribution-finding"></p>
+      <p class="note" id="contribution-note"></p>
+    </figure>
+
+<figure class="card wide" id="fig-tenure-churn">
+      <figcaption>
+        <h3>31. Monthly churn, by how long a customer has been here</h3>
+      </figcaption>
+      <fieldset class="cost-toggles" id="tenure-bands">
+        <legend>Tenure bands to draw</legend>
+      </fieldset>
+      <div class="plot" id="chart-tenure-churn"></div>
+      <p class="finding" id="tenure-churn-finding"></p>
+      <p class="note" id="tenure-churn-note"></p>
+    </figure>
+
     <figure class="card wide" id="fig-ltv">
       <figcaption>
         <h3>1. LTV:CAC by cohort, at equal age</h3>
@@ -272,15 +296,6 @@
 
     <figure class="card">
       <figcaption>
-        <h3>15. Onboarding: how many are charged, and how much</h3>
-      </figcaption>
-      <div class="plot" id="chart-onboarding"></div>
-      <p class="finding" id="onboarding-finding"></p>
-      <p class="note" id="onboarding-note"></p>
-    </figure>
-
-    <figure class="card">
-      <figcaption>
         <h3>16. How a month starts: start type mix</h3>
       </figcaption>
       <div class="plot" id="chart-start-type"></div>
@@ -290,7 +305,7 @@
 
     <figure class="card wide" id="fig-breakeven">
       <figcaption>
-        <h3>17. Break-even month by cohort</h3>
+        <h3>17. What a logo cost, and when that cost came back</h3>
       </figcaption>
       <p class="finding" id="breakeven-divisor"></p>
       <div class="table-scroll">
@@ -334,7 +349,13 @@
       <figcaption>
         <h3 id="forward-trend-title">19. Survival by starting month</h3>
       </figcaption>
+      <div class="chart-control">
+        <label for="forward-horizon-2">Follow each month forward for</label>
+        <input type="range" id="forward-horizon-2" min="1" max="12" step="1" value="4">
+        <output id="forward-horizon-2-value">4 months</output>
+      </div>
       <div class="plot" id="chart-forward-trend"></div>
+      <p class="finding" id="forward-trend-finding"></p>
       <p class="note" id="forward-trend-note"></p>
     </figure>
 
@@ -542,15 +563,6 @@
 
   <div class="wrap charts">
 
-    <figure class="card wide" id="fig-contribution">
-      <figcaption>
-        <h3>28. What a customer pays, and what is left after serving them</h3>
-      </figcaption>
-      <div class="plot" id="chart-contribution"></div>
-      <p class="finding negative" id="contribution-finding"></p>
-      <p class="note" id="contribution-note"></p>
-    </figure>
-
     <figure class="card wide" id="fig-serve-teams">
       <figcaption>
         <h3>29. Cost of sales per logo, by team</h3>
@@ -558,24 +570,6 @@
       <div class="plot" id="chart-serve-teams"></div>
       <p class="finding" id="serve-teams-finding"></p>
       <p class="note" id="serve-teams-note"></p>
-    </figure>
-
-    <figure class="card wide" id="fig-recovery-age">
-      <figcaption>
-        <h3>30. How much of its own cost each cohort has earned back by month 6</h3>
-      </figcaption>
-      <div class="plot" id="chart-recovery-age"></div>
-      <p class="finding negative" id="recovery-age-finding"></p>
-      <p class="note" id="recovery-age-note"></p>
-    </figure>
-
-    <figure class="card wide" id="fig-tenure-churn">
-      <figcaption>
-        <h3>31. Monthly churn, by how long a customer has been here</h3>
-      </figcaption>
-      <div class="plot" id="chart-tenure-churn"></div>
-      <p class="finding" id="tenure-churn-finding"></p>
-      <p class="note" id="tenure-churn-note"></p>
     </figure>
 
     <figure class="card wide" id="fig-zero-mrr">

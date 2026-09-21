@@ -1859,7 +1859,7 @@ export function costRecovery(data, cohorts, { age = 6 } = {}) {
 // Customers already present when the window opens have unknowable tenure and
 // go in the oldest band, which is the conservative choice: it puts them in the
 // band this is trying not to blame.
-export function churnByTenure(data, { cuts = [3, 6] } = {}) {
+export function churnByTenure(data, { cuts = [3, 6, 12] } = {}) {
   const live = new Map();
   const firstSeen = new Map();
   for (const row of data.customers) {
@@ -2114,7 +2114,10 @@ export function mean(values) {
 // start, which is the thing that moves the revenue line. A start month only
 // counts once its full forward window exists, otherwise the most recent
 // months look flattering purely because their losses have not happened yet.
-export function forwardSurvival(data, { horizon = 4, windows = 24 } = {}) {
+// `windows` was 24 back when nothing could reach further than 24 months, so it
+// did nothing; once the window widened it silently held this chart at the old
+// sample. Null means every month with a complete forward window.
+export function forwardSurvival(data, { horizon = 4, windows = null } = {}) {
   const activeByMonth = new Map();
   const firstMonth = new Map();
 
@@ -2130,7 +2133,7 @@ export function forwardSurvival(data, { horizon = 4, windows = 24 } = {}) {
   const months = [...activeByMonth.keys()].sort();
   const last = months[months.length - 1];
   const complete = months.filter(m => monthAdd(m, horizon) <= last);
-  const starts = complete.slice(-windows);
+  const starts = windows ? complete.slice(-windows) : complete;
 
   const series = starts.map(month => {
     const base = activeByMonth.get(month);

@@ -9,7 +9,7 @@ import {
   arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
   ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
-  fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins,
+  fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -103,6 +103,38 @@ function projectionCheck(b) {
     + `What it does not assume is that churn worsens: it carries today's rate forward `
     + `unchanged, so a bar far past its last observed month is an extrapolation, not a forecast.`;
 }
+
+function buildToggles(id, definitions) {
+  const box = $(id);
+  if (!box || box.dataset.ready) return;
+
+  const grid = document.createElement('div');
+  grid.className = 'toggles';
+  for (const g of definitions) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = g.key;
+    input.checked = g.defaultOn;
+    const text = document.createElement('span');
+    text.innerHTML = `<span class="${g.once ? 'group-once' : ''}">${g.label}</span>`
+      + `<span class="group-hint">${g.hint}</span>`;
+    label.append(input, text);
+    grid.append(label);
+  }
+  box.append(grid);
+  box.addEventListener('change', renderFullCost);
+  box.dataset.ready = '1';
+}
+
+function wireCostToggles() {
+  buildToggles('full-cost-revenue', REVENUE_GROUPS);
+  buildToggles('full-cost-groups', COST_GROUPS);
+}
+
+const ticked = id => new Set(
+  [...$(id).querySelectorAll('input:checked')].map(i => i.value));
+
 
 // 1. LTV:CAC at a chosen age, redrawn whenever the age changes.
 //
@@ -809,7 +841,13 @@ function renderEra() {
     + ' First month figures are medians rather than means, because a single bad intake moves a'
     + ' mean by several points and a year holds only a handful of cohorts. The earliest year'
     + ' covers only the months inside the data window, so it is a part year rather than a full'
-    + ' one.';
+    + ' one.'
+    + ' One caveat about the newest year. A complete year is measured on a fixed set of'
+    + ' cohorts at every age, but the current year loses cohorts as the line runs right,'
+    + ' because only those old enough to have reached an age can be in it. Its deep points'
+    + ' therefore rest on its earliest intakes rather than on all of them, which is why the'
+    + ' line can rise, and why it can disagree with the calendar-position charts further'
+    + ' down about which year looks worst.';
 
   // Why the 2026 line is flat, from the business rather than from the file,
   // with the file checked against it. Both changes keep a customer in this
@@ -1021,63 +1059,88 @@ function renderContribution() {
   const c = costToServe(data);
   if (!c) return;
 
-  const labels = c.months.map(m => fmt.monthLabel(m.month));
+  // The same switches as the chart at the top, minus acquisition. Acquisition
+  // divides by NEW logos and everything here divides by ACTIVE ones, so
+  // putting it on this chart would invite subtracting one from the other.
+  const groups = COST_GROUPS.filter(g => !g.once);
+  buildToggles('contribution-groups', groups);
+  const on = ticked('contribution-groups');
+
+  const rates = costRates(data);
+  const keys = groups.filter(g => on.has(g.key)).map(g => g.key);
+  const chargeAt = month => {
+    const row = rates.rates.has(month) ? rates.rates.get(month) : rates.carried;
+    return keys.reduce((sum, k) => sum + (row[k] || 0), 0);
+  };
+
+  const months = c.months.filter(m => rates.rates.has(m.month));
+  if (!months.length) return;
+  const labels = months.map(m => fmt.monthLabel(m.month));
+  const left = months.map(m => m.arpa - chargeAt(m.month));
+
   multiLineChart($('chart-contribution'), {
     labels,
     yFormat: fmt.money,
     series: [
-      { label: 'What a customer pays (ARPA)', colour: INK.primary,
-        values: c.months.map(m => m.arpa) },
-      { label: 'Left after cost to serve', colour: INK.secondary,
-        values: c.months.map(m => m.grossPerLogo) },
-      { label: 'Left after everything', colour: INK.negative,
-        values: c.months.map(m => m.netPerLogo) },
+      { label: 'What a customer pays', colour: INK.primary, values: months.map(m => m.arpa) },
+      { label: keys.length ? 'Left after the ticked costs' : 'Nothing taken off',
+        colour: keys.length === groups.length ? INK.negative : INK.secondary, values: left },
     ],
     describe: i => {
-      const m = c.months[i];
-      return labels[i] + ': ' + fmt.money(m.arpa) + ' per logo across '
-        + fmt.int(m.activeLogos) + ' active. Cost to serve ' + fmt.money(m.cogsPerLogo)
-        + ' leaves ' + fmt.money(m.grossPerLogo) + ' (' + fmt.pct(m.grossMargin) + '); '
-        + 'G&A and R&D take another ' + fmt.money(m.opexPerLogo) + ', leaving '
-        + fmt.money(m.netPerLogo) + ' (' + fmt.pct(m.netMargin) + ').';
+      const m = months[i];
+      const charge = chargeAt(m.month);
+      return `<strong>${labels[i]}</strong>`
+        + `<span>Pays ${fmt.money(m.arpa)} across ${fmt.int(m.activeLogos)} active logos</span>`
+        + groups.filter(g => on.has(g.key)).map(g => {
+            const row = rates.rates.get(m.month) || rates.carried;
+            return `<span class="muted">less ${g.label.toLowerCase()} ${fmt.money(row[g.key] || 0)}</span>`;
+          }).join('')
+        + `<span>Leaves ${fmt.money(m.arpa - charge)}, `
+        + `${fmt.pct(m.arpa ? (m.arpa - charge) / m.arpa : 0, 1)} of what they pay</span>`
+        + `<span class="muted">Acquisition is not in this figure</span>`;
     },
   });
 
-  // This finding used to be the page's disclosure that its margin was an
-  // assumption the ledger disagreed with. The charts above are built on the
-  // measured figure now, so the disclosure would be false; what is worth
-  // saying instead is how much moved when they were rewired.
-  const ASSUMED = SETTLED.margin;
-  const gap = ASSUMED - c.recentGrossMargin;
+  const recent = months.slice(-6);
+  const meanArpa = recent.reduce((s, m) => s + m.arpa, 0) / recent.length;
+  const meanLeft = recent.reduce((s, m) => s + (m.arpa - chargeAt(m.month)), 0) / recent.length;
+  const all = groups.every(g => on.has(g.key));
+  const cogsOnly = keys.length && keys.every(k => ['platform', 'support', 'revshare'].includes(k));
+
   $('contribution-finding').innerHTML =
-    `<strong>Serving a customer costs ${fmt.pct(1 - c.recentGrossMargin, 1)} of what they `
-    + `pay, leaving ${fmt.money(c.recentGrossPerLogo)} a month per logo.</strong> `
-    + `This page used to assume a flat ${fmt.pct(ASSUMED, 1)} gross margin, carried from `
-    + `before there was a cost ledger to check it against. The measured figure is `
-    + `${fmt.pct(c.recentGrossMargin, 1)}, ${fmt.pct(gap, 1)} of revenue lower, and every `
-    + `profit, payback and LTV:CAC figure above is now built on the measured number rather `
-    + `than the assumption. That is the single largest change made to these numbers and it `
-    + `made all of them worse — the footer says what the margin is on each month and how `
-    + `far it moves. After G&A and R&D the average customer clears `
-    + `${fmt.money(c.recentNetPerLogo)} a month, ${fmt.pct(c.recentNetMargin, 1)} of what `
-    + `they pay, which is the figure to use for whether a customer pays for the whole `
-    + `business rather than just their own service.`;
+    `<strong>The average customer pays ${fmt.money(meanArpa)} a month and `
+    + `${fmt.money(meanLeft)} of it survives the costs ticked above.</strong> `
+    + (all
+        ? 'That is every recurring cost the business carries, so this is what a customer '
+          + 'contributes toward the company as a whole. '
+        : cogsOnly
+          ? 'That is cost of sales only, so it is gross contribution — the figure to use '
+            + 'for ratios and for any outside comparison, and not a profit. '
+          : 'Tick every box for what a customer contributes to the whole company; tick '
+            + 'only the cost-of-sales rows for the gross figure outside comparisons use. ')
+    + '<strong>It is not profit and it is not money left over.</strong> Nothing here '
+    + 'subtracts what it cost to win the customer, which is several thousand pounds '
+    + 'of one-off spend per new logo against a few hundred a month of recurring '
+    + 'contribution. The two divide by different denominators \u2014 new logos against '
+    + 'active ones \u2014 so they cannot be netted on a single line. Chart 33 at the top '
+    + 'of this page is where both sides are put together over a cohort\u2019s life, and '
+    + 'it is the only chart here that answers whether a customer pays for itself.';
 
   $('contribution-note').textContent =
-    'ARPA is total end-of-period MRR across every active logo in the customer file, '
-    + 'divided by that logo count. Cost to serve is the cost of sales total from the '
-    + 'finance tab over the same active count'
+    'What a customer pays is total end-of-period MRR across every active logo in the '
+    + 'customer file, divided by that logo count. The costs are the real monthly figures '
+    + 'from the finance tab over the same active count'
     + (c.logosAgree
-        ? ' — and the two sources agree on that count in every month, which is the '
+        ? ' \u2014 and the two sources agree on that count in every month, which is the '
           + 'main thing making this chart trustworthy'
         : ', and the two sources disagree on that count in at least one month')
     + '. G&A and R&D are spread evenly across active logos, because nothing ties a '
-    + 'landlord or a developer to a particular customer. Gross contribution is the '
-    + 'line to use for ratios and for any outside comparison; net contribution answers '
-    + 'the different question of whether a customer at this price pays for the whole '
-    + 'business. Neither is the other. Both divide by ACTIVE logos, where everything '
-    + 'on the acquisition side divides by NEW ones, so no number here should be '
-    + 'divided by a number from those charts.';
+    + 'landlord or a developer to a particular customer. Acquisition is deliberately '
+    + 'absent: it divides by NEW logos where everything here divides by ACTIVE ones, and '
+    + 'putting the two on one chart invites subtracting one from the other. Cost of sales '
+    + 'alone gives gross contribution, which is what ratios and outside benchmarks use; '
+    + 'everything ticked gives what a customer contributes toward the whole business. '
+    + 'Neither is the other and neither is profit.';
 }
 
 
@@ -1147,84 +1210,65 @@ function renderServeTeams() {
 }
 
 
-// 30. Share of its own acquisition cost each cohort has earned back by month 6.
-//
-// The payback chart answers this in months, and reads as catastrophic at an age
-// where a healthy cohort is legitimately still short. A share recovered at a
-// matched age compares cohorts against each other rather than against a finish
-// line none of the recent ones has had time to reach.
-function renderRecoveryAge() {
-  const AGE = 6;
-  const rows = costRecovery(data, cohorts, { age: AGE }).filter(r => r.value !== null);
-  if (!rows.length) return;
-
-  const labels = rows.map(r => fmt.monthLabel(r.month));
-  columnChart($('chart-recovery-age'), {
-    labels,
-    values: rows.map(r => r.value),
-    yFormat: v => fmt.pct(v),
-    refs: [{ value: 1, label: 'cost fully recovered', variant: 'ref-goal' }],
-    colourFor: v => (v >= 1 ? INK.positive : INK.negative),
-    describe: i => labels[i] + ': ' + fmt.pct(rows[i].value)
-      + ' of acquisition cost back within ' + AGE + ' months, on '
-      + fmt.int(rows[i].size) + ' logos.',
-  });
-
-  const half = Math.floor(rows.length / 2);
-  const meanOf = arr => arr.reduce((s, r) => s + r.value, 0) / arr.length;
-  const early = meanOf(rows.slice(0, half));
-  const late = meanOf(rows.slice(half));
-  const cleared = rows.filter(r => r.value >= 1).length;
-  const lastCleared = [...rows].reverse().find(r => r.value >= 1);
-
-  $('recovery-age-finding').innerHTML =
-    '<strong>' + cleared + ' of ' + rows.length + ' cohorts had earned their '
-    + 'acquisition cost back within ' + AGE + ' months, and the recent half sits at '
-    + fmt.pct(late) + ' against ' + fmt.pct(early) + ' for the earlier one.</strong> '
-    + (lastCleared
-        ? 'The last cohort to clear its own cost inside ' + AGE + ' months started in '
-          + fmt.monthLabel(lastCleared.month) + '. '
-        : 'No cohort in the window cleared its cost inside ' + AGE + ' months. ')
-    + 'Two things moved at once and this chart cannot separate them: each logo cost '
-    + 'more to win, and each one returns less per month once real cost to serve is '
-    + 'taken off. Both push the same way, which is why the bars fall faster than '
-    + 'either cause on its own would explain.';
-
-  $('recovery-age-note').textContent =
-    'Every cohort old enough to have run ' + AGE + ' months, and only those, so each '
-    + 'bar is measured at the same age and the recent ones are not penalised for being '
-    + 'young. The numerator is the cohort’s revenue over its first ' + (AGE + 1)
-    + ' months less the measured cost of serving the logos still present in each of '
-    + 'those months; the denominator is the whole acquisition spend of the month it '
-    + 'arrived. Cost to serve is the real monthly figure rather than an assumed '
-    + 'margin, so a month when serving got more expensive pulls every cohort passing '
-    + 'through it down. Bars past the top of the axis are clipped and marked rather '
-    + 'than being allowed to rescale it.';
-}
-
-
 // 31. Monthly churn split by tenure.
 //
 // Several notes on this page assert that what went wrong is not only a new
 // customer problem. This is the measurement behind that claim.
 function renderTenureChurn() {
-  const CUTS = [3, 6];
+  const CUTS = [3, 6, 12];
   const rows = churnByTenure(data, { cuts: CUTS })
     .filter(r => r.bands.every(b => b.rate !== null));
   if (!rows.length) return;
 
   const bands = rows.bands || rows[0].bands;
-  const palette = [INK.negative, INK.secondary, INK.primary];
+  const palette = [INK.negative, INK.secondary, INK.primary, INK.tertiary];
+
+  // Four lines is one more than this chart can carry legibly, so which of them
+  // are drawn is a switch. The arithmetic runs on all four either way: the
+  // shares below are each band against everyone who left, not against the
+  // bands on screen, so turning a line off never changes another line's number.
+  const box = $('tenure-bands');
+  if (box && !box.dataset.ready) {
+    const grid = document.createElement('div');
+    grid.className = 'toggles';
+    bands.forEach((b, i) => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = String(i);
+      input.checked = true;
+      const text = document.createElement('span');
+      text.innerHTML = `<span>${b.label}</span>`;
+      label.append(input, text);
+      grid.append(label);
+    });
+    box.append(grid);
+    box.addEventListener('change', renderTenureChurn);
+    box.dataset.ready = '1';
+  }
+  const on = box
+    ? new Set([...box.querySelectorAll('input:checked')].map(i => Number(i.value)))
+    : new Set(bands.map((_, i) => i));
+
   const labels = rows.map(r => fmt.monthLabel(r.month));
+  const series = bands
+    .map((b, i) => ({ i, b }))
+    .filter(({ i }) => on.has(i))
+    .map(({ i, b }) => ({
+      label: b.label,
+      colour: palette[i] || INK.tertiary,
+      values: rows.map(r => r.bands[i].rate),
+    }));
+
+  if (!series.length) {
+    $('chart-tenure-churn').innerHTML = '<p class="empty">No bands selected.</p>';
+    return;
+  }
 
   multiLineChart($('chart-tenure-churn'), {
     labels,
     yFormat: v => fmt.pct(v, 1),
-    series: bands.map((b, i) => ({
-      label: b.label,
-      colour: palette[i] || INK.tertiary,
-      values: rows.map(r => r.bands[i].rate),
-    })),
+    series,
     describe: i => {
       const r = rows[i];
       return `<strong>${labels[i]}</strong>`
@@ -1244,33 +1288,33 @@ function renderTenureChurn() {
   const oldest = bands.length - 1;
 
   $('tenure-churn-finding').innerHTML =
-    `<strong>${bands[worst].label.replace(/^U/, 'u')} is the worst band at `
-    + `${fmt.pct(rates[worst], 1)} a month, and the tenured band is still `
-    + `${fmt.pct(shares[oldest])} of everyone who leaves.</strong> `
-    + bands.map((b, i) =>
-        `${b.label.toLowerCase()} ${fmt.pct(rates[i], 1)}`).join(', ')
-    + `. Splitting the newest band at three months is what makes this readable: `
+    `<strong>${bands[worst].label.replace(/^U/, 'u')} churns hardest at `
+    + `${fmt.pct(rates[worst], 1)} a month, but the longest-tenured band is `
+    + `${fmt.pct(shares[oldest])} of everyone who actually leaves.</strong> `
+    + bands.map((b, i) => `${b.label.toLowerCase()} ${fmt.pct(rates[i], 1)}`).join(', ')
+    + `. Rate and share answer different questions and point at different teams: the `
+    + `rate is "are we selling to the wrong people", the share is "where would fixing `
+    + `it actually help". `
     + (rates[0] > rates[1]
-        ? `the first three months churn harder than the three after them, so the `
-          + `damage is concentrated at the very front rather than spread across `
-          + `onboarding.`
-        : `the first three months are not the worst of it, which rules out the `
-          + `simplest story — that customers arrive, take one look and go.`)
-    + ` The rate answers "are we selling to the wrong people"; the share answers `
-    + `"where would fixing it actually help". They point at different teams.`;
+        ? `The first three months churn harder than the three after them, so the damage `
+          + `is at the very front.`
+        : `The first three months are not the worst of it, which rules out the simplest `
+          + `story \u2014 that customers arrive, take one look and go. The worst band sits `
+          + `after onboarding has ended.`);
 
   $('tenure-churn-note').textContent =
     'Presence month to month across the whole standing base, cut at '
-    + CUTS.join(' and ') + ' months of tenure. Not a cohort chart: it describes the '
-    + 'book as it stood each month rather than a single intake followed forward, so '
-    + 'a customer moves from one band to the next as they age. Customers already '
-    + 'present when the data window opens have no knowable signup date and go in the '
-    + 'oldest band, which is the conservative choice \u2014 it puts them in the band '
-    + 'this chart is trying not to blame, and it is also why that band is the largest. '
-    + 'A customer booked down to zero MRR is still present here, because presence on '
-    + 'this page is an event type and not an amount; the chart below shows how many '
-    + 'of those there are. Share of losses is each band against everyone who left '
-    + 'that month, so the three shares sum to one and the rates do not.';
+    + CUTS.slice(0, -1).join(', ') + ' and ' + CUTS[CUTS.length - 1]
+    + ' months of tenure. Not a cohort chart: it describes the book as it stood each '
+    + 'month rather than a single intake followed forward, so a customer moves from one '
+    + 'band to the next as they age. Customers already present when the data window '
+    + 'opens have no knowable signup date and go in the oldest band, which is the '
+    + 'conservative choice \u2014 it puts them in the band this chart is trying not to '
+    + 'blame, and it is also why that band is the largest. A customer booked down to '
+    + 'zero MRR is still present here, because presence on this page is an event type '
+    + 'and not an amount. Share of losses is each band against everyone who left that '
+    + 'month, so the four shares sum to one and the rates do not; the switches change '
+    + 'only what is drawn, never what is counted.';
 }
 
 
@@ -1331,36 +1375,7 @@ function renderZeroMrr() {
 // answer move. Ticking every box is the question "does a customer at these
 // prices pay for the whole company", and ticking the first six is the question
 // every outside benchmark actually asks.
-function buildToggles(id, definitions) {
-  const box = $(id);
-  if (!box || box.dataset.ready) return;
 
-  const grid = document.createElement('div');
-  grid.className = 'toggles';
-  for (const g of definitions) {
-    const label = document.createElement('label');
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.value = g.key;
-    input.checked = g.defaultOn;
-    const text = document.createElement('span');
-    text.innerHTML = `<span class="${g.once ? 'group-once' : ''}">${g.label}</span>`
-      + `<span class="group-hint">${g.hint}</span>`;
-    label.append(input, text);
-    grid.append(label);
-  }
-  box.append(grid);
-  box.addEventListener('change', renderFullCost);
-  box.dataset.ready = '1';
-}
-
-function wireCostToggles() {
-  buildToggles('full-cost-revenue', REVENUE_GROUPS);
-  buildToggles('full-cost-groups', COST_GROUPS);
-}
-
-const ticked = id => new Set(
-  [...$(id).querySelectorAll('input:checked')].map(i => i.value));
 
 const horizonOf = rows => (rows.length ? rows[0].horizon : 60);
 
@@ -1575,7 +1590,6 @@ function boot() {
     renderCostDrivers();
     renderContribution();
     renderServeTeams();
-    renderRecoveryAge();
     renderTenureChurn();
     renderZeroMrr();
     renderFullCost();
@@ -1583,7 +1597,17 @@ function boot() {
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
     if ($('era-depth')) $('era-depth').addEventListener('input', renderEra);
-    $('forward-horizon').addEventListener('input', renderForward);
+    $('forward-horizon').addEventListener('input', () => {
+      renderForward.lastSource = 'forward';
+      renderForward();
+    });
+    if ($('forward-horizon-2')) {
+      $('forward-horizon-2').max = $('forward-horizon').max;
+      $('forward-horizon-2').addEventListener('input', () => {
+        renderForward.lastSource = 'trend';
+        renderForward();
+      });
+    }
     $('band-horizon').addEventListener('input', renderPriceBands);
     if ($('pricing-elasticity')) $('pricing-elasticity').addEventListener('input', () => renderPricing(data));
     $('arrival-horizon').addEventListener('input', renderArrivals);
@@ -1591,9 +1615,14 @@ function boot() {
     if ($('full-cost-age')) $('full-cost-age').addEventListener('input', renderFullCost);
     renderAssumptionDependent();
   }).catch(err => {
+    // This used to write into #loading after #loading had been hidden, so any
+    // failure after the first render vanished: the page looked half drawn and
+    // the console stayed clean. Un-hide it and log, so a broken render says so.
+    console.error('Render failed:', err);
+    $('loading').hidden = false;
     $('loading').innerHTML =
-      `<p class="empty">Could not load the data: ${err.message}. ` +
-      `The workbook may not have pushed yet.</p>`;
+      `<p class="empty">Could not draw the page: ${err && err.message}. ` +
+      `The workbook may not have pushed yet, or a chart is broken.</p>`;
   });
 }
 
@@ -1953,7 +1982,13 @@ function renderAssumptionDependent() {
     + 'resampling whole donor cohorts from 2023 onward, so it answers how far this cohort '
     + 'could sit from the average rather than how well the average is known, which is the '
     + 'wider and more useful question. ' + atRisk + ' cohorts carry at least a one in four '
-    + 'chance of never covering their cost. Projection stops at ten years.';
+    + 'chance of never covering their cost. Projection stops at ten years. '
+    + 'This table and chart 33 both report a break-even month and they will not agree. '
+    + 'This one charges acquisition only, and counts subscription gross profit against it. '
+    + 'Chart 33 charges every ongoing cost as well, which is harsher, but it also counts '
+    + 'usage, setup and the old joining charge as revenue, which is more generous, and on '
+    + 'the 2024 cohorts the revenue side wins. Neither is wrong: this is payback on '
+    + 'acquisition, that is payback on everything.';
 
   // 7. Cost per logo against revenue per logo, indexed to 100.
   // The pipeline's own acquisition cost, the same figure charts 1, 2 and 17
@@ -2018,8 +2053,19 @@ function renderAssumptionDependent() {
 
 // Forward survival. Independent of the split and the margin, so drawn once.
 function renderForward() {
-  const horizon = Number($('forward-horizon').value) || 4;
-  $('forward-horizon-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');
+  // Chart 19 used to borrow this control silently from chart 18, several
+  // screens away, so its horizon looked fixed. It has its own now and the two
+  // are kept in step, because they are two views of one calculation and
+  // letting them disagree would be worse than sharing.
+  const source = renderForward.lastSource === 'trend' ? 'forward-horizon-2' : 'forward-horizon';
+  const horizon = Number($(source).value) || 4;
+  for (const id of ['forward-horizon', 'forward-horizon-2']) {
+    const el = $(id);
+    if (!el) continue;
+    el.value = String(horizon);
+    const out = $(id + '-value');
+    if (out) out.textContent = horizon + (horizon === 1 ? ' month' : ' months');
+  }
   // These two titles carry their own numbers because the horizon is in them,
   // so the number is read off the markup rather than written here. Hardcoding
   // it meant a renumbering fixed the page and left the JavaScript pointing at
@@ -2033,7 +2079,7 @@ function renderForward() {
     ? `${trendNum}. One-month survival, by starting month`
     : `${trendNum}. Survival ${horizon} months on, by starting month`;
 
-  const fw = forwardSurvival(data, { horizon, windows: 24 });
+  const fw = forwardSurvival(data, { horizon, windows: null });
   const starts = fw.starts;
   const span = fw.horizon + 1;
   const labels = Array.from({ length: span }, (_, i) => (i ? '+' + i : 'start'));
@@ -2245,15 +2291,19 @@ function renderForward() {
 
   const csShare = avg(cp, 'csPerLogo') / avg(cp, 'retentionPerLogo');
   $('capacity-finding').innerHTML =
-    '<strong>Measured across the whole retention function the relationship is much weaker '
-    + 'than Customer Success alone suggests.</strong> Customer Success correlates with '
-    + 'forward churn at ' + sign(rc.capacity) + '; adding Technical Account Manager and '
-    + 'Support, which together are the other ' + fmt.pct(1 - csShare) + ' of the spend, takes '
-    + 'it to ' + sign(rc.wholeFunction) + ', and ' + sign(rc.wholeFunctionGivenTime)
-    + ' with time held constant. The three teams have not moved together, so a measure of one '
-    + 'of them was reading its own trend as the department\'s. Nothing here separates capacity '
-    + 'driving churn, which would be perverse, from churn driving hiring, which is what '
-    + 'usually happens.';
+    '<strong>Spending more on Customer Success is not associated with keeping more '
+    + 'customers, and on this page that is the useful answer rather than a '
+    + 'disappointing one.</strong> Customer Success alone correlates with forward churn '
+    + 'at ' + sign(rc.capacity) + '; adding Technical Account Manager and Support, which '
+    + 'together are the other ' + fmt.pct(1 - csShare) + ' of the spend, takes it to '
+    + sign(rc.wholeFunction) + ', and ' + sign(rc.wholeFunctionGivenTime) + ' once the '
+    + 'shared time trend is removed. None of those is a relationship. '
+    + 'Two things follow, and they point the same way. Retention is not currently '
+    + 'rate-limited by how much is spent on the team that does retention, so the churn '
+    + 'this page is about will not be fixed by adding headcount there. And the cost of '
+    + 'serving customers can be argued about on its own terms rather than treated as '
+    + 'untouchable insurance against churn \u2014 which matters, because chart 29 shows '
+    + 'that is where the money actually goes.';
 
   $('capacity-note').textContent =
     'Read the direction, not the strength: this is ' + cp.length + ' monthly observations of '
@@ -2308,19 +2358,31 @@ function renderForward() {
     ? { label: 'Customer Success', xs: liveCap }
     : { label: 'New arrivals', xs: live };
 
+  // One plain sentence per line, then the conclusion. The previous version
+  // reported ranges and sign counts for both series at once, which is accurate
+  // and close to unreadable.
+  const read = xs => {
+    const lo = Math.min(...xs);
+    const hi = Math.max(...xs);
+    const crossesZero = lo < 0 && hi > 0;
+    const last = xs[xs.length - 1];
+    if (crossesZero) return 'wanders either side of zero and ends at ' + sign(last);
+    if (Math.abs(hi) < 0.3 && Math.abs(lo) < 0.3) return 'stays near zero throughout';
+    return 'holds ' + (lo > 0 ? 'positive' : 'negative') + ' and ends at ' + sign(last);
+  };
+
   $('momentum-finding').innerHTML =
-    '<strong>Neither line holds a direction long enough to be one.</strong> Over '
-    + live.length + ' overlapping twelve month windows, new arrivals against churn runs '
-    + sign(Math.min(...live)) + ' to ' + sign(Math.max(...live)) + ' and changes sign '
-    + plural(signFlips(live), 'time') + '; Customer Success runs ' + sign(Math.min(...liveCap)) + ' to '
-    + sign(Math.max(...liveCap)) + ' and changes sign ' + plural(signFlips(liveCap), 'time') + '. '
-    + 'A relationship that had genuinely faded would walk toward zero and stay there. '
-    + 'These wander across it. ' + widest.label + ' covers the wider range, '
-    + rangeOf(widest.xs).toFixed(2) + ' points end to end, which is most of the space a '
-    + 'correlation can occupy and is what a series with no underlying relationship looks '
-    + 'like when it is cut into short overlapping windows. Read this as a reason to '
-    + 'distrust any single pooled figure from these two series, including the ones on the '
-    + 'chart above.';
+    '<strong>Neither line means anything, and the chart is here to show that rather '
+    + 'than to hide it in a single number.</strong> '
+    + '<span class="muted">New arrivals against churn</span> ' + read(live) + '. '
+    + '<span class="muted">Customer Success against churn</span> ' + read(liveCap) + '. '
+    + 'A relationship that was real and faded would walk toward zero and stay there; a '
+    + 'relationship that was real and held would sit on one side of zero. Over '
+    + live.length + ' overlapping twelve-month windows these do neither, and '
+    + widest.label + ' alone covers ' + rangeOf(widest.xs).toFixed(2) + ' points end to '
+    + 'end, which is most of the range a correlation can occupy. '
+    + 'Read it as the reason not to quote any single pooled figure from these two '
+    + 'series \u2014 including the ones on the chart above.';
 
   $('momentum-note').textContent =
     'Correlation against forward churn computed over a moving ' + cap.rollingWidth
@@ -2403,7 +2465,16 @@ function renderSeasonal() {
     + 'line is the most recent month whose full ' + horizon + ' month window has elapsed, '
     + 'which is why it ends at ' + fmt.monthLabel(s.anchor) + ' rather than at the last month '
     + 'of data. Same calendar position each year, so seasonality is held roughly constant '
-    + 'rather than averaged away. Base sizes: '
+    + 'rather than averaged away. '
+    + 'This is the standing book at a calendar position, which is a different '
+    + 'population from the cohort charts: chart 8 follows one year’s new intakes '
+    + 'from their own signup month, where this follows everyone present in a given '
+    + 'month whenever they joined. The two can disagree about which year looks worst '
+    + 'and both still be right, and they currently do — chart 8 has 2026 ahead at '
+    + 'month 4 and this has it well behind. The book is mostly tenured customers so '
+    + 'this chart is largely about them, while chart 8 at that age is built only from '
+    + 'the 2026 cohorts old enough to have run four months, which are the early ones, '
+    + 'before the worst intakes arrived. Neither is the whole answer. Base sizes: '
     + s.series.map(r => fmt.monthLabel(r.month) + ' ' + fmt.int(r.n)).join(', ') + '.';
 
   // 20. The same fixed sets, followed by revenue rather than by headcount.
@@ -3078,7 +3149,7 @@ function renderAnnotations() {
       'The same S1 weighting applies. The last month of this source carries a handful of customers and is dropped rather than drawn.',
     ]);
 
-    annotate('chart-onboarding', [
+    if ($('chart-onboarding')) annotate('chart-onboarding', [
       `<strong>The share charged a setup fee moved from ${fmt.pct(attach[0].attachRate, 1)} to ${fmt.pct(attach[attach.length - 1].attachRate, 1)}</strong> across the window.`,
       `The fee itself went from ${fmt.money(fees[0].averageFee)} to ${fmt.money(fees[fees.length - 1].averageFee)} where it was charged.`,
       `Those two move independently, so the total onboarding take can rise while the attach rate falls.`,
@@ -3106,7 +3177,7 @@ const pp = v => (v >= 0 ? '+' : '') + v.toFixed(1) + ' points';
 function renderSignups() {
   const sx = signupEconomics(data);
   if (!sx.months.length) {
-    for (const id of ['chart-price-volume', 'chart-onboarding', 'chart-start-type']) {
+    for (const id of ['chart-price-volume', 'chart-start-type']) {
       const node = $(id);
       if (node) node.innerHTML = '<p class="empty">No signup pricing in this push.</p>';
     }
@@ -3186,7 +3257,7 @@ function renderSignups() {
     + 'level here is low and the shape is the part to read.';
 
   // 14. Attach rate and fee are two different movements.
-  multiLineChart($('chart-onboarding'), {
+  if ($('chart-onboarding')) multiLineChart($('chart-onboarding'), {
     labels,
     series: [
       { label: 'Share charged a setup fee', colour: INK.primary,
@@ -3202,7 +3273,7 @@ function renderSignups() {
 
   const attachEnds = ms.filter(r => r.attachRate !== null);
   const feeEnds = ms.filter(r => r.averageFee !== null);
-  $('onboarding-finding').innerHTML =
+  if ($('onboarding-finding')) $('onboarding-finding').innerHTML =
     '<strong>Two separate movements, worth not confusing.</strong> The share of customers '
     + 'charged a setup fee went from ' + fmt.pct(attachEnds[0].attachRate, 1) + ' to '
     + fmt.pct(attachEnds[attachEnds.length - 1].attachRate, 1)
@@ -3228,7 +3299,7 @@ function renderSignups() {
       + 'thinned.'
     : '';
 
-  $('onboarding-note').textContent =
+  if ($('onboarding-note')) $('onboarding-note').textContent =
     'Attach rate is the share of the month with a setup fee above zero. The average is taken '
     + 'across those charged, not across everyone, because including the customers who were not '
     + 'charged would '
