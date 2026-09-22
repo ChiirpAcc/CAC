@@ -11,7 +11,7 @@ import {
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
-  ongoingCostPerLogo, costLedger,
+  ongoingCostPerLogo, costLedger, neverPaidIds,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -2276,7 +2276,7 @@ function renderOngoing() {
 // 40. The ledger behind every other cost figure on this page.
 function renderLedger() {
   if (!$('ledger-table')) return;
-  const l = costLedger(data, { months: 3 });
+  const l = costLedger(data, { months: 6 });
   if (!l) return;
 
   const money = v => (Math.abs(v) < 0.5 ? '–' : fmt.money(v));
@@ -2366,6 +2366,141 @@ function renderLedger() {
 }
 
 
+// 40. What the business spends to run, by layer, in money rather than per logo.
+//
+// The per-logo charts answer "what does a customer cost" and are the right
+// frame for pricing. They are the wrong frame for "is this a sensible cost
+// structure", because dividing by a shrinking base makes every line rise and
+// a reader cannot tell a spending decision from a denominator. This is the
+// same costs in absolute dollars, with the per-logo figure beside it rather
+// than instead of it.
+function renderSpend() {
+  if (!$('chart-spend')) return;
+  const l = costLedger(data, { months: 6 });
+  if (!l) return;
+
+  const defs = l.groups.map(g => ({
+    key: g.key,
+    label: g.label,
+    // Acquisition is off by default: it is not a cost of running what you
+    // have, and leaving it on makes the total answer a different question
+    // from the one the chart is asking.
+    defaultOn: g.key !== 'acquisition',
+    hint: g.note,
+  }));
+  buildToggles('spend-layers', defs, renderSpend);
+  const on = ticked('spend-layers');
+  const shown = l.groups.filter(g => on.has(g.key));
+
+  const labels = l.window.map(m => fmt.monthLabel(m));
+  const palette = [INK.primary, INK.secondary, INK.tertiary, INK.negative, INK.accent,
+                   'var(--ink-soft)'];
+  const totals = l.window.map((m, i) => shown.reduce((s, g) => s + g.subtotal[i], 0));
+
+  if (!shown.length) {
+    $('chart-spend').innerHTML = '<p class="empty">No layers selected.</p>';
+    $('spend-table').innerHTML = '';
+    $('spend-finding').textContent = '';
+    return;
+  }
+
+  multiLineChart($('chart-spend'), {
+    labels,
+    yFormat: fmt.money,
+    series: [
+      { label: 'Selected layers, total', colour: 'var(--ink)', values: totals },
+      { label: 'Subscription revenue', colour: INK.positive, dashed: true,
+        values: l.counts.map(c => c.mrr) },
+      ...shown.map((g, i) => ({
+        label: g.label, colour: palette[i % palette.length], thin: true,
+        values: g.subtotal,
+      })),
+    ],
+    describe: i => {
+      const c = l.counts[i];
+      return `<strong>${labels[i]}</strong>`
+        + `<span>Selected total ${fmt.money(totals[i])}</span>`
+        + `<span>Revenue ${fmt.money(c.mrr)}</span>`
+        + shown.map(g => `<span class="muted">${g.label} ${fmt.money(g.subtotal[i])}</span>`).join('')
+        + `<span class="muted">${fmt.int(c.paying)} paying of ${fmt.int(c.active)} active</span>`;
+    },
+  });
+
+  // ------------------------------------------------------------ the table
+  const cols = labels;
+  const head = '<thead><tr><th>Layer</th>'
+    + cols.map(c => `<th class="n">${c}</th>`).join('')
+    + '<th class="n">Annualised</th><th class="n">Per logo</th></tr></thead>';
+
+  const last = l.window.length - 1;
+  const latest = l.counts[last];
+  const rowFor = g => {
+    const n = g.key === 'acquisition' ? latest.newLogos : latest.paying;
+    return '<tr>'
+      + `<td>${g.label}${on.has(g.key) ? '' : ' <span class="muted">(off)</span>'}</td>`
+      + g.subtotal.map(v => `<td class="n">${fmt.money(v)}</td>`).join('')
+      + `<td class="n">${fmt.money(g.subtotal[last] * 12)}</td>`
+      + `<td class="n">${n ? fmt.money(g.subtotal[last] / n) : '–'}</td>`
+      + '</tr>';
+  };
+
+  const body = l.groups.map(rowFor).join('')
+    + '<tr class="rule-above emphasis"><td><strong>Selected total</strong></td>'
+    + totals.map(v => `<td class="n"><strong>${fmt.money(v)}</strong></td>`).join('')
+    + `<td class="n"><strong>${fmt.money(totals[last] * 12)}</strong></td>`
+    + `<td class="n"><strong>${latest.paying ? fmt.money(totals[last] / latest.paying) : '–'}</strong></td></tr>`
+    + '<tr><td>Subscription revenue</td>'
+    + l.counts.map(c => `<td class="n">${fmt.money(c.mrr)}</td>`).join('')
+    + `<td class="n">${fmt.money(latest.mrr * 12)}</td>`
+    + `<td class="n">${latest.paying ? fmt.money(latest.mrr / latest.paying) : '–'}</td></tr>`
+    + '<tr class="rule-above"><td>Paying logos</td>'
+    + l.counts.map(c => `<td class="n">${fmt.int(c.paying)}</td>`).join('') + '<td></td><td></td></tr>'
+    + '<tr><td>Active logos</td>'
+    + l.counts.map(c => `<td class="n">${fmt.int(c.active)}</td>`).join('') + '<td></td><td></td></tr>'
+    + '<tr><td>New logos</td>'
+    + l.counts.map(c => `<td class="n">${fmt.int(c.newLogos)}</td>`).join('') + '<td></td><td></td></tr>';
+
+  $('spend-table').innerHTML = head + '<tbody>' + body + '</tbody>';
+
+  // ------------------------------------------------------------ the finding
+  const serve = l.groups.filter(g => ['platform', 'people', 'variable'].includes(g.key))
+    .reduce((s, g) => s + g.subtotal[last], 0);
+  const overhead = l.groups.filter(g => ['ga', 'rd'].includes(g.key))
+    .reduce((s, g) => s + g.subtotal[last], 0);
+  const ga = (l.groups.find(g => g.key === 'ga') || { subtotal: [] }).subtotal[last] || 0;
+  const platform = (l.groups.find(g => g.key === 'platform') || { subtotal: [] }).subtotal[last] || 0;
+
+  $('spend-finding').innerHTML =
+    `<strong>Of ${fmt.money(serve + overhead)} a month to run what you already have, `
+    + `${fmt.money(serve)} is serving customers and ${fmt.money(overhead)} is being a `
+    + `company.</strong> Only the first scales with the customer count. G&A and R&D would `
+    + `look much the same at half the base or twice it, which is why quoting the combined `
+    + `figure per logo makes maintenance sound about twice as expensive as it is: serving `
+    + `is ${fmt.money(latest.paying ? serve / latest.paying : 0)} a logo and the rest is `
+    + `${fmt.money(latest.paying ? overhead / latest.paying : 0)} of overhead divided by a `
+    + `number that happens to be the customer count. `
+    + `<strong>G&A alone runs ${fmt.money(ga * 12)} a year`
+    + (ga > platform ? `, more than the entire platform` : '')
+    + `.</strong> On ${fmt.int(latest.paying)} paying customers and `
+    + `${fmt.money(latest.mrr * 12)} of annualised subscription revenue, that is the line `
+    + `worth explaining before any of this is planned against.`;
+
+  $('spend-note').textContent =
+    'The same accounts as the table below, summed into layers and left in dollars. Six '
+    + 'trailing months. Annualised is the latest month times twelve, which is a run rate '
+    + 'rather than a forecast and will be wrong for anything seasonal or lumpy. Per logo '
+    + 'divides by PAYING logos for every layer except acquisition, which divides by NEW '
+    + 'logos — the two are not comparable and are never added. Acquisition is off by '
+    + 'default because it is the cost of growing rather than of running what you have; '
+    + 'switch it on for the whole cost of the business. The revenue line is subscription '
+    + 'only and excludes usage, setup and pass-through, which together add about a tenth '
+    + 'more, so the gap between it and the cost lines is slightly wider here than in cash. '
+    + 'One month to read with care: the merchant and revenue share layer carries an '
+    + 'invoice in the latest month that was credited in the month after, so it reads about '
+    + '$70,000 high and the layer beneath it is closer to the months before.';
+}
+
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -2388,6 +2523,7 @@ function boot() {
     renderTenureChurn();
     renderZeroMrr();
     renderProjection();
+    renderSpend();
     renderLedger();
     renderOngoing();
     renderFloors();

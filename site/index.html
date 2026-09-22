@@ -651,9 +651,24 @@
       <p class="note" id="ongoing-note"></p>
     </figure>
 
-<figure class="card wide" id="fig-ledger">
+<figure class="card wide" id="fig-spend">
       <figcaption>
-        <h3>40. Every cost line, by account, for the last three months</h3>
+        <h3>40. What the business spends to run, by layer</h3>
+      </figcaption>
+      <fieldset class="cost-toggles" id="spend-layers">
+        <legend>Layers to include</legend>
+      </fieldset>
+      <div class="plot" id="chart-spend"></div>
+      <p class="finding" id="spend-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="spend-table"></table>
+      </div>
+      <p class="note" id="spend-note"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-ledger">
+      <figcaption>
+        <h3>41. Every cost line, by account, for the last six months</h3>
       </figcaption>
       <p class="finding" id="ledger-finding"></p>
       <div class="table-scroll">

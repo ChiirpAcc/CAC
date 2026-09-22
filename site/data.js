@@ -1948,7 +1948,10 @@ export function upgradeList(data, { lowBand = 306 } = {}) {
     };
   };
 
-  const live = data.customers.filter(r => r.active && r.month === last);
+  // A never-payer is not an upgrade prospect, it is a record to clean up.
+  const never = neverPaidIds(data);
+  const live = data.customers.filter(r => r.active && r.month === last
+    && !never.has(r.id));
   const zeros = live.filter(r => !(r.eopMrr > 0)).map(build);
   const low = live.filter(r => r.eopMrr > 0 && r.eopMrr < lowBand).map(build);
 
@@ -1972,6 +1975,30 @@ export function upgradeList(data, { lowBand = 306 } = {}) {
         + low.reduce((s, r) => s + (lowBand - r.mrr), 0),
     },
   };
+}
+
+
+// Logos that have never carried a subscription in the whole window.
+//
+// A customer who has never once had MRR is not a customer who stopped paying;
+// it is a test account, an agency monitoring seat or a record that should not
+// have been counted. Keeping them inflates every denominator here a little
+// and misdescribes them a lot.
+//
+// The number is far smaller than it looks from outside: of the accounts at
+// zero in the latest month, the large majority paid something earlier and
+// fell, which is a churn story rather than a housekeeping one. That is why
+// this is a separate idea from "pays nothing this month" and not the same one.
+export function neverPaidIds(data) {
+  const peak = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    const seen = peak.get(row.id) || 0;
+    peak.set(row.id, Math.max(seen, row.eopMrr || 0));
+  }
+  const never = new Set();
+  for (const [id, top] of peak) if (!(top > 0)) never.add(id);
+  return never;
 }
 
 
@@ -2014,11 +2041,16 @@ export function costLedger(data, { months = 3 } = {}) {
   const window = all.slice(-months);
   if (!window.length) return null;
 
+  // Accounts that have never carried a subscription are out of every
+  // denominator here, not just out of the paying count.
+  const never = neverPaidIds(data);
   const counts = window.map(month => {
-    const live = data.customers.filter(r => r.active && r.month === month);
+    const all = data.customers.filter(r => r.active && r.month === month);
+    const live = all.filter(r => !never.has(r.id));
     return {
       month,
       active: live.length,
+      excluded: all.length - live.length,
       paying: live.filter(r => (r.eopMrr || 0) > 0).length,
       mrr: live.reduce((s, r) => s + (r.eopMrr || 0), 0),
       newLogos: (data.waterfall.find(w => w.month === month) || {}).newLogos || 0,
@@ -2080,8 +2112,10 @@ export function ongoingCostPerLogo(data) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
 
+  const never = neverPaidIds(data);
   return months.map(month => {
-    const live = data.customers.filter(r => r.active && r.month === month);
+    const live = data.customers.filter(r => r.active && r.month === month
+      && !never.has(r.id));
     const paying = live.filter(r => (r.eopMrr || 0) > 0).length;
     const mrr = live.reduce((s, r) => s + (r.eopMrr || 0), 0);
     if (!paying) return null;
@@ -2171,9 +2205,11 @@ export function priceFloors(data, { window = 6 } = {}) {
   //
   // A median across the months ignores it without anyone having to hand-code
   // which month to drop, and it will ignore the next one too.
+  const neverPaid = neverPaidIds(data);
   const byMonth = [];
   for (const month of months.slice(-window)) {
-    const rows = data.customers.filter(r => r.active && r.month === month);
+    const rows = data.customers.filter(r => r.active && r.month === month
+      && !neverPaid.has(r.id));
     const mrr = rows.reduce((s, r) => s + (r.eopMrr || 0), 0);
     if (!rows.length || !mrr) continue;
     const spend = {};
@@ -2231,8 +2267,8 @@ export function priceFloors(data, { window = 6 } = {}) {
     + (r.spend.success || 0) + (r.spend.ga || 0) + (r.spend.da || 0)
     + (r.spend.rd || 0)));
 
-  const base = data.customers.filter(r => r.active && r.month === last)
-    .map(r => r.eopMrr || 0);
+  const base = data.customers.filter(r => r.active && r.month === last
+    && !neverPaid.has(r.id)).map(r => r.eopMrr || 0);
   const paying = base.filter(v => v > 0).sort((a, b) => a - b);
   const zeros = base.length - paying.length;
 
