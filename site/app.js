@@ -11,7 +11,7 @@ import {
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
-  ongoingCostPerLogo,
+  ongoingCostPerLogo, costLedger,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -2219,6 +2219,16 @@ function renderOngoing() {
 
   const a = rows[0];
   const b = rows[rows.length - 1];
+  // The latest month carries a revenue-share invoice that was credited in the
+  // following month, so its variable layer is roughly double. Leading a
+  // finding with it would quote the one month on the chart worth distrusting.
+  const medianOf = pick => {
+    const s = rows.slice(-6).map(pick).sort((x, y) => x - y);
+    const i = s.length >> 1;
+    return s.length % 2 ? s[i] : (s[i - 1] + s[i]) / 2;
+  };
+  const typical = medianOf(r => r.total);
+  const typicalArpa = medianOf(r => r.arpa);
   const move = k => (a[k] ? (b[k] - a[k]) / a[k] : null);
   const ranked = layers
     .map(l => ({ ...l, from: a[l.key], to: b[l.key], delta: b[l.key] - a[l.key] }))
@@ -2227,9 +2237,14 @@ function renderOngoing() {
 
   $('ongoing-finding').innerHTML =
     `<strong>Keeping a customer cost ${fmt.money(a.total)} a month in `
-    + `${fmt.monthLabel(a.month)} and ${fmt.money(b.total)} now, while what they pay went `
-    + `from ${fmt.money(a.arpa)} to ${fmt.money(b.arpa)}.</strong> Cost per logo has risen `
-    + `${fmt.pct(move('total'), 0)} against ${fmt.pct(move('arpa'), 0)} on price, which is `
+    + `${fmt.monthLabel(a.month)} and ${fmt.money(typical)} now, while what they pay went `
+    + `from ${fmt.money(a.arpa)} to ${fmt.money(typicalArpa)}.</strong> `
+    + `Both figures are the median of the last six months rather than the last one, `
+    + `because ${fmt.monthLabel(b.month)} carries a revenue-share invoice that was `
+    + `credited in the month after and reads ${fmt.money(b.total)} as a result. `
+    + `Cost per logo has risen `
+    + `${fmt.pct((typical - a.total) / a.total, 0)} against `
+    + `${fmt.pct((typicalArpa - a.arpa) / a.arpa, 0)} on price, which is `
     + `why the margin has narrowed even though the average customer pays more than they `
     + `used to. `
     + `<strong>${worst.label} is the whole of the increase</strong>: `
@@ -2258,6 +2273,99 @@ function renderOngoing() {
 }
 
 
+// 40. The ledger behind every other cost figure on this page.
+function renderLedger() {
+  if (!$('ledger-table')) return;
+  const l = costLedger(data, { months: 3 });
+  if (!l) return;
+
+  const money = v => (Math.abs(v) < 0.5 ? '–' : fmt.money(v));
+  const cols = l.window.map(m => fmt.monthLabel(m));
+  const latest = l.counts[l.counts.length - 1];
+
+  // Per logo uses the denominator that layer is actually divided by, which is
+  // the whole reason the acquisition rows are kept in a separate block.
+  const perLogo = (group, value) => {
+    const n = group.key === 'acquisition' ? latest.newLogos : latest.paying;
+    return n ? value / n : null;
+  };
+
+  const head = '<thead><tr><th>Account</th><th>Bucket</th>'
+    + cols.map(c => `<th class="n">${c}</th>`).join('')
+    + `<th class="n">Per logo, ${cols[cols.length - 1]}</th></tr></thead>`;
+
+  const body = l.groups.map(g => {
+    const rows = g.accounts.map(a => {
+      const last = a.values[a.values.length - 1];
+      return '<tr>'
+        + `<td class="mono">${a.account}</td>`
+        + `<td class="muted">${a.bucket || '–'}</td>`
+        + a.values.map(v => `<td class="n">${money(v)}</td>`).join('')
+        + `<td class="n">${money(perLogo(g, last))}</td>`
+        + '</tr>';
+    }).join('');
+    const sub = g.subtotal[g.subtotal.length - 1];
+    return `<tr class="rule-above emphasis"><td colspan="${2 + cols.length + 1}">`
+      + `<strong>${g.label}</strong> <span class="muted">— ${g.note} `
+      + `Divided ${g.basis}.</span></td></tr>`
+      + rows
+      + `<tr class="rule-above"><td><strong>${g.label} subtotal</strong></td><td></td>`
+      + g.subtotal.map(v => `<td class="n"><strong>${money(v)}</strong></td>`).join('')
+      + `<td class="n"><strong>${money(perLogo(g, sub))}</strong></td></tr>`;
+  }).join('');
+
+  const ongoingLast = l.ongoingTotal[l.ongoingTotal.length - 1];
+  const acqLast = l.acquisitionTotal[l.acquisitionTotal.length - 1];
+  const totals =
+    `<tr class="rule-above emphasis"><td><strong>Ongoing cost, everything except acquisition</strong></td><td></td>`
+    + l.ongoingTotal.map(v => `<td class="n"><strong>${money(v)}</strong></td>`).join('')
+    + `<td class="n"><strong>${money(latest.paying ? ongoingLast / latest.paying : null)}</strong></td></tr>`
+    + `<tr><td><strong>Acquisition</strong></td><td></td>`
+    + l.acquisitionTotal.map(v => `<td class="n"><strong>${money(v)}</strong></td>`).join('')
+    + `<td class="n"><strong>${money(latest.newLogos ? acqLast / latest.newLogos : null)}</strong></td></tr>`;
+
+  const basis = '<tr class="rule-above"><td>Paying logos</td><td></td>'
+    + l.counts.map(c => `<td class="n">${fmt.int(c.paying)}</td>`).join('') + '<td></td></tr>'
+    + '<tr><td>Active logos</td><td></td>'
+    + l.counts.map(c => `<td class="n">${fmt.int(c.active)}</td>`).join('') + '<td></td></tr>'
+    + '<tr><td>New logos</td><td></td>'
+    + l.counts.map(c => `<td class="n">${fmt.int(c.newLogos)}</td>`).join('') + '<td></td></tr>'
+    + '<tr><td>Subscription revenue</td><td></td>'
+    + l.counts.map(c => `<td class="n">${fmt.money(c.mrr)}</td>`).join('') + '<td></td></tr>';
+
+  $('ledger-table').innerHTML = head + '<tbody>' + body + totals + basis + '</tbody>';
+
+  const perPaying = latest.paying ? ongoingLast / latest.paying : 0;
+  const perNew = latest.newLogos ? acqLast / latest.newLogos : 0;
+  $('ledger-finding').innerHTML =
+    `<strong>${fmt.int(l.accountCount)} accounts, three months, and every other cost `
+    + `figure on this page is a sum of some subset of these rows.</strong> In `
+    + `${cols[cols.length - 1]} the business spent ${fmt.money(ongoingLast)} keeping `
+    + `${fmt.int(latest.paying)} paying customers, which is ${fmt.money(perPaying)} each, `
+    + `and ${fmt.money(acqLast)} winning ${fmt.int(latest.newLogos)} new ones, which is `
+    + `${fmt.money(perNew)} each. The two per-logo figures divide by different `
+    + `denominators and must not be added. `
+    + `<strong>One row needs reading with care:</strong> 6100-06 is the Service Titan `
+    + `revenue share and partner rebates, and the latest month carries a $69,847 invoice `
+    + `that was credited in full on the 31st, with the credit falling into the following `
+    + `month and therefore outside this table. Underlying it is close to the month before.`;
+
+  $('ledger-note').textContent =
+    'Every QuickBooks account carrying a non-zero amount in the window, grouped into the '
+    + 'layers the price floors use. The grouping is the only editorial act here: which '
+    + 'layer an account belongs to is a judgement, the amounts are not, and the account '
+    + 'code is given so any of them can be checked against the ledger. Revenue, other '
+    + 'income and taxes are excluded — they are not costs of anything. The bucket column '
+    + 'is the pipeline’s own classification and is shown because it does not always '
+    + 'agree with the layer: 6100-06 is bucketed COGS and grouped here as variable cost, '
+    + 'which is correct in both cases for different reasons, while the other 6100 accounts '
+    + 'are bucketed CAC and grouped as acquisition. Per-logo divides by PAYING logos for '
+    + 'every ongoing layer and by NEW logos for acquisition, because those are the '
+    + 'populations each cost is actually incurred against. Adding the two per-logo columns '
+    + 'together would be meaningless.';
+}
+
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -2280,6 +2388,7 @@ function boot() {
     renderTenureChurn();
     renderZeroMrr();
     renderProjection();
+    renderLedger();
     renderOngoing();
     renderFloors();
     renderUpgradeList();

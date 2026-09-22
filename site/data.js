@@ -1975,6 +1975,98 @@ export function upgradeList(data, { lowBand = 306 } = {}) {
 }
 
 
+// Every cost line the business carries, by account, for the last few months.
+//
+// Everything else on this page aggregates. This does not: one row per
+// QuickBooks account, with its code, so any figure quoted anywhere can be
+// traced to the ledger lines underneath it. If a number here disagrees with
+// the accounts, the accounts are right and this is wrong.
+//
+// Grouped into the layers the floors use, and the grouping is the only
+// editorial act: which layer an account belongs to is a judgement, the
+// amounts are not.
+export const COST_LAYERS = [
+  { key: 'platform', label: 'Platform', basis: 'per logo',
+    note: 'Per-seat licences and hosting. Follows the customer.',
+    match: a => /^5000-0[23]/.test(a) },
+  { key: 'people', label: 'Support and success', basis: 'per logo',
+    note: 'Everyone who looks after customers, whichever account they sit in.',
+    match: a => /^5050-/.test(a) || /^6150-3/.test(a) },
+  { key: 'variable', label: 'Merchant and revenue share', basis: 'per payment',
+    note: 'Follows the payment rather than the customer, so it scales with price.',
+    match: a => /^5000-04/.test(a) || /^6100-06/.test(a) },
+  { key: 'ga', label: 'General and administrative', basis: 'per logo',
+    note: 'The cost of being a company. Spread evenly because nothing ties it to a customer.',
+    match: a => /^6200-/.test(a) || /^8000-/.test(a) || /^6999-/.test(a) },
+  { key: 'rd', label: 'Research and development', basis: 'per logo',
+    note: 'Tomorrow\u2019s product. Carried apart from the floors for that reason.',
+    match: a => /^6300-/.test(a) },
+  { key: 'acquisition', label: 'Acquisition', basis: 'per NEW logo',
+    note: 'Winning customers, not keeping them. Divides by NEW logos, so its per-logo '
+        + 'figure is not comparable with any row above it.',
+    match: a => /^6150-1/.test(a) || /^6150-2/.test(a) || /^6150-4/.test(a)
+      || /^6150-5/.test(a) || /^6150-6/.test(a)
+      || (/^6100-/.test(a) && !/^6100-06/.test(a)) },
+];
+
+export function costLedger(data, { months = 3 } = {}) {
+  const all = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
+  const window = all.slice(-months);
+  if (!window.length) return null;
+
+  const counts = window.map(month => {
+    const live = data.customers.filter(r => r.active && r.month === month);
+    return {
+      month,
+      active: live.length,
+      paying: live.filter(r => (r.eopMrr || 0) > 0).length,
+      mrr: live.reduce((s, r) => s + (r.eopMrr || 0), 0),
+      newLogos: (data.waterfall.find(w => w.month === month) || {}).newLogos || 0,
+    };
+  });
+
+  const byAccount = new Map();
+  for (const row of data.expenses) {
+    if (!window.includes(row.month) || row.amount === null) continue;
+    const a = row.account || '';
+    // Revenue, other income and taxes are not costs of anything.
+    if (/^4000|^7000|^9000/.test(a)) continue;
+    const layer = COST_LAYERS.find(l => l.match(a));
+    if (!layer) continue;
+    if (!byAccount.has(a)) {
+      byAccount.set(a, { account: a, layer: layer.key, bucket: row.bucket, by: new Map() });
+    }
+    const entry = byAccount.get(a);
+    entry.by.set(row.month, (entry.by.get(row.month) || 0) + row.amount);
+  }
+
+  const groups = COST_LAYERS.map(layer => {
+    const accounts = [...byAccount.values()]
+      .filter(e => e.layer === layer.key)
+      .map(e => ({
+        ...e,
+        values: window.map(m => e.by.get(m) || 0),
+        total: window.reduce((s, m) => s + (e.by.get(m) || 0), 0),
+      }))
+      .filter(e => e.values.some(v => Math.abs(v) >= 1))
+      .sort((x, y) => y.total - x.total);
+    const subtotal = window.map((m, i) => accounts.reduce((s, e) => s + e.values[i], 0));
+    return { ...layer, accounts, subtotal };
+  }).filter(g => g.accounts.length);
+
+  const ongoing = groups.filter(g => g.key !== 'acquisition');
+  const ongoingTotal = window.map((m, i) => ongoing.reduce((s, g) => s + g.subtotal[i], 0));
+  const acqGroup = groups.find(g => g.key === 'acquisition');
+
+  return {
+    window, counts, groups,
+    ongoingTotal,
+    acquisitionTotal: acqGroup ? acqGroup.subtotal : window.map(() => 0),
+    accountCount: byAccount.size,
+  };
+}
+
+
 // What it costs to keep one paying customer, month by month, in layers.
 //
 // The page had cost of sales per logo by team, which stops before G&A and
