@@ -13,6 +13,7 @@ import {
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
+  campaign, CHURN_PRESETS, PRICING_PRESETS,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -2695,6 +2696,95 @@ function renderCalculator() {
 }
 
 
+// The campaign calculator, sitting above the list it describes.
+let CAMP = { rule: 'peak', churn: 0.33 };
+
+function renderCampaign() {
+  if (!$('camp-result')) return;
+
+  const buttons = (id, defs, pick, active) => {
+    const box = $(id);
+    if (!box.dataset.ready) {
+      for (const p of defs) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.key = p.key;
+        b.innerHTML = `<strong>${p.label}</strong><span>${p.blurb}</span>`;
+        b.addEventListener('click', () => { pick(p); renderCampaign(); });
+        box.append(b);
+      }
+      box.dataset.ready = '1';
+    }
+    for (const b of box.querySelectorAll('button')) {
+      b.classList.toggle('is-on', b.dataset.key === active);
+    }
+  };
+
+  buttons('camp-rule', PRICING_PRESETS, p => { CAMP.rule = p.key; }, CAMP.rule);
+  buttons('camp-churn', CHURN_PRESETS,
+    p => { CAMP.churn = p.rate; CAMP.churnKey = p.key; },
+    CAMP.churnKey || 'expected');
+
+  const c = campaign(data, { rule: CAMP.rule, churn: CAMP.churn });
+  if (!c) return;
+
+  const good = c.change > 0 && c.clears;
+  const verdict = good ? 'good' : c.change > 0 ? 'thin' : 'under';
+
+  $('camp-result').innerHTML =
+    `<div class="calc-label">${c.change >= 0 ? 'Monthly revenue gained' : 'Monthly revenue lost'}</div>`
+    + `<div class="calc-headline ${verdict}">`
+    + `<span class="calc-number">${c.change >= 0 ? '+' : '−'}${fmt.money(Math.abs(c.change))}</span>`
+    + `<span class="calc-unit">a month, ${fmt.money(Math.abs(c.annual))} a year</span>`
+    + `</div>`
+    + `<div class="calc-against">`
+    + `<span>${fmt.int(c.asked)} accounts asked, about ${fmt.int(c.lost)} expected to leave</span>`
+    + `<strong class="${c.clears ? 'pos' : 'neg'}">`
+    + (c.clears
+        ? `everyone asked lands at ${fmt.money(c.lowestTouched)} or above, clear of the `
+          + `${fmt.money(c.floorAfter)} floor it creates`
+        : `the cheapest account asked lands at ${fmt.money(c.lowestTouched)}, below the `
+          + `${fmt.money(c.floorAfter)} floor it creates`)
+    + `</strong>`
+    + (c.untouchedBelowFloor
+        ? `<span class="muted">${fmt.int(c.untouchedBelowFloor)} accounts not in this `
+          + `campaign are still under that floor, worth `
+          + `${fmt.money(c.untouchedBelowMrr)} a month</span>`
+        : '')
+    + `</div>`;
+
+  const r = (a, b) => `<tr><td>${a}</td><td class="n">${b}</td></tr>`;
+  $('camp-detail').innerHTML =
+    '<table class="data-table calc-table"><tbody>'
+    + r('Accounts eligible and worth asking', fmt.int(c.poolSize))
+    + r('Asked for an increase', fmt.int(c.asked))
+    + r('Expected to accept', `<strong>${fmt.int(c.kept)}</strong>`)
+    + r('Expected to leave', `<strong>${fmt.int(c.lost)}</strong>`)
+    + r('Paying logos, before and after',
+        `${fmt.int(c.logosBefore)} → <strong>${fmt.int(c.logosAfter)}</strong>`)
+    + r('Monthly revenue, before and after',
+        `${fmt.money(c.before)} → <strong>${fmt.money(c.after)}</strong>`)
+    + r('Cost floor, before and after',
+        `${fmt.money(c.floorBefore)} → <strong>${fmt.money(c.floorAfter)}</strong>`)
+    + '</tbody></table>';
+
+  $('camp-note').textContent =
+    'Both inputs are assumptions, not measurements, which is why they are switches: '
+    + 'nobody has run this campaign, so the honest output is a range with the inputs '
+    + 'visible. The pricing rule decides what each account is asked for; the churn '
+    + 'setting decides how many refuse. "Scaled to the ask" is the most realistic and the '
+    + 'least certain — it raises churn with the size of the increase and halves it '
+    + 'where the customer has held that price before, on the reasoning that returning to '
+    + 'a known number is an easier conversation than accepting a new one. That halving is '
+    + 'the single assumption the whole case rests on and it has never been tested here. '
+    + 'The floor line is the one to watch: losing accounts spreads the same fixed cost '
+    + 'across fewer payers, so an aggressive campaign can raise the bar faster than it '
+    + 'raises prices and leave the survivors underwater. Only accounts marked viable in '
+    + 'the list below are included; the rest are a cancellation decision rather than a '
+    + 'sale and counting them would flatter every figure here.';
+}
+
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -2723,6 +2813,7 @@ function boot() {
     renderOngoing();
     renderFloors();
     renderUpgradeList();
+    renderCampaign();
     renderFullCost();
     wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);

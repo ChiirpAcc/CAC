@@ -1936,6 +1936,135 @@ export function isUpgradeCandidate(current, peak, { floor = 600, cap = 3 } = {})
   return current > 0 && (floor / current) <= cap;
 }
 
+// What the upgrade campaign is worth, under assumptions you can change.
+//
+// The list below says who to call and what to ask for. This says what happens
+// if they say yes, and what happens if they mostly say no. Both halves are
+// assumptions rather than measurements, which is the point of making them
+// switches: nobody has run this campaign yet, so the honest output is a range
+// with the inputs visible.
+export const CHURN_PRESETS = [
+  { key: 'light', label: 'Light resistance', rate: 0.20,
+    blurb: 'One in five refuses and leaves. Plausible if the ask is mostly a '
+         + 'return to a price they held before.' },
+  { key: 'expected', label: 'Expected', rate: 0.33, defaultOn: true,
+    blurb: 'A third walk. The working assumption, and roughly what a price '
+         + 'rise of this size costs in most businesses.' },
+  { key: 'hard', label: 'Hard going', rate: 0.50,
+    blurb: 'Half leave. Where the exercise stops being clearly worth doing.' },
+  { key: 'scaled', label: 'Scaled to the ask', rate: null,
+    blurb: 'Churn rises with the size of the increase, and halves where the '
+         + 'customer has held that price before. The most realistic and the '
+         + 'least certain.' },
+];
+
+export const PRICING_PRESETS = [
+  { key: 'floor', label: 'Everyone to the floor',
+    blurb: 'One number for all of them. Simplest to run, leaves the most on '
+         + 'the table with customers who used to pay far more.' },
+  { key: 'peak', label: 'Back to what they paid', defaultOn: true,
+    blurb: 'Each account returns to its own highest price, floored and capped. '
+         + 'Earns more and is an easier conversation.' },
+  { key: 'stretch', label: 'Peak plus a fifth',
+    blurb: 'Their old price with an increase on top. Highest return, and the '
+         + 'only option where nobody is being asked for something familiar.' },
+];
+
+// One account's outcome under a given rule and churn assumption.
+function outcome(account, rule, churnRate, floor, cap) {
+  const cur = account.mrr;
+  let target;
+  if (rule === 'floor') target = floor;
+  else if (rule === 'stretch') target = Math.max(floor, Math.min(account.peakEver * 1.2, cur * cap));
+  else target = account.target;
+
+  if (target <= cur) return { target: cur, churn: 0, asked: false };
+
+  let churn;
+  if (churnRate !== null) {
+    churn = churnRate;
+  } else {
+    const mult = target / Math.max(cur, 1);
+    churn = Math.min(0.8, Math.max(0.10, 0.333 * (mult - 1)));
+    if (target <= account.peakEver) churn *= 0.5;
+  }
+  return { target, churn, asked: true };
+}
+
+export function campaign(data, {
+  rule = 'peak', churn = 0.33, floor = 600, cap = 3, viableOnly = true,
+} = {}) {
+  const list = upgradeList(data, { lowBand: 500, floor });
+  const floors = priceFloors(data);
+  if (!list || !floors) return null;
+
+  const pool = viableOnly ? list.low.filter(r => r.viable) : list.low;
+  const others = floors.paying.filter(v => v >= 500);
+
+  let asked = 0;
+  let lost = 0;
+  let after = others.reduce((s, v) => s + v, 0);
+  // Accounts under the band that are not in the pool keep paying what they pay.
+  for (const r of list.low) {
+    if (pool.includes(r)) continue;
+    after += r.mrr;
+  }
+  let before = floors.totalMrr;
+
+  for (const r of pool) {
+    const o = outcome(r, rule, churn, floor, cap);
+    if (!o.asked) { after += r.mrr; continue; }
+    asked += 1;
+    lost += o.churn;
+    after += o.target * (1 - o.churn);
+  }
+
+  const logosAfter = floors.paying.length - lost;
+  const newFloor = (floors.fixedPerMonth / logosAfter) / (1 - floors.variablePct);
+  // Two different questions, and mixing them made the test useless.
+  //
+  // Does the campaign leave the accounts it touched above the floor it
+  // creates? That is the test of the campaign. Taking the minimum across the
+  // whole book instead answers a different question — are there any cheap
+  // accounts left anywhere — and the answer is always yes, because the
+  // non-viable accounts it deliberately does not touch are still there.
+  const touched = pool
+    .map(r => outcome(r, rule, churn, floor, cap))
+    .filter(o => o.asked)
+    .map(o => o.target);
+  const lowestTouched = touched.length ? Math.min(...touched) : null;
+
+  const untouchedBelow = [
+    ...others,
+    ...list.low.filter(r => !pool.includes(r)).map(r => r.mrr),
+  ];
+
+  return {
+    rule, churn, floor,
+    asked,
+    lost: Math.round(lost),
+    kept: Math.round(asked - lost),
+    poolSize: pool.length,
+    before: Math.round(before),
+    after: Math.round(after),
+    change: Math.round(after - before),
+    annual: Math.round((after - before) * 12),
+    logosBefore: floors.paying.length,
+    logosAfter: Math.round(logosAfter),
+    floorBefore: floors.allocatedFloor,
+    floorAfter: newFloor,
+    lowestTouched,
+    clears: lowestTouched === null ? true : lowestTouched >= newFloor,
+    // Accounts the campaign does not touch that still sit under the new floor.
+    // Reported rather than folded into the verdict, because they are a
+    // separate decision and hiding them inside a pass or fail loses that.
+    untouchedBelowFloor: untouchedBelow.filter(v => v < newFloor).length,
+    untouchedBelowMrr: untouchedBelow.filter(v => v < newFloor)
+      .reduce((s, v) => s + v, 0),
+  };
+}
+
+
 // Two eligibility rules on top of the price band, both of which remove
 // accounts that are technically candidates and practically not.
 //
