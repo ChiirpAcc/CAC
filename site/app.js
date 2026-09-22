@@ -2072,7 +2072,7 @@ function renderFloors() {
 // that somebody can read a row, look the account up and make a call.
 function renderUpgradeList() {
   if (!$('list-zero-table')) return;
-  const l = upgradeList(data, { lowBand: 306 });
+  const l = upgradeList(data, { lowBand: 500, floor: 600 });
   if (!l) return;
 
   const money = v => (v ? fmt.money(v) : '–');
@@ -2081,24 +2081,27 @@ function renderUpgradeList() {
     .join(' <span class="muted">→</span> ');
 
   const table = (rows, target) => {
-    const head = '<thead><tr><th>Company</th><th>Stripe ID</th><th>Chiirp ID</th>'
-      + '<th class="n">Now</th><th class="n">Peak</th><th class="n">To ' + fmt.money(target)
-      + '</th><th class="n">Months here</th><th>Env</th>'
+    const head = '<thead><tr><th>Company</th><th>Stripe ID</th>'
+      + '<th class="n">Now</th><th class="n">Peak ever</th>'
+      + '<th class="n">Ask for</th><th class="n">Multiple</th><th>Call</th>'
+      + '<th class="n">Months here</th><th>Env</th>'
       + '<th>Last six months</th></tr></thead>';
-    const body = rows.map(r => {
-      const gap = Math.max(0, target - r.mrr);
-      return '<tr>'
-        + `<td>${r.name ? r.name : '<span class="muted">no name in the file</span>'}</td>`
-        + `<td class="mono">${r.id}</td>`
-        + `<td class="mono">${r.canonicalId || '<span class="muted">–</span>'}</td>`
-        + `<td class="n">${money(r.mrr)}</td>`
-        + `<td class="n">${money(r.peak)}</td>`
-        + `<td class="n">${money(gap)}</td>`
-        + `<td class="n">${r.tenure === null ? '–' : fmt.int(r.tenure)}</td>`
-        + `<td>${r.source || '–'}</td>`
-        + `<td class="trend">${spark(r.series)}</td>`
-        + '</tr>';
-    }).join('');
+    const body = rows.map(r => '<tr>'
+      + `<td>${r.name ? r.name : '<span class="muted">no name in the file</span>'}</td>`
+      + `<td class="mono">${r.id}</td>`
+      + `<td class="n">${money(r.mrr)}</td>`
+      + `<td class="n">${money(r.peakEver)}</td>`
+      + `<td class="n"><strong>${money(r.target)}</strong></td>`
+      + `<td class="n">${r.ask === null ? '–' : r.ask.toFixed(1) + 'x'}</td>`
+      + `<td>${!r.viable
+          ? '<span class="notviable">not viable</span>'
+          : r.heldBefore
+            ? '<span class="held">held it before</span>'
+            : '<span class="muted">new price</span>'}</td>`
+      + `<td class="n">${r.tenure === null ? '–' : fmt.int(r.tenure)}</td>`
+      + `<td>${r.source || '–'}</td>`
+      + `<td class="trend">${spark(r.series)}</td>`
+      + '</tr>').join('');
     return head + '<tbody>' + body + '</tbody>';
   };
 
@@ -2109,34 +2112,53 @@ function renderUpgradeList() {
   const recoverable = l.zeros.filter(r => r.fallen).length;
   $('list-zero-finding').innerHTML =
     `<strong>${fmt.int(l.zeros.length)} accounts carrying no subscription, `
-    + `${fmt.int(recoverable)} of which were paying something inside the last six `
-    + `months.</strong> Those ${fmt.int(recoverable)} are a recovery conversation and the `
-    + `rest are a fresh one. ${fmt.int(l.totals.zerosWithCash)} are still sending money `
-    + `through usage or one-off charges despite carrying no subscription, which makes them `
-    + `the warmest calls on this page: they are using the product and paying for parts of `
-    + `it. Sorted by how far each has fallen from its own recent peak, so the top of the `
-    + `list is where the most was lost rather than where the account is largest.`;
+    + `${fmt.int(l.totals.zerosHeldBefore)} of which have held the price we would ask `
+    + `for.</strong> That is the difference between a recovery call and a cold one, and it `
+    + `is why the target is scored on what each account has already paid rather than set `
+    + `at a flat number. ${fmt.int(l.totals.zerosWithCash)} are still sending money through `
+    + `usage or one-off charges despite carrying no subscription, which makes them the `
+    + `warmest names here. Sorted by how far each has fallen from its own peak, so the top `
+    + `of the list is where the most was lost rather than where the account is largest.`;
 
   $('list-low-title').textContent =
     `Paying something, under ${fmt.money(l.lowBand)} — ${fmt.int(l.low.length)} accounts`;
   $('list-low-table').innerHTML = table(l.low, l.lowBand);
 
+  const viable = l.low.filter(r => r.viable);
+  const held = l.low.filter(r => r.heldBefore);
+  const cleanup = l.low.filter(r => !r.viable);
   $('list-low-finding').innerHTML =
-    `<strong>${fmt.int(l.low.length)} accounts paying `
-    + `${fmt.money(l.totals.lowMrr)} a month between them, against a cost to serve of `
-    + `about ${fmt.money(l.lowBand)} each.</strong> Bringing this group alone to `
-    + `${fmt.money(l.lowBand)} is worth `
-    + `${fmt.money(l.low.reduce((s, r) => s + (l.lowBand - r.mrr), 0))} a month. Sorted `
-    + `cheapest first, which is also roughly hardest first: the accounts at the top have `
-    + `the furthest to move and are the most likely to refuse.`;
+    `<strong>${fmt.int(l.low.length)} accounts under ${fmt.money(l.lowBand)}, of which `
+    + `${fmt.int(viable.length)} are worth asking and ${fmt.int(held.length)} have paid at `
+    + `least the target before.</strong> The viable ones pay `
+    + `${fmt.money(l.totals.lowViableMrr)} a month and their targets sum to `
+    + `${fmt.money(l.totals.lowViableTarget)}, a difference of `
+    + `${fmt.money(l.totals.lowViableTarget - l.totals.lowViableMrr)}. `
+    + `<strong>Call the "held it before" names first.</strong> Asking a customer to return `
+    + `to a price they already accepted is a different conversation from inventing one, and `
+    + `treating it as half the churn risk is the single assumption this list rests on. `
+    + (cleanup.length
+        ? `The other ${fmt.int(cleanup.length)} are marked not viable: they pay so little `
+          + `that reaching the floor would mean a multiple no salesperson is going to ask `
+          + `for, and they have never held that price. They are a cancellation decision `
+          + `rather than an upgrade one — together they are worth `
+          + `${fmt.money(l.totals.lowMrr - l.totals.lowViableMrr)} a month.`
+        : '');
 
   $('list-note').textContent =
     'Every active account in ' + fmt.monthLabel(l.month) + ' paying less than '
-    + fmt.money(l.lowBand) + ' a month, which is where a customer starts covering the '
-    + 'measured cost of serving it. Chart 37 has the arithmetic. The Stripe identifier is '
+    + fmt.money(l.lowBand) + ' a month. The target for each is max(floor, min(peak ever '
+    + 'paid, current x 3)), with the floor at $600. The floor protects solvency, the peak '
+    + 'anchors to a price the customer has demonstrably accepted, and the cap stops an '
+    + 'account at $50 being asked for $900 because of one odd month years ago. $600 '
+    + 'rather than the $472 the cost base needs today, because losing a third of the '
+    + 'accounts asked pushes that floor to about $506 and a target set at the floor would '
+    + 'be underwater the month it landed. Charts 37 and 38 have that arithmetic, and '
+    + 'tenure and usage were tested as multipliers on top of peak and made the result '
+    + 'worse, so they are not used. The Stripe identifier is '
     + 'the one in the billing export and is present for every account; the Chiirp '
     + 'identifier is not in the pushed data — canonical_id is populated on 34 rows out of '
-    + 'more than a thousand — so that column is mostly empty and would need the workbook '
+    + 'more than a thousand — so it is dropped from the table and the export '
     + 'to carry it. '
     + (l.totals.namesMissing
         ? fmt.int(l.totals.namesMissing) + ' accounts have no company name in the file and '
@@ -2150,11 +2172,13 @@ function renderUpgradeList() {
 
   // A sales list that cannot be exported is a list nobody uses.
   const csv = () => {
-    const head = ['group', 'company', 'stripe_id', 'chiirp_id', 'mrr_now', 'mrr_peak',
-      'gap_to_' + l.lowBand, 'months_here', 'environment', 'cash_last_month',
-      'usage_last_month'].concat(l.window);
-    const line = (group, r) => [group, r.name || '', r.id, r.canonicalId || '',
-      r.mrr, r.peak, Math.max(0, l.lowBand - r.mrr), r.tenure === null ? '' : r.tenure,
+    const head = ['group', 'company', 'stripe_id', 'mrr_now', 'peak_ever', 'target',
+      'ask_multiple', 'held_before', 'viable', 'uplift', 'months_here', 'environment',
+      'cash_last_month', 'usage_last_month'].concat(l.window);
+    const line = (group, r) => [group, r.name || '', r.id,
+      r.mrr, r.peakEver, r.target, r.ask === null ? '' : r.ask.toFixed(2),
+      r.heldBefore ? 'yes' : 'no', r.viable ? 'yes' : 'no',
+      Math.max(0, r.target - r.mrr), r.tenure === null ? '' : r.tenure,
       r.source || '', r.cash, r.usage]
       .concat(r.series.map(v => (v === null ? '' : v)))
       .map(v => {

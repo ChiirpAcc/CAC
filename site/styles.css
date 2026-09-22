@@ -796,3 +796,5 @@ figcaption { margin-bottom: .9rem; }
   background: var(--surface-sunk);
   padding-top: .7rem;
 }
+.data-table .held { color: var(--series-pos); font-size: .78rem; }
+.data-table .notviable { color: var(--series-neg); font-size: .78rem; }

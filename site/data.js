@@ -1901,17 +1901,56 @@ function fmtMonth(m) {
 // Sorted by how much the account is short of the target rather than by size,
 // because the sales effort per conversation is roughly constant and the
 // biggest gaps are where that effort pays.
-export function upgradeList(data, { lowBand = 306 } = {}) {
+// What to ask each account for, scored on what they have already paid.
+//
+// The only strong signal for willingness to pay in this data is the price a
+// customer once held. 98 of the accounts under $500 have paid more than they
+// do now; the median has been at $350 and pays $200. That is not an inference
+// about willingness, it is a record of it, and "you were on $450 until March
+// last year" is a conversation a salesperson can actually have.
+//
+// Everything else available is weaker. Tenure and usage were tried as
+// multipliers on top and made the outcome worse: they push targets above a
+// customer's own peak, which turns an easy conversation into an invented one
+// and loses more accounts than the uplift earns.
+//
+//   target = max(floor, min(peak ever paid, current x 3))
+//
+// The floor protects solvency. The peak anchors to demonstrated willingness.
+// The cap stops an account at $50 being asked for $900 because of one odd
+// month three years ago.
+export function targetPrice(current, peak, { floor = 600, cap = 3 } = {}) {
+  const anchored = Math.min(peak || 0, current * cap);
+  return Math.max(floor, anchored);
+}
+
+// Whether asking is realistic at all.
+//
+// The floor overrides the cap for very small accounts, which is arithmetically
+// correct and practically absurd: an account paying $1 lands on a $600 target,
+// a 600x ask that nobody is going to make. Those are not upgrade candidates,
+// they are cleanup. The test is deliberately generous — a customer who has
+// held the price before is an upgrade however large the multiple looks.
+export function isUpgradeCandidate(current, peak, { floor = 600, cap = 3 } = {}) {
+  if ((peak || 0) >= floor) return true;
+  return current > 0 && (floor / current) <= cap;
+}
+
+export function upgradeList(data, { lowBand = 500, floor = 600 } = {}) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
   const last = months[months.length - 1];
 
   const firstSeen = new Map();
+  // Peak across the whole window, not just the six months shown, because a
+  // price held two years ago is still evidence that it was acceptable.
+  const peakBy = new Map();
   for (const row of data.customers) {
     if (!row.active) continue;
     if (!firstSeen.has(row.id) || row.month < firstSeen.get(row.id)) {
       firstSeen.set(row.id, row.month);
     }
+    peakBy.set(row.id, Math.max(peakBy.get(row.id) || 0, row.eopMrr || 0));
   }
 
   // Six months of history per account, so a caller can see whether this is a
@@ -1929,12 +1968,21 @@ export function upgradeList(data, { lowBand = 306 } = {}) {
     const series = window.map(m => (hist.has(m) ? hist.get(m) : null));
     const seen = series.filter(v => v !== null);
     const peak = seen.length ? Math.max(...seen) : 0;
+    const peakEver = peakBy.get(row.id) || 0;
+    const target = targetPrice(row.eopMrr || 0, peakEver, { floor });
     return {
       id: row.id,
       canonicalId: row.canonicalId || null,
       name: row.name || null,
       source: row.source || null,
       since: firstSeen.get(row.id) || null,
+      // What to ask for, and whether they have held that price before. The
+      // second matters more than the first: it decides which call this is.
+      peakEver,
+      target,
+      ask: (row.eopMrr || 0) > 0 ? target / (row.eopMrr || 1) : null,
+      heldBefore: peakEver >= target,
+      viable: isUpgradeCandidate(row.eopMrr || 0, peakEver, { floor }),
       tenure: firstSeen.has(row.id) ? monthDiff(firstSeen.get(row.id), last) : null,
       mrr: row.eopMrr || 0,
       cash: row.netCash || 0,
@@ -1967,6 +2015,13 @@ export function upgradeList(data, { lowBand = 306 } = {}) {
       zeroCount: zeros.length,
       lowCount: low.length,
       lowMrr: low.reduce((s, r) => s + r.mrr, 0),
+      lowTarget: low.reduce((s, r) => s + r.target, 0),
+      lowHeldBefore: low.filter(r => r.heldBefore).length,
+      lowViable: low.filter(r => r.viable).length,
+      lowViableTarget: low.filter(r => r.viable).reduce((s, r) => s + r.target, 0),
+      lowViableMrr: low.filter(r => r.viable).reduce((s, r) => s + r.mrr, 0),
+      zerosTarget: zeros.reduce((s, r) => s + r.target, 0),
+      zerosHeldBefore: zeros.filter(r => r.heldBefore).length,
       zerosWithCash: zeros.filter(r => r.cash > 0 || r.usage > 0).length,
       zerosFallen: zeros.filter(r => r.fallen).length,
       namesMissing: zeros.concat(low).filter(r => !r.name).length,
