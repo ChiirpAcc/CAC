@@ -2041,8 +2041,15 @@ export function priceFloors(data, { window = 6 } = {}) {
       else if (/^5000-03/.test(a)) key = 'hosting';
       else if (/^5050-/.test(a)) key = 'support';
       else if (row.bucket === 'SPLIT' && !/Partnerships/i.test(a)) key = 'success';
-      else if (/^6100-0/.test(a)) key = 'otherSM';
-      else if (/^6200-|^6300-|^8000-/.test(a)) key = 'overhead';
+      // 6100-0x other than the revenue share above is acquisition spend —
+      // professional services, advertising, tradeshows, content — and sits in
+      // the CAC bucket. It was being counted here as a cost of serving, which
+      // put $78 a logo a month of acquisition into the price floor and pushed
+      // it about $86 too high. Acquisition belongs to the cohort that caused
+      // it, which is chart 33's job, not to the standing base.
+      else if (/^6200-/.test(a)) key = 'ga';
+      else if (/^6300-/.test(a)) key = 'rd';
+      else if (/^8000-/.test(a)) key = 'da';
       if (key) spend[key] = (spend[key] || 0) + row.amount;
     }
     byMonth.push({ month, logos: rows.length, mrr, spend });
@@ -2062,9 +2069,21 @@ export function priceFloors(data, { window = 6 } = {}) {
 
   const variablePct = share('merchant') + share('revshare');
   const marginalPerLogo = per('software') + per('hosting');
+  // Cost to serve on its own, and the fully loaded version beside it. R&D is
+  // deliberately in neither of the first two: charging tomorrow's product to
+  // today's customers concludes that a company investing in product has worse
+  // unit economics than one that is not, which is backwards. It is carried
+  // separately so a reader can put it back.
+  const serveOnly = median(byMonth.map(r =>
+    (r.spend.software || 0) + (r.spend.hosting || 0)
+    + (r.spend.support || 0) + (r.spend.success || 0)));
   const fixedPerMonth = median(byMonth.map(r =>
     (r.spend.software || 0) + (r.spend.hosting || 0) + (r.spend.support || 0)
-    + (r.spend.success || 0) + (r.spend.otherSM || 0) + (r.spend.overhead || 0)));
+    + (r.spend.success || 0) + (r.spend.ga || 0) + (r.spend.da || 0)));
+  const fullyLoadedPerMonth = median(byMonth.map(r =>
+    (r.spend.software || 0) + (r.spend.hosting || 0) + (r.spend.support || 0)
+    + (r.spend.success || 0) + (r.spend.ga || 0) + (r.spend.da || 0)
+    + (r.spend.rd || 0)));
 
   const base = data.customers.filter(r => r.active && r.month === last)
     .map(r => r.eopMrr || 0);
@@ -2084,10 +2103,17 @@ export function priceFloors(data, { window = 6 } = {}) {
     fixedPerMonth,
     fixedPerLogo: fixedPerMonth / paying.length,
     allocatedFloor,
+    // Three floors for three questions. Serve covers what it costs to keep a
+    // customer working; allocated adds G&A, the cost of being a company;
+    // fully loaded adds R&D on top. None of them contains acquisition.
+    servePerLogo: serveOnly / paying.length,
+    serveFloor: (serveOnly / paying.length) / (1 - variablePct),
+    fullyLoadedPerLogo: fullyLoadedPerMonth / paying.length,
+    fullyLoadedFloor: (fullyLoadedPerMonth / paying.length) / (1 - variablePct),
     // What actually comes out if enough customers go that headcount follows.
     removablePayrollPerLogo: per('support') + per('success'),
     components: Object.fromEntries(
-      ['merchant', 'revshare', 'software', 'hosting', 'support', 'success', 'otherSM', 'overhead']
+      ['merchant', 'revshare', 'software', 'hosting', 'support', 'success', 'ga', 'rd', 'da']
         .map(k => [k, per(k)])),
     // Months whose variable rate sits far from the median, which on this
     // ledger means an invoice booked in one month and credited in another.
