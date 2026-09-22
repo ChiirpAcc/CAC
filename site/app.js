@@ -1164,9 +1164,10 @@ function renderContribution() {
           + `whole picture on one line: ${fmt.money(meanArpa - meanLeft)} of cost against `
           + `${fmt.money(meanArpa)} of revenue, or about `
           + `$${(perDollar === null ? 0 : perDollar * 5).toFixed(2)} kept for every $5 spent. `
-          + (Math.abs(meanLeft) < 40
-              ? '<strong>At that level the business is running at break-even.</strong> '
-              : '')
+          + 'What a customer pays here is everything they pay — subscription, usage and '
+          + 'message credits, setup, and 10DLC pass-through. An earlier version of this '
+          + 'chart counted subscription alone, which understated revenue by about a tenth '
+          + 'and made the same months read as break-even when they are not. '
         : cogsOnly
           ? 'That is cost of sales only, so it is gross contribution — the figure to use '
             + 'for ratios and for any outside comparison, and not a profit. '
@@ -1188,8 +1189,12 @@ function renderContribution() {
           + 'sides together over a cohort’s life.');
 
   $('contribution-note').textContent =
-    'What a customer pays is total end-of-period MRR across every active logo in the '
-    + 'customer file, divided by that logo count. The costs are the real monthly figures '
+    'What a customer pays is everything they pay — subscription MRR plus usage and '
+    + 'message credits, setup and one-time charges, and 10DLC and carrier pass-through — '
+    + 'across every active logo, divided by that logo count. Accounts that have never once '
+    + 'carried a subscription are excluded from the count: a test account or an agency '
+    + 'monitoring seat is not a customer whose cost anybody should be spreading. '
+    + 'The costs are the real monthly figures '
     + 'from the finance tab over the same active count'
     + (c.logosAgree
         ? ' — and the two sources agree on that count in every month, which is the '
@@ -2237,7 +2242,8 @@ function renderOngoing() {
 
   $('ongoing-finding').innerHTML =
     `<strong>Keeping a customer cost ${fmt.money(a.total)} a month in `
-    + `${fmt.monthLabel(a.month)} and ${fmt.money(typical)} now, while what they pay went `
+    + `${fmt.monthLabel(a.month)} and ${fmt.money(typical)} now, while what they pay — `
+    + `subscription, usage, setup and pass-through together — went `
     + `from ${fmt.money(a.arpa)} to ${fmt.money(typicalArpa)}.</strong> `
     + `Both figures are the median of the last six months rather than the last one, `
     + `because ${fmt.monthLabel(b.month)} carries a revenue-share invoice that was `

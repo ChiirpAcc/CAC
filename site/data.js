@@ -2128,6 +2128,8 @@ export function ongoingCostPerLogo(data) {
       && !never.has(r.id));
     const paying = live.filter(r => (r.eopMrr || 0) > 0).length;
     const mrr = live.reduce((s, r) => s + (r.eopMrr || 0), 0);
+    const revenue = live.reduce((s, r) => s + (r.eopMrr || 0) + (r.usage || 0)
+      + (r.oneTime || 0) + (r.passThrough || 0), 0);
     if (!paying) return null;
 
     const spend = {};
@@ -2157,7 +2159,8 @@ export function ongoingCostPerLogo(data) {
     };
     return {
       month, paying, activeLogos: live.length,
-      arpa: mrr / paying,
+      arpa: revenue / paying,
+      subscriptionOnly: mrr / paying,
       ...layers,
       total: Object.values(layers).reduce((s, v) => s + v, 0),
     };
@@ -2405,11 +2408,28 @@ export function repriceOutcomes(data) {
 export function costToServe(data) {
   if (!data.serve || !data.serve.length) return null;
 
+  // Two corrections that this function and everything drawn from it were
+  // missing, both of which made the business look worse than it is.
+  //
+  // Accounts that have never once carried a subscription are out of the
+  // denominator: a test account or an agency monitoring seat is not a
+  // customer whose cost anybody should be spreading.
+  //
+  // And what a customer pays is everything they pay. Comparing a full cost
+  // base against subscription alone understates revenue by about a tenth,
+  // which on these numbers is most of the margin. Usage and message credits,
+  // setup and one-time charges, and 10DLC and carrier pass-through are all
+  // money that arrived; the cash column agrees with their sum to within half
+  // a per cent, which is the reason to trust the four of them together.
+  const never = neverPaidIds(data);
   const mrrByMonth = new Map();
+  const revByMonth = new Map();
   const liveByMonth = new Map();
   for (const row of data.customers) {
-    if (!row.active) continue;
+    if (!row.active || never.has(row.id)) continue;
     mrrByMonth.set(row.month, (mrrByMonth.get(row.month) || 0) + (row.eopMrr || 0));
+    revByMonth.set(row.month, (revByMonth.get(row.month) || 0)
+      + (row.eopMrr || 0) + (row.usage || 0) + (row.oneTime || 0) + (row.passThrough || 0));
     liveByMonth.set(row.month, (liveByMonth.get(row.month) || 0) + 1);
   }
 
@@ -2417,7 +2437,8 @@ export function costToServe(data) {
     .filter(r => mrrByMonth.has(r.month) && liveByMonth.get(r.month))
     .map(r => {
       const logos = liveByMonth.get(r.month);
-      const arpa = mrrByMonth.get(r.month) / logos;
+      const arpa = revByMonth.get(r.month) / logos;
+      const subscriptionOnly = mrrByMonth.get(r.month) / logos;
       return {
         month: r.month,
         activeLogos: logos,
@@ -2425,6 +2446,7 @@ export function costToServe(data) {
         // rather than asserting it.
         reportedLogos: r.activeLogos,
         arpa,
+        subscriptionOnly,
         cogsPerLogo: r.cogsPerLogo,
         opexPerLogo: r.opexPerLogo,
         totalPerLogo: r.totalPerLogo,
@@ -2589,11 +2611,14 @@ export function churnByTenure(data, { cuts = [3, 6, 12] } = {}) {
 // and money retention curves, and a good deal of the revenue churn. It has
 // been asserted in several notes and never drawn.
 export function zeroMrrShare(data) {
+  // A never-payer is a record to clean up, not a customer who stopped paying.
+  // Counting them here made this chart 15% larger than the thing it describes.
+  const never = neverPaidIds(data);
   const live = new Map();
   const zero = new Map();
   const zeroCash = new Map();
   for (const row of data.customers) {
-    if (!row.active) continue;
+    if (!row.active || never.has(row.id)) continue;
     live.set(row.month, (live.get(row.month) || 0) + 1);
     if (!(row.eopMrr > 0)) {
       zero.set(row.month, (zero.get(row.month) || 0) + 1);
