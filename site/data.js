@@ -1957,24 +1957,53 @@ export const CHURN_PRESETS = [
 ];
 
 export const PRICING_PRESETS = [
-  { key: 'floor', label: 'Everyone to the floor',
-    blurb: 'Simplest to run. Leaves the most on the table with customers who '
-         + 'used to pay far more.' },
-  { key: 'peak', label: 'Back to what they paid', defaultOn: true,
-    blurb: 'Each account returns to its own highest price, floored and capped. '
-         + 'Earns more and is an easier conversation.' },
-  { key: 'stretch', label: 'Peak plus a fifth',
-    blurb: 'Their old price with an increase on top. Nobody is being asked for '
-         + 'something familiar.' },
+  { key: 'floor', label: 'Everyone to the floor', defaultOn: true,
+    blurb: 'One number for all of them. Simplest to run and to explain, and it '
+         + 'clears the cost floor by a margin at every churn level.' },
+  { key: 'tiered', label: 'Tiered by what they pay now',
+    blurb: 'Under $300 to $500, $300 to $499 to $750. Asks less of the cheapest '
+         + 'accounts, more of the ones already close to covering themselves.' },
+  { key: 'settled', label: 'Back to their settled price',
+    blurb: 'Each account returns to its highest month AFTER the first, so the '
+         + 'old joining fee is excluded. A price they genuinely held, not one '
+         + 'they were charged once on the way in.' },
 ];
+
+// The highest price an account actually held on a recurring basis.
+//
+// Peak MRR is not it. Until mid-2025 a joining charge was booked into eop_mrr
+// in a customer's first month, so a raw peak can be a one-off dressed as a
+// subscription: 33 of the accounts on this list carry an inflated peak, median
+// $200 too high, and one reads $1,200 against a settled price of $200. Asking
+// a customer to "return" to a number they were only ever charged once is a
+// conversation that ends badly and deserves to.
+//
+// Dropping each customer's first month removes it at the cost of losing
+// genuinely short-lived accounts, which is the right trade: an account with
+// one month of history has not demonstrated a price either way.
+export function settledPeaks(data) {
+  const first = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!first.has(row.id) || row.month < first.get(row.id)) first.set(row.id, row.month);
+  }
+  const peak = new Map();
+  for (const row of data.customers) {
+    if (!row.active || row.month === first.get(row.id)) continue;
+    peak.set(row.id, Math.max(peak.get(row.id) || 0, row.eopMrr || 0));
+  }
+  return peak;
+}
+
 
 // One account's outcome under a given rule and churn assumption.
 function outcome(account, rule, churnRate, floor, cap) {
   const cur = account.mrr;
   let target;
-  if (rule === 'floor') target = floor;
-  else if (rule === 'stretch') target = Math.max(floor, Math.min(account.peakEver * 1.2, cur * cap));
-  else target = account.target;
+  if (rule === 'tiered') target = cur <= 300 ? 500 : 750;
+  else if (rule === 'settled') {
+    target = Math.max(floor, Math.min(account.settledPeak || 0, cur * cap));
+  } else target = floor;
 
   if (target <= cur) return { target: cur, churn: 0, asked: false };
 
@@ -2002,12 +2031,12 @@ export function ruleSpread(data, { floor = 600, cap = 3 } = {}) {
     return s.length % 2 ? s[i] : (s[i - 1] + s[i]) / 2;
   };
   const targets = rule => pool.map(r => {
-    if (rule === 'floor') return floor;
-    if (rule === 'stretch') return Math.max(floor, Math.min(r.peakEver * 1.2, r.mrr * cap));
-    return r.target;
+    if (rule === 'tiered') return r.mrr <= 300 ? 500 : 750;
+    if (rule === 'settled') return Math.max(floor, Math.min(r.settledPeak || 0, r.mrr * cap));
+    return floor;
   });
   const out = {};
-  for (const rule of ['floor', 'peak', 'stretch']) {
+  for (const rule of ['floor', 'tiered', 'settled']) {
     const t = targets(rule);
     out[rule] = { median: median(t), max: Math.max(...t), n: t.length,
       total: t.reduce((s, v) => s + v, 0) };
@@ -2016,7 +2045,7 @@ export function ruleSpread(data, { floor = 600, cap = 3 } = {}) {
 }
 
 export function campaign(data, {
-  rule = 'peak', churn = 0.33, floor = 600, cap = 3, viableOnly = true,
+  rule = 'floor', churn = 0.33, floor = 600, cap = 3, viableOnly = true,
 } = {}) {
   const list = upgradeList(data, { lowBand: 500, floor });
   const floors = priceFloors(data);
@@ -2114,6 +2143,7 @@ export function upgradeList(data, {
     }
     peakBy.set(row.id, Math.max(peakBy.get(row.id) || 0, row.eopMrr || 0));
   }
+  const settledBy = settledPeaks(data);
 
   // Six months of history per account, so a caller can see whether this is a
   // customer who has always been small or one who has fallen.
@@ -2131,7 +2161,8 @@ export function upgradeList(data, {
     const seen = series.filter(v => v !== null);
     const peak = seen.length ? Math.max(...seen) : 0;
     const peakEver = peakBy.get(row.id) || 0;
-    const target = targetPrice(row.eopMrr || 0, peakEver, { floor });
+    const settled = settledBy.get(row.id) || 0;
+    const target = targetPrice(row.eopMrr || 0, settled, { floor });
     return {
       id: row.id,
       canonicalId: row.canonicalId || null,
@@ -2141,10 +2172,11 @@ export function upgradeList(data, {
       // What to ask for, and whether they have held that price before. The
       // second matters more than the first: it decides which call this is.
       peakEver,
+      settledPeak: settled,
       target,
       ask: (row.eopMrr || 0) > 0 ? target / (row.eopMrr || 1) : null,
-      heldBefore: peakEver >= target,
-      viable: isUpgradeCandidate(row.eopMrr || 0, peakEver, { floor }),
+      heldBefore: settled >= target,
+      viable: isUpgradeCandidate(row.eopMrr || 0, settled, { floor }),
       tenure: firstSeen.has(row.id) ? monthDiff(firstSeen.get(row.id), last) : null,
       mrr: row.eopMrr || 0,
       cash: row.netCash || 0,

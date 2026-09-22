@@ -2083,7 +2083,7 @@ function renderUpgradeList() {
 
   const table = (rows, target) => {
     const head = '<thead><tr><th>Company</th><th>Stripe ID</th>'
-      + '<th class="n">Now</th><th class="n">Peak ever</th>'
+      + '<th class="n">Now</th><th class="n">Settled peak</th>'
       + '<th class="n">Ask for</th><th class="n">Multiple</th><th>Call</th>'
       + '<th class="n">Months here</th><th>Env</th>'
       + '<th>Last six months</th></tr></thead>';
@@ -2091,7 +2091,7 @@ function renderUpgradeList() {
       + `<td>${r.name ? r.name : '<span class="muted">no name in the file</span>'}</td>`
       + `<td class="mono">${r.id}</td>`
       + `<td class="n">${money(r.mrr)}</td>`
-      + `<td class="n">${money(r.peakEver)}</td>`
+      + `<td class="n">${money(r.settledPeak)}</td>`
       + `<td class="n"><strong>${money(r.target)}</strong></td>`
       + `<td class="n">${r.ask === null ? '–' : r.ask.toFixed(1) + 'x'}</td>`
       + `<td>${!r.viable
@@ -2138,8 +2138,12 @@ function renderUpgradeList() {
     'Active accounts in ' + fmt.monthLabel(l.month) + ' paying more than '
     + fmt.money(l.minMrr) + ' and less than ' + fmt.money(l.lowBand)
     + ' a month, with at least ' + l.minTenure + ' months behind them. The target for each is max(floor, min(peak ever '
-    + 'paid, current x 3)), with the floor at $600. The floor protects solvency, the peak '
-    + 'anchors to a price the customer has demonstrably accepted, and the cap stops an '
+    + 'paid after their first month, current x 3)), with the floor at $600. The first '
+    + 'month is excluded because until mid-2025 a joining charge was booked into MRR '
+    + 'there, so a raw peak can be a one-off dressed as a subscription — 33 accounts on '
+    + 'this list carried an inflated peak, median $200 too high, one reading $1,200 '
+    + 'against a settled price of $200. The floor protects solvency, the settled peak '
+    + 'anchors to a price the customer genuinely held, and the cap stops an '
     + 'account at $50 being asked for $900 because of one odd month years ago. $600 '
     + 'rather than the $472 the cost base needs today, because losing a third of the '
     + 'accounts asked pushes that floor to about $506 and a target set at the floor would '
@@ -2162,11 +2166,11 @@ function renderUpgradeList() {
 
   // A sales list that cannot be exported is a list nobody uses.
   const csv = () => {
-    const head = ['group', 'company', 'stripe_id', 'mrr_now', 'peak_ever', 'target',
+    const head = ['group', 'company', 'stripe_id', 'mrr_now', 'settled_peak', 'target',
       'ask_multiple', 'held_before', 'viable', 'uplift', 'months_here', 'environment',
       'cash_last_month', 'usage_last_month'].concat(l.window);
     const line = (group, r) => [group, r.name || '', r.id,
-      r.mrr, r.peakEver, r.target, r.ask === null ? '' : r.ask.toFixed(2),
+      r.mrr, r.settledPeak, r.target, r.ask === null ? '' : r.ask.toFixed(2),
       r.heldBefore ? 'yes' : 'no', r.viable ? 'yes' : 'no',
       Math.max(0, r.target - r.mrr), r.tenure === null ? '' : r.tenure,
       r.source || '', r.cash, r.usage]
@@ -2697,7 +2701,7 @@ function renderCalculator() {
 
 
 // The campaign calculator, sitting above the list it describes.
-let CAMP = { rule: 'peak', churn: 0.33 };
+let CAMP = { rule: 'floor', churn: 0.33 };
 
 function renderCampaign() {
   if (!$('camp-result')) return;
@@ -2713,12 +2717,12 @@ function renderCampaign() {
       const s = spread.floor;
       return s ? `${fmt.money(s.median)} each, ${fmt.money(s.total)} asked` : '';
     },
-    peak: () => {
-      const s = spread.peak;
-      return s ? `up to ${fmt.money(s.max)}, ${fmt.money(s.total)} asked` : '';
+    tiered: () => {
+      const s = spread.tiered;
+      return s ? `$500 or $750, ${fmt.money(s.total)} asked` : '';
     },
-    stretch: () => {
-      const s = spread.stretch;
+    settled: () => {
+      const s = spread.settled;
       return s ? `up to ${fmt.money(s.max)}, ${fmt.money(s.total)} asked` : '';
     },
     light: () => '20% leave',
