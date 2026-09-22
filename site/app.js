@@ -11,6 +11,7 @@ import {
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
+  ongoingCostPerLogo,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -2180,6 +2181,83 @@ function renderUpgradeList() {
 }
 
 
+// 39. Cost to keep one paying customer, in layers, over time.
+function renderOngoing() {
+  const rows = ongoingCostPerLogo(data);
+  if (!rows || !rows.length) return;
+  const labels = rows.map(r => fmt.monthLabel(r.month));
+
+  const layers = [
+    { key: 'admin',    label: 'G&A',                 colour: INK.negative },
+    { key: 'people',   label: 'Support and success', colour: INK.secondary },
+    { key: 'platform', label: 'Platform',            colour: INK.primary },
+    { key: 'product',  label: 'R&D',                 colour: INK.accent },
+    { key: 'variable', label: 'Merchant and rev share', colour: INK.tertiary },
+  ];
+
+  multiLineChart($('chart-ongoing'), {
+    labels,
+    yFormat: fmt.money,
+    series: [
+      { label: 'What a paying customer pays', colour: 'var(--ink)',
+        values: rows.map(r => r.arpa) },
+      { label: 'Everything it costs to keep them', colour: INK.negative,
+        dashed: true, values: rows.map(r => r.total) },
+      ...layers.map(l => ({ label: l.label, colour: l.colour, thin: true,
+        values: rows.map(r => r[l.key]) })),
+    ],
+    describe: i => {
+      const r = rows[i];
+      return `<strong>${labels[i]}</strong>`
+        + `<span>Pays ${fmt.money(r.arpa)}, costs ${fmt.money(r.total)}, `
+        + `leaves ${fmt.money(r.arpa - r.total)}</span>`
+        + layers.map(l => `<span class="muted">${l.label} ${fmt.money(r[l.key])}</span>`).join('')
+        + `<span class="muted">${fmt.int(r.paying)} paying of `
+        + `${fmt.int(r.activeLogos)} active</span>`;
+    },
+  });
+
+  const a = rows[0];
+  const b = rows[rows.length - 1];
+  const move = k => (a[k] ? (b[k] - a[k]) / a[k] : null);
+  const ranked = layers
+    .map(l => ({ ...l, from: a[l.key], to: b[l.key], delta: b[l.key] - a[l.key] }))
+    .sort((x, y) => y.delta - x.delta);
+  const worst = ranked[0];
+
+  $('ongoing-finding').innerHTML =
+    `<strong>Keeping a customer cost ${fmt.money(a.total)} a month in `
+    + `${fmt.monthLabel(a.month)} and ${fmt.money(b.total)} now, while what they pay went `
+    + `from ${fmt.money(a.arpa)} to ${fmt.money(b.arpa)}.</strong> Cost per logo has risen `
+    + `${fmt.pct(move('total'), 0)} against ${fmt.pct(move('arpa'), 0)} on price, which is `
+    + `why the margin has narrowed even though the average customer pays more than they `
+    + `used to. `
+    + `<strong>${worst.label} is the whole of the increase</strong>: `
+    + `${fmt.money(worst.from)} to ${fmt.money(worst.to)} a logo, `
+    + `${fmt.pct(move(worst.key), 0)}. `
+    + `Platform is the one that has not moved — `
+    + `${fmt.money(a.platform)} to ${fmt.money(b.platform)} — so the product scales `
+    + `with the customer count and the company does not. That is the distinction worth `
+    + `carrying out of this chart: none of the rise is the cost of running software for `
+    + `more people, and almost all of it is the cost of being a bigger company spread over `
+    + `a base that has stopped growing.`;
+
+  $('ongoing-note').textContent =
+    'Every recurring cost the business carries, divided by PAYING logos rather than all of '
+    + 'them, because an account at zero MRR cannot carry any of this and dividing by it '
+    + 'flatters every month. Acquisition is deliberately absent: it belongs to the cohort '
+    + 'that caused it, and chart 33 charges it there. The layers are exclusive and sum to '
+    + 'the dashed line. Platform is per-seat software and hosting; support and success is '
+    + 'every person who looks after customers whichever account they sit in; merchant and '
+    + 'revenue share are the two costs that follow a payment rather than a customer, so '
+    + 'they are the only layer that moves with price. The last month of the variable layer '
+    + 'is overstated: a revenue-share invoice was raised and credited in the same month and '
+    + 'the credit falls outside this window, which chart 37 handles by taking medians. '
+    + 'Both denominators are shown in the tooltip, because the gap between paying and '
+    + 'active logos is itself part of why this line rises.';
+}
+
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -2202,6 +2280,7 @@ function boot() {
     renderTenureChurn();
     renderZeroMrr();
     renderProjection();
+    renderOngoing();
     renderFloors();
     renderUpgradeList();
     renderFullCost();

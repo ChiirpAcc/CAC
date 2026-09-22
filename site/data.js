@@ -1975,6 +1975,60 @@ export function upgradeList(data, { lowBand = 306 } = {}) {
 }
 
 
+// What it costs to keep one paying customer, month by month, in layers.
+//
+// The page had cost of sales per logo by team, which stops before G&A and
+// R&D, and a chart of what is left after costs, where the cost itself is only
+// the gap between two lines. Neither shows the cost.
+//
+// Divided by PAYING logos rather than all of them, because a zero-MRR account
+// cannot carry any of this and pretending otherwise flatters every month.
+// Acquisition is not here: it belongs to the cohort that caused it.
+export function ongoingCostPerLogo(data) {
+  const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
+  if (!months.length) return null;
+
+  return months.map(month => {
+    const live = data.customers.filter(r => r.active && r.month === month);
+    const paying = live.filter(r => (r.eopMrr || 0) > 0).length;
+    const mrr = live.reduce((s, r) => s + (r.eopMrr || 0), 0);
+    if (!paying) return null;
+
+    const spend = {};
+    for (const row of data.expenses) {
+      if (row.month !== month || row.amount === null) continue;
+      const a = row.account || '';
+      let key = null;
+      // Variable: follows the payment rather than the customer.
+      if (/^5000-04/.test(a) || /^6100-06/.test(a)) key = 'variable';
+      // Platform: per-seat licence and hosting. Follows the customer.
+      else if (/^5000-0[23]/.test(a)) key = 'platform';
+      // The people who look after customers, whichever account they sit in.
+      else if (/^5050-/.test(a)) key = 'people';
+      else if (row.bucket === 'SPLIT' && !/Partnerships/i.test(a)) key = 'people';
+      else if (/^6200-|^8000-/.test(a)) key = 'admin';
+      else if (/^6300-/.test(a)) key = 'product';
+      if (key) spend[key] = (spend[key] || 0) + row.amount;
+    }
+
+    const per = k => (spend[k] || 0) / paying;
+    const layers = {
+      platform: per('platform'),
+      people: per('people'),
+      variable: per('variable'),
+      admin: per('admin'),
+      product: per('product'),
+    };
+    return {
+      month, paying, activeLogos: live.length,
+      arpa: mrr / paying,
+      ...layers,
+      total: Object.values(layers).reduce((s, v) => s + v, 0),
+    };
+  }).filter(Boolean);
+}
+
+
 // What a customer has to pay to be worth keeping, and what happens if you act
 // on it. Two different floors, and confusing them is the expensive mistake.
 //
