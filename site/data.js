@@ -1963,10 +1963,6 @@ export const PRICING_PRESETS = [
   { key: 'tiered', label: 'Tiered by what they pay now',
     blurb: 'Under $300 to $500, $300 to $499 to $750. Asks less of the cheapest '
          + 'accounts, more of the ones already close to covering themselves.' },
-  { key: 'settled', label: 'Back to their settled price',
-    blurb: 'Each account returns to its highest month AFTER the first, so the '
-         + 'old joining fee is excluded. A price they genuinely held, not one '
-         + 'they were charged once on the way in.' },
 ];
 
 // The highest price an account actually held on a recurring basis.
@@ -2001,9 +1997,7 @@ function outcome(account, rule, churnRate, floor, cap) {
   const cur = account.mrr;
   let target;
   if (rule === 'tiered') target = cur <= 300 ? 500 : 750;
-  else if (rule === 'settled') {
-    target = Math.max(floor, Math.min(account.settledPeak || 0, cur * cap));
-  } else target = floor;
+  else target = floor;
 
   if (target <= cur) return { target: cur, churn: 0, asked: false };
 
@@ -2032,11 +2026,10 @@ export function ruleSpread(data, { floor = 600, cap = 3 } = {}) {
   };
   const targets = rule => pool.map(r => {
     if (rule === 'tiered') return r.mrr <= 300 ? 500 : 750;
-    if (rule === 'settled') return Math.max(floor, Math.min(r.settledPeak || 0, r.mrr * cap));
     return floor;
   });
   const out = {};
-  for (const rule of ['floor', 'tiered', 'settled']) {
+  for (const rule of ['floor', 'tiered']) {
     const t = targets(rule);
     out[rule] = { median: median(t), max: Math.max(...t), n: t.length,
       total: t.reduce((s, v) => s + v, 0) };
@@ -2047,7 +2040,7 @@ export function ruleSpread(data, { floor = 600, cap = 3 } = {}) {
 export function campaign(data, {
   rule = 'floor', churn = 0.33, floor = 600, cap = 3, viableOnly = true,
 } = {}) {
-  const list = upgradeList(data, { lowBand: 500, floor });
+  const list = upgradeList(data, { lowBand: 500, floor, rule });
   const floors = priceFloors(data);
   if (!list || !floors) return null;
 
@@ -2126,7 +2119,7 @@ export function campaign(data, {
 // months behind it: a customer three months in has not yet shown what they
 // are worth, and re-pricing them is negotiating against your own onboarding.
 export function upgradeList(data, {
-  lowBand = 500, floor = 600, minMrr = 2, minTenure = 12,
+  lowBand = 500, floor = 600, minMrr = 2, minTenure = 12, rule = 'floor',
 } = {}) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
@@ -2162,7 +2155,10 @@ export function upgradeList(data, {
     const peak = seen.length ? Math.max(...seen) : 0;
     const peakEver = peakBy.get(row.id) || 0;
     const settled = settledBy.get(row.id) || 0;
-    const target = targetPrice(row.eopMrr || 0, settled, { floor });
+    // The list shows what the selected rule would ask for, so the table and
+    // the calculator above it can never disagree.
+    const cur = row.eopMrr || 0;
+    const target = rule === 'tiered' ? (cur <= 300 ? 500 : 750) : floor;
     return {
       id: row.id,
       canonicalId: row.canonicalId || null,
@@ -2176,7 +2172,7 @@ export function upgradeList(data, {
       target,
       ask: (row.eopMrr || 0) > 0 ? target / (row.eopMrr || 1) : null,
       heldBefore: settled >= target,
-      viable: isUpgradeCandidate(row.eopMrr || 0, settled, { floor }),
+      viable: isUpgradeCandidate(cur, settled, { floor: target }),
       tenure: firstSeen.has(row.id) ? monthDiff(firstSeen.get(row.id), last) : null,
       mrr: row.eopMrr || 0,
       cash: row.netCash || 0,

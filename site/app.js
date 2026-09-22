@@ -2073,7 +2073,8 @@ function renderFloors() {
 // that somebody can read a row, look the account up and make a call.
 function renderUpgradeList() {
   if (!$('list-low-table')) return;
-  const l = upgradeList(data, { lowBand: 500, floor: 600, minMrr: 2, minTenure: 12 });
+  const l = upgradeList(data, { lowBand: 500, floor: 600, minMrr: 2, minTenure: 12,
+    rule: (typeof CAMP !== 'undefined' && CAMP.rule) || 'floor' });
   if (!l) return;
 
   const money = v => (v ? fmt.money(v) : '–');
@@ -2721,10 +2722,6 @@ function renderCampaign() {
       const s = spread.tiered;
       return s ? `$500 or $750, ${fmt.money(s.total)} asked` : '';
     },
-    settled: () => {
-      const s = spread.settled;
-      return s ? `up to ${fmt.money(s.max)}, ${fmt.money(s.total)} asked` : '';
-    },
     light: () => '20% leave',
     expected: () => '33% leave',
     hard: () => '50% leave',
@@ -2742,7 +2739,11 @@ function renderCampaign() {
         b.innerHTML = `<strong>${p.label}</strong>`
           + (fig ? `<em class="preset-figure">${fig}</em>` : '')
           + `<span>${p.blurb}</span>`;
-        b.addEventListener('click', () => { pick(p); renderCampaign(); });
+        b.addEventListener('click', () => {
+          pick(p);
+          renderCampaign();
+          renderUpgradeList();
+        });
         box.append(b);
       }
       box.dataset.ready = '1';
