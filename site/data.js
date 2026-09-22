@@ -1978,6 +1978,135 @@ export function upgradeList(data, { lowBand = 306 } = {}) {
 }
 
 
+// The three definitions worth naming, so a reader picks a question rather
+// than assembling one from six switches and hoping it means something.
+//
+// The names matter more than they look. "Cost to serve" is the only one that
+// answers what a customer consumes; the other two answer what the business
+// costs, which is a different question that happens to share a denominator.
+export const CALC_PRESETS = [
+  { key: 'serve',
+    label: 'True cost to serve',
+    blurb: 'Only what keeping a customer working actually consumes: licences, '
+         + 'hosting, the people who look after them, and the fees that come off '
+         + 'their payments. No overhead, no product, no acquisition.',
+    costs: ['platform', 'people', 'variable'] },
+  { key: 'ongoing',
+    label: 'All ongoing, no acquisition',
+    blurb: 'Everything it costs to run the business as it stands, including the '
+         + 'overhead and the product team, but nothing spent winning new '
+         + 'customers. The right basis for a price floor.',
+    costs: ['platform', 'people', 'variable', 'ga', 'rd'] },
+  { key: 'everything',
+    label: 'Everything, acquisition included',
+    blurb: 'Every cost the business carries, with acquisition spread across the '
+         + 'whole base rather than charged to the cohort that caused it. '
+         + 'Answers whether the company washes its face, not what a customer costs.',
+    costs: ['platform', 'people', 'variable', 'ga', 'rd', 'acquisition'] },
+];
+
+
+// Cost per customer, with both halves of the fraction under the reader's hand.
+//
+// Every cost figure on this page is a numerator divided by a denominator, and
+// most arguments about them are really arguments about which costs belong on
+// top and which logos belong underneath. This makes both explicit rather than
+// settling them once and hiding the choice in a function.
+//
+// Blended 50-50 between the last six months and the last three. Six alone is
+// slow to notice a change; three alone moves with any single odd month, and
+// this ledger has one of those in it. Averaging the two windows is a blunt
+// instrument and it is the right kind of blunt: it halves the weight of a
+// one-month artefact without pretending the trailing half-year is current.
+export const LOGO_TYPES = [
+  { key: 'paying', label: 'Paying', defaultOn: true,
+    hint: 'Carried a subscription in the month.' },
+  { key: 'lapsed', label: 'Lapsed to zero', defaultOn: true,
+    hint: 'No subscription this month but paid something earlier. Still served, still costs.' },
+  { key: 'never', label: 'Never paid', defaultOn: false,
+    hint: 'No subscription in any month of the window. Test and agency monitoring accounts.' },
+];
+
+export function costCalculator(data, { costKeys = null, logoKeys = null } = {}) {
+  const ledger = costLedger(data, { months: 6 });
+  if (!ledger) return null;
+
+  const costs = costKeys
+    || COST_LAYERS.filter(l => l.key !== 'acquisition').map(l => l.key);
+  const types = logoKeys || LOGO_TYPES.filter(t => t.defaultOn).map(t => t.key);
+  const never = neverPaidIds(data);
+
+  // Peak subscription before this month decides lapsed from never, so a
+  // customer who paid once and stopped counts as lapsed for every later month
+  // rather than flipping back and forth.
+  const countFor = month => {
+    const live = data.customers.filter(r => r.active && r.month === month);
+    let n = 0;
+    for (const row of live) {
+      const isNever = never.has(row.id);
+      const paying = (row.eopMrr || 0) > 0;
+      const type = isNever ? 'never' : (paying ? 'paying' : 'lapsed');
+      if (types.includes(type)) n += 1;
+    }
+    return n;
+  };
+
+  const windowFor = n => {
+    const slice = ledger.window.slice(-n);
+    let cost = 0;
+    for (const group of ledger.groups) {
+      if (!costs.includes(group.key)) continue;
+      ledger.window.forEach((m, i) => {
+        if (slice.includes(m)) cost += group.subtotal[i];
+      });
+    }
+    const logos = slice.reduce((s, m) => s + countFor(m), 0);
+    return {
+      months: n,
+      cost: cost / n,
+      logos: logos / n,
+      perLogo: logos ? cost / logos : null,
+    };
+  };
+
+  const six = windowFor(6);
+  const three = windowFor(3);
+  const blended = (six.perLogo === null || three.perLogo === null)
+    ? null : (six.perLogo + three.perLogo) / 2;
+
+  // What a customer pays, on the same denominator, so the result can be read
+  // against something rather than in isolation.
+  const revenueFor = n => {
+    const slice = ledger.window.slice(-n);
+    let rev = 0;
+    ledger.window.forEach((m, i) => {
+      if (slice.includes(m)) rev += ledger.counts[i].revenue;
+    });
+    const logos = slice.reduce((s, m) => s + countFor(m), 0);
+    return logos ? rev / logos : null;
+  };
+  const revSix = revenueFor(6);
+  const revThree = revenueFor(3);
+  const revBlended = (revSix === null || revThree === null)
+    ? null : (revSix + revThree) / 2;
+
+  return {
+    six, three, blended,
+    revenue: revBlended,
+    left: (blended === null || revBlended === null) ? null : revBlended - blended,
+    costKeys: costs,
+    logoKeys: types,
+    layers: ledger.groups
+      .filter(g => costs.includes(g.key))
+      .map(g => ({
+        key: g.key, label: g.label,
+        month: g.subtotal.slice(-3).reduce((s, v) => s + v, 0) / 3,
+      })),
+    window: ledger.window,
+  };
+}
+
+
 // Logos that have never carried a subscription in the whole window.
 //
 // A customer who has never once had MRR is not a customer who stopped paying;
@@ -2026,7 +2155,7 @@ export const COST_LAYERS = [
     note: 'The cost of being a company. Spread evenly because nothing ties it to a customer.',
     match: a => /^6200-/.test(a) || /^8000-/.test(a) || /^6999-/.test(a) },
   { key: 'rd', label: 'Research and development', basis: 'per logo',
-    note: 'Tomorrow\u2019s product. Carried apart from the floors for that reason.',
+    note: 'Tomorrow’s product. Carried apart from the floors for that reason.',
     match: a => /^6300-/.test(a) },
   { key: 'acquisition', label: 'Acquisition', basis: 'per NEW logo',
     note: 'Winning customers, not keeping them. Divides by NEW logos, so its per-logo '

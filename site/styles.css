@@ -723,3 +723,76 @@ figcaption { margin-bottom: .9rem; }
 }
 #list-actions button:hover { background: var(--surface-sunk); }
 #list-status { color: var(--ink-soft); font-size: .82rem; }
+
+/* Cost calculator, chart 42 ------------------------------------------------ */
+
+.calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+@media (max-width: 720px) { .calc-grid { grid-template-columns: 1fr; } }
+.calc-grid .cost-toggles { margin: 0 0 1rem; }
+.calc-grid .cost-toggles .toggles { grid-template-columns: 1fr; }
+
+.calc-headline {
+  display: flex;
+  align-items: baseline;
+  gap: .6rem;
+  flex-wrap: wrap;
+  padding: 1.1rem .9rem .6rem;
+  background: var(--surface-sunk);
+  border-left: 3px solid var(--series-1);
+}
+.calc-headline.good { border-left-color: var(--series-pos); }
+.calc-headline.thin { border-left-color: var(--series-2); }
+.calc-headline.under { border-left-color: var(--series-neg); }
+.calc-number {
+  font-size: 2.6rem;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.calc-unit { font-size: .9rem; color: var(--ink-soft); }
+.calc-against {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  padding: .5rem .9rem .9rem;
+  background: var(--surface-sunk);
+  border-left: 3px solid var(--rule);
+  font-size: .88rem;
+  color: var(--ink-mid);
+  margin-bottom: 1rem;
+}
+.calc-against .pos { color: var(--series-pos); }
+.calc-against .neg { color: var(--series-neg); }
+.calc-table { font-size: .84rem; }
+.calc-table td:first-child { color: var(--ink-mid); }
+
+.calc-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-bottom: .9rem; }
+@media (max-width: 720px) { .calc-presets { grid-template-columns: 1fr; } }
+.calc-presets button {
+  font: inherit;
+  text-align: left;
+  padding: .6rem .7rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink-mid);
+  cursor: pointer;
+  display: grid;
+  gap: .2rem;
+}
+.calc-presets button:hover { border-color: var(--rule-strong); background: var(--surface-sunk); }
+.calc-presets button strong { color: var(--ink); font-size: .88rem; font-weight: 620; }
+.calc-presets button span { font-size: .76rem; color: var(--ink-soft); line-height: 1.35; }
+.calc-presets button.is-on { border-color: var(--series-1); background: var(--surface-sunk); }
+.calc-presets button.is-on strong { color: var(--series-1); }
+.calc-label {
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--ink-soft);
+  padding: 0 .9rem .1rem;
+  background: var(--surface-sunk);
+  padding-top: .7rem;
+}

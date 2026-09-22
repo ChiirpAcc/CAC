@@ -12,6 +12,7 @@ import {
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds,
+  costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -2553,6 +2554,113 @@ function renderSpend() {
 }
 
 
+// 42. The calculator. Both halves of the fraction, and the answer.
+function renderCalculator() {
+  if (!$('calc-costs')) return;
+
+  const costDefs = COST_LAYERS.map(l => ({
+    key: l.key,
+    label: l.label,
+    defaultOn: l.key !== 'acquisition',
+    hint: l.note,
+  }));
+  buildToggles('calc-costs', costDefs, renderCalculator);
+  buildToggles('calc-logos', LOGO_TYPES, renderCalculator);
+
+  // The presets set the switches; the switches remain the source of truth, so
+  // a reader can start from a named definition and then depart from it.
+  const box = $('calc-presets');
+  if (box && !box.dataset.ready) {
+    for (const p of CALC_PRESETS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.preset = p.key;
+      b.innerHTML = `<strong>${p.label}</strong><span>${p.blurb}</span>`;
+      b.addEventListener('click', () => {
+        for (const input of $('calc-costs').querySelectorAll('input')) {
+          input.checked = p.costs.includes(input.value);
+        }
+        renderCalculator();
+      });
+      box.append(b);
+    }
+    box.dataset.ready = '1';
+  }
+
+  const costKeys = [...ticked('calc-costs')];
+  const logoKeys = [...ticked('calc-logos')];
+  const c = costCalculator(data, { costKeys, logoKeys });
+  if (!c) return;
+
+  if (!costKeys.length || !logoKeys.length) {
+    $('calc-result').innerHTML = '<p class="empty">'
+      + (!costKeys.length ? 'No costs selected.' : 'No logos selected.') + '</p>';
+    $('calc-detail').innerHTML = '';
+    return;
+  }
+
+  const pct = c.revenue ? (c.left || 0) / c.revenue : null;
+  const verdict = pct === null ? '' : (pct > 0.2 ? 'good' : pct > 0 ? 'thin' : 'under');
+
+  const same = (a, b) => a.length === b.length && a.every(k => b.includes(k));
+  const active = CALC_PRESETS.find(p => same(p.costs, costKeys));
+  if ($('calc-presets')) {
+    for (const b of $('calc-presets').querySelectorAll('button')) {
+      b.classList.toggle('is-on', !!active && b.dataset.preset === active.key);
+    }
+  }
+
+  $('calc-result').innerHTML =
+    `<div class="calc-label">${active ? active.label : 'Custom definition'}</div>`
+    + `<div class="calc-headline ${verdict}">`
+    + `<span class="calc-number">${fmt.money(c.blended)}</span>`
+    + `<span class="calc-unit">per customer, per month</span>`
+    + `</div>`
+    + `<div class="calc-against">`
+    + `<span>Against ${fmt.money(c.revenue)} of revenue on the same logos</span>`
+    + `<strong class="${(c.left || 0) >= 0 ? 'pos' : 'neg'}">`
+    + `${(c.left || 0) >= 0 ? 'leaves ' : 'short by '}${fmt.money(Math.abs(c.left || 0))}`
+    + `${pct === null ? '' : ', ' + fmt.pct(Math.abs(pct), 1)}</strong>`
+    + `</div>`;
+
+  const row = (label, value, muted) =>
+    `<tr${muted ? ' class="muted"' : ''}><td>${label}</td><td class="n">${value}</td></tr>`;
+
+  $('calc-detail').innerHTML =
+    '<table class="data-table calc-table"><tbody>'
+    + '<tr class="emphasis"><td colspan="2"><strong>How it is built</strong></td></tr>'
+    + row('Six-month window', `${fmt.money(c.six.cost)} &divide; ${fmt.int(c.six.logos)} `
+        + `= <strong>${fmt.money(c.six.perLogo)}</strong>`)
+    + row('Three-month window', `${fmt.money(c.three.cost)} &divide; ${fmt.int(c.three.logos)} `
+        + `= <strong>${fmt.money(c.three.perLogo)}</strong>`)
+    + row('Blended 50-50', `<strong>${fmt.money(c.blended)}</strong>`)
+    + '<tr class="emphasis rule-above"><td colspan="2"><strong>Costs counted, monthly</strong></td></tr>'
+    + c.layers.map(l => row(l.label, fmt.money(l.month))).join('')
+    + row('<strong>Total</strong>',
+        `<strong>${fmt.money(c.layers.reduce((s, l) => s + l.month, 0))}</strong>`)
+    + '<tr class="emphasis rule-above"><td colspan="2"><strong>Logos counted</strong></td></tr>'
+    + LOGO_TYPES.map(t => row(t.label,
+        c.logoKeys.includes(t.key) ? 'counted' : 'excluded', !c.logoKeys.includes(t.key))).join('')
+    + row('<strong>Average in the window</strong>', `<strong>${fmt.int(c.three.logos)}</strong>`)
+    + '</tbody></table>';
+
+  $('calc-note').textContent =
+    'Both halves of the fraction are switches, because most arguments about cost per '
+    + 'customer are really arguments about which costs belong on top and which logos '
+    + 'belong underneath. Blended 50-50 between the last six months and the last three: '
+    + 'six alone is slow to notice a change, three alone moves with any single odd month, '
+    + 'and this ledger has one of those in it. Acquisition is off by default because it '
+    + 'is the cost of winning a customer rather than keeping one, and because it is '
+    + 'incurred per NEW logo while everything else here is per existing one — switching '
+    + 'it on spreads it across the whole base, which answers whether the business washes '
+    + 'its face rather than what a customer costs. Never-paid accounts are off by default '
+    + 'as test and agency seats; lapsed accounts are on, because a customer at zero is '
+    + 'still served and still costs. Revenue is everything a customer pays, on the same '
+    + 'logo count, so the two sides are comparable. Remember what this is: an average, '
+    + 'not a marginal cost. Almost none of it changes when one customer leaves.';
+}
+
+
 function boot() {
   load().then(loaded => {
     data = loaded;
@@ -2575,6 +2683,7 @@ function boot() {
     renderTenureChurn();
     renderZeroMrr();
     renderProjection();
+    renderCalculator();
     renderSpend();
     renderLedger();
     renderOngoing();
