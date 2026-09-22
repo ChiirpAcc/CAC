@@ -2409,7 +2409,9 @@ function renderSpend() {
     yFormat: fmt.money,
     series: [
       { label: 'Selected layers, total', colour: 'var(--ink)', values: totals },
-      { label: 'Subscription revenue', colour: INK.positive, dashed: true,
+      { label: 'All revenue', colour: INK.positive, dashed: true,
+        values: l.counts.map(c => c.revenue) },
+      { label: 'Subscription only', colour: INK.positive, thin: true,
         values: l.counts.map(c => c.mrr) },
       ...shown.map((g, i) => ({
         label: g.label, colour: palette[i % palette.length], thin: true,
@@ -2420,7 +2422,11 @@ function renderSpend() {
       const c = l.counts[i];
       return `<strong>${labels[i]}</strong>`
         + `<span>Selected total ${fmt.money(totals[i])}</span>`
-        + `<span>Revenue ${fmt.money(c.mrr)}</span>`
+        + `<span>All revenue ${fmt.money(c.revenue)}</span>`
+        + `<span class="muted">subscription ${fmt.money(c.mrr)}, usage `
+        + `${fmt.money(c.usage)}, setup ${fmt.money(c.oneTime)}, 10DLC `
+        + `${fmt.money(c.passThrough)}</span>`
+        + `<span class="muted">cash that arrived ${fmt.money(c.netCash)}</span>`
         + shown.map(g => `<span class="muted">${g.label} ${fmt.money(g.subtotal[i])}</span>`).join('')
         + `<span class="muted">${fmt.int(c.paying)} paying of ${fmt.int(c.active)} active</span>`;
     },
@@ -2449,10 +2455,29 @@ function renderSpend() {
     + totals.map(v => `<td class="n"><strong>${fmt.money(v)}</strong></td>`).join('')
     + `<td class="n"><strong>${fmt.money(totals[last] * 12)}</strong></td>`
     + `<td class="n"><strong>${latest.paying ? fmt.money(totals[last] / latest.paying) : '–'}</strong></td></tr>`
-    + '<tr><td>Subscription revenue</td>'
+    + '<tr class="rule-above"><td>Subscription</td>'
     + l.counts.map(c => `<td class="n">${fmt.money(c.mrr)}</td>`).join('')
     + `<td class="n">${fmt.money(latest.mrr * 12)}</td>`
     + `<td class="n">${latest.paying ? fmt.money(latest.mrr / latest.paying) : '–'}</td></tr>`
+    + '<tr><td>Usage and credits</td>'
+    + l.counts.map(c => `<td class="n">${fmt.money(c.usage)}</td>`).join('')
+    + `<td class="n">${fmt.money(latest.usage * 12)}</td>`
+    + `<td class="n">${latest.paying ? fmt.money(latest.usage / latest.paying) : '–'}</td></tr>`
+    + '<tr><td>Setup and one-time</td>'
+    + l.counts.map(c => `<td class="n">${fmt.money(c.oneTime)}</td>`).join('')
+    + `<td class="n">${fmt.money(latest.oneTime * 12)}</td>`
+    + `<td class="n">${latest.paying ? fmt.money(latest.oneTime / latest.paying) : '–'}</td></tr>`
+    + '<tr><td>10DLC and pass-through</td>'
+    + l.counts.map(c => `<td class="n">${fmt.money(c.passThrough)}</td>`).join('')
+    + `<td class="n">${fmt.money(latest.passThrough * 12)}</td>`
+    + `<td class="n">${latest.paying ? fmt.money(latest.passThrough / latest.paying) : '–'}</td></tr>`
+    + '<tr class="emphasis"><td><strong>All revenue</strong></td>'
+    + l.counts.map(c => `<td class="n"><strong>${fmt.money(c.revenue)}</strong></td>`).join('')
+    + `<td class="n"><strong>${fmt.money(latest.revenue * 12)}</strong></td>`
+    + `<td class="n"><strong>${latest.paying ? fmt.money(latest.revenue / latest.paying) : '–'}</strong></td></tr>`
+    + '<tr><td class="muted">Cash that actually arrived</td>'
+    + l.counts.map(c => `<td class="n muted">${fmt.money(c.netCash)}</td>`).join('')
+    + '<td></td><td></td></tr>'
     + '<tr class="rule-above"><td>Paying logos</td>'
     + l.counts.map(c => `<td class="n">${fmt.int(c.paying)}</td>`).join('') + '<td></td><td></td></tr>'
     + '<tr><td>Active logos</td>'
@@ -2481,9 +2506,22 @@ function renderSpend() {
     + `number that happens to be the customer count. `
     + `<strong>G&A alone runs ${fmt.money(ga * 12)} a year`
     + (ga > platform ? `, more than the entire platform` : '')
-    + `.</strong> On ${fmt.int(latest.paying)} paying customers and `
-    + `${fmt.money(latest.mrr * 12)} of annualised subscription revenue, that is the line `
-    + `worth explaining before any of this is planned against.`;
+    + `.</strong> `
+    + (() => {
+        const allCost = serve + overhead
+          + ((l.groups.find(g => g.key === 'acquisition') || { subtotal: [] }).subtotal[last] || 0);
+        const gap = latest.revenue - allCost;
+        return `Against every cost including acquisition, ${fmt.money(allCost)}, the `
+          + `business took ${fmt.money(latest.revenue)} and kept `
+          + `${fmt.money(gap)} in ${fmt.monthLabel(latest.month)}. `
+          + `That figure only works on ALL revenue: subscription alone is `
+          + `${fmt.money(latest.mrr)}, which would make the same month `
+          + `${fmt.money(latest.mrr - allCost)}. Usage, setup and 10DLC are `
+          + `${fmt.money(latest.revenue - latest.mrr)} a month and they are the margin. `
+          + `The cash that actually arrived was ${fmt.money(latest.netCash)}, within `
+          + `${fmt.pct(Math.abs(latest.netCash - latest.revenue) / latest.revenue, 1)} of `
+          + `the four components summed, which is the check that they are the right four.`;
+      })();
 
   $('spend-note').textContent =
     'The same accounts as the table below, summed into layers and left in dollars. Six '
@@ -2495,6 +2533,14 @@ function renderSpend() {
     + 'switch it on for the whole cost of the business. The revenue line is subscription '
     + 'only and excludes usage, setup and pass-through, which together add about a tenth '
     + 'more, so the gap between it and the cost lines is slightly wider here than in cash. '
+    + 'The revenue rows are everything a customer pays: subscription, usage and message '
+    + 'credits, setup and one-time charges, and 10DLC and carrier pass-through. An '
+    + 'earlier version of this chart compared the full cost base against subscription '
+    + 'alone, which understated revenue by about a tenth and turned a real surplus into '
+    + 'an apparent break-even. Recognised-elsewhere revenue is excluded because it is '
+    + 'already carried by a couponed subscription and counting it again would double it. '
+    + 'The cash row is what arrived and is shown as a check rather than as a fifth '
+    + 'component. '
     + 'One month to read with care: the merchant and revenue share layer carries an '
     + 'invoice in the latest month that was credited in the month after, so it reads about '
     + '$70,000 high and the layer beneath it is closer to the months before.';

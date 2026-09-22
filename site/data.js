@@ -2052,7 +2052,17 @@ export function costLedger(data, { months = 3 } = {}) {
       active: live.length,
       excluded: all.length - live.length,
       paying: live.filter(r => (r.eopMrr || 0) > 0).length,
+      // Subscription and everything else a customer pays, kept apart.
+      // Comparing a full cost base against subscription alone understates
+      // the business by about a tenth, which is roughly the whole margin.
       mrr: live.reduce((s, r) => s + (r.eopMrr || 0), 0),
+      usage: live.reduce((s, r) => s + (r.usage || 0), 0),
+      oneTime: live.reduce((s, r) => s + (r.oneTime || 0), 0),
+      passThrough: live.reduce((s, r) => s + (r.passThrough || 0), 0),
+      revenue: live.reduce((s, r) => s + (r.eopMrr || 0) + (r.usage || 0)
+        + (r.oneTime || 0) + (r.passThrough || 0), 0),
+      // What actually arrived, as a check on the four components above.
+      netCash: live.reduce((s, r) => s + (r.netCash || 0), 0),
       newLogos: (data.waterfall.find(w => w.month === month) || {}).newLogos || 0,
     };
   });
