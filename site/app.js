@@ -2624,21 +2624,36 @@ function renderCalculator() {
     + `</div>`;
 
   const row = (label, value, muted) =>
-    `<tr${muted ? ' class="muted"' : ''}><td>${label}</td><td class="n">${value}</td></tr>`;
+    `<tr${muted ? ' class="muted"' : ''}><td>${label}</td><td class="n">${value}</td>`
+    + '<td class="n"></td></tr>';
+  const row3 = (label, value, third, muted) =>
+    `<tr${muted ? ' class="muted"' : ''}><td>${label}</td><td class="n">${value}</td>`
+    + `<td class="n">${third}</td></tr>`;
 
   $('calc-detail').innerHTML =
     '<table class="data-table calc-table"><tbody>'
-    + '<tr class="emphasis"><td colspan="2"><strong>How it is built</strong></td></tr>'
+    + '<tr class="emphasis"><td colspan="3"><strong>How it is built</strong></td></tr>'
     + row('Six-month window', `${fmt.money(c.six.cost)} &divide; ${fmt.int(c.six.logos)} `
         + `= <strong>${fmt.money(c.six.perLogo)}</strong>`)
     + row('Three-month window', `${fmt.money(c.three.cost)} &divide; ${fmt.int(c.three.logos)} `
         + `= <strong>${fmt.money(c.three.perLogo)}</strong>`)
     + row('Blended 50-50', `<strong>${fmt.money(c.blended)}</strong>`)
-    + '<tr class="emphasis rule-above"><td colspan="2"><strong>Costs counted, monthly</strong></td></tr>'
-    + c.layers.map(l => row(l.label, fmt.money(l.month))).join('')
-    + row('<strong>Total</strong>',
-        `<strong>${fmt.money(c.layers.reduce((s, l) => s + l.month, 0))}</strong>`)
-    + '<tr class="emphasis rule-above"><td colspan="2"><strong>Logos counted</strong></td></tr>'
+    + '<tr class="emphasis rule-above"><td><strong>Costs counted, monthly</strong></td>'
+    + '<td class="n"><strong>Spend</strong></td>'
+    + '<td class="n"><strong>Revenue per $1</strong></td></tr>'
+    + c.layers.map(l => row3(l.label, fmt.money(l.month),
+        l.revenuePerDollar === null ? '–'
+          : `$${l.revenuePerDollar.toFixed(2)} <span class="muted">`
+            + `(${fmt.pct(l.shareOfRevenue, 1)})</span>`)).join('')
+    + (() => {
+        const spend = c.layers.reduce((s, l) => s + l.month, 0);
+        return row3('<strong>Total</strong>', `<strong>${fmt.money(spend)}</strong>`,
+          spend ? `<strong>$${(c.revenueMonth / spend).toFixed(2)}</strong> `
+            + `<span class="muted">(${fmt.pct(spend / c.revenueMonth, 1)})</span>` : '–');
+      })()
+    + row3('<span class="muted">All revenue, monthly</span>',
+        `<span class="muted">${fmt.money(c.revenueMonth)}</span>`, '')
+    + '<tr class="emphasis rule-above"><td colspan="3"><strong>Logos counted</strong></td></tr>'
     + LOGO_TYPES.map(t => row(t.label,
         c.logoKeys.includes(t.key) ? 'counted' : 'excluded', !c.logoKeys.includes(t.key))).join('')
     + row('<strong>Average in the window</strong>', `<strong>${fmt.int(c.three.logos)}</strong>`)
@@ -2656,7 +2671,13 @@ function renderCalculator() {
     + 'its face rather than what a customer costs. Never-paid accounts are off by default '
     + 'as test and agency seats; lapsed accounts are on, because a customer at zero is '
     + 'still served and still costs. Revenue is everything a customer pays, on the same '
-    + 'logo count, so the two sides are comparable. Remember what this is: an average, '
+    + 'logo count, so the two sides are comparable. '
+    + 'Revenue per $1 is how much revenue stands beside each dollar of that layer, with '
+    + 'the layer as a share of revenue in brackets. It is an intensity measure and not a '
+    + 'return: spending another dollar on rent does not produce seven more of revenue, '
+    + 'and a layer with a high figure is not therefore a good investment. It is useful '
+    + 'for the opposite reading — a layer whose figure is falling is taking a growing '
+    + 'share of what comes in. Remember what the headline is: an average, '
     + 'not a marginal cost. Almost none of it changes when one customer leaves.';
 }
 

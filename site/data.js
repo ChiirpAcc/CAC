@@ -2096,12 +2096,23 @@ export function costCalculator(data, { costKeys = null, logoKeys = null } = {}) 
     left: (blended === null || revBlended === null) ? null : revBlended - blended,
     costKeys: costs,
     logoKeys: types,
+    // Absolute monthly figures on a three-month basis, so a layer can be read
+    // against the revenue standing beside it rather than only per logo.
+    revenueMonth: ledger.counts.slice(-3).reduce((s, c) => s + c.revenue, 0) / 3,
     layers: ledger.groups
       .filter(g => costs.includes(g.key))
-      .map(g => ({
-        key: g.key, label: g.label,
-        month: g.subtotal.slice(-3).reduce((s, v) => s + v, 0) / 3,
-      })),
+      .map(g => {
+        const month = g.subtotal.slice(-3).reduce((s, v) => s + v, 0) / 3;
+        const rev = ledger.counts.slice(-3).reduce((s, c) => s + c.revenue, 0) / 3;
+        return {
+          key: g.key, label: g.label, month,
+          // Revenue standing against each dollar of this layer. An intensity
+          // measure, not a return: spending another dollar on rent does not
+          // produce seven more of revenue, and the note says so.
+          revenuePerDollar: month ? rev / month : null,
+          shareOfRevenue: rev ? month / rev : null,
+        };
+      }),
     window: ledger.window,
   };
 }
