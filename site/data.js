@@ -1945,29 +1945,27 @@ export function isUpgradeCandidate(current, peak, { floor = 600, cap = 3 } = {})
 // with the inputs visible.
 export const CHURN_PRESETS = [
   { key: 'light', label: 'Light resistance', rate: 0.20,
-    blurb: 'One in five refuses and leaves. Plausible if the ask is mostly a '
-         + 'return to a price they held before.' },
+    blurb: 'Plausible if the ask is mostly a return to a price they held before.' },
   { key: 'expected', label: 'Expected', rate: 0.33, defaultOn: true,
-    blurb: 'A third walk. The working assumption, and roughly what a price '
-         + 'rise of this size costs in most businesses.' },
+    blurb: 'The working assumption, and roughly what a rise of this size costs '
+         + 'in most businesses.' },
   { key: 'hard', label: 'Hard going', rate: 0.50,
-    blurb: 'Half leave. Where the exercise stops being clearly worth doing.' },
+    blurb: 'Where the exercise stops being clearly worth doing.' },
   { key: 'scaled', label: 'Scaled to the ask', rate: null,
-    blurb: 'Churn rises with the size of the increase, and halves where the '
-         + 'customer has held that price before. The most realistic and the '
-         + 'least certain.' },
+    blurb: 'Rises with the size of the increase, halved where the customer has '
+         + 'held that price before. Most realistic, least certain.' },
 ];
 
 export const PRICING_PRESETS = [
   { key: 'floor', label: 'Everyone to the floor',
-    blurb: 'One number for all of them. Simplest to run, leaves the most on '
-         + 'the table with customers who used to pay far more.' },
+    blurb: 'Simplest to run. Leaves the most on the table with customers who '
+         + 'used to pay far more.' },
   { key: 'peak', label: 'Back to what they paid', defaultOn: true,
     blurb: 'Each account returns to its own highest price, floored and capped. '
          + 'Earns more and is an easier conversation.' },
   { key: 'stretch', label: 'Peak plus a fifth',
-    blurb: 'Their old price with an increase on top. Highest return, and the '
-         + 'only option where nobody is being asked for something familiar.' },
+    blurb: 'Their old price with an increase on top. Nobody is being asked for '
+         + 'something familiar.' },
 ];
 
 // One account's outcome under a given rule and churn assumption.
@@ -1989,6 +1987,32 @@ function outcome(account, rule, churnRate, floor, cap) {
     if (target <= account.peakEver) churn *= 0.5;
   }
   return { target, churn, asked: true };
+}
+
+// The spread of targets each rule produces, so a button can state its own
+// numbers rather than describe them.
+export function ruleSpread(data, { floor = 600, cap = 3 } = {}) {
+  const list = upgradeList(data, { lowBand: 500, floor });
+  if (!list) return {};
+  const pool = list.low.filter(r => r.viable);
+  const median = a => {
+    const s = a.slice().sort((x, y) => x - y);
+    if (!s.length) return null;
+    const i = s.length >> 1;
+    return s.length % 2 ? s[i] : (s[i - 1] + s[i]) / 2;
+  };
+  const targets = rule => pool.map(r => {
+    if (rule === 'floor') return floor;
+    if (rule === 'stretch') return Math.max(floor, Math.min(r.peakEver * 1.2, r.mrr * cap));
+    return r.target;
+  });
+  const out = {};
+  for (const rule of ['floor', 'peak', 'stretch']) {
+    const t = targets(rule);
+    out[rule] = { median: median(t), max: Math.max(...t), n: t.length,
+      total: t.reduce((s, v) => s + v, 0) };
+  }
+  return out;
 }
 
 export function campaign(data, {

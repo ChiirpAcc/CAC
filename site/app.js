@@ -13,7 +13,7 @@ import {
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
-  campaign, CHURN_PRESETS, PRICING_PRESETS,
+  campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -2702,6 +2702,31 @@ let CAMP = { rule: 'peak', churn: 0.33 };
 function renderCampaign() {
   if (!$('camp-result')) return;
 
+  // Each option states its own figure. A preset called "expected" that does
+  // not say 33% is asking the reader to trust a label instead of a number.
+  const spread = ruleSpread(data);
+  const figureFor = {
+    // Median and max are identical across the last two rules, because the
+    // 3x cap binds on the same accounts either way. The total asked is what
+    // actually separates them, so that is what each button carries.
+    floor: () => {
+      const s = spread.floor;
+      return s ? `${fmt.money(s.median)} each, ${fmt.money(s.total)} asked` : '';
+    },
+    peak: () => {
+      const s = spread.peak;
+      return s ? `up to ${fmt.money(s.max)}, ${fmt.money(s.total)} asked` : '';
+    },
+    stretch: () => {
+      const s = spread.stretch;
+      return s ? `up to ${fmt.money(s.max)}, ${fmt.money(s.total)} asked` : '';
+    },
+    light: () => '20% leave',
+    expected: () => '33% leave',
+    hard: () => '50% leave',
+    scaled: () => '10% to 80%, by size of ask',
+  };
+
   const buttons = (id, defs, pick, active) => {
     const box = $(id);
     if (!box.dataset.ready) {
@@ -2709,7 +2734,10 @@ function renderCampaign() {
         const b = document.createElement('button');
         b.type = 'button';
         b.dataset.key = p.key;
-        b.innerHTML = `<strong>${p.label}</strong><span>${p.blurb}</span>`;
+        const fig = figureFor[p.key] ? figureFor[p.key]() : '';
+        b.innerHTML = `<strong>${p.label}</strong>`
+          + (fig ? `<em class="preset-figure">${fig}</em>` : '')
+          + `<span>${p.blurb}</span>`;
         b.addEventListener('click', () => { pick(p); renderCampaign(); });
         box.append(b);
       }

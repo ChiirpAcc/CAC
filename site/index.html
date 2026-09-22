@@ -712,8 +712,14 @@
     </div>
     <figure class="card wide calc-card" id="fig-campaign">
       <figcaption><h3>What the campaign is worth</h3></figcaption>
-      <div class="calc-presets" id="camp-rule"></div>
-      <div class="calc-presets" id="camp-churn"></div>
+      <fieldset class="preset-group">
+        <legend>What each account is asked for</legend>
+        <div class="calc-presets" id="camp-rule"></div>
+      </fieldset>
+      <fieldset class="preset-group">
+        <legend>How many refuse and leave</legend>
+        <div class="calc-presets" id="camp-churn"></div>
+      </fieldset>
       <div id="camp-result"></div>
       <div id="camp-detail"></div>
       <p class="note" id="camp-note"></p>
