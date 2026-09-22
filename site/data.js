@@ -1936,7 +1936,16 @@ export function isUpgradeCandidate(current, peak, { floor = 600, cap = 3 } = {})
   return current > 0 && (floor / current) <= cap;
 }
 
-export function upgradeList(data, { lowBand = 500, floor = 600 } = {}) {
+// Two eligibility rules on top of the price band, both of which remove
+// accounts that are technically candidates and practically not.
+//
+// A dollar a month is a free account with a token charge on it, not a cheap
+// customer, so anything at or under $2 is out. And an account needs twelve
+// months behind it: a customer three months in has not yet shown what they
+// are worth, and re-pricing them is negotiating against your own onboarding.
+export function upgradeList(data, {
+  lowBand = 500, floor = 600, minMrr = 2, minTenure = 12,
+} = {}) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
   const last = months[months.length - 1];
@@ -2001,19 +2010,27 @@ export function upgradeList(data, { lowBand = 500, floor = 600 } = {}) {
   const live = data.customers.filter(r => r.active && r.month === last
     && !never.has(r.id));
   const zeros = live.filter(r => !(r.eopMrr > 0)).map(build);
-  const low = live.filter(r => r.eopMrr > 0 && r.eopMrr < lowBand).map(build);
+  const lowAll = live.filter(r => r.eopMrr > 0 && r.eopMrr < lowBand).map(build);
+  const low = lowAll.filter(r => r.mrr > minMrr && (r.tenure || 0) >= minTenure);
+  const excluded = {
+    tooCheap: lowAll.filter(r => r.mrr <= minMrr).length,
+    tooYoung: lowAll.filter(r => r.mrr > minMrr && (r.tenure || 0) < minTenure).length,
+  };
 
   const byGap = (a, b) => (b.peak - b.mrr) - (a.peak - a.mrr) || a.mrr - b.mrr;
   zeros.sort(byGap);
   low.sort((a, b) => a.mrr - b.mrr);
 
   return {
-    month: last, window, lowBand,
+    month: last, window, lowBand, minMrr, minTenure,
     zeros, low,
     totals: {
       accounts: zeros.length + low.length,
       zeroCount: zeros.length,
       lowCount: low.length,
+      lowBeforeRules: lowAll.length,
+      excludedTooCheap: excluded.tooCheap,
+      excludedTooYoung: excluded.tooYoung,
       lowMrr: low.reduce((s, r) => s + r.mrr, 0),
       lowTarget: low.reduce((s, r) => s + r.target, 0),
       lowHeldBefore: low.filter(r => r.heldBefore).length,

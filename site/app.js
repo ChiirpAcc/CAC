@@ -2071,8 +2071,8 @@ function renderFloors() {
 // The upgrade list tab. A working document rather than a chart: the point is
 // that somebody can read a row, look the account up and make a call.
 function renderUpgradeList() {
-  if (!$('list-zero-table')) return;
-  const l = upgradeList(data, { lowBand: 500, floor: 600 });
+  if (!$('list-low-table')) return;
+  const l = upgradeList(data, { lowBand: 500, floor: 600, minMrr: 2, minTenure: 12 });
   if (!l) return;
 
   const money = v => (v ? fmt.money(v) : '–');
@@ -2105,21 +2105,6 @@ function renderUpgradeList() {
     return head + '<tbody>' + body + '</tbody>';
   };
 
-  $('list-zero-title').textContent =
-    `Paying nothing — ${fmt.int(l.zeros.length)} accounts`;
-  $('list-zero-table').innerHTML = table(l.zeros, l.lowBand);
-
-  const recoverable = l.zeros.filter(r => r.fallen).length;
-  $('list-zero-finding').innerHTML =
-    `<strong>${fmt.int(l.zeros.length)} accounts carrying no subscription, `
-    + `${fmt.int(l.totals.zerosHeldBefore)} of which have held the price we would ask `
-    + `for.</strong> That is the difference between a recovery call and a cold one, and it `
-    + `is why the target is scored on what each account has already paid rather than set `
-    + `at a flat number. ${fmt.int(l.totals.zerosWithCash)} are still sending money through `
-    + `usage or one-off charges despite carrying no subscription, which makes them the `
-    + `warmest names here. Sorted by how far each has fallen from its own peak, so the top `
-    + `of the list is where the most was lost rather than where the account is largest.`;
-
   $('list-low-title').textContent =
     `Paying something, under ${fmt.money(l.lowBand)} — ${fmt.int(l.low.length)} accounts`;
   $('list-low-table').innerHTML = table(l.low, l.lowBand);
@@ -2128,26 +2113,30 @@ function renderUpgradeList() {
   const held = l.low.filter(r => r.heldBefore);
   const cleanup = l.low.filter(r => !r.viable);
   $('list-low-finding').innerHTML =
-    `<strong>${fmt.int(l.low.length)} accounts under ${fmt.money(l.lowBand)}, of which `
-    + `${fmt.int(viable.length)} are worth asking and ${fmt.int(held.length)} have paid at `
-    + `least the target before.</strong> The viable ones pay `
-    + `${fmt.money(l.totals.lowViableMrr)} a month and their targets sum to `
-    + `${fmt.money(l.totals.lowViableTarget)}, a difference of `
-    + `${fmt.money(l.totals.lowViableTarget - l.totals.lowViableMrr)}. `
-    + `<strong>Call the "held it before" names first.</strong> Asking a customer to return `
-    + `to a price they already accepted is a different conversation from inventing one, and `
-    + `treating it as half the churn risk is the single assumption this list rests on. `
+    `<strong>${fmt.int(l.low.length)} accounts are eligible, of which `
+    + `${fmt.int(viable.length)} are worth asking and ${fmt.int(held.length)} have already `
+    + `held the price.</strong> They pay ${fmt.money(l.totals.lowMrr)} a month between them `
+    + `and their targets sum to ${fmt.money(l.totals.lowTarget)}. `
+    + `<strong>Start with the "held it before" names.</strong> Asking a customer to return `
+    + `to a price they once accepted is a different conversation from inventing one, and `
+    + `treating that as half the churn risk is the single assumption this list rests on — `
+    + `the first calls will test it. `
     + (cleanup.length
-        ? `The other ${fmt.int(cleanup.length)} are marked not viable: they pay so little `
-          + `that reaching the floor would mean a multiple no salesperson is going to ask `
-          + `for, and they have never held that price. They are a cancellation decision `
-          + `rather than an upgrade one — together they are worth `
-          + `${fmt.money(l.totals.lowMrr - l.totals.lowViableMrr)} a month.`
-        : '');
+        ? `${fmt.int(cleanup.length)} are marked not viable: reaching the floor would mean `
+          + `a multiple nobody is going to ask for and they have never held that price, so `
+          + `they are a cancellation decision rather than a sale. `
+        : '')
+    + `${fmt.int(l.totals.lowBeforeRules - l.low.length)} more sit under `
+    + `${fmt.money(l.lowBand)} and are excluded by the eligibility rules: `
+    + `${fmt.int(l.totals.excludedTooCheap)} pay ${fmt.money(l.minMrr)} or less, which is a `
+    + `free account with a token charge rather than a cheap customer, and `
+    + `${fmt.int(l.totals.excludedTooYoung)} are under ${l.minTenure} months old, where `
+    + `re-pricing means negotiating against your own onboarding.`;
 
   $('list-note').textContent =
-    'Every active account in ' + fmt.monthLabel(l.month) + ' paying less than '
-    + fmt.money(l.lowBand) + ' a month. The target for each is max(floor, min(peak ever '
+    'Active accounts in ' + fmt.monthLabel(l.month) + ' paying more than '
+    + fmt.money(l.minMrr) + ' and less than ' + fmt.money(l.lowBand)
+    + ' a month, with at least ' + l.minTenure + ' months behind them. The target for each is max(floor, min(peak ever '
     + 'paid, current x 3)), with the floor at $600. The floor protects solvency, the peak '
     + 'anchors to a price the customer has demonstrably accepted, and the cap stops an '
     + 'account at $50 being asked for $900 because of one odd month years ago. $600 '
@@ -2204,7 +2193,7 @@ function renderUpgradeList() {
       a.remove();
       URL.revokeObjectURL(url);
       $('list-status').textContent =
-        `${fmt.int(l.totals.accounts)} accounts exported.`;
+        `${fmt.int(l.low.length)} accounts exported.`;
     });
     button.dataset.ready = '1';
   }
