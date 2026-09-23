@@ -4,6 +4,7 @@ Every chart and report on the page, with the tab it comes from, the
 columns it reads and what is done to them in between.
 
 Written against push `2026-09-23T15:11:50` — 49,115 rows, 39 columns.
+Figures quoted from the data are recomputed on every load and will move.
 
 ---
 
@@ -129,8 +130,8 @@ platform = (all revenue - cost of sales - 0.60 x usage - 0.90 x one-time)
            / platform revenue
 ```
 
-Months landing outside [0,1] are rejected. On current data: **55.0% mean,
-45.1% to 66.4% across 32 months**, against the flat 75.7% it replaced.
+Months landing outside [0,1] are rejected. On current data: **54.2% mean,
+41.8% to 65.3% across 32 months**, against the flat 75.7% it replaced.
 Cross-checked against the pipeline's published `gross_margin`, which is a
 narrower measure — `(mrr - cogs) / mrr`, leaving usage and one-time out —
 and currently differs by at most 0.95%.
