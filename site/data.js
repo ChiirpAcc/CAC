@@ -141,11 +141,51 @@ async function readFile(name) {
   if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
 
   // The push may or may not compress the large tab, so handle both.
+  let doc;
   if (name.endsWith('.gz')) {
     const stream = response.body.pipeThrough(new DecompressionStream('gzip'));
-    return JSON.parse(await new Response(stream).text());
+    doc = JSON.parse(await new Response(stream).text());
+  } else {
+    doc = await response.json();
   }
-  return response.json();
+  return widen(doc, name);
+}
+
+// The push can send rows either way.
+//
+// Until v102 every row was an object with its column names repeated on it.
+// That is 40 keys spelled out 49,115 times in one file, so the pipeline now
+// has the option of sending bare arrays with `columns` carrying the names in
+// order and `row_format: "arrays"` saying so. Both forms arrive in the wild,
+// including mid-session, so this reads the declaration rather than sniffing
+// the first row: a tab that legitimately has no rows would sniff as neither.
+//
+// Everything downstream reads `r.column_name`, so arrays are widened back
+// into objects here and nothing else in the file needs to know. That costs
+// the memory the compact form just saved, which is the right trade while the
+// alternative is rewriting every consumer.
+function widen(doc, name) {
+  if (!doc || doc.row_format !== 'arrays') return doc;
+
+  const columns = doc.columns;
+  if (!Array.isArray(columns) || !columns.length) {
+    throw new Error(`${name}: row_format is "arrays" but columns is missing`);
+  }
+
+  const rows = (doc.rows || []).map((row, index) => {
+    if (!Array.isArray(row)) return row;
+    // A short row is padded and a long one is a real disagreement about the
+    // shape, which is worth stopping for rather than silently truncating.
+    if (row.length > columns.length) {
+      throw new Error(
+        `${name}: row ${index} has ${row.length} values against ${columns.length} columns`);
+    }
+    const out = {};
+    for (let i = 0; i < columns.length; i += 1) out[columns[i]] = row[i];
+    return out;
+  });
+
+  return { ...doc, rows };
 }
 
 // Tabs the charts actually read. Anything else in the index is left alone:
