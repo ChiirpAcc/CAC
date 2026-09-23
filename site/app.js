@@ -14,6 +14,7 @@ import {
   ongoingCostPerLogo, costLedger, neverPaidIds,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
+  bandEconomics, bandCampaign, ENGAGEMENT,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -2758,6 +2759,23 @@ function renderCampaign() {
     p => { CAMP.churn = p.rate; CAMP.churnKey = p.key; },
     CAMP.churnKey || 'expected');
 
+  // Which bands to ask. Defaults to active users only, which is where the
+  // band economics land once cost follows usage rather than headcount.
+  const econ = bandEconomics(data);
+  if (econ) {
+    buildToggles('camp-bands', econ.bands.map(b => ({
+      key: b.key, label: b.label, defaultOn: b.key === 'users',
+      hint: `${b.definition} ${b.accounts} accounts, `
+        + `pays ${fmt.money(b.pays)}, costs ${fmt.money(b.cost)}, `
+        + `keeps ${fmt.money(b.keeps)}.`,
+    })), renderCampaign);
+  }
+  const askBands = econ ? [...ticked('camp-bands')] : [];
+  const bc = econ && askBands.length
+    ? bandCampaign(data, { ask: askBands, rule: CAMP.rule === 'tiered' ? 'tiered' : 'flat',
+        churn: CAMP.churn === 'scaled' ? null : CAMP.churn })
+    : null;
+
   const c = campaign(data, { rule: CAMP.rule, churn: CAMP.churn });
   if (!c) return;
 
@@ -2801,6 +2819,39 @@ function renderCampaign() {
         `${fmt.money(c.floorBefore)} → <strong>${fmt.money(c.floorAfter)}</strong>`)
     + '</tbody></table>';
 
+  if (econ) {
+    const row = b => {
+      const r = bc ? bc.rows.find(x => x.key === b.key) : null;
+      return '<tr>'
+        + `<td>${b.label}${r && r.asked ? '' : ' <span class="muted">(left alone)</span>'}</td>`
+        + `<td class="n">${fmt.int(b.accounts)}</td>`
+        + `<td class="n">${fmt.money(b.pays)}</td>`
+        + `<td class="n">${fmt.money(b.cost)}</td>`
+        + `<td class="n"><strong>${fmt.money(b.keeps)}</strong></td>`
+        + `<td class="n">${b.returnOnCost ? b.returnOnCost.toFixed(1) + 'x' : '–'}</td>`
+        + `<td class="n">${fmt.money(b.keepsTotal)}</td>`
+        + '</tr>';
+    };
+    $('camp-bandtable').innerHTML =
+      '<table class="data-table calc-table"><thead><tr><th>Band</th>'
+      + '<th class="n">Accounts</th><th class="n">Pays</th><th class="n">Costs</th>'
+      + '<th class="n">Keeps</th><th class="n">Per $1 of cost</th>'
+      + '<th class="n">Total a month</th></tr></thead><tbody>'
+      + econ.bands.map(row).join('')
+      + `<tr class="rule-above emphasis"><td><strong>All ${fmt.int(econ.totalAccounts)}</strong></td>`
+      + '<td></td><td></td><td></td><td></td><td></td>'
+      + `<td class="n"><strong>${fmt.money(econ.totalKeeps)}</strong></td></tr>`
+      + (bc
+          ? `<tr class="rule-above"><td><strong>After the campaign</strong></td>`
+            + `<td class="n">${fmt.int(bc.kept)} kept, ${fmt.int(bc.lost)} lost</td>`
+            + '<td></td><td></td><td></td><td></td>'
+            + `<td class="n"><strong>${fmt.money(bc.contribution)}</strong> `
+            + `<span class="${bc.gain >= 0 ? 'held' : 'notviable'}">`
+            + `${bc.gain >= 0 ? '+' : ''}${fmt.money(bc.gain)}</span></td></tr>`
+          : '')
+      + '</tbody></table>';
+  }
+
   $('camp-note').textContent =
     'Both inputs are assumptions, not measurements, which is why they are switches: '
     + 'nobody has run this campaign, so the honest output is a range with the inputs '
@@ -2814,7 +2865,20 @@ function renderCampaign() {
     + 'across fewer payers, so an aggressive campaign can raise the bar faster than it '
     + 'raises prices and leave the survivors underwater. Only accounts marked viable in '
     + 'the list below are included; the rest are a cancellation decision rather than a '
-    + 'sale and counting them would flatter every figure here.';
+    + 'sale and counting them would flatter every figure here. '
+    + 'The band table is the part that changes the conclusion. All three bands pay about '
+    + 'the same, but hosting and messaging follow usage while the per-seat licence does '
+    + 'not, so a dormant account costs a third of what a heavy user costs and keeps more '
+    + 'of what it pays. That inverts the obvious answer: the accounts that look most '
+    + 'worth re-pricing are the most profitable business on the book, and sending them an '
+    + 'invoice change is the fastest way to lose it. Active users are the only band whose '
+    + 'price is genuinely out of line with what they consume. '
+    + 'Band membership and counts are hand entered from an engagement export dated '
+    + ENGAGEMENT.asOf + ' and joined on Stripe customer id; they are not in the pushed '
+    + 'workbook, so they are exactly as stale as that date. The usage multiples behind '
+    + 'the cost column are estimates rather than measurements — 2.2x average hosting '
+    + 'for heavy senders, 0.6x for light, 0.05x for dormant — and they are the '
+    + 'assumption most worth replacing with real per-account message volume.';
 }
 
 

@@ -1943,6 +1943,161 @@ export function isUpgradeCandidate(current, peak, { floor = 600, cap = 3 } = {})
 // assumptions rather than measurements, which is the point of making them
 // switches: nobody has run this campaign yet, so the honest output is a range
 // with the inputs visible.
+// Engagement bands, and why they change the answer.
+//
+// Billing data cannot tell you whether a customer uses the product. A
+// spreadsheet of logins and message volume can, and the moment you have it
+// the pricing conclusion inverts.
+//
+// All three bands pay about the same. They cost very different amounts to
+// serve, because hosting and messaging follow usage while the per-seat
+// licence does not. So the group that looks most attractive to re-price
+// (dormant accounts paying full price for nothing) is in fact the most
+// profitable business on the book, and the group that looks like a loyal
+// core is the one whose price is out of line with what it consumes.
+//
+// HAND ENTERED. These counts come from an engagement export dated 2026-09-22
+// joined on Stripe customer id, and are not in the pushed workbook. When an
+// engagement tab exists they should be read from it and this constant
+// deleted; until then the figures are as stale as the date says.
+export const ENGAGEMENT = {
+  asOf: '2026-09-22',
+  source: 'hand entered from the engagement export, not the pipeline',
+  bands: [
+    {
+      key: 'users', label: 'Active users', accounts: 78, mrr: 29689.01,
+      underThreeHundred: 23, overThreeHundred: 55,
+      // Hosting and messaging cost relative to the average logo. A heavy
+      // sender costs multiples of a dormant one and the flat per-logo figure
+      // used everywhere else hides it.
+      usageMultiple: 2.2,
+      definition: 'Logged in within 14 days, 3 or more logins this month, and '
+        + '100 or more texts sent in 60 days.',
+      meaning: 'Actively using it and would notice losing it.',
+    },
+    {
+      key: 'light', label: 'Light users', accounts: 30, mrr: 11682,
+      underThreeHundred: 4, overThreeHundred: 26,
+      usageMultiple: 0.6,
+      definition: 'Uses it, but not on both counts — logs in without sending, '
+        + 'or sends without logging in.',
+      meaning: 'Real but shallow engagement. The size of the ask decides the answer.',
+    },
+    {
+      key: 'dormant', label: 'Dormant', accounts: 42, mrr: 16295,
+      underThreeHundred: 14, overThreeHundred: 28,
+      usageMultiple: 0.05,
+      definition: 'No texts sent in 60 days, or no login in 60 days. Tested '
+        + 'first and overrides everything else.',
+      meaning: 'Not price-sensitive. Already gone and has not cancelled.',
+    },
+  ],
+};
+
+// What each band actually keeps, once cost follows usage rather than headcount.
+export function bandEconomics(data) {
+  const f = priceFloors(data);
+  if (!f) return null;
+  const c = f.components;
+  const avgMrr = f.paying.length ? f.totalMrr / f.paying.length : 0;
+  const merchantShare = avgMrr ? c.merchant / avgMrr : 0.043;
+
+  const bands = ENGAGEMENT.bands.map(b => {
+    const pays = b.mrr / b.accounts;
+    // Per-seat licence is the same for everyone; hosting scales with use;
+    // the merchant fee is a share of whatever they pay.
+    const cost = c.software + c.hosting * b.usageMultiple + pays * merchantShare;
+    return {
+      ...b,
+      pays,
+      cost,
+      keeps: pays - cost,
+      keepsTotal: (pays - cost) * b.accounts,
+      returnOnCost: cost ? pays / cost : null,
+    };
+  });
+
+  return {
+    asOf: ENGAGEMENT.asOf,
+    source: ENGAGEMENT.source,
+    bands,
+    inputs: { software: c.software, hosting: c.hosting, merchantShare },
+    totalAccounts: bands.reduce((s, b) => s + b.accounts, 0),
+    totalKeeps: bands.reduce((s, b) => s + b.keepsTotal, 0),
+  };
+}
+
+// The campaign, run band by band, on contribution rather than revenue.
+//
+// Revenue is the wrong measure here: a dormant account and a heavy user
+// paying the same amount are worth very different things, and a plan that
+// maximises revenue will happily trade a $294 contribution for a $221 one.
+export function bandCampaign(data, { ask = ['users'], rule = 'tiered', churn = null } = {}) {
+  const econ = bandEconomics(data);
+  if (!econ) return null;
+  const f = priceFloors(data);
+
+  // Churn when asked: scales with the multiple, then by how attached the band
+  // is. Left alone, each band still churns at its background rate.
+  const background = { users: 0.02, light: 0.04, dormant: 0.15 };
+  const resistance = { users: 0.5, light: 1.0, dormant: 2.2 };
+
+  const rows = econ.bands.map(b => {
+    const asked = ask.includes(b.key);
+    // Split the band at $300 so the tiered rule can be applied honestly.
+    const lowN = b.underThreeHundred;
+    const highN = b.overThreeHundred;
+    const lowPays = 175;
+    const highPays = highN ? (b.mrr - lowN * lowPays) / highN : 0;
+
+    const tiers = [
+      { n: lowN, pays: lowPays, target: rule === 'flat' ? 600 : 500 },
+      { n: highN, pays: highPays, target: rule === 'flat' ? 600 : 750 },
+    ];
+
+    let revenue = 0;
+    let kept = 0;
+    let lost = 0;
+    for (const t of tiers) {
+      if (!t.n) continue;
+      const rises = asked && t.target > t.pays;
+      let p;
+      if (!rises) {
+        p = background[b.key];
+      } else if (churn !== null) {
+        p = churn;
+      } else {
+        const mult = t.target / t.pays;
+        p = Math.min(0.85, Math.max(0.08, 0.333 * (mult - 1)) * resistance[b.key]);
+      }
+      const survivors = t.n * (1 - p);
+      revenue += survivors * (rises ? t.target : t.pays);
+      kept += survivors;
+      lost += t.n * p;
+    }
+    const contribution = revenue - kept * b.cost - revenue * f.variablePct;
+    return { key: b.key, label: b.label, asked, revenue, kept, lost, contribution };
+  });
+
+  const doNothing = econ.bands.reduce((s, b) => {
+    const p = background[b.key];
+    const rev = b.mrr * (1 - p);
+    return s + rev - b.accounts * (1 - p) * b.cost - rev * f.variablePct;
+  }, 0);
+
+  const contribution = rows.reduce((s, r) => s + r.contribution, 0);
+  return {
+    rows,
+    revenue: rows.reduce((s, r) => s + r.revenue, 0),
+    kept: rows.reduce((s, r) => s + r.kept, 0),
+    lost: rows.reduce((s, r) => s + r.lost, 0),
+    contribution,
+    doNothing,
+    gain: contribution - doNothing,
+  };
+}
+
+
 export const CHURN_PRESETS = [
   { key: 'light', label: 'Light resistance', rate: 0.20,
     blurb: 'Plausible if the ask is mostly a return to a price they held before.' },
