@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-09-23T15:11:50",
+  "pushed_at": "2026-09-23T15:56:14",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -25,11 +25,6 @@
       "tab": "QB Accounts",
       "file": "qb_accounts.json",
       "rows": 119
-    },
-    {
-      "tab": "Customer Waterfall",
-      "file": "customer_waterfall.json",
-      "rows": 49115
     },
     {
       "tab": "Cash Detail",
