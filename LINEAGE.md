@@ -19,15 +19,15 @@ The pipeline pushes ten files. The site loads eight of them.
 | Serve Monthly | `serve_monthly.json` | 33 | yes | Cost to serve, cost of sales by team, measured margin |
 | QB Expenses | `qb_expenses.json` | 2,243 | yes | Every expense line by account and month |
 | QB Accounts | `qb_accounts.json` | 119 | yes | Account to bucket and section mapping |
-| New Customer Cohorts | `new_customer_cohorts.json` | 314 | yes | Signup price and start type |
+| New Customer Cohorts | `signup_pricing.json` | 314 | yes | Signup price and start type |
 | Subscription Lifetimes | `subscription_lifetimes.json` | 1,199 | yes | Fallback subscription spans |
-| **Cash Detail** | `cash_detail.json` | 44,994 | **no** | Revenue decomposition, residual |
+| **Cash Detail** | `cash_detail.json` | 44,993 | **no** | Revenue decomposition, residual |
 | **Event Costs** | `event_costs.json` | 36 | listed, unused | — |
 
 `Cash Detail` is not in `REQUIRED_TABS` or `OPTIONAL_TABS`
 (data.js:103). It carries the identity `recurring + usage + onetime +
 passthrough + unclassified + tax - credits - refunds + residual =
-net_cash`, which holds on all 44,994 rows with zero failures.
+net_cash`, which holds on all 44,993 rows with zero failures.
 
 ---
 
