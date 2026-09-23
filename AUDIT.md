@@ -9,7 +9,7 @@ actually cleared after refunds. Three fields are known broken and are marked whe
 
 ## At a glance
 
-| # | Account | Stripe ID | Env | Present | Paid | Peak MRR | Lifetime cash | Shape |
+| # | Account | Stripe ID | Env | Present | Months with cash | Peak MRR | Lifetime cash | Shape |
 |---|---|---|---|---|---|---|---|---|
 | 1 | Luxor Garage Door | `cus_UjUuKNG1w93E81` | S1 | 3 mo | 0 mo | $0 | $-1,238 | started 2026, still live |
 | 2 | Cool Beans Heating and Air | `cus_TlKziILtRaHP3l` | S1 | 8 mo | 8 mo | $1,050 | $8,092 | started 2026, still live |
@@ -21,6 +21,26 @@ actually cleared after refunds. Three fields are known broken and are marked whe
 | 8 | RCL Mechanical | `cus_Q1T52CXtsXhANB` | S1 | 25 mo | 14 mo | $50 | $672 | older, churned in 2026 |
 | 9 | Sanders Plumbing, Heat & A | `cus_OCGPK8AfadsQsO` | S1 | 31 mo | 30 mo | $1,199 | $22,340 | older, churned in 2026 |
 | 10 | 5 Star Home Services | `cus_OHRjtf7WG1letb` | S1 | 34 mo | 29 mo | $14,000 | $190,612 | older, churned in 2026 |
+
+## Three corrections since this was written
+
+**"Months with cash" is not "months paid."** The column counts months where
+`net_cash` was positive. Where a customer pays by wire and a payment lands
+late, one month gets two payments and the month before gets none, so a month
+that was genuinely paid can read as zero. 5 Star reads 29 here against 30
+actually paid.
+
+**Lifetime cash is understated wherever there was a refund.** `net_cash`
+has the refund subtracted from a figure already net of it, so every account
+that was ever refunded is short by exactly the refund. In this list that is
+Luxor (-$1,250), Plumbing Pro (-$2,300), Sanders (-$959) and 5 Star
+(-$2,500). The figures below are left as the pipeline publishes them,
+because that is what is being audited.
+
+**Peak MRR for Andreas (#3) is now corrected on the page.** The raw column
+reads $7,650, which is a year paid up front. The site divides annual lines
+by twelve and carries the rate forward, so it shows $637.50. The table below
+still shows the raw value.
 
 ## Two things that show up across several of these
 

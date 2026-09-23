@@ -55,6 +55,8 @@ where noted.
 | `passthrough_revenue` | `passThrough` | |
 | `recognised_elsewhere_revenue` | `recognisedElsewhere` | |
 | `starting_mrr` | `startingMrr` | |
+| `is_annual` | `isAnnual` | Drives `spreadAnnual()` |
+| `annual_line_gross` | `annualGross` | The full year, divided by twelve on read |
 | `start_type` | `startType` | |
 | `event_type` | `active` | **Transformation**: `LIVE_EVENTS.has(event_type)` |
 
@@ -261,7 +263,7 @@ half the business without an error.
 
 ## 7. Columns present but not read
 
-24 of 39 waterfall columns are unused. Most are redundant — `bop_mrr`,
+22 of 40 waterfall columns are unused. Most are redundant — `bop_mrr`,
 `expansion_mrr` and the other flow components are re-derived from
 `eop_mrr` transitions. These are the ones that would change something:
 
@@ -269,7 +271,7 @@ half the business without an error.
 |---|---|
 | `unclassified_revenue` | Roughly 6% of recent cash, currently invisible to every revenue class |
 | `subscription_status`, `unpaid_due` | Past-due share is rising, 5.0% to 5.7% over four months, and is a leading churn indicator |
-| `is_annual`, `annual_line_gross` | Two customers distort `new_mrr` by 17-20% in June and July |
+| ~~`is_annual`, `annual_line_gross`~~ | **Now read.** `spreadAnnual()` divides the annual line by twelve and carries the rate forward. Removed 18.6% from June new_mrr and 15.8% from July |
 | `sub_start`, `sub_end`, `has_live_sub` | Real tenure instead of inferred, for the age-eligibility rule |
 | `fidelity` | Two thirds of the file is `amount_only`; anything computed over the full window rests mostly on revenue classified by size |
 | `invoice_discounts` | Separates couponed accounts from phantom MRR |

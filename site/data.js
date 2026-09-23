@@ -73,6 +73,57 @@ export function num(value) {
   return percent ? signed / 100 : signed;
 }
 
+// An annual customer is billed once for twelve months, and the pipeline
+// books the entire charge as that month's MRR and nothing afterwards. On the
+// page that reads as a customer who paid $7,650 a month once and then
+// contracted to zero, which is wrong twice over: the rate is twelve times too
+// high, and a customer who is paid up for a year shows as having stopped.
+//
+// `is_annual` and `annual_line_gross` are both on the row, so this is
+// correctable here rather than upstream. The monthly rate is the annual line
+// over twelve, applied to the billed month and carried forward.
+//
+// Carrying forward is an inference and is kept deliberately tight. It only
+// writes to months that ALREADY EXIST in the push, that currently read zero,
+// and that the pipeline still counts as present. It stops at a churn, because
+// an explicit departure is a stronger statement than this correction: the
+// 2021 accounts here churn the month after buying a year, which is its own
+// question and not one to paper over.
+//
+// Five customers carry the flag. Two are current: Tillman's and Andreas, at
+// $7,650 a year, which is $637.50 a month rather than the $7,650 spike the
+// page showed before.
+function spreadAnnual(rows) {
+  const byCustomer = new Map();
+  for (const row of rows) {
+    if (!byCustomer.has(row.id)) byCustomer.set(row.id, []);
+    byCustomer.get(row.id).push(row);
+  }
+
+  for (const own of byCustomer.values()) {
+    own.sort((a, b) => a.month.localeCompare(b.month));
+    for (let i = 0; i < own.length; i += 1) {
+      const row = own[i];
+      if (!row.isAnnual || row.annualGross <= 0) continue;
+
+      const monthly = row.annualGross / 12;
+      row.annualSpread = { from: row.eopMrr, to: monthly };
+      row.eopMrr = monthly;
+      if (row.newMrr > 0) row.newMrr = monthly;
+
+      // Forward, for the remaining eleven months of the term.
+      for (let k = 1; k < 12 && i + k < own.length; k += 1) {
+        const later = own[i + k];
+        if (later.eventType === 'churn') break;
+        if (!later.active) break;
+        if (later.eopMrr > 0) break;
+        later.eopMrr = monthly;
+        later.annualSpread = { from: 0, to: monthly, carried: true };
+      }
+    }
+  }
+}
+
 export function monthAdd(month, offset) {
   const [year, m] = month.split('-').map(Number);
   const total = year * 12 + (m - 1) + offset;
@@ -267,7 +318,14 @@ export async function load() {
       oneTime: num(r.onetime_revenue) || 0,
       passThrough: num(r.passthrough_revenue) || 0,
       recognisedElsewhere: num(r.recognised_elsewhere_revenue) || 0,
+      // An annual billing arrives as one charge and the pipeline books the
+      // whole year as that month's MRR. See spreadAnnual below.
+      isAnnual: String(r.is_annual || '').toLowerCase() === 'true'
+        || num(r.is_annual) === 1,
+      annualGross: num(r.annual_line_gross) || 0,
     }));
+
+  spreadAnnual(customers);
 
   // What a customer was sold, as opposed to what they have paid since. The
   // three columns this was meant to denormalise into the waterfall arrive
