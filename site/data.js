@@ -166,6 +166,10 @@ async function readFile(name) {
 // alternative is rewriting every consumer.
 function widen(doc, name) {
   if (!doc || doc.row_format !== 'arrays') return doc;
+  // index.json carries the declaration for the whole push and has no rows of
+  // its own. It is fetched directly rather than through here, but the guard
+  // costs nothing and stops this throwing if that ever changes.
+  if (!('rows' in doc)) return doc;
 
   const columns = doc.columns;
   if (!Array.isArray(columns) || !columns.length) {

@@ -75,8 +75,37 @@ def history_starts(reference=None):
 HISTORY_STARTS = history_starts()
 
 
+# The push can send rows either way.
+#
+# Until v102 each row was an object repeating its column names. From v102 a
+# tab may instead send bare arrays with the names carried once in "columns",
+# declared by "row_format": "arrays". Both forms are in the wild, so read the
+# declaration rather than sniffing: an empty tab sniffs as neither.
+def widen(doc, name="?"):
+    if not isinstance(doc, dict) or doc.get("row_format") != "arrays":
+        return doc
+    # index.json carries the declaration for the whole push and has no rows
+    # of its own, so there is nothing to widen.
+    if "rows" not in doc:
+        return doc
+    columns = doc.get("columns") or []
+    if not columns:
+        raise ValueError(f'{name}: row_format is "arrays" but columns is missing')
+    rows = []
+    for i, row in enumerate(doc.get("rows") or []):
+        if not isinstance(row, list):
+            rows.append(row)
+            continue
+        if len(row) > len(columns):
+            raise ValueError(
+                f"{name}: row {i} has {len(row)} values against {len(columns)} columns")
+        rows.append({c: (row[j] if j < len(row) else None)
+                     for j, c in enumerate(columns)})
+    return {**doc, "rows": rows}
+
+
 def load(name):
-    return json.loads((DATA / name).read_text(encoding="utf-8"))
+    return widen(json.loads((DATA / name).read_text(encoding="utf-8")), name)
 
 
 def number(value):
