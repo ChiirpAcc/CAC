@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-09-23T17:02:28",
+  "pushed_at": "2026-09-23T17:22:47",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -51,5 +51,8 @@
       "file": "event_costs.json",
       "rows": 36
     }
-  ]
+  ],
+  "row_format": "arrays",
+  "pipeline_version": "v102",
+  "push_version": "gh-v3"
 }
