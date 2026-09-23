@@ -141,6 +141,13 @@ export async function load() {
     activeLogos: num(r.active_logos),
     cogsTotal: num(r.cogs_total),
     cogsPerLogo: num(r.cogs_per_logo),
+    // The pipeline states a gross margin of its own. It is (mrr - cogs) / mrr,
+    // which ignores usage and one-time revenue entirely, so it is not the same
+    // quantity as the platform margin solved below and the two should not be
+    // swapped for one another. It is read so the page can check its own
+    // arithmetic against the pipeline's and say so when they part company.
+    grossMargin: num(r.gross_margin),
+    netMargin: num(r.net_margin),
     fromSplit: num(r.from_split),
     opexTotal: num(r.opex_total),
     opexPerLogo: num(r.opex_per_logo),
@@ -856,7 +863,7 @@ export function projectionBasis(cohorts) {
 // the bars slope even if nothing changed. Cutting every cohort at the same
 // age removes that, and what is left is a like-for-like comparison. The price
 // is that only cohorts old enough to reach the age appear at all.
-export function ltvAtAge(data, cohorts, { age = 6, margin = 0.757 } = {}) {
+export function ltvAtAge(data, cohorts, { age = 6, margin = LEGACY_PLATFORM_MARGIN } = {}) {
   const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
   const offset = age - 1;
   const { path, terminal } = donorTrajectory(cohorts);
@@ -4424,8 +4431,14 @@ export function arrivalsAgainstChurn(data, { horizon = 4, windows = null } = {})
 // than carved out. That decomposition is inferred from the shape of the data
 // rather than stated by the push, and it is written on the page so it can be
 // corrected rather than assumed.
+// The flat platform margin this page carried from the beginning. It is kept
+// only as the fallback for a book with no cost ledger at all, and it is about
+// twenty points above what the ledger actually measures, so anywhere it is
+// reached the figure should be labelled rather than quoted.
+export const LEGACY_PLATFORM_MARGIN = 0.757;
+
 export const CLASS_MARGINS = {
-  platform: 0.757,
+  platform: LEGACY_PLATFORM_MARGIN,
   usage: 0.60,
   oneTime: 0.90,
   passThrough: 0,
@@ -4466,7 +4479,8 @@ export function grossProfit(row, margins = CLASS_MARGINS) {
 //              / platform revenue
 //
 // Pass-through and recognised-elsewhere stay at zero and so drop out. The
-// result runs between 0.44 and 0.66 across the window, against the flat 0.757
+// result runs between 0.45 and 0.66 across the window and averages 0.55,
+// against the flat 0.757
 // it replaces, and it moves month to month because the cost of serving the
 // book moves month to month. A cohort passing through an expensive month is
 // charged for it.
@@ -4503,16 +4517,40 @@ export function platformMargins(data) {
     if (margin > 0 && margin < 1) byMonth.set(month, margin);
   }
 
+  // The pipeline publishes a margin of its own. It is computed differently -
+  // (mrr - cogs) / mrr, with usage and one-time left out - so the two are not
+  // expected to be equal, only close, because those classes are a small share
+  // of revenue. They currently agree to within half a point. If that gap ever
+  // widens it means either the classes have grown enough to matter or one of
+  // the two definitions has drifted, and both are worth knowing about, so the
+  // largest disagreement is carried rather than discarded.
+  const published = new Map(
+    (data.serve || [])
+      .filter(r => r.grossMargin !== null && r.grossMargin > 0 && r.grossMargin < 1)
+      .map(r => [r.month, r.grossMargin]),
+  );
+  let drift = null;
+  let driftMonth = null;
+  for (const [month, solved] of byMonth) {
+    const stated = published.get(month);
+    if (stated === undefined) continue;
+    const gap = Math.abs(solved - stated);
+    if (drift === null || gap > drift) { drift = gap; driftMonth = month; }
+  }
+
   const values = [...byMonth.values()];
   return {
     byMonth,
     mean: values.length
       ? values.reduce((s, v) => s + v, 0) / values.length
-      : CLASS_MARGINS.platform,
+      : LEGACY_PLATFORM_MARGIN,
     measured: values.length > 0,
     months: values.length,
     low: values.length ? Math.min(...values) : null,
     high: values.length ? Math.max(...values) : null,
+    published,
+    drift,
+    driftMonth,
   };
 }
 

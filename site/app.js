@@ -4,7 +4,7 @@ import {
   blendedRetention, retentionByYear, retentionAtAge, mean, monthDiff,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
   seasonalSurvival,
-  hasRevenueClasses, CLASS_MARGINS, environmentSplit,
+  hasRevenueClasses, CLASS_MARGINS, LEGACY_PLATFORM_MARGIN, environmentSplit,
   signupEconomics, priceAgainstRetention,
   arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
   ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
@@ -3554,7 +3554,8 @@ function renderForward() {
           ? fmt.pct(MARGIN.mean, 1) + ' on average, solved month by month from the cost '
             + 'ledger rather than assumed and running ' + fmt.pct(MARGIN.low, 1) + ' to '
             + fmt.pct(MARGIN.high, 1) + ' across ' + MARGIN.months + ' months'
-          : fmt.pct(CLASS_MARGINS.platform, 1))
+          : fmt.pct(LEGACY_PLATFORM_MARGIN, 1) + ', the flat assumption, because no cost '
+            + 'ledger reached this build')
       + ', usage ' + fmt.pct(CLASS_MARGINS.usage)
       + ', one-time ' + fmt.pct(CLASS_MARGINS.oneTime) + ', and pass-through and '
       + 'recognised-elsewhere at zero. Pass-through is carrier fees, which sit in revenue and '
@@ -3576,7 +3577,19 @@ function renderForward() {
           + 'book add up to what the ledger says, month by month, so every profit and '
           + 'payback figure on this page moves when the cost of serving customers moves. '
           + 'It is the single largest change made to these numbers and it made all of '
-          + 'them worse. ';
+          + 'them worse. '
+          // The pipeline states a margin of its own now. It is not the same
+          // quantity, so agreement is a check rather than a requirement, but a
+          // reader is entitled to know the two are being compared at all.
+          + (MARGIN.drift === null ? ''
+              : 'The pipeline publishes its own gross margin, measured as cost of sales '
+                + 'against recurring revenue alone. It is a narrower definition than this '
+                + 'one, which also margins usage and one-time revenue, so the two are not '
+                + 'expected to match exactly. They currently differ by at most '
+                + fmt.pct(MARGIN.drift, 2) + ', in ' + MARGIN.driftMonth + '. A gap that '
+                + 'stays small means the classes are still too minor to change the answer; '
+                + 'a gap that widens means either they are not, or one of the two '
+                + 'definitions has moved. ');
       })()
       + (() => {
         // Whether this environment reaches the revenue columns is a fact to be
