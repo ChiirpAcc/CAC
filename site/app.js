@@ -2,6 +2,7 @@ import {
   policySignals,
   load, buildCohorts, cohortEconomics,
   blendedRetention, retentionByYear, retentionAtAge, mean, monthDiff,
+  monthAdd,
   forwardSurvival, correlate, projectedBreakEven, capacityAnalysis,
   seasonalSurvival,
   hasRevenueClasses, CLASS_MARGINS, LEGACY_PLATFORM_MARGIN, environmentSplit,
@@ -908,8 +909,36 @@ function renderEra() {
     + 'reindexed to month 2 so the gap is not an artefact of where each line starts. It is not '
     + 'strictly monotonic: a customer who downgrades and later returns to their original rate '
     + 'adds that money back. Much of the fall is customers still recorded as present with MRR '
-    + 'booked to zero, which at month 6 is 7.6% of the surviving 2024 intake, 10.7% of 2025 '
-    + 'and 21.4% of 2026.';
+    // Recomputed rather than quoted: these drifted 2.7 points in a day.
+    + 'booked to zero, which at month 6 is ' + (() => {
+        const first = new Map();
+        const own = new Map();
+        for (const r of data.customers) {
+          if (!own.has(r.id)) own.set(r.id, []);
+          own.get(r.id).push(r);
+        }
+        const parts = [];
+        for (const yr of ['2024', '2025', '2026']) {
+          let surv = 0;
+          let zero = 0;
+          for (const [, rows] of own) {
+            const live = rows.filter(r => r.active).sort((x, y) => x.month.localeCompare(y.month));
+            if (!live.length || live[0].month.slice(0, 4) !== yr) continue;
+            // A customer whose first month in the window IS the window's first
+            // month was almost certainly here before it. Every cohort chart on
+            // this page excludes them, and counting them here would put older
+            // customers into the 2024 intake and move the figure by 8 points.
+            if (live[0].month === data.historyStarts) continue;
+            const at = monthAdd(live[0].month, 6);
+            const hit = rows.find(r => r.month === at && r.active);
+            if (!hit) continue;
+            surv += 1;
+            if (!(hit.eopMrr > 0)) zero += 1;
+          }
+          if (surv) parts.push(fmt.pct(zero / surv, 1) + ' of ' + yr);
+        }
+        return parts.join(', ');
+      })() + '.';
 }
 
 // The two views, and the four figures that appear in both.
@@ -2264,14 +2293,27 @@ function renderUpgradeList() {
     + 'against a settled price of $200. The floor protects solvency, the settled peak '
     + 'anchors to a price the customer genuinely held, and the cap stops an '
     + 'account at $50 being asked for $900 because of one odd month years ago. $600 '
-    + 'rather than the $472 the cost base needs today, because losing a third of the '
-    + 'accounts asked pushes that floor to about $506 and a target set at the floor would '
+    + 'rather than the ' + (() => {
+        const pf = priceFloors(data);
+        if (!pf) return 'allocated floor';
+        // A third of the accounts ASKED, not a third of the whole payer base.
+        // The ask is this list; the floor is spread over everyone still paying.
+        const lost = l.low.length / 3;
+        const after = (pf.fixedPerMonth / (pf.paying.length - lost)) / (1 - pf.variablePct);
+        return fmt.money(pf.allocatedFloor) + ' the cost base needs today, because losing a '
+          + 'third of the ' + fmt.int(l.low.length) + ' accounts asked pushes that floor to '
+          + 'about ' + fmt.money(after);
+      })()
+    + ' and a target set at the floor would '
     + 'be underwater the month it landed. Charts 37 and 38 have that arithmetic, and '
     + 'tenure and usage were tested as multipliers on top of peak and made the result '
     + 'worse, so they are not used. The Stripe identifier is '
     + 'the one in the billing export and is present for every account; the Chiirp '
-    + 'identifier is not in the pushed data — canonical_id is populated on 34 rows out of '
-    + 'more than a thousand — so it is dropped from the table and the export '
+    + 'identifier is not in the pushed data — canonical_id is populated on ' + (() => {
+        const ids = new Set(data.customers.filter(r => r.canonicalId).map(r => r.id));
+        return fmt.int(ids.size);
+      })() + ' of '
+    + 'the customers here — so it is dropped from the table and the export '
     + 'to carry it. '
     + (l.totals.namesMissing
         ? fmt.int(l.totals.namesMissing) + ' accounts have no company name in the file and '
@@ -4172,7 +4214,10 @@ function annotate(plotId, takeaways, assumptions) {
 
   figure.querySelector('.annotate')?.remove();
 
-  const meaning = MEANS[plotId];
+  // A value may be a function where the sentence needs a figure from the data,
+  // because MEANS is built at module load and the data is not there yet.
+  const raw = MEANS[plotId];
+  const meaning = typeof raw === 'function' ? raw() : raw;
   const block = document.createElement('details');
   block.className = 'annotate';
   block.innerHTML =
@@ -4187,13 +4232,18 @@ function annotate(plotId, takeaways, assumptions) {
 }
 
 const MEANS = {
-  'chart-price-volume':
+  'chart-price-volume': () =>
     // The price half of this chart is a 2026 measure on a 32-month axis, and
     // that is not visible from the drawing.
     'Signup price is only recorded from 2026. The workbook it comes from is maintained '
-    + 'by hand and was never backfilled, so of 1,616 new logos since January 2024 only '
-    + '282 carry a starting price, 256 of them in 2026. Read the price series as a '
-    + 'twelve month measure and the volume series as the full window. '
+    + 'by hand and was never backfilled, so most new logos in this window carry no '
+    + 'starting price at all: ' + (() => {
+        const news = data.customers.filter(r => r.eventType === 'new');
+        const priced = news.filter(r => r.startingMrr !== null && r.startingMrr > 0);
+        return fmt.int(priced.length) + ' of ' + fmt.int(news.length);
+      })()
+    + ' new logos in the window carry one. Read the price series as a twelve month '
+    + 'measure and the volume series as the full window. '
     + 'Over seven months this chart said price had risen 44%. Over the full window it says price '
     + 'fell by nearly half and has since climbed back to roughly where it started, which is a '
     + 'different fact and a different decision. The recovery is real and worth protecting; it '
