@@ -778,17 +778,39 @@ function renderEra() {
   $('era-revenue-finding').innerHTML = !paired.length
     ? `<strong>Nothing to compare yet at month ${depth}.</strong> This line is indexed to `
       + `month 2, so pull the slider past it.`
-    : `<strong>Every year loses more revenue than it loses customers, and the gap widens `
-    + `with each one.</strong> Measured from month 2, at month ${depth} the `
+    : `<strong>${(() => {
+        // Do not assert the direction. A year keeps more revenue than customers
+        // whenever the accounts it lost were smaller than the ones it kept, and
+        // 2024 currently does exactly that. The old wording said every year
+        // loses more revenue and called a positive gap "a shortfall".
+        const behind = paired.filter(e => gap(e) < 0);
+        if (!behind.length) {
+          return 'Every year keeps more of its revenue than of its customers, so the '
+            + 'accounts being lost are the smaller ones';
+        }
+        if (behind.length === paired.length) {
+          const widening = paired.every((e, i) => i === 0 || gap(e) <= gap(paired[i - 1]));
+          return 'Every year loses more revenue than it loses customers'
+            + (widening ? ', and the gap widens with each one' : '');
+        }
+        return `${behind.map(e => e.year).join(' and ')} `
+          + `${behind.length === 1 ? 'loses' : 'lose'} more revenue than customers; `
+          + `${paired.filter(e => gap(e) >= 0).map(e => e.year).join(' and ')} `
+          + `${paired.filter(e => gap(e) >= 0).length === 1 ? 'does' : 'do'} the opposite`;
+      })()}.</strong> Measured from month 2, at month ${depth} the `
     + `${paired.length === 1 ? 'one year so far keeps' : `${paired.length} years keep`} `
     + `${paired.map(e => `${e.year} ${fmt.pct(gAt(e), 1)}`).join(', ')} of their revenue, `
     + `against ${paired.map(e => `${fmt.pct(lAt(e), 1)}`).join(', ')} of their customers. `
-    + `That is a shortfall of ${paired.map(e => `${pts(e)} points in ${e.year}`).join(', ')}. `
+    + `That is ${paired.map(e => `${pts(e)} points ${gap(e) < 0 ? 'short' : 'ahead'} in ${e.year}`).join(', ')}. `
     + (paired.length > 1
       ? `${worst.year} is the worst of them: it keeps ${fmt.pct(lAt(worst), 1)} of the `
         + `customers it had at month 2 and ${fmt.pct(gAt(worst), 1)} of the money, `
         + `${pts(worst)} points apart, against ${pts(mildest)} in ${mildest.year}. ` : '')
-    + `The head count is the flattering number, and it is getting more flattering.`;
+    + (paired.some(e => gap(e) < 0)
+        ? `Where the money line sits below the count, the head count is the flattering `
+          + `number: a customer who stays and stops paying still counts as kept.`
+        : `The count is not flattering the picture here — the money line is at or above `
+          + `it, which means the accounts leaving are smaller than the ones staying.`);
 
   const shared =
     'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
@@ -2433,15 +2455,25 @@ function renderOngoing() {
     + `${fmt.pct((typicalArpa - a.arpa) / a.arpa, 0)} on price, which is `
     + `why the margin has narrowed even though the average customer pays more than they `
     + `used to. `
-    + `<strong>${worst.label} is the whole of the increase</strong>: `
+    // "the whole of the increase" was asserted. The largest layer is currently
+    // 38% of the rise, with the next one close behind it, so say the share.
+    + `<strong>${worst.label} is the largest part of the increase</strong>: `
     + `${fmt.money(worst.from)} to ${fmt.money(worst.to)} a logo, `
-    + `${fmt.pct(move(worst.key), 0)}. `
+    + `${fmt.pct(move(worst.key), 0)}, which is `
+    + `${(() => {
+        const rise = ranked.filter(l => l.delta > 0).reduce((s, l) => s + l.delta, 0);
+        return rise ? fmt.pct(worst.delta / rise, 0) : 'most';
+      })()} of the total rise. `
+    + `${ranked[1] && ranked[1].delta > worst.delta * 0.6
+        ? `${ranked[1].label} is close behind at ${fmt.money(ranked[1].from)} to `
+          + `${fmt.money(ranked[1].to)}, so this is not a single line running away. `
+        : ''}`
     + `Platform is the one that has not moved — `
     + `${fmt.money(a.platform)} to ${fmt.money(b.platform)} — so the product scales `
     + `with the customer count and the company does not. That is the distinction worth `
     + `carrying out of this chart: none of the rise is the cost of running software for `
-    + `more people, and almost all of it is the cost of being a bigger company spread over `
-    + `a base that has stopped growing.`;
+    + `more people. It is the cost of being a bigger company, spread over a base that has `
+    + `stopped growing.`;
 
   $('ongoing-note').textContent =
     'Every recurring cost the business carries, divided by PAYING logos rather than all of '
@@ -4873,9 +4905,26 @@ function renderSignups() {
   const premiumLate = withRec.filter(r => r.month >= '2025-10').map(r => r.firstMonthPremium);
   const avg = xs => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : 0);
 
-  $('price-volume-finding').innerHTML =
-    '<strong>What a new customer pays has risen steadily, by '
-    + Math.abs((recLast.recurringMean / recFirst.recurringMean - 1) * 100).toFixed(0) + '%.</strong> '
+  $('price-volume-finding').innerHTML = ''
+    // Direction read from the data, not asserted. Math.abs here would report a
+    // fall as a rise, which is the same fault the era-revenue finding had.
+    + (() => {
+        const change = recLast.recurringMean / recFirst.recurringMean - 1;
+        const pct = Math.abs(change * 100).toFixed(0);
+        if (Math.abs(change) < 0.03) {
+          return '<strong>What a new customer pays has barely moved, ' + pct + '%.</strong> ';
+        }
+        // "steadily" is a claim about the path, not the endpoints. Only make it
+        // where the series does not cross back over where it started.
+        const vals = withRec.map(r => r.recurringMean);
+        const monotoneish = change > 0
+          ? vals.filter(v => v < recFirst.recurringMean).length <= vals.length * 0.2
+          : vals.filter(v => v > recFirst.recurringMean).length <= vals.length * 0.2;
+        return '<strong>What a new customer pays has '
+          + (change > 0 ? 'risen' : 'fallen')
+          + (monotoneish ? ' steadily' : ', though not steadily,')
+          + ' by ' + pct + '%.</strong> ';
+      })()
     + fmt.money(recFirst.recurringMean) + ' a month in ' + fmt.monthLabel(recFirst.month)
     + ' against ' + fmt.money(recLast.recurringMean) + ' in ' + fmt.monthLabel(recLast.month) + '. '
     + 'The booked line behind it falls and then recovers, and that shape is an artefact: until '
