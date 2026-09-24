@@ -22,6 +22,17 @@ Stripe as a verification of that fix.
 | 9 | Powersol USA Marketing | `cus_R9rWiTJ3mQLMwW` | Refund repeating every month for six months |
 | 10 | General Air Conditioning & | `cus_PeWAeP0bzsEyPh` | Wire timing three times, line present twice |
 
+> **Snapshot, not live.** The figures below were captured against push
+> `2026-09-24T11:47:44` (pipeline v108). The data has moved several times
+> since — the wire-timing smoothing, the annual spread, the ladder
+> extension and the refund fix all landed afterwards. All ten accounts
+> still exist, but several peaks have changed: Get Lit reads $1,250 rather
+> than $2,450, Deljo $1,499 rather than $999.
+>
+> It is left as written because it records an audit that was actually run
+> against these numbers. Re-deriving it would invalidate the checking
+> already done. For current figures, read the page.
+
 ## What these are testing
 
 **Wire timing is the big one left, and `platform_mrr` cannot fix it.** The
