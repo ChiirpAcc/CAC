@@ -3828,10 +3828,19 @@ function renderForward() {
                 + 'against recurring revenue alone. It is a narrower definition than this '
                 + 'one, which also margins usage and one-time revenue, so the two are not '
                 + 'expected to match exactly. They currently differ by at most '
-                + fmt.pct(MARGIN.drift, 2) + ', in ' + MARGIN.driftMonth + '. A gap that '
-                + 'stays small means the classes are still too minor to change the answer; '
-                + 'a gap that widens means either they are not, or one of the two '
-                + 'definitions has moved. ');
+                + fmt.pct(MARGIN.drift, 2) + ', in ' + MARGIN.driftMonth + '. '
+                // This started under a point. Say what a wide gap means rather
+                // than leaving the reader to infer it.
+                + (MARGIN.drift > 0.02
+                    ? 'That gap was under a point when this check was written and has since '
+                      + 'widened, because usage and one-time revenue are now being captured '
+                      + 'where before they were not. The definitions have not moved; the '
+                      + 'classes they treat differently have grown into something worth '
+                      + 'measuring. The wider figure is the more honest of the two, because '
+                      + 'it is the one that counts them. '
+                    : 'A gap this small means the classes are still too minor to change the '
+                      + 'answer. If it widens, either they are not, or one of the two '
+                      + 'definitions has moved. '));
       })()
       + (() => {
         // Whether this environment reaches the revenue columns is a fact to be

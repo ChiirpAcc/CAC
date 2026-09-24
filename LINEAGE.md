@@ -3,7 +3,8 @@
 Every chart and report on the page, with the tab it comes from, the
 columns it reads and what is done to them in between.
 
-Written against push `2026-09-23T15:11:50` — 49,115 rows, 39 columns.
+Written against push `2026-09-24T16:34:23` (pipeline v119) — 50,117 rows,
+40 columns.
 Figures quoted from the data are recomputed on every load and will move.
 
 ---
@@ -14,7 +15,7 @@ The pipeline pushes ten files. The site loads eight of them.
 
 | Tab | File | Rows | Loaded | Used for |
 |---|---|---|---|---|
-| Customer Waterfall | `customer_waterfall.json` | 49,115 | yes | Everything per-customer: cohorts, retention, churn, pricing |
+| Customer Waterfall | `customer_waterfall.json` | 50,117 | yes | Everything per-customer: cohorts, retention, churn, pricing |
 | Waterfall Summary | `waterfall_summary.json` | 93 | yes | Month-level logo and MRR totals |
 | CAC Monthly | `cac_monthly.json` | 33 | yes | Acquisition cost per month |
 | Serve Monthly | `serve_monthly.json` | 33 | yes | Cost to serve, cost of sales by team, measured margin |
@@ -22,13 +23,16 @@ The pipeline pushes ten files. The site loads eight of them.
 | QB Accounts | `qb_accounts.json` | 119 | yes | Account to bucket and section mapping |
 | New Customer Cohorts | `signup_pricing.json` | 314 | yes | Signup price and start type |
 | Subscription Lifetimes | `subscription_lifetimes.json` | 1,199 | yes | Fallback subscription spans |
-| **Cash Detail** | `cash_detail.json` | 44,993 | **no** | Revenue decomposition, residual |
+| Cash Detail | `cash_detail.json` | 45,635 | **yes** | Revenue decomposition, residual, and the page's own reconciliation |
 | **Event Costs** | `event_costs.json` | 36 | listed, unused | — |
 
-`Cash Detail` is not in `REQUIRED_TABS` or `OPTIONAL_TABS`
-(data.js:103). It carries the identity `recurring + usage + onetime +
-passthrough + unclassified + tax - credits - refunds + residual =
-net_cash`, which holds on all 44,993 rows with zero failures.
+`Cash Detail` is loaded as of this session. Its identity is
+`accounted_for + residual = net_cash`, where `accounted_for` is the sum of
+the named classes, and it holds on all 45,635 rows with zero failures. The
+page reconciles its own revenue against it and prints the result in the
+stamp.
+
+Only `Event Costs` is now listed and unused.
 
 ---
 
@@ -55,8 +59,10 @@ where noted.
 | `passthrough_revenue` | `passThrough` | |
 | `recognised_elsewhere_revenue` | `recognisedElsewhere` | |
 | `starting_mrr` | `startingMrr` | |
-| `is_annual` | `isAnnual` | Drives `spreadAnnual()` |
-| `annual_line_gross` | `annualGross` | The full year, divided by twelve on read |
+| `is_annual` | `isAnnual` | Read but not acted on — the pipeline spreads annuals from v116 |
+| `annual_line_gross` | `annualGross` | As above |
+| `subscription_status` | `subscriptionStatus` | Drives chart 43 |
+| `unpaid_due`, `unpaid_invoice_count` | `unpaidDue`, `unpaidInvoices` | As above |
 | `start_type` | `startType` | |
 | `event_type` | `active` | **Transformation**: `LIVE_EVENTS.has(event_type)` |
 
@@ -66,9 +72,15 @@ from a closed set: `new`, `reactivation`, `flat`, `expansion`,
 pipeline invents — is treated as absent. Presence is an event type, not
 an amount, so a customer booked to zero MRR is still a live logo.
 
-There is currently no guard on this. When a push introduced an
-`inactive` type on 21,018 rows, the page rendered half the business
-without an error.
+**There is a guard on it now.** `checkVocabulary()` compares the event
+types that arrived against both `KNOWN_EVENTS` and the counts the push
+declares in its own `event_type_counts` header, and a red banner above the
+charts names any type the page does not know, with its row count, plus any
+disagreement with the header.
+
+It exists because a push once introduced an `inactive` type on 21,018 rows
+and the page rendered half the business — 541 logos and $308k of MRR —
+with every chart drawn and no error anywhere.
 
 ### `data.waterfall` from Waterfall Summary
 
@@ -132,11 +144,32 @@ platform = (all revenue - cost of sales - 0.60 x usage - 0.90 x one-time)
            / platform revenue
 ```
 
-Months landing outside [0,1] are rejected. On current data: **54.2% mean,
-41.8% to 65.3% across 32 months**, against the flat 75.7% it replaced.
+Months landing outside [0,1] are rejected. On current data: **54.9% mean,
+44.5% to 66.5% across 32 months**, against the flat 75.7% it replaced.
 Cross-checked against the pipeline's published `gross_margin`, which is a
-narrower measure — `(mrr - cogs) / mrr`, leaving usage and one-time out —
-and currently differs by at most 0.95%.
+narrower measure — `(mrr - cogs) / mrr`, leaving usage and one-time out.
+That gap was 0.95% when the check was built and is now **7.16%, in
+2025-12**, because usage revenue went from roughly nothing to $40-90k a
+month once the classification work landed. The definitions have not moved;
+the classes they treat differently have grown. The page says so itself
+when the gap passes two points.
+
+### Three guards and checks added since
+
+**`checkVocabulary(doc, customers)`** — above. Silent when the push uses
+words the page understands.
+
+**`revenueCheck(data)`** — reconciles the page's revenue against Cash
+Detail, the only independent statement of it in the push. Reports whether
+the two tie, what share of cash carries no product name, and the published
+residual. Printed in the stamp.
+
+**`silentLogos(data, { months = 6 })`** — customers still counted present
+who have had no cash and no MRR for six months or more, walked backwards
+from the trailing month so it never counts a month before the customer
+existed. Counted rather than removed: deciding that silence is departure
+would move the base, the churn rate and every per-logo figure, which is a
+judgement for a person.
 
 ---
 
@@ -194,6 +227,7 @@ and currently differs by at most 0.95%.
 | **39** | What it costs to keep one customer, by layer | `data.expenses`, `data.customers` | `ongoingCostPerLogo`. Divided by **paying** logos, since a zero-MRR account cannot carry fixed cost. Acquisition excluded — it belongs to the cohort that caused it. |
 | **40** | What the business spends to run, by layer | `data.expenses` | `costLedger`. |
 | **41** | Every cost line by account, last six months | `data.expenses`, QB Accounts | `costLedger` at line granularity. |
+| **43** | Customers being billed who are not paying | `data.customers` | `pastDueTrend`. Share of live logos whose `subscription_status` reads `past_due` or `unpaid`. Starts at the first month the push carries a status at all, because a zero before that is an absence of measurement rather than of the problem. |
 
 ### Projection and pricing decisions
 
@@ -240,10 +274,13 @@ does not.
 
 On the current push the validator returns **no errors and no warnings**.
 
-It does not check that `event_type` values are ones the site understands.
-That is the gap: when a push introduced an `inactive` type on 21,018
-rows, the validator passed, the deploy went out, and the page rendered
-half the business without an error.
+It still does not check that `event_type` values are ones the site
+understands — when a push introduced an `inactive` type on 21,018 rows,
+the validator passed, the deploy went out, and the page rendered half the
+business without an error. **The site now guards that itself** (see
+`checkVocabulary` above), so the failure is caught after the deploy rather
+than before it. Moving the check upstream into `validate_data.py` would
+catch it earlier still.
 
 ---
 
@@ -263,20 +300,23 @@ half the business without an error.
 
 ## 7. Columns present but not read
 
-22 of 40 waterfall columns are unused. Most are redundant — `bop_mrr`,
+20 of 40 waterfall columns are unused. Most are redundant — `bop_mrr`,
 `expansion_mrr` and the other flow components are re-derived from
 `eop_mrr` transitions. These are the ones that would change something:
 
 | Column | What it would enable |
 |---|---|
-| `unclassified_revenue` | Roughly 6% of recent cash, currently invisible to every revenue class |
-| `subscription_status`, `unpaid_due` | Past-due share is rising, 5.0% to 5.7% over four months, and is a leading churn indicator |
-| ~~`is_annual`, `annual_line_gross`~~ | **Now read.** `spreadAnnual()` divides the annual line by twelve and carries the rate forward. Removed 18.6% from June new_mrr and 15.8% from July |
-| `sub_start`, `sub_end`, `has_live_sub` | Real tenure instead of inferred, for the age-eligibility rule |
-| `fidelity` | Two thirds of the file is `amount_only`; anything computed over the full window rests mostly on revenue classified by size |
-| `invoice_discounts` | Separates couponed accounts from phantom MRR |
-| `platform_mrr`, `upgrade_mrr` | Which part of MRR moved. **Not a decomposition** — the gap to `eop_mrr` is revenue nobody could name |
-| `last_paid_at` | Would separate billed-not-collected from stopped-paying. **Currently corrupt** — 91% of values fall in September |
+| `sub_start`, `sub_end`, `has_live_sub` | **The biggest one left.** Both date columns are now clean — 0 malformed of 33,506 — so real subscription tenure is available and the age-eligibility rule on the Upgrade tab still infers it from first revenue |
+| `platform_mrr`, `upgrade_mrr` | Which part of MRR moved. **Not a decomposition** — the gap to `eop_mrr` is revenue nobody could name, and it has closed to under 2% of MRR |
+| `fidelity` | 33,627 rows are `amount_only` against 12,361 `resolved`. Recent months are fine; anything over the full window rests mostly on revenue classified by size |
+| `unclassified_revenue` | Was ~6% of recent cash when this was written. **Now 0.4%** — the ladder work closed it |
+| `invoice_discounts`, `credit_notes` | Separate couponed and credited accounts from phantom MRR. 284 and 16 rows respectively |
+| `last_paid_at` | **Fixed.** Was 91% September; now 36.6%, and 91% of customers live in the trailing month last paid in the trailing month or the one after |
+
+Three that were on this list have come off it: `subscription_status` and
+`unpaid_due` now drive chart 43, and `is_annual` is read but deliberately
+not acted on, because the pipeline spreads annuals from v116 and doing it
+here as well would overwrite ordinary MRR on any customer who has both.
 
 ---
 
