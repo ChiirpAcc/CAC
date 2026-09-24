@@ -1529,7 +1529,15 @@ function renderZeroMrr() {
     + 'MRR is simply not booked but who are paying in some other way, and the lower '
     + 'one is the subset with nothing attached at all. Months with fewer than fifty '
     + 'active logos are dropped, because a share of a small base moves for reasons '
-    + 'that have nothing to do with pricing.';
+    + 'that have nothing to do with pricing. '
+    // Part of this line is measurement rather than behaviour, and a reader
+    // watching it rise deserves to know which part.
+    + 'Some of this population is here because the pipeline cannot name what they '
+    + 'bought rather than because they stopped paying. A customer whose product the '
+    + 'revenue classifier does not recognise carries real cash and no MRR, and reads '
+    + 'here as paying nothing. Roughly forty customers are in that state, so a rise '
+    + 'in this line is not automatically customers going quiet — it can equally be '
+    + 'the product catalogue moving ahead of the classifier.';
 }
 
 
@@ -4164,7 +4172,13 @@ function annotate(plotId, takeaways, assumptions) {
 
 const MEANS = {
   'chart-price-volume':
-    'Over seven months this chart said price had risen 44%. Over the full window it says price '
+    // The price half of this chart is a 2026 measure on a 32-month axis, and
+    // that is not visible from the drawing.
+    'Signup price is only recorded from 2026. The workbook it comes from is maintained '
+    + 'by hand and was never backfilled, so of 1,616 new logos since January 2024 only '
+    + '282 carry a starting price, 256 of them in 2026. Read the price series as a '
+    + 'twelve month measure and the volume series as the full window. '
+    + 'Over seven months this chart said price had risen 44%. Over the full window it says price '
     + 'fell by nearly half and has since climbed back to roughly where it started, which is a '
     + 'different fact and a different decision. The recovery is real and worth protecting; it '
     + 'is not evidence of pricing power the business did not already have in 2024. What the '
