@@ -93,6 +93,18 @@ h1 {
   font-weight: 620;
 }
 
+.warning-card {
+  border: 2px solid var(--neg, #b3261e);
+  border-left-width: 6px;
+  border-radius: 6px;
+  padding: 0.9rem 1.1rem;
+  margin: 1.2rem 0 0;
+  background: color-mix(in srgb, var(--neg, #b3261e) 6%, transparent);
+}
+
+.warning-card p { margin: 0 0 0.6rem; }
+.warning-card p:last-child { margin-bottom: 0; }
+
 .stamp { margin: .35rem 0 0; color: var(--ink-soft); font-size: .84rem; }
 
 /* Headline figures -------------------------------------------------------- */

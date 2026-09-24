@@ -14,7 +14,7 @@ import {
   ongoingCostPerLogo, costLedger, neverPaidIds,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
-  bandEconomics, bandCampaign, ENGAGEMENT,
+  bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -1393,6 +1393,99 @@ function renderTenureChurn() {
 
 
 // 32. Customers present in every count who are paying nothing.
+// 43. Billed and not paying.
+// 24 and 25 are pre-rendered animations, so their findings cannot come from
+// the drawing the way every other chart's does. They were written by hand and
+// left as assertions: "the recent months land inside the same cloud as the
+// early ones" stayed true only for as long as nobody checked.
+//
+// The claim is testable against the same series the GIF is built from, so it
+// is tested here and the sentence is written from the answer. If the recent
+// months ever do sit apart, the page will say so.
+function renderArrivalAnimations() {
+  const box = $('arrivals-month-finding');
+  if (!box) return;
+  const a = arrivalsAgainstChurn(data, { horizon: 1 });
+  if (!a || !a.points || a.points.length < 8) return;
+
+  const points = [...a.points].sort((x, y) => x.month.localeCompare(y.month));
+  const split = Math.max(4, points.length - 6);
+  const earlier = points.slice(0, split);
+  const recent = points.slice(split);
+
+  const churns = earlier.map(p => p.y).sort((x, y) => x - y);
+  const q = f => churns[Math.min(churns.length - 1, Math.floor(f * (churns.length - 1)))];
+  const lo = q(0.1);
+  const hi = q(0.9);
+  const outside = recent.filter(p => p.y < lo || p.y > hi);
+
+  const inside = recent.length - outside.length;
+  box.innerHTML = outside.length
+    ? `<strong>${outside.length} of the last ${recent.length} starting months sit outside `
+      + `the range the earlier ones occupied.</strong> `
+      + outside.map(p => `${fmt.monthLabel(p.month)} at ${fmt.pct(p.y, 1)}`).join(', ')
+      + `, against a 10th-to-90th percentile band of ${fmt.pct(lo, 1)} to ${fmt.pct(hi, 1)} `
+      + `across the ${earlier.length} months before them. That is the thing this animation `
+      + `exists to make visible, and it is currently visible.`
+    : `<strong>The recent months land inside the same cloud as the early ones.</strong> `
+      + `All ${inside} of the last ${recent.length} starting months fall within the `
+      + `${fmt.pct(lo, 1)} to ${fmt.pct(hi, 1)} band that the previous ${earlier.length} `
+      + `occupied. Chart 22 draws every month at once, so nothing on it says which came `
+      + `first and a relationship that had changed would be invisible. Adding them one at `
+      + `a time is what makes that checkable.`;
+}
+
+function renderPastDue() {
+  if (!$('chart-pastdue')) return;
+  const t = pastDueTrend(data);
+  if (!t) {
+    $('chart-pastdue').innerHTML =
+      '<p class="empty">No subscription status in this push.</p>';
+    return;
+  }
+
+  const labels = t.rows.map(r => fmt.monthLabel(r.month));
+  multiLineChart($('chart-pastdue'), {
+    labels,
+    yFormat: v => fmt.pct(v, 1),
+    series: [
+      { label: 'Past due or unpaid, share of live logos', colour: INK.negative,
+        values: t.rows.map(r => r.share) },
+    ],
+    describe: i => {
+      const r = t.rows[i];
+      return labels[i] + ': ' + fmt.int(r.atRisk) + ' of ' + fmt.int(r.live)
+        + ' live logos (' + fmt.pct(r.share, 1) + ') are past due or unpaid, carrying '
+        + fmt.money(r.mrrAtRisk) + ' of MRR'
+        + (r.due ? ' and ' + fmt.money(r.due) + ' of balance outstanding' : '')
+        + '.';
+    },
+  });
+
+  const dir = t.rising ? 'risen' : 'fallen';
+  $('pastdue-finding').innerHTML =
+    '<strong>' + fmt.pct(t.last.share, 1) + ' of live logos are being billed and not '
+    + 'paying, ' + dir + ' from ' + fmt.pct(t.first.share, 1) + ' in '
+    + fmt.monthLabel(t.first.month) + '.</strong> That is ' + fmt.int(t.last.atRisk)
+    + ' accounts carrying ' + fmt.money(t.last.mrrAtRisk) + ' of MRR that is counted in '
+    + 'every revenue figure on this page and is not arriving as cash. '
+    + (t.slope !== null && t.rising
+        ? 'The trend is worth more than the level: a customer stops paying before they '
+          + 'cancel, so this is churn that has already happened and has not been booked yet. '
+        : 'The level matters less than the direction, and the direction is not currently '
+          + 'worsening. ')
+    + 'They stay in the base because an invoice going unpaid is a customer with a problem '
+    + 'rather than a departure, and treating them as gone would book the loss twice.';
+
+  $('pastdue-note').textContent =
+    'Share of live logos whose subscription reads past_due or unpaid, against all logos '
+    + 'counted present that month. The series starts at the first month the pushed data '
+    + 'carries a subscription status at all; before that the columns are empty and a zero '
+    + 'here would be an absence of measurement rather than an absence of the problem. '
+    + 'Departed accounts with an unpaid balance are excluded, because that is a '
+    + 'collections question rather than a warning about the standing base.';
+}
+
 function renderZeroMrr() {
   const rows = zeroMrrShare(data).filter(r => r.base >= 50);
   if (!rows.length) return;
@@ -2874,13 +2967,78 @@ function renderCampaign() {
     + 'invoice change is the fastest way to lose it. Active users are the only band whose '
     + 'price is genuinely out of line with what they consume. '
     + 'Band membership and counts are hand entered from an engagement export dated '
-    + ENGAGEMENT.asOf + ' and joined on Stripe customer id; they are not in the pushed '
-    + 'workbook, so they are exactly as stale as that date. The usage multiples behind '
+    + ENGAGEMENT.asOf + ' (' + engagementAge() + ') and joined on Stripe customer id; '
+    + 'they are not in the pushed workbook, so they are exactly as stale as that date '
+    + 'and nothing here will refresh them. The usage multiples behind '
     + 'the cost column are estimates rather than measurements — 2.2x average hosting '
     + 'for heavy senders, 0.6x for light, 0.05x for dormant — and they are the '
     + 'assumption most worth replacing with real per-account message volume.';
 }
 
+
+// How old the hand-entered engagement bands are, in the reader's own terms.
+// The date alone does not register; "94 days old" does, and it keeps counting
+// on its own rather than waiting for someone to notice.
+function engagementAge() {
+  const then = Date.parse(ENGAGEMENT.asOf + 'T00:00:00Z');
+  if (!Number.isFinite(then)) return 'age unknown';
+  const days = Math.floor((Date.now() - then) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return '1 day old';
+  if (days < 60) return `${days} days old`;
+  return `${days} days old, long enough that they should be re-exported`;
+}
+
+// Say so when the push contains something this page cannot read.
+//
+// Presence is decided by a closed set of event types, so a type nobody here
+// has heard of is dropped from every count without comment. That has happened:
+// a push introduced `inactive` on 21,018 rows and the page rendered half the
+// business, confidently, with no error anywhere. The only thing that caught it
+// was diffing two pushes by hand.
+//
+// Deliberately loud and deliberately above the charts. A footnote would not
+// have helped, because the failure looks exactly like a bad quarter.
+function renderVocabularyWarning() {
+  const box = $('data-warning');
+  if (!box) return;
+  const v = data.vocabulary;
+  if (!v || v.ok) { box.hidden = true; box.innerHTML = ''; return; }
+
+  const parts = [];
+
+  if (v.unknown.length) {
+    const list = v.unknown
+      .map(u => `<strong>${u.type}</strong> on ${fmt.int(u.count)} rows`)
+      .join(', ');
+    parts.push(
+      `<p><strong>This push uses ${v.unknown.length === 1 ? 'an event type' : 'event types'} `
+      + `the page does not know: ${list}.</strong> Those rows are being read as absent, so `
+      + `every logo count and revenue figure below excludes them. This page understands `
+      + `${[...KNOWN_EVENTS].join(', ')}. Until that is resolved the numbers are an `
+      + `undercount of unknown size rather than a finding.</p>`);
+  }
+
+  if (v.disagreements.length) {
+    const list = v.disagreements
+      .map(x => `${x.type} (push says ${fmt.int(x.said)}, file has ${fmt.int(x.got)})`)
+      .join(', ');
+    parts.push(
+      `<p><strong>The file disagrees with its own header</strong> on ${list}. The push `
+      + `states what it sent and this is not it, so part of it did not arrive or did not `
+      + `parse.</p>`);
+  }
+
+  if (v.rowCountOff) {
+    parts.push(
+      `<p><strong>Row count mismatch:</strong> the header says `
+      + `${fmt.int(v.rowCountOff.said)} rows and the file carries `
+      + `${fmt.int(v.rowCountOff.got)}.</p>`);
+  }
+
+  box.innerHTML = `<div class="warning-card">${parts.join('')}</div>`;
+  box.hidden = false;
+}
 
 function boot() {
   load().then(loaded => {
@@ -2903,6 +3061,8 @@ function boot() {
     renderServeTeams();
     renderTenureChurn();
     renderZeroMrr();
+    renderPastDue();
+    renderArrivalAnimations();
     renderProjection();
     renderCalculator();
     renderSpend();
@@ -2952,6 +3112,8 @@ function renderStatic() {
   const labels = recent.map(r => fmt.monthLabel(r.month));
 
   const censored = cohorts.censoredCount || 0;
+  renderVocabularyWarning();
+
   $('stamp').textContent =
     (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
     + `Months ${data.historyStarts} to ${data.lastMonth}, `
@@ -2964,7 +3126,21 @@ function renderStatic() {
         : '')
     + (data.missingTabs && data.missingTabs.length
         ? ` Optional tabs absent: ${data.missingTabs.join(', ')}.`
-        : '');
+        : '')
+    // Whether the revenue on this page agrees with the only other statement of
+    // it in the push. Said here rather than buried, because a page that cannot
+    // check itself should not imply that it has.
+    + (() => {
+        const rc = revenueCheck(data);
+        if (!rc) return ' No Cash Detail in this push, so nothing on this page is '
+          + 'reconciled against an independent statement of revenue.';
+        return ' Revenue ties to Cash Detail'
+          + (rc.ties ? '' : ` only to ${fmt.pct(1 - rc.worstTie.gap, 1)} in `
+            + `${fmt.monthLabel(rc.worstTie.month)}`)
+          + `; over the last twelve months ${fmt.pct(rc.unclassifiedShare, 1)} of collected `
+          + `cash carries no product name and the published residual is `
+          + `${fmt.pct(Math.abs(rc.residualShare), 1)} of it.`;
+      })();
 
   // 4. Blended retention curve, indexed to month 2.
   const blended = blendedRetention(cohorts);

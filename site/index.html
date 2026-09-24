@@ -17,6 +17,8 @@
 
 <div id="loading" class="wrap"><p class="empty">Reading the workbook data.</p></div>
 
+<div id="data-warning" class="wrap" hidden></div>
+
 <div id="dashboard" hidden>
 
   <nav class="wrap tabs" role="tablist" aria-label="Views">
@@ -504,8 +506,7 @@
       <img class="animation" src="media/arrivals_by_month.gif" loading="lazy"
            alt="The arrivals against churn scatter built one starting month at a time, on fixed axes, with each new month marked as it lands.">
       <p class="finding" id="arrivals-month-finding">
-        <strong>The recent months land inside the same cloud as the early
-        ones.</strong> This is also the chart that shows how the scatter is
+        <strong>Checking whether the recent months sit apart.</strong> This is also the chart that shows how the scatter is
         built: one frame per starting month, each point being that month's
         arrivals against the share of its customers gone one month later.
         Chart 22 draws every month at once, so nothing on it says which came
@@ -693,6 +694,15 @@
         <table class="data-table" id="ledger-table"></table>
       </div>
       <p class="note" id="ledger-note"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-pastdue">
+      <figcaption>
+        <h3>43. Customers being billed who are not paying</h3>
+      </figcaption>
+      <div class="plot" id="chart-pastdue"></div>
+      <p class="finding" id="pastdue-finding"></p>
+      <p class="note" id="pastdue-note"></p>
     </figure>
 
   </div>

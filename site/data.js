@@ -43,6 +43,15 @@ export const LIVE_EVENTS = new Set([
   'new', 'reactivation', 'flat', 'expansion', 'contraction',
 ]);
 
+// Every event type this page knows how to read. LIVE_EVENTS decides presence;
+// these two are understood and deliberately absent from the base.
+//
+// The set matters because it is closed. Anything outside it is treated as not
+// present, silently, and that is how a push that introduced `inactive` on
+// 21,018 rows rendered as 541 logos and $308k of MRR with every chart drawn
+// and no error. Nothing on the page said a word. See checkVocabulary.
+export const KNOWN_EVENTS = new Set([...LIVE_EVENTS, 'churn', 'inactive']);
+
 export function num(value) {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -124,6 +133,59 @@ function spreadAnnual(rows) {
   }
 }
 
+// Does the push use words this page understands, and did all of it arrive?
+//
+// Two questions, because they fail differently. An unrecognised event type is
+// silently dropped from every count, so the page under-reports and looks fine.
+// A row count that disagrees with the header means part of the file did not
+// parse, which is the same silence from the other direction.
+//
+// The pipeline now states its own vocabulary in `event_type_counts`, so this
+// compares what arrived against what the push says it sent rather than against
+// a list held here. A type both sides agree on but this page has never heard
+// of is still flagged, because agreement between them says nothing about
+// whether the charts know what to do with it.
+function checkVocabulary(doc, customers) {
+  const seen = new Map();
+  for (const row of doc.rows) {
+    const type = row.event_type || '(blank)';
+    seen.set(type, (seen.get(type) || 0) + 1);
+  }
+
+  const unknown = [...seen.entries()]
+    .filter(([type]) => !KNOWN_EVENTS.has(type))
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count);
+
+  // The header is optional and has come and gone between pushes, so its
+  // absence is worth noting but is not itself a fault.
+  const declared = doc.event_type_counts || null;
+  const disagreements = [];
+  if (declared) {
+    for (const type of new Set([...Object.keys(declared), ...seen.keys()])) {
+      const said = declared[type] || 0;
+      const got = seen.get(type) || 0;
+      if (said !== got) disagreements.push({ type, said, got });
+    }
+  }
+
+  const statedRows = doc.row_count;
+  const rowCountOff = Number.isFinite(statedRows) && statedRows !== doc.rows.length
+    ? { said: statedRows, got: doc.rows.length }
+    : null;
+
+  return {
+    counts: Object.fromEntries(seen),
+    unknown,
+    unknownRows: unknown.reduce((s, u) => s + u.count, 0),
+    declared,
+    disagreements,
+    rowCountOff,
+    windowed: customers.length,
+    ok: !unknown.length && !disagreements.length && !rowCountOff,
+  };
+}
+
 export function monthAdd(month, offset) {
   const [year, m] = month.split('-').map(Number);
   const total = year * 12 + (m - 1) + offset;
@@ -197,7 +259,7 @@ function widen(doc, name) {
 // meant one bad or renamed file took the whole page down rather than one chart.
 const REQUIRED_TABS = ['Waterfall Summary', 'CAC Monthly', 'QB Expenses', 'Customer Waterfall'];
 const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Cohorts',
-  'Serve Monthly', 'Event Costs'];
+  'Serve Monthly', 'Event Costs', 'Cash Detail'];
 
 export async function load() {
   const index = await fetch(`${DATA_DIR}/index.json`, { cache: 'no-store' }).then(r => r.json());
@@ -367,6 +429,12 @@ export async function load() {
       isAnnual: String(r.is_annual || '').toLowerCase() === 'true'
         || num(r.is_annual) === 1,
       annualGross: num(r.annual_line_gross) || 0,
+      // Billed and not collected. A customer being invoiced and not paying is
+      // still a customer, which is why they stay in the base, but the share of
+      // them is a leading indicator rather than a footnote. See pastDueTrend.
+      subscriptionStatus: r.subscription_status || '',
+      unpaidDue: num(r.unpaid_due) || 0,
+      unpaidInvoices: num(r.unpaid_invoice_count) || 0,
     }));
 
   spreadAnnual(customers);
@@ -404,17 +472,43 @@ export async function load() {
     }
   }
 
+  // Every dollar a customer paid, decomposed. The waterfall carries net_cash
+  // and the revenue classes beside it but never states the relationship; this
+  // tab does, and the identity it publishes is the only independent statement
+  // of revenue the page can check itself against.
+  const cashDetail = byTab['Cash Detail']
+    ? complete(byTab['Cash Detail'].rows).map(r => ({
+        id: r.customer_id,
+        month: r.month,
+        recurring: num(r.recurring) || 0,
+        usage: num(r.usage) || 0,
+        oneTime: num(r.onetime) || 0,
+        passThrough: num(r.passthrough) || 0,
+        unclassified: num(r.unclassified) || 0,
+        tax: num(r.tax_collected) || 0,
+        credits: num(r.credits) || 0,
+        refunded: num(r.refunded) || 0,
+        residual: num(r.residual) || 0,
+        netCash: num(r.net_cash) || 0,
+      }))
+    : [];
+
+  const vocabulary = checkVocabulary(byTab['Customer Waterfall'], customers);
+
   return {
     pushedAt: index.pushed_at || null,
+    pipelineVersion: byTab['Customer Waterfall'].pipeline_version || null,
     historyStarts: HISTORY_STARTS,
     waterfall,
     cacMonthly,
     expenses,
     customers,
+    cashDetail,
     lifetimes,
     lifetimeRecords,
     signups,
     serve,
+    vocabulary,
     missingTabs: missing,
     lastMonth: waterfall.length ? waterfall[waterfall.length - 1].month : null,
   };
@@ -4653,6 +4747,127 @@ export function platformMargins(data) {
     published,
     drift,
     driftMonth,
+  };
+}
+
+// Customers who are being billed and are not paying.
+//
+// This population is correctly counted as present: an invoice going out and
+// not being settled is a live customer with a problem, not a departure. But
+// nothing on the page could see how large it was, and the share is the point.
+// A customer stops paying before they cancel, so a rising past-due share is
+// churn that has already happened and not yet been recorded.
+//
+// Measured against live logos rather than all rows, because a departed account
+// carrying an unpaid balance is a collections question rather than a warning
+// about the base.
+// The page's revenue against an independent statement of the same thing.
+//
+// Cash Detail decomposes every dollar a customer paid and publishes the
+// identity it balances on. Nothing else here can check the revenue columns
+// against anything, so until this tab was loaded the page had no way of
+// knowing whether its own totals were right. Two things are worth reading:
+//
+// The TIE is whether both files agree on cash. They are built from the same
+// source, so a disagreement means one of them dropped rows.
+//
+// The RESIDUAL is the part of collected cash that the named classes do not
+// account for. It is published, not derived here. It is not a small number and
+// it is not all one thing: money nobody could name, and billing that landed in
+// a different month from the payment, both end up in it.
+export function revenueCheck(data) {
+  if (!data.cashDetail || !data.cashDetail.length) return null;
+
+  const byMonth = new Map();
+  for (const row of data.cashDetail) {
+    const m = byMonth.get(row.month) || { month: row.month, cash: 0, residual: 0,
+      unclassified: 0, named: 0 };
+    m.cash += row.netCash;
+    m.residual += row.residual;
+    m.unclassified += row.unclassified;
+    m.named += row.recurring + row.usage + row.oneTime + row.passThrough;
+    byMonth.set(row.month, m);
+  }
+
+  const waterfallCash = new Map();
+  for (const row of data.customers) {
+    waterfallCash.set(row.month, (waterfallCash.get(row.month) || 0) + (row.netCash || 0));
+  }
+
+  let worst = null;
+  for (const [month, m] of byMonth) {
+    const other = waterfallCash.get(month);
+    if (other === undefined || !m.cash) continue;
+    const gap = Math.abs(m.cash - other) / Math.abs(m.cash);
+    if (!worst || gap > worst.gap) worst = { month, gap, detail: m.cash, waterfall: other };
+  }
+
+  const months = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
+  const recent = months.slice(-12);
+  const cash = recent.reduce((s, m) => s + m.cash, 0);
+
+  return {
+    months,
+    recent,
+    worstTie: worst,
+    ties: worst ? worst.gap < 0.005 : false,
+    residual: recent.reduce((s, m) => s + m.residual, 0),
+    residualShare: cash ? recent.reduce((s, m) => s + m.residual, 0) / cash : null,
+    unclassified: recent.reduce((s, m) => s + m.unclassified, 0),
+    unclassifiedShare: cash ? recent.reduce((s, m) => s + m.unclassified, 0) / cash : null,
+    cash,
+  };
+}
+
+export function pastDueTrend(data, { months = 18 } = {}) {
+  const byMonth = new Map();
+
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    const bucket = byMonth.get(row.month)
+      || { month: row.month, live: 0, atRisk: 0, mrrAtRisk: 0, due: 0, mrr: 0 };
+    bucket.live += 1;
+    bucket.mrr += row.eopMrr || 0;
+    if (row.subscriptionStatus === 'past_due' || row.subscriptionStatus === 'unpaid') {
+      bucket.atRisk += 1;
+      bucket.mrrAtRisk += row.eopMrr || 0;
+      bucket.due += row.unpaidDue || 0;
+    }
+    byMonth.set(row.month, bucket);
+  }
+
+  const all = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
+  // The status columns only start once subscriptions were joined, so months
+  // before that read as a flat zero and would draw a fictional improvement.
+  const carrying = all.filter(m => m.atRisk > 0);
+  if (!carrying.length) return null;
+  const from = carrying[0].month;
+
+  const rows = all
+    .filter(m => m.month >= from)
+    .slice(-months)
+    .map(m => ({ ...m, share: m.live ? m.atRisk / m.live : 0 }));
+
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    first,
+    last,
+    rising: last.share > first.share,
+    change: last.share - first.share,
+    // Straight-line through the shares, so a single bad month does not read
+    // as a trend on its own.
+    slope: (() => {
+      const n = rows.length;
+      if (n < 3) return null;
+      const mx = (n - 1) / 2;
+      const my = rows.reduce((s, r) => s + r.share, 0) / n;
+      let num2 = 0;
+      let den = 0;
+      rows.forEach((r, i) => { num2 += (i - mx) * (r.share - my); den += (i - mx) ** 2; });
+      return den ? num2 / den : null;
+    })(),
   };
 }
 
