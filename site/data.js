@@ -3324,6 +3324,63 @@ export function churnByTenure(data, { cuts = [3, 6, 12] } = {}) {
 // the measurement underneath the cancellation policy, the gap between the logo
 // and money retention curves, and a good deal of the revenue churn. It has
 // been asserted in several notes and never drawn.
+// Customers still counted present who have shown no sign of life.
+//
+// Presence here is an event type, not an amount. A customer the pipeline has
+// not booked as departed stays a live logo however long they go without
+// paying, which is right for a late payment and wrong for an account that
+// quietly stopped. The two are indistinguishable from this side, so this
+// counts rather than decides: calling silence a departure would change the
+// base, the churn count and every per-logo figure on the page, and that is a
+// judgement for a person rather than a rule invented to tidy a number.
+//
+// Measured backwards from the trailing month, because a gap in the middle of
+// a life is a late payment and a run at the end is the ambiguous case.
+export function silentLogos(data, { months = 6 } = {}) {
+  const last = data.lastMonth;
+  if (!last) return null;
+
+  const byCustomer = new Map();
+  for (const row of data.customers) {
+    if (!byCustomer.has(row.id)) byCustomer.set(row.id, []);
+    byCustomer.get(row.id).push(row);
+  }
+
+  const silent = [];
+  let liveCount = 0;
+  for (const own of byCustomer.values()) {
+    own.sort((x, y) => x.month.localeCompare(y.month));
+    const tail = own[own.length - 1];
+    if (!tail || tail.month !== last || !tail.active) continue;
+    liveCount += 1;
+
+    let run = 0;
+    for (let i = own.length - 1; i >= 0; i -= 1) {
+      const r = own[i];
+      if ((r.netCash || 0) === 0 && (r.eopMrr || 0) === 0) run += 1;
+      else break;
+    }
+    if (run >= months) {
+      silent.push({
+        id: tail.id,
+        name: tail.name,
+        months: run,
+        lifetimeCash: own.reduce((s, r) => s + (r.netCash || 0), 0),
+      });
+    }
+  }
+
+  silent.sort((x, y) => y.months - x.months);
+  return {
+    threshold: months,
+    live: liveCount,
+    silent,
+    share: liveCount ? silent.length / liveCount : 0,
+    lifetimeCash: silent.reduce((s, r) => s + r.lifetimeCash, 0),
+    longest: silent.length ? silent[0].months : 0,
+  };
+}
+
 export function zeroMrrShare(data) {
   // A never-payer is a record to clean up, not a customer who stopped paying.
   // Counting them here made this chart 15% larger than the thing it describes.

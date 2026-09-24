@@ -15,6 +15,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
+  silentLogos,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -1537,7 +1538,22 @@ function renderZeroMrr() {
     + 'revenue classifier does not recognise carries real cash and no MRR, and reads '
     + 'here as paying nothing. Roughly forty customers are in that state, so a rise '
     + 'in this line is not automatically customers going quiet — it can equally be '
-    + 'the product catalogue moving ahead of the classifier.';
+    + 'the product catalogue moving ahead of the classifier. '
+    // The other half of the same design limit, computed rather than asserted.
+    + (() => {
+        const q = silentLogos(data);
+        if (!q || !q.silent.length) return '';
+        return 'And presence is an event type rather than an amount, so a customer the '
+          + 'pipeline has not booked as departed stays a live logo however long they go '
+          + 'without paying. ' + fmt.int(q.silent.length) + ' of ' + fmt.int(q.live)
+          + ' logos counted live in the trailing month (' + fmt.pct(q.share, 1) + ') have '
+          + 'had no cash and no MRR for six months or more, the longest for '
+          + q.longest + ' months, carrying ' + fmt.money(q.lifetimeCash) + ' of lifetime '
+          + 'cash between them. Some are late payers and some stopped without anyone '
+          + 'booking it, and nothing in the data separates the two. They are counted here '
+          + 'rather than removed, because deciding that silence is departure would move '
+          + 'the base, the churn rate and every per-logo figure on this page.';
+      })();
 }
 
 
