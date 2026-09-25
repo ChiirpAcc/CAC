@@ -17,7 +17,7 @@ import {
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
-  leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS,
+  leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast,
   silentLogos,
 } from './data.js';
 import {
@@ -2275,6 +2275,109 @@ function renderLevers() {
     + 'The book already on the shelf decays '
     + 'along chart 44’s curve and new business along chart 46’s, with the '
     + 'carry-forward correction chart 45 backtested at about six points of error a year out.';
+
+  renderCostForecast({ ...lead.paths[churnModes[0].key], book: lead.book });
+}
+
+// 48. Where the costs go, twelve months out. Follows chart 47's levers.
+function renderCostForecast(projection) {
+  if (!$('chart-cost-forecast') || !projection) return;
+  const f = costForecast(data, projection, { months: 12 });
+  if (!f) {
+    $('chart-cost-forecast').innerHTML = '<p class="empty">No expense lines in this push.</p>';
+    return;
+  }
+  const labels = f.revenuePath.map((_, i) => `M${i + 1}`);
+  multiLineChart($('chart-cost-forecast'), {
+    labels,
+    yMin: Math.min(0, ...f.contributionPath),
+    yTitle: 'Dollars a month',
+    xTitle: 'Months from today',
+    yFormat: fmt.money,
+    series: [
+      { label: 'Recurring revenue', colour: INK.primary, values: f.revenuePath },
+      { label: 'All cash costs', colour: INK.negative, values: f.totalPath },
+      { label: 'Of which acquisition', colour: INK.negative, dashed: true, thin: true,
+        values: f.acquisitionPath },
+      { label: 'Contribution', colour: INK.positive, values: f.contributionPath },
+    ],
+    refs: [{ value: 0, label: 'Break-even', variant: 'soft' }],
+    describe: i => `<strong>Month ${i + 1}</strong>`
+      + `<span>Revenue ${fmt.money(f.revenuePath[i])}</span>`
+      + f.groups.map(g => `<span class="${g.nonCash ? 'muted' : ''}">${g.label}: `
+        + `${fmt.money(g.path[i])}${g.nonCash ? ', non-cash' : ''}</span>`).join('')
+      + `<span><strong>Contribution ${fmt.money(f.contributionPath[i])}</strong></span>`,
+  });
+
+  const driverWord = { fixed: 'Held flat', perLogo: 'Per customer', perRevenue: 'On revenue' };
+  const row = g =>
+    `<tr${g.nonCash ? ' class="muted"' : ''}><td>${g.label}</td>`
+    + `<td>${driverWord[g.driver]}${g.driver === 'perLogo'
+        ? ` · ${fmt.money(g.rate)} each` : g.driver === 'perRevenue'
+        ? ` · ${fmt.pct(g.rate, 1)}` : ''}</td>`
+    + `<td class="n">${fmt.money(g.runRate)}</td>`
+    + `<td class="n">${fmt.money(g.path[5])}</td>`
+    + `<td class="n">${fmt.money(g.path[11])}</td>`
+    + `<td class="n">${fmt.money(g.total)}</td></tr>`;
+  const cash = f.groups.filter(g => !g.nonCash);
+  const sum = (key, i) => cash.reduce((s, g) => s + (i === null ? g[key] : g[key][i]), 0);
+  $('cost-forecast-table').innerHTML =
+    '<thead><tr><th>Cost group</th><th>Moves with</th><th class="n">Run rate now</th>'
+    + '<th class="n">Month 6</th><th class="n">Month 12</th><th class="n">Twelve months</th>'
+    + '</tr></thead><tbody>'
+    + f.groups.map(row).join('')
+    + `<tr><td><strong>All cash costs</strong></td><td></td>`
+    + `<td class="n"><strong>${fmt.money(sum('runRate', null))}</strong></td>`
+    + `<td class="n"><strong>${fmt.money(sum('path', 5))}</strong></td>`
+    + `<td class="n"><strong>${fmt.money(sum('path', 11))}</strong></td>`
+    + `<td class="n"><strong>${fmt.money(sum('total', null))}</strong></td></tr>`
+    + `<tr><td><strong>Recurring revenue</strong></td><td></td>`
+    + `<td class="n">${fmt.money(projection.book || f.revenuePath[0])}</td>`
+    + `<td class="n">${fmt.money(f.revenuePath[5])}</td>`
+    + `<td class="n">${fmt.money(f.revenuePath[11])}</td>`
+    + `<td class="n">${fmt.money(f.revenuePath.reduce((a, b) => a + b, 0))}</td></tr>`
+    + `<tr><td><strong>Contribution</strong></td><td></td>`
+    + `<td class="n">${fmt.money((projection.book || f.revenuePath[0]) - sum('runRate', null))}</td>`
+    + `<td class="n"><strong>${fmt.money(f.contributionPath[5])}</strong></td>`
+    + `<td class="n"><strong>${fmt.money(f.contributionPath[11])}</strong></td>`
+    + `<td class="n"><strong>${fmt.money(f.contributionPath.reduce((a, b) => a + b, 0))}</strong></td></tr>`
+    + '</tbody>';
+
+  const grows = cash.filter(g => g.path[11] > g.runRate * 1.05)
+    .sort((a, b) => (b.path[11] - b.runRate) - (a.path[11] - a.runRate));
+  const largest = [...cash].sort((a, b) => b.total - a.total)[0];
+  const twelve = sum('total', null);
+  const rev12 = f.revenuePath.reduce((a, b) => a + b, 0);
+  $('cost-forecast-finding').innerHTML =
+    `<strong>On the levers set above, the next twelve months cost ${fmt.money(twelve)} to run `
+    + `against ${fmt.money(rev12)} of recurring revenue, leaving ${fmt.money(rev12 - twelve)}.</strong> `
+    + `${largest.label} is the largest line at ${fmt.money(largest.total)}. `
+    + (grows.length
+        ? `${grows.map(g => g.label.toLowerCase()).join(' and ')} `
+          + `${grows.length > 1 ? 'grow' : 'grows'} with the book, from `
+          + `${grows.map(g => fmt.money(g.runRate)).join(' and ')} a month now to `
+          + `${grows.map(g => fmt.money(g.path[11])).join(' and ')} in month twelve; `
+        : '')
+    + `the four payroll lines are held where the last quarter left them, so the whole change `
+    + `in cost is the customer-driven lines following the book. `
+    + `Contribution goes from ${fmt.money((projection.book || f.revenuePath[0]) - sum('runRate', null))} `
+    + `a month today to ${fmt.money(f.contributionPath[11])} in month twelve.`;
+
+  $('cost-forecast-note').textContent =
+    'The seven groups are chart 33’s, carried forward on whatever actually moves each '
+    + 'one. Acquisition, support, general and administrative and research and development '
+    + 'are payroll: they step when someone is hired or let go and otherwise sit still, so '
+    + 'each is held at the average of the last three months rather than six, because '
+    + 'support has fallen a third in that time and a six-month average would carry staffing '
+    + 'that has already gone. Platform cost of sales follows the customer and is a rate per '
+    + 'active logo over the last six months, applied to the customers chart 47 projects. '
+    + 'Revenue share follows the bill and is a rate on recurring revenue; the rate is the '
+    + 'median of the last six months rather than the mean, because August carries a '
+    + 'revenue-share invoice that was raised and credited in full and the mean would carry '
+    + 'it for a year. Depreciation is shown and left out of every total, because it is not '
+    + 'cash. Revenue here is recurring only; usage, one-off and pass-through run at about a '
+    + 'tenth on top and are not in the contribution line. Chart 47’s after-costs view '
+    + 'uses exactly this rollup, so the two agree to the dollar.';
 }
 
 function renderPastDue() {

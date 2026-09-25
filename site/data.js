@@ -4092,12 +4092,16 @@ export function leverProjection(data, cohorts, {
   // and does not move with the number closed; that is exactly why cost per
   // logo jumps in a month when closes fall. Cost to serve is per active logo,
   // which is chart 39's basis.
+  // The same rules chart 48 rolls up, so the after-costs view here and the
+  // table there agree to the dollar.
+  const rules = costRunRates(data);
+  const acquisitionPerMonth = rules.acquisition;
   const acq = acquisitionCosts(data, { months: 6 });
-  const acquisitionPerMonth = acq && acq.totals.length
-    ? acq.totals.reduce((a, b) => a + b, 0) / acq.totals.length : 0;
-  const serve = ongoingCostPerLogo(data);
-  const servePerLogo = serve && serve.length
-    ? serve.slice(-6).reduce((a, r) => a + r.total, 0) / Math.min(6, serve.length) : 0;
+  const bookNow = data.customers
+    .filter(r => r.active && r.month === data.lastMonth)
+    .reduce((s, r) => s + (r.eopMrr || 0), 0);
+  const serveNow = rules.fixedServe + rules.perLogo * activeNow + rules.perRevenue * bookNow;
+  const servePerLogo = activeNow ? serveNow / activeNow : 0;
   const book = data.customers
     .filter(r => r.active && r.month === data.lastMonth)
     .reduce((s, r) => s + (r.eopMrr || 0), 0);
@@ -4172,7 +4176,7 @@ export function leverProjection(data, cohorts, {
         heads += soldAt(k - 1) * (logoHeld[age] ?? logoHeld[logoHeld.length - 1])
           * Math.exp(dNew * age);
       }
-      const ongoing = heads * servePerLogo;
+      const ongoing = rules.fixedServe + rules.perLogo * heads + rules.perRevenue * total;
       out.mrr.push(total);
       out.logos.push(heads);
       out.ongoing.push(ongoing);
@@ -4205,6 +4209,154 @@ export function leverProjection(data, cohorts, {
     settledVolume: settled,
     settledPrice: matched.averagePrice,
     newMrr: revenueAt(0),
+  };
+}
+
+// Each cost group carried forward on the thing that actually moves it.
+//
+// Chart 33's seven groups do not move together. Four of them are payroll,
+// which steps when someone is hired or let go and otherwise sits still, so
+// they are held at the last quarter's run rate: the trailing six would carry
+// staffing that has already gone, and support has fallen a third in that time.
+// Platform cost of sales follows the customer and is a rate per active logo.
+// Revenue share follows the bill and is a rate on revenue; its rate is the
+// median of the trailing six rather than the mean, because August carries a
+// revenue-share invoice that was raised and credited in full and the mean
+// would carry that forward for a year. Depreciation is shown and left out of
+// the total, because it is not cash.
+export const COST_DRIVERS = {
+  acquisition: { driver: 'fixed', window: 3,
+    why: 'Sales, marketing and partnerships payroll. Held at the last quarter.' },
+  platform: { driver: 'perLogo', window: 6,
+    why: 'Software, hosting and merchant processing. Follows the customer.' },
+  support: { driver: 'fixed', window: 3,
+    why: 'Support and success payroll. Held at the last quarter.' },
+  revshare: { driver: 'perRevenue', window: 6, robust: true,
+    why: 'Paid on what customers bill. A rate on revenue, median of the last six.' },
+  ga: { driver: 'fixed', window: 3,
+    why: 'Rent, insurance, legal and the G&A payroll. Held at the last quarter.' },
+  rd: { driver: 'fixed', window: 3,
+    why: 'Product engineering payroll. Held at the last quarter.' },
+  da: { driver: 'fixed', window: 3, nonCash: true,
+    why: 'Non-cash. Shown, and left out of the total.' },
+};
+
+// The same rules boiled down to four numbers, so chart 47 can cost its own
+// projection without a projection to hand to costForecast. Built from the
+// same COST_DRIVERS, so the two agree by construction.
+export function costRunRates(data) {
+  if (!data.expenses) return { acquisition: 0, fixedServe: 0, perLogo: 0, perRevenue: 0 };
+  const allMonths = [...new Set(data.expenses.map(e => e.month))].sort();
+  const logosBy = new Map();
+  const mrrBy = new Map();
+  for (const r of data.customers) {
+    if (!r.active) continue;
+    logosBy.set(r.month, (logosBy.get(r.month) || 0) + 1);
+    mrrBy.set(r.month, (mrrBy.get(r.month) || 0) + (r.eopMrr || 0));
+  }
+  const median = xs => { const t = [...xs].sort((a, b) => a - b); return t.length ? t[Math.floor(t.length / 2)] : 0; };
+  const mean = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+  const out = { acquisition: 0, fixedServe: 0, perLogo: 0, perRevenue: 0 };
+  for (const g of COST_GROUPS) {
+    const rule = COST_DRIVERS[g.key] || { driver: 'fixed', window: 3 };
+    if (rule.nonCash) continue;
+    const tail = allMonths.slice(-rule.window);
+    const amounts = tail.map(m => {
+      let t = 0;
+      for (const e of data.expenses) if (e.month === m && g.match(e)) t += e.amount;
+      return t;
+    });
+    if (rule.driver === 'fixed') {
+      if (g.key === 'acquisition') out.acquisition += mean(amounts);
+      else out.fixedServe += mean(amounts);
+    } else if (rule.driver === 'perLogo') {
+      const rates = tail.map((m, i) => (logosBy.get(m) ? amounts[i] / logosBy.get(m) : null)).filter(v => v !== null);
+      out.perLogo += rule.robust ? median(rates) : mean(rates);
+    } else {
+      const rates = tail.map((m, i) => (mrrBy.get(m) ? amounts[i] / mrrBy.get(m) : null)).filter(v => v !== null);
+      out.perRevenue += rule.robust ? median(rates) : mean(rates);
+    }
+  }
+  return out;
+}
+
+export function costForecast(data, projection, { months = 12 } = {}) {
+  if (!projection || !data.expenses) return null;
+  const allMonths = [...new Set(data.expenses.map(e => e.month))].sort();
+  const byMonthTotals = new Map();
+  for (const g of COST_GROUPS) {
+    const series = allMonths.map(m => {
+      let s = 0;
+      for (const e of data.expenses) if (e.month === m && g.match(e)) s += e.amount;
+      return s;
+    });
+    byMonthTotals.set(g.key, series);
+  }
+
+  // Drivers, aligned to the same months.
+  const logosBy = new Map();
+  const mrrBy = new Map();
+  for (const r of data.customers) {
+    if (!r.active) continue;
+    logosBy.set(r.month, (logosBy.get(r.month) || 0) + 1);
+    mrrBy.set(r.month, (mrrBy.get(r.month) || 0) + (r.eopMrr || 0));
+  }
+  const median = xs => {
+    const s = [...xs].sort((a, b) => a - b);
+    return s.length ? s[Math.floor(s.length / 2)] : 0;
+  };
+  const mean = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+  const groups = COST_GROUPS.map(g => {
+    const rule = COST_DRIVERS[g.key] || { driver: 'fixed', window: 3 };
+    const series = byMonthTotals.get(g.key);
+    const tail = allMonths.slice(-rule.window);
+    const amounts = tail.map((_, i) => series[series.length - rule.window + i]);
+    let rate = 0;
+    let unit = '';
+    if (rule.driver === 'fixed') {
+      rate = mean(amounts);
+      unit = 'a month';
+    } else if (rule.driver === 'perLogo') {
+      const rates = tail.map((m, i) => (logosBy.get(m) ? amounts[i] / logosBy.get(m) : null))
+        .filter(v => v !== null);
+      rate = rule.robust ? median(rates) : mean(rates);
+      unit = 'per active customer';
+    } else {
+      const rates = tail.map((m, i) => (mrrBy.get(m) ? amounts[i] / mrrBy.get(m) : null))
+        .filter(v => v !== null);
+      rate = rule.robust ? median(rates) : mean(rates);
+      unit = 'of revenue';
+    }
+    const path = Array.from({ length: months }, (_, i) => {
+      if (rule.driver === 'fixed') return rate;
+      if (rule.driver === 'perLogo') return rate * projection.logos[i];
+      return rate * projection.mrr[i];
+    });
+    return {
+      key: g.key, label: g.label, hint: g.hint,
+      driver: rule.driver, why: rule.why, nonCash: !!rule.nonCash,
+      window: rule.window, rate, unit,
+      nowMonthly: series[series.length - 1],
+      runRate: rule.driver === 'fixed' ? rate
+        : rule.driver === 'perLogo' ? rate * (logosBy.get(allMonths[allMonths.length - 1]) || 0)
+        : rate * (mrrBy.get(allMonths[allMonths.length - 1]) || 0),
+      path,
+      total: path.reduce((a, b) => a + b, 0),
+    };
+  });
+
+  const cash = groups.filter(g => !g.nonCash);
+  const totalPath = Array.from({ length: months }, (_, i) =>
+    cash.reduce((s, g) => s + g.path[i], 0));
+  const acquisitionPath = (groups.find(g => g.key === 'acquisition') || { path: [] }).path;
+  const servePath = Array.from({ length: months }, (_, i) =>
+    cash.filter(g => g.key !== 'acquisition').reduce((s, g) => s + g.path[i], 0));
+  return {
+    months, groups, totalPath, acquisitionPath, servePath,
+    revenuePath: projection.mrr.slice(0, months),
+    contributionPath: Array.from({ length: months }, (_, i) => projection.mrr[i] - totalPath[i]),
+    lastMonth: allMonths[allMonths.length - 1],
   };
 }
 
