@@ -2430,6 +2430,50 @@ function renderCostForecast(projection) {
     + 'uses exactly this rollup, so the two agree to the dollar.';
 }
 
+// Wide tables on a phone.
+//
+// Twelve tables on the page and they are not all the same animal. Nine are a
+// header row and plain rows, and those stack on a narrow screen: each cell
+// becomes a labelled line, the label copied from its column header, the first
+// cell the row's heading. Three should not stack and are left to scroll: the
+// month-by-month cost matrix with thirty-four columns, where thirty-four
+// labelled lines per row would be worse than a sideways scroll; the ledger,
+// whose spanning section rows a naive label pass would mislabel; and the calc
+// table, which is layout and has no header to take labels from.
+//
+// Every render on this page writes a table's innerHTML afresh, so the stamping
+// is done by an observer on each table rather than by finding every render and
+// adding a call. The table element itself is never replaced, only its rows.
+const STACK_MAX_COLUMNS = 10;
+function stampTable(table) {
+  const heads = [...table.querySelectorAll('thead th')].map(th => th.textContent.trim());
+  const spans = table.querySelector('[rowspan], [colspan]');
+  const eligible = heads.length > 0 && heads.length <= STACK_MAX_COLUMNS && !spans;
+  table.classList.toggle('is-stackable', eligible);
+  if (!eligible) return;
+  for (const row of table.querySelectorAll('tbody tr')) {
+    [...row.children].forEach((cell, i) => {
+      if (heads[i] !== undefined) cell.dataset.label = heads[i];
+    });
+  }
+}
+// The fade on a scrolling table wrapper is only shown when there is something
+// to scroll to. Measured, because a table that fits should not look cut off.
+function markScrollable() {
+  for (const wrap of document.querySelectorAll('.table-scroll')) {
+    wrap.classList.toggle('is-scrollable', wrap.scrollWidth > wrap.clientWidth + 1);
+  }
+}
+function watchTables() {
+  for (const table of document.querySelectorAll('table.data-table')) {
+    stampTable(table);
+    new MutationObserver(() => { stampTable(table); markScrollable(); })
+      .observe(table, { childList: true, subtree: true });
+  }
+  markScrollable();
+  window.addEventListener('resize', markScrollable);
+}
+
 function renderPastDue() {
   if (!$('chart-pastdue')) return;
   const t = pastDueTrend(data);
@@ -4117,6 +4161,7 @@ function boot() {
     renderRevChurnTenure();
     renderWindowCurve();
     renderLevers();
+    watchTables();
     renderArrivalAnimations();
     renderProjection();
     renderCalculator();

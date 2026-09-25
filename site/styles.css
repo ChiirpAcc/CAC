@@ -948,3 +948,56 @@ figcaption { margin-bottom: .9rem; }
   pointer-events: none;
 }
 .range-pair input[type="range"] { z-index: 1; }
+
+
+/* Tables on a phone. A stackable table drops its header and turns each row
+   into a block, each cell into a labelled line with the label copied from the
+   column header; the first cell becomes the row's heading. Tables that cannot
+   stack keep the sideways scroll and get a fade at the right edge so that the
+   scroll is visible rather than something a reader has to discover. */
+.table-scroll { position: relative; }
+.table-scroll::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--card));
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.table-scroll.is-scrollable::after { opacity: 1; }
+
+@media (max-width: 720px) {
+  table.data-table.is-stackable thead { display: none; }
+  table.data-table.is-stackable,
+  table.data-table.is-stackable tbody,
+  table.data-table.is-stackable tr,
+  table.data-table.is-stackable td { display: block; width: 100%; }
+  table.data-table.is-stackable tr {
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.data-table.is-stackable tr:last-child { border-bottom: 0; }
+  table.data-table.is-stackable td {
+    display: grid;
+    grid-template-columns: minmax(9ch, 45%) 1fr;
+    gap: 0.6rem;
+    padding: 0.15rem 0;
+    text-align: left;
+    border: 0;
+  }
+  table.data-table.is-stackable td.n { text-align: left; }
+  table.data-table.is-stackable td::before {
+    content: attr(data-label);
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+  }
+  /* The first cell is the row's name: full width, no label, weightier. */
+  table.data-table.is-stackable td:first-child {
+    display: block;
+    font-weight: 600;
+    padding-bottom: 0.25rem;
+  }
+  table.data-table.is-stackable td:first-child::before { content: none; }
+}
