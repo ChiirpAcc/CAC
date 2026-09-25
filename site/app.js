@@ -2126,7 +2126,7 @@ function renderLevers() {
       + '</div>'
       + '<output id="lever-band-value"></output></div>'
       + '<div class="chart-control">'
-      + '<label for="lever-pipeline">Pipeline against today</label>'
+      + '<label for="lever-pipeline">Prospects in front of you, against today</label>'
       + '<input type="range" id="lever-pipeline" min="0.4" max="3" step="0.05">'
       + '<output id="lever-pipeline-value"></output></div>';
     setBox.addEventListener('input', event => {
@@ -2158,8 +2158,13 @@ function renderLevers() {
       + ' close, averaging ' + fmt.money(r.settledPrice);
   }
   if ($('lever-pipeline-value')) {
+    // Closes are an outcome of these two, never an input. A reader who reads
+    // this dial as "how many we want to sell" will set it and wonder why the
+    // number underneath disagrees, so the readout names what it scales.
     $('lever-pipeline-value').textContent = leverState.pipeline.toFixed(2) + '×'
-      + (Math.abs(leverState.pipeline - 1) < 0.01 ? ' · as it is now' : '');
+      + (Math.abs(leverState.pipeline - 1) < 0.01 ? ' · as it is now' : '')
+      + ' · ' + fmt.int(r.demand.volumeFor(leverState.ceiling) * leverState.pipeline)
+      + ' of them would pay ' + fmt.money(leverState.ceiling);
   }
 
   const labels = r.path.map((_, i) => `M${i + 1}`);
@@ -2249,7 +2254,9 @@ function renderLevers() {
     + 'trailing six months of the book. The form makes the effect diminish as volume rises, '
     + 'which is what those points together say. Pipeline scales the ladder rather than moving '
     + 'it: twice the leads is twice as many prospects at every level of willingness, not the '
-    + 'same prospects paying more. Arrivals are deseasonalised against a centred year of '
+    + 'same prospects paying more. How many customers close is an outcome of those two and '
+    + 'not something set directly — it is however many prospects will pay at least the '
+    + 'floor, so the same pipeline closes fifteen at a $1,500 floor and twenty-six at $1,000. Arrivals are deseasonalised against a centred year of '
     + 'themselves, levelled on the average of the last three and last six months, and the 95% '
     + 'band is the spread of the last twelve deseasonalised months; the season goes back on '
     + 'month by month, which is why the band is wider in October than in December. The book '
