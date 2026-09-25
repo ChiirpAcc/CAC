@@ -17,7 +17,7 @@ import {
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
-  leverProjection, CHURN_MODES, SCENARIO_CARDS,
+  leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS,
   silentLogos,
 } from './data.js';
 import {
@@ -2042,8 +2042,8 @@ function renderWindowCurve() {
 }
 
 // 47. Every lever, against what it does to revenue.
-const leverState = { card: 'now', churn: { trend: true },
-                     pipeline: 1, floor: 1500, ceiling: 2500, capture: 0.5, ready: true };
+const leverState = { card: 'band', floor: 1500, ceiling: 2500,
+                     churn: { trend: true }, prospects: { expected: true } };
 
 function renderLevers() {
   if (!$('chart-levers')) return;
@@ -2053,10 +2053,7 @@ function renderLevers() {
     return;
   }
   const outlook = probe.outlook;
-  const demand = probe.demand;
 
-  // Four whole positions first, because a reader wants something to argue with
-  // before they want a slider.
   const cardBox = $('lever-cards');
   if (cardBox && !cardBox.dataset.ready) {
     SCENARIO_CARDS.forEach(c => {
@@ -2069,11 +2066,9 @@ function renderLevers() {
     });
     cardBox.addEventListener('click', event => {
       const b = event.target.closest('.scenario-card');
-      if (!b) return;
-      const c = SCENARIO_CARDS.find(x => x.key === b.dataset.key);
+      const c = b && SCENARIO_CARDS.find(x => x.key === b.dataset.key);
       if (!c) return;
       leverState.card = c.key;
-      leverState.pipeline = c.pipeline;
       leverState.floor = c.floor;
       leverState.ceiling = c.ceiling;
       renderLevers();
@@ -2084,39 +2079,42 @@ function renderLevers() {
     b.classList.toggle('is-on', b.dataset.key === leverState.card);
   });
 
-  // The only checkboxes on the chart. Everything else is a position or a dial.
-  const churnBox = $('lever-churn');
-  if (churnBox && !churnBox.dataset.ready) {
+  // Two pairs of switches. Each pair is a projection and the top of its own
+  // interval, so a reader can see the expected case and the good case for
+  // either input without a slider for either.
+  const toggles = (id, list, stateKey, defaultKey) => {
+    const box = $(id);
+    if (!box || box.dataset.ready) return;
     const grid = document.createElement('div');
     grid.className = 'toggles';
-    CHURN_MODES.forEach(m => {
+    list.forEach(m => {
       const label = document.createElement('label');
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.value = m.key;
-      input.checked = m.key === 'trend';
+      input.checked = m.key === defaultKey;
       const text = document.createElement('span');
       text.innerHTML = `<span>${m.label}</span>`;
       label.append(input, text);
       grid.append(label);
     });
-    churnBox.append(grid);
-    churnBox.addEventListener('change', () => {
-      leverState.churn = Object.fromEntries(
-        [...churnBox.querySelectorAll('input:checked')].map(i => [i.value, true]));
+    box.append(grid);
+    box.addEventListener('change', () => {
+      leverState[stateKey] = Object.fromEntries(
+        [...box.querySelectorAll('input:checked')].map(i => [i.value, true]));
       renderLevers();
     });
-    churnBox.dataset.ready = '1';
-  }
-  const onModes = CHURN_MODES.filter(m => leverState.churn[m.key]);
-  const modes = onModes.length ? onModes : [CHURN_MODES[0]];
+    box.dataset.ready = '1';
+  };
+  toggles('lever-churn', CHURN_MODES, 'churn', 'trend');
+  toggles('lever-prospects', PROSPECT_MODES, 'prospects', 'expected');
+  const churnOn = CHURN_MODES.filter(m => leverState.churn[m.key]);
+  const churnModes = churnOn.length ? churnOn : [CHURN_MODES[0]];
+  const prosOn = PROSPECT_MODES.filter(m => leverState.prospects[m.key]);
+  const prosModes = prosOn.length ? prosOn : [PROSPECT_MODES[0]];
 
   const setBox = $('lever-settings');
   if (setBox && !setBox.dataset.ready) {
-    // Two handles on one track. There is no such input, so it is two ranges
-    // stacked with the track made transparent on the upper one and pointer
-    // events handed back to the thumbs; the alternative is a bare pair of
-    // sliders that do not look like the one thing they are.
     setBox.innerHTML =
       '<div class="chart-control range-pair-row">'
       + '<label for="lever-band-lo">The band you will price inside</label>'
@@ -2124,26 +2122,14 @@ function renderLevers() {
       + '<input type="range" id="lever-band-lo" min="800" max="3000" step="25">'
       + '<input type="range" id="lever-band-hi" min="800" max="3000" step="25">'
       + '</div>'
-      + '<output id="lever-band-value"></output></div>'
-      + '<div class="chart-control">'
-      + '<label for="lever-pipeline">Prospects in front of you, against today</label>'
-      + '<input type="range" id="lever-pipeline" min="0.4" max="3" step="0.05">'
-      + '<output id="lever-pipeline-value"></output></div>'
-      + '<div class="chart-control">'
-      + '<label for="lever-capture">How much of the menu gap you collect</label>'
-      + '<input type="range" id="lever-capture" min="0" max="1" step="0.05">'
-      + '<output id="lever-capture-value"></output></div>';
+      + '<output id="lever-band-value"></output></div>';
     setBox.addEventListener('input', event => {
       leverState.card = null;
       const GAP = 100;
-      if (event.target.id === 'lever-capture') {
-        leverState.capture = Number(event.target.value);
-      } else if (event.target.id === 'lever-band-lo') {
+      if (event.target.id === 'lever-band-lo') {
         leverState.floor = Math.min(Number(event.target.value), leverState.ceiling - GAP);
-      } else if (event.target.id === 'lever-band-hi') {
-        leverState.ceiling = Math.max(Number(event.target.value), leverState.floor + GAP);
       } else {
-        leverState.pipeline = Number(event.target.value);
+        leverState.ceiling = Math.max(Number(event.target.value), leverState.floor + GAP);
       }
       renderLevers();
     });
@@ -2151,147 +2137,96 @@ function renderLevers() {
   }
   if ($('lever-band-lo')) $('lever-band-lo').value = String(leverState.floor);
   if ($('lever-band-hi')) $('lever-band-hi').value = String(leverState.ceiling);
-  if ($('lever-pipeline')) $('lever-pipeline').value = String(leverState.pipeline);
-  if ($('lever-capture')) $('lever-capture').value = String(leverState.capture);
 
-  const common = {
-    pipeline: leverState.pipeline, floor: leverState.floor, ceiling: leverState.ceiling,
-  };
-  const r = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
-                                             capture: leverState.capture });
-  // The two ends of the assumption, drawn as the band around whatever the dial
-  // is set to. Nought is the menu as quoted, one is everything September implies.
-  const listed = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
-                                                  capture: 0 });
-  const full = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
-                                                capture: 1 });
-
+  // One projection per combination on screen. Prospects picks the line style,
+  // churn picks the colour, so four lines at most and each one readable.
+  const colours = { trend: INK.primary, effort: INK.positive };
+  const runs = [];
+  for (const pm of prosModes) {
+    for (const cm of churnModes) {
+      runs.push({ pm, cm, r: leverProjection(data, cohorts, {
+        floor: leverState.floor, ceiling: leverState.ceiling,
+        prospects: pm.key, churn: cm.key,
+      }) });
+    }
+  }
+  const lead = runs[0].r;
   if ($('lever-band-value')) {
     $('lever-band-value').textContent = fmt.money(leverState.floor) + ' to '
-      + fmt.money(leverState.ceiling) + ' · ' + fmt.int(r.settledVolume)
-      + ' close a month at ' + fmt.money(r.settledPrice);
-  }
-  if ($('lever-capture-value')) {
-    $('lever-capture-value').textContent = fmt.pct(leverState.capture, 0)
-      + (leverState.capture === 0 ? ' · keep quoting the menu'
-        : leverState.capture === 1 ? ' · everything September implies' : '');
-  }
-  if ($('lever-pipeline-value')) {
-    // Closes are an outcome of these two, never an input. A reader who reads
-    // this dial as "how many we want to sell" will set it and wonder why the
-    // number underneath disagrees, so the readout names what it scales.
-    $('lever-pipeline-value').textContent = leverState.pipeline.toFixed(2) + '×'
-      + (Math.abs(leverState.pipeline - 1) < 0.01 ? ' · as it is now' : '')
-      + ' · ' + fmt.int(r.demand.volumeFor(leverState.ceiling) * leverState.pipeline)
-      + ' of them would pay ' + fmt.money(leverState.ceiling);
+      + fmt.money(leverState.ceiling) + ' · ' + fmt.int(lead.settledVolume)
+      + ' close a month at ' + fmt.money(lead.settledPrice);
   }
 
-  const labels = r.path.map((_, i) => `M${i + 1}`);
-  const colours = { trend: INK.primary, effort: INK.positive };
-  const series = modes.map(m => ({
-    label: m.label, colour: colours[m.key] || INK.primary, values: r.paths[m.key],
-  }));
-  // The interval is on how many prospects turn up, not on what they will pay,
-  // so it is drawn once around the first churn line rather than three times.
-  // The band is what the two bodies of evidence disagree by, which is far wider
-  // than anything the arrivals noise contributes and is the honest uncertainty
-  // here. Lower edge is what has actually closed at each price this year; upper
-  // edge is what September's test implies matching would unlock.
-  series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
-                values: full.paths[modes[0].key] });
-  series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
-                values: listed.paths[modes[0].key] });
-
+  const labels = lead.path.map((_, i) => `M${i + 1}`);
   multiLineChart($('chart-levers'), {
     labels,
     yMin: 0,
     yTitle: 'Monthly recurring revenue',
     xTitle: 'Months from today',
     yFormat: fmt.money,
-    series,
-    legendItems: modes.map(m => ({ label: m.label, colour: colours[m.key] || INK.primary })),
+    series: runs.map(x => ({
+      label: `${x.cm.label}, ${x.pm.label.toLowerCase()}`,
+      colour: colours[x.cm.key] || INK.primary,
+      dashed: x.pm.key === 'upper',
+      values: x.r.path,
+    })),
     refs: [
       { value: 1e6, label: 'A million a month' },
-      { value: r.book, label: 'Where the book is today', variant: 'soft' },
+      { value: lead.book, label: 'Where the book is today', variant: 'soft' },
     ],
     describe: i => `<strong>Month ${i + 1}</strong>`
-      + modes.map(m => `<span>${m.label}: ${fmt.money(r.paths[m.key][i])}</span>`).join('')
-      + `<span class="muted">Menu as quoted ${fmt.money(listed.paths[modes[0].key][i])}, `
-        + `everything September implies ${fmt.money(full.paths[modes[0].key][i])}</span>`
+      + runs.map(x => `<span>${x.cm.label}, ${x.pm.label.toLowerCase()}: `
+        + `${fmt.money(x.r.path[i])}</span>`).join('')
       + (outlook && outlook.forward[i]
-          ? `<span class="muted">Season that month: ${outlook.forward[i].factor.toFixed(2)}`
-            + `×</span>` : ''),
+          ? `<span class="muted">${fmt.int(outlook.forward[i].expected)} new customers expected `
+            + `that month, up to ${fmt.int(outlook.forward[i].hi)}</span>` : ''),
   });
 
   const card = SCENARIO_CARDS.find(c => c.key === leverState.card);
-  const got = modes.map(m => ({ m, at: r.reaches[m.key] })).filter(x => x.at);
-  const flat = demand.matched(r.ceiling, r.floor);
-  const atCeiling = demand.volumeFor(r.ceiling);
-  const quoteHigh = atCeiling * r.ceiling;
-  const quoteLow = demand.volumeFor(r.floor) * r.floor;
-
+  const reached = runs.filter(x => x.r.reaches[x.cm.key]);
   $('levers-finding').innerHTML =
-    (card ? `<strong>${card.label}.</strong> ${card.headline}. ` : '<strong>Set by hand.</strong> ')
-    + `<strong>Neither line on this chart is the demand curve, and the dial between them is `
-    + `the assumption doing the work.</strong> The year's prices are a menu: `
-    + demand.piles.slice(0, 4)
-        .map(x => `${fmt.int(x.customers)} customers at exactly ${fmt.money(x.price)}`)
-        .join(', ')
-    + `. ${fmt.int(demand.piles.reduce((t, x) => t + x.customers, 0))} of `
-    + `${fmt.int(demand.sampleThisYear)} signings sit on one of ${fmt.int(demand.piles.length)} `
-    + `exact numbers, so every one of them is a lower bound on what that customer would have `
-    + `paid and nothing more. September is the only month anybody asked differently, and nine `
-    + `said yes at $2,500 where the whole prior year had produced `
-    + `${fmt.int(demand.atOrAbove(2250))} at $2,250 or better. `
-    + `<strong>At ${fmt.pct(r.capture, 0)} of that gap collected, this band closes `
-    + `${fmt.int(r.settledVolume)} a month at ${fmt.money(r.settledPrice)}, worth `
-    + `${fmt.money(r.newMrr)}.</strong> Quoting the menu unchanged gives `
-    + `${fmt.money(listed.newMrr)}; collecting all of it gives ${fmt.money(full.newMrr)}. `
-    + (got.length
-        ? `<strong>${got.map(x => `${x.m.label.toLowerCase()} reaches a million in month `
-            + `${x.at}`).join(', and ')}.</strong> `
-        : `<strong>None of the churn assumptions on screen reach a million inside `
-          + `${r.months} months.</strong> `)
-    + modes.map(m => `${m.label} ends at ${fmt.money(r.paths[m.key][r.months - 1])}`).join('; ')
-    + '.';
+    (card ? `<strong>${card.label}.</strong> ` : '<strong>Band set by hand.</strong> ')
+    + `Matching willingness to pay between ${fmt.money(lead.ceiling)} and `
+    + `${fmt.money(lead.floor)} closes about ${fmt.int(lead.settledVolume)} a month at an `
+    + `average of ${fmt.money(lead.settledPrice)}, which is ${fmt.money(lead.newMrr)} of new `
+    + `revenue a month. `
+    + (reached.length
+        ? `<strong>${reached.map(x => `${x.cm.label}, ${x.pm.label.toLowerCase()} reaches a `
+            + `million in month ${x.r.reaches[x.cm.key]}`).join('; ')}.</strong> `
+        : `<strong>Nothing on screen reaches a million inside ${lead.months} months.</strong> `)
+    + runs.map(x => `${x.cm.label}, ${x.pm.label.toLowerCase()} ends at `
+        + `${fmt.money(x.r.path[lead.months - 1])}`).join('; ') + '. '
+    + (outlook
+        ? `New customers are running at ${fmt.int(outlook.base)} a month once the season is `
+          + `taken out, with the top of the interval at ${fmt.int(outlook.base + 1.96 * outlook.sd)}.`
+        : '');
 
-  const rows = CHURN_MODES.map(m =>
-    `<tr${leverState.churn[m.key] ? '' : ' class="muted"'}><td>${m.label}</td>`
-    + `<td class="n">${fmt.money(r.paths[m.key][5])}</td>`
-    + `<td class="n">${fmt.money(r.paths[m.key][11])}</td>`
-    + `<td class="n">${fmt.money(r.paths[m.key][r.months - 1])}</td>`
-    + `<td class="n">${r.reaches[m.key] ? 'month ' + r.reaches[m.key]
-        : 'not inside ' + r.months + ' months'}</td></tr>`);
+  const rows = runs.map(x =>
+    `<tr><td>${x.cm.label}, ${x.pm.label.toLowerCase()}</td>`
+    + `<td class="n">${fmt.money(x.r.path[5])}</td>`
+    + `<td class="n">${fmt.money(x.r.path[11])}</td>`
+    + `<td class="n">${fmt.money(x.r.path[lead.months - 1])}</td>`
+    + `<td class="n">${x.r.reaches[x.cm.key] ? 'month ' + x.r.reaches[x.cm.key]
+        : 'not inside ' + lead.months + ' months'}</td></tr>`);
   $('levers-table').innerHTML =
-    '<thead><tr><th>Churn assumption</th><th class="n">6 months</th><th class="n">12 months</th>'
-    + `<th class="n">${r.months} months</th><th class="n">Reaches a million</th></tr></thead>`
+    '<thead><tr><th>Assumptions</th><th class="n">6 months</th><th class="n">12 months</th>'
+    + `<th class="n">${lead.months} months</th><th class="n">Reaches a million</th></tr></thead>`
     + `<tbody>${rows.join('')}</tbody>`;
 
   $('levers-note').textContent =
-    'Price is not a number on this chart, it is a ladder. The demand curve gives what the '
-    + 'q-th best prospect will pay and no more, and the policy is to match it: everyone above '
-    + 'the floor pays their own willingness, capped at $2,500. Revenue is then the area under '
-    + 'the ladder rather than a rectangle under one point, which is why it beats every single '
-    + 'price quoted to everybody. The floor is the one real decision, because it is the '
-    + 'business you are willing to turn away; the ceiling is fixed where September tested it. '
-    + 'The ladder itself is fitted through three points and only one is controlled. September '
-    + 'closed nine at a fixed $2,500 and the same pipeline was judged good for fourteen at a '
-    + '$1,500 floor, which is a partial month and a judgement on the counterfactual, so it is '
-    + 'used for the slope of demand and not its level; where the ladder sits comes from the '
-    + 'trailing six months of the book, and the ladder above $2,300 rests on September alone '
-    + 'because the year’s signings are censored there: eight of them sit at exactly '
-    + '$2,250, which is a price list and not a demand curve. The form makes the effect '
-    + 'diminish as volume rises, '
-    + 'which is what those points together say. Pipeline scales the ladder rather than moving '
-    + 'it: twice the leads is twice as many prospects at every level of willingness, not the '
-    + 'same prospects paying more. How many customers close is an outcome of those two and '
-    + 'not something set directly — it is however many prospects will pay at least the '
-    + 'floor, so the same pipeline closes fifteen at a $1,500 floor and twenty-six at $1,000. Arrivals are deseasonalised against a centred year of '
-    + 'themselves, levelled on the average of the last three and last six months, and the 95% '
-    + 'band is the spread of the last twelve deseasonalised months; the season goes back on '
-    + 'month by month, which is why the band is wider in October than in December. The book '
-    + 'itself decays along chart 44’s curve, new business along chart 46’s '
-    + 'recent-intake curve, corrected by the drift chart 45 backtested.';
+    'Three inputs. The band is the price range you will sell inside: everyone above the '
+    + 'floor pays what they are willing to, capped at the top. Churn is the measured trend in '
+    + 'how fast revenue falls away after signing, and trying hard is the top of that '
+    + 'estimate’s 95% interval. New customers a month is the last six months with the '
+    + 'season taken out and put back, and the upper end is the top of its 95% interval. '
+    + 'One assumption sits underneath: what people will pay at each level is taken from '
+    + 'September, the only month a matched price was asked for, where nine paid $2,500 and '
+    + 'fourteen were judged good at a $1,500 floor. The year’s own prices cannot tell us '
+    + 'that, because they are a price list rather than a market: forty customers at exactly '
+    + '$1,000 and a hundred and seventy-nine of two hundred and twenty-six on one of fifteen '
+    + 'round numbers. The book already on the shelf decays along chart 44’s curve and '
+    + 'new business along chart 46’s, with the carry-forward correction chart 45 '
+    + 'backtested at about six points of error a year out.';
 }
 
 function renderPastDue() {

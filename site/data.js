@@ -3884,7 +3884,7 @@ export function arrivalOutlook(data, { horizon = 24 } = {}) {
     const s = adjusted.slice(-w);
     return s.reduce((a, b) => a + b, 0) / s.length;
   };
-  const base = (level(3) + level(6)) / 2;
+  const base = level(6);
   const last12 = adjusted.slice(-12);
   const m12 = last12.reduce((a, b) => a + b, 0) / last12.length;
   const sd = Math.sqrt(last12.reduce((a, b) => a + (b - m12) ** 2, 0) / (last12.length - 1));
@@ -3935,21 +3935,13 @@ export const CHURN_MODES = [
 // the pipeline are the two things you can actually decide, so the cards are
 // combinations of those rather than alternative ways to price.
 export const SCENARIO_CARDS = [
-  { key: 'now', label: 'As we are', pipeline: 1, floor: 1500, ceiling: 2500,
-    headline: 'Match $2,500 down to $1,500, at the pipeline you have',
-    detail: 'The band September tested, on today’s flow of leads.' },
-  { key: 'wider', label: 'Wider band', pipeline: 1, floor: 1000, ceiling: 2500,
-    headline: 'Same pipeline, take business down to $1,000',
-    detail: 'Reaches the tier that retains best on this book: $1,000 to $1,500 keeps '
-      + '77% of its revenue at a year against 69% just above it.' },
-  { key: 'more', label: 'More pipeline', pipeline: 2, floor: 1500, ceiling: 2500,
-    headline: 'Twice the leads, same band',
-    detail: 'Twice as many prospects at every level of willingness. The ladder '
-      + 'lengthens, it does not move.' },
-  { key: 'both', label: 'Both', pipeline: 2, floor: 1000, ceiling: 2500,
-    headline: 'Twice the leads and the wider band',
-    detail: 'Twice the leads and the wider band together. Whether this or More '
-      + 'pipeline alone clears a million depends on the capture dial below.' },
+  { key: 'band', label: 'Hold the tested band', floor: 1500, ceiling: 2500,
+    headline: '$2,500 down to $1,500',
+    detail: 'The band September tested. Turn away anything under $1,500.' },
+  { key: 'wider', label: 'Open the floor', floor: 1000, ceiling: 2500,
+    headline: '$2,500 down to $1,000',
+    detail: 'Take business down to $1,000, the tier that keeps the most of its revenue at '
+      + 'a year on this book.' },
 ];
 
 // Revenue forward, under one churn assumption and one point on the demand
@@ -3958,9 +3950,17 @@ export const SCENARIO_CARDS = [
 // drift chart 45 backtested.
 export const MWTP_CEILING = 2500;
 
+// New customers a month: the deseasonalised level of the last six months with
+// the season put back, and the top of its 95% interval as the hopeful case.
+export const PROSPECT_MODES = [
+  { key: 'expected', label: 'Expected trend',
+    blurb: 'The last six months, deseasonalised, with each coming month’s season put back.' },
+  { key: 'upper', label: 'Upper end',
+    blurb: 'The top of the 95% interval on that: what a good run of months looks like.' },
+];
+
 export function leverProjection(data, cohorts, {
-  pipeline = 1, floor = 1500, ceiling = MWTP_CEILING, capture = 0.5,
-  churn = 'trend', months = 24,
+  floor = 1500, ceiling = MWTP_CEILING, prospects = 'expected', churn = 'trend', months = 24,
 } = {}) {
   const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
   if (usable.length < 8) return null;
@@ -4052,12 +4052,19 @@ export function leverProjection(data, cohorts, {
   const demand = demandCurve(data);
   const outlook = arrivalOutlook(data, { horizon: months });
 
-  // One month of new business, priced by matching rather than by quoting. The
-  // pipeline multiplier scales the whole ladder: twice the leads is twice as
-  // many prospects at every level of willingness, not the same prospects paying
-  // more. Season goes on top of that.
-  const matched = demand.blend(ceiling, floor, capture);
-  const scaleAt = i => pipeline * (outlook ? outlook.forward[i].factor : 1);
+  // One month of new business, priced by matching. The ladder is September's,
+  // because September is the only month anybody priced by matching and the
+  // year's prices are a menu that says what was quoted rather than what would
+  // have been paid; that is the one assumption on this chart and the note says
+  // so. The ladder is scaled by how many prospects the season and the trend say
+  // will turn up, against the six-month level the ladder was measured on.
+  const matched = demand.matched(ceiling, floor);
+  const level = outlook ? outlook.base : demand.anchors[2].q;
+  const scaleAt = i => {
+    if (!outlook) return 1;
+    const f = outlook.forward[i];
+    return (prospects === 'upper' ? f.hi : f.expected) / Math.max(1, level);
+  };
   const soldAt = i => matched.closed * scaleAt(i);
   const revenueAt = i => matched.revenue * scaleAt(i);
 
@@ -4116,9 +4123,7 @@ export function leverProjection(data, cohorts, {
     months, book, drift, demand, outlook,
     paths, path: chosen,
     reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v)])),
-    matched, floor, ceiling, pipeline, capture,
-    optimistic: demand.matched(ceiling, floor),
-    conservative: demand.observed(ceiling, floor),
+    matched, floor, ceiling, prospects,
     settledVolume: settled,
     settledPrice: matched.averagePrice,
     newMrr: revenueAt(0),
