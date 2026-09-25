@@ -17,7 +17,7 @@ import {
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
-  leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast,
+  leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos,
 } from './data.js';
 import {
@@ -2055,6 +2055,7 @@ const MEASURES = [
     yTitle: 'Active customers', format: v => fmt.int(v) },
 ];
 const leverState = { card: 'band', floor: 1500, ceiling: 2500, measure: 'mrr',
+                     costBasis: 'staffed',
                      churn: { trend: true }, prospects: { expected: true } };
 
 function renderLevers() {
@@ -2098,6 +2099,9 @@ function renderLevers() {
     leverState.ceiling = c.ceiling;
   });
   singleSelect('lever-measure', MEASURES, 'measure', c => { leverState.measure = c.key; });
+  // The cost basis lives on chart 48, where the costs are, but chart 47's
+  // after-costs view follows it so the two never disagree.
+  singleSelect('cost-basis', COST_BASES, 'costBasis', c => { leverState.costBasis = c.key; });
 
   // Each switch is a card with its own reasoning under it, so a reader who has
   // never seen the page knows what "trying hard" means before they tick it.
@@ -2173,7 +2177,7 @@ function renderLevers() {
     for (const cm of churnModes) {
       runs.push({ pm, cm, r: leverProjection(data, cohorts, {
         floor: leverState.floor, ceiling: leverState.ceiling,
-        prospects: pm.key, churn: cm.key,
+        prospects: pm.key, churn: cm.key, costBasis: leverState.costBasis,
       }) });
     }
   }
@@ -2282,7 +2286,11 @@ function renderLevers() {
 // 48. Where the costs go, twelve months out. Follows chart 47's levers.
 function renderCostForecast(projection) {
   if (!$('chart-cost-forecast') || !projection) return;
-  const f = costForecast(data, projection, { months: 12 });
+  const basis = leverState.costBasis;
+  const f = costForecast(data, projection, { months: 12, basis });
+  const other = costForecast(data, projection, {
+    months: 12, basis: basis === 'scales' ? 'staffed' : 'scales',
+  });
   if (!f) {
     $('chart-cost-forecast').innerHTML = '<p class="empty">No expense lines in this push.</p>';
     return;
@@ -2310,6 +2318,8 @@ function renderCostForecast(projection) {
   });
 
   const driverWord = { fixed: 'Held flat', perLogo: 'Per customer', perRevenue: 'On revenue' };
+  const basisCard = COST_BASES.find(b => b.key === basis) || COST_BASES[0];
+  const otherCard = COST_BASES.find(b => b.key !== basis) || COST_BASES[1];
   const row = g =>
     `<tr${g.nonCash ? ' class="muted"' : ''}><td>${g.label}</td>`
     + `<td>${driverWord[g.driver]}${g.driver === 'perLogo'
@@ -2348,9 +2358,16 @@ function renderCostForecast(projection) {
   const largest = [...cash].sort((a, b) => b.total - a.total)[0];
   const twelve = sum('total', null);
   const rev12 = f.revenuePath.reduce((a, b) => a + b, 0);
+  const otherTwelve = other ? other.totalPath.reduce((a, b) => a + b, 0) : null;
   $('cost-forecast-finding').innerHTML =
-    `<strong>On the levers set above, the next twelve months cost ${fmt.money(twelve)} to run `
-    + `against ${fmt.money(rev12)} of recurring revenue, leaving ${fmt.money(rev12 - twelve)}.</strong> `
+    `<strong>${basisCard.label}: on the levers set above, the next twelve months cost `
+    + `${fmt.money(twelve)} to run against ${fmt.money(rev12)} of recurring revenue, leaving `
+    + `${fmt.money(rev12 - twelve)}.</strong> `
+    + (otherTwelve !== null
+        ? `${otherCard.label} instead, the same year costs ${fmt.money(otherTwelve)} and leaves `
+          + `${fmt.money(rev12 - otherTwelve)}; the ${fmt.money(Math.abs(otherTwelve - twelve))} `
+          + `between them is the payroll question. `
+        : '')
     + `${largest.label} is the largest line at ${fmt.money(largest.total)}. `
     + (grows.length
         ? `${grows.map(g => g.label.toLowerCase()).join(' and ')} `
@@ -2358,8 +2375,11 @@ function renderCostForecast(projection) {
           + `${grows.map(g => fmt.money(g.runRate)).join(' and ')} a month now to `
           + `${grows.map(g => fmt.money(g.path[11])).join(' and ')} in month twelve; `
         : '')
-    + `the four payroll lines are held where the last quarter left them, so the whole change `
-    + `in cost is the customer-driven lines following the book. `
+    + (basis === 'scales'
+        ? `the four payroll lines keep their last-quarter share of revenue, which is what two `
+          + `years of history did, so every line moves with the book. `
+        : `the four payroll lines are held where the last quarter left them, so the whole `
+          + `change in cost is the customer-driven lines following the book. `)
     + `Contribution goes from ${fmt.money((projection.book || f.revenuePath[0]) - sum('runRate', null))} `
     + `a month today to ${fmt.money(f.contributionPath[11])} in month twelve.`;
 
@@ -2367,9 +2387,14 @@ function renderCostForecast(projection) {
     'The seven groups are chart 33’s, carried forward on whatever actually moves each '
     + 'one. Acquisition, support, general and administrative and research and development '
     + 'are payroll: they step when someone is hired or let go and otherwise sit still, so '
-    + 'each is held at the average of the last three months rather than six, because '
-    + 'support has fallen a third in that time and a six-month average would carry staffing '
-    + 'that has already gone. Platform cost of sales follows the customer and is a rate per '
+    + 'each is either held at the average of the last three months or carried at its '
+    + 'last-quarter share of recurring revenue, and the cards above choose which. Three '
+    + 'months rather than six because support has fallen a third in that time and a '
+    + 'six-month average would carry staffing that has already gone. Two years of history '
+    + 'says these lines ran as a fairly steady share of revenue, acquisition at about a '
+    + 'quarter of MRR and G&A at about a fifth, which is the case for the second basis; the '
+    + '2026 cuts are the case for the first. Platform cost of sales follows the customer and '
+    + 'is a rate per '
     + 'active logo over the last six months, applied to the customers chart 47 projects. '
     + 'Revenue share follows the bill and is a rate on recurring revenue; the rate is the '
     + 'median of the last six months rather than the mean, because August carries a '
