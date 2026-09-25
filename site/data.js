@@ -3815,23 +3815,25 @@ export const CHURN_MODES = [
       + 'their revenue at a year against 44% now.' },
 ];
 
+// There is one pricing policy, not four. Matching is the policy; the band and
+// the pipeline are the two things you can actually decide, so the cards are
+// combinations of those rather than alternative ways to price.
 export const SCENARIO_CARDS = [
-  { key: 'match', label: 'Match willingness to pay', pipeline: 1, floor: 1500,
-    headline: '$2,500 down to $1,500, everyone at their own number',
-    detail: 'The policy, at the pipeline you already have. Beats every single price '
-      + 'quoted to everybody, which is what September actually showed.' },
-  { key: 'premium', label: 'Premium only', pipeline: 1, floor: 2500,
-    headline: 'Sell only to the top of the ladder',
-    detail: 'September as it was run. Nine close, the rest walk, and the surplus from '
-      + 'the nine is the only revenue.' },
-  { key: 'widen', label: 'Widen the band', pipeline: 1, floor: 1000,
-    headline: 'Same matching, floor dropped to $1,000',
-    detail: 'Reaches the band that retains best on this book, $1,000 to $1,500 at 77% '
-      + 'of revenue kept at a year.' },
-  { key: 'push', label: 'Volume push', pipeline: 2, floor: 1500,
-    headline: 'Twice the pipeline, same matching',
-    detail: 'Twice the leads is twice as many prospects at every level of willingness. '
-      + 'The ladder does not move, it lengthens.' },
+  { key: 'now', label: 'As we are', pipeline: 1, floor: 1500, ceiling: 2500,
+    headline: 'Match $2,500 down to $1,500, at the pipeline you have',
+    detail: 'The band September tested, on today’s flow of leads.' },
+  { key: 'wider', label: 'Wider band', pipeline: 1, floor: 1000, ceiling: 2500,
+    headline: 'Same pipeline, take business down to $1,000',
+    detail: 'Reaches the tier that retains best on this book: $1,000 to $1,500 keeps '
+      + '77% of its revenue at a year against 69% just above it.' },
+  { key: 'more', label: 'More pipeline', pipeline: 2, floor: 1500, ceiling: 2500,
+    headline: 'Twice the leads, same band',
+    detail: 'Twice as many prospects at every level of willingness. The ladder '
+      + 'lengthens, it does not move.' },
+  { key: 'both', label: 'Both', pipeline: 2, floor: 1000, ceiling: 2500,
+    headline: 'Twice the leads and the wider band',
+    detail: 'The only combination on this chart that clears a million on churn as '
+      + 'it stands rather than on churn improving.' },
 ];
 
 // Revenue forward, under one churn assumption and one point on the demand
@@ -3841,7 +3843,7 @@ export const SCENARIO_CARDS = [
 export const MWTP_CEILING = 2500;
 
 export function leverProjection(data, cohorts, {
-  pipeline = 1, floor = 1500, churn = 'holds', months = 24, band = false,
+  pipeline = 1, floor = 1500, ceiling = MWTP_CEILING, churn = 'holds', months = 24, band = false,
 } = {}) {
   const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
   if (usable.length < 8) return null;
@@ -3922,7 +3924,7 @@ export function leverProjection(data, cohorts, {
   // pipeline multiplier scales the whole ladder: twice the leads is twice as
   // many prospects at every level of willingness, not the same prospects paying
   // more. Season goes on top of that.
-  const matched = demand.matched(MWTP_CEILING, floor);
+  const matched = demand.matched(ceiling, floor);
   const scaleAt = i => pipeline * (outlook ? outlook.forward[i].factor : 1);
   const soldAt = i => matched.closed * scaleAt(i);
   const revenueAt = i => matched.revenue * scaleAt(i);
@@ -3997,7 +3999,7 @@ export function leverProjection(data, cohorts, {
     months, book, drift, demand, outlook,
     paths, path: chosen, lo, hi,
     reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v)])),
-    matched, floor, ceiling: MWTP_CEILING, pipeline,
+    matched, floor, ceiling, pipeline,
     settledVolume: settled,
     settledPrice: matched.averagePrice,
     newMrr: revenueAt(0),

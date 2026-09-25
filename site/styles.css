@@ -881,3 +881,30 @@ figcaption { margin-bottom: .9rem; }
 .scenario-card strong { font-size: 0.95rem; }
 .scenario-card span { font-size: 0.82rem; color: var(--ink-soft); }
 .scenario-card em { font-size: 0.76rem; color: var(--ink-soft); font-style: normal; opacity: 0.85; }
+
+/* A band has two ends, so it gets one track with two handles. There is no such
+   input element, so this is two ranges stacked: the second keeps its thumb and
+   gives up its track, and both hand pointer events back to the thumbs only. */
+.range-pair-row { align-items: center; }
+.range-pair {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+  display: flex;
+  align-items: center;
+}
+.range-pair input[type="range"] {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  accent-color: var(--series-1);
+}
+.range-pair input[type="range"]::-webkit-slider-thumb { pointer-events: auto; }
+.range-pair input[type="range"]::-moz-range-thumb { pointer-events: auto; }
+.range-pair input[type="range"]:last-child::-webkit-slider-runnable-track { background: none; }
+.range-pair input[type="range"]:last-child::-moz-range-track { background: none; }
+.chart-control output { min-width: 22ch; }

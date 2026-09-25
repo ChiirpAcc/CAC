@@ -2042,8 +2042,8 @@ function renderWindowCurve() {
 }
 
 // 47. Every lever, against what it does to revenue.
-const leverState = { card: 'match', churn: { holds: true },
-                     pipeline: 1, floor: 1500, ready: true };
+const leverState = { card: 'now', churn: { holds: true },
+                     pipeline: 1, floor: 1500, ceiling: 2500, ready: true };
 
 function renderLevers() {
   if (!$('chart-levers')) return;
@@ -2075,6 +2075,7 @@ function renderLevers() {
       leverState.card = c.key;
       leverState.pipeline = c.pipeline;
       leverState.floor = c.floor;
+      leverState.ceiling = c.ceiling;
       renderLevers();
     });
     cardBox.dataset.ready = '1';
@@ -2112,35 +2113,49 @@ function renderLevers() {
 
   const setBox = $('lever-settings');
   if (setBox && !setBox.dataset.ready) {
-    const row = (id, label, min, max, step) =>
-      '<div class="chart-control">'
-      + '<label for="lever-' + id + '">' + label + '</label>'
-      + '<input type="range" id="lever-' + id + '" min="' + min + '" max="' + max
-      + '" step="' + step + '">'
-      + '<output id="lever-' + id + '-value"></output></div>';
+    // Two handles on one track. There is no such input, so it is two ranges
+    // stacked with the track made transparent on the upper one and pointer
+    // events handed back to the thumbs; the alternative is a bare pair of
+    // sliders that do not look like the one thing they are.
     setBox.innerHTML =
-      row('floor', 'Lowest price worth taking', 800, 2500, 25)
-      + row('pipeline', 'Pipeline against today', 0.4, 3, 0.05);
+      '<div class="chart-control range-pair-row">'
+      + '<label for="lever-band-lo">The band you will price inside</label>'
+      + '<div class="range-pair">'
+      + '<input type="range" id="lever-band-lo" min="800" max="3000" step="25">'
+      + '<input type="range" id="lever-band-hi" min="800" max="3000" step="25">'
+      + '</div>'
+      + '<output id="lever-band-value"></output></div>'
+      + '<div class="chart-control">'
+      + '<label for="lever-pipeline">Pipeline against today</label>'
+      + '<input type="range" id="lever-pipeline" min="0.4" max="3" step="0.05">'
+      + '<output id="lever-pipeline-value"></output></div>';
     setBox.addEventListener('input', event => {
       leverState.card = null;
-      if (event.target.id === 'lever-floor') leverState.floor = Number(event.target.value);
-      else leverState.pipeline = Number(event.target.value);
+      const GAP = 100;
+      if (event.target.id === 'lever-band-lo') {
+        leverState.floor = Math.min(Number(event.target.value), leverState.ceiling - GAP);
+      } else if (event.target.id === 'lever-band-hi') {
+        leverState.ceiling = Math.max(Number(event.target.value), leverState.floor + GAP);
+      } else {
+        leverState.pipeline = Number(event.target.value);
+      }
       renderLevers();
     });
     setBox.dataset.ready = '1';
   }
-  if ($('lever-floor')) $('lever-floor').value = String(leverState.floor);
+  if ($('lever-band-lo')) $('lever-band-lo').value = String(leverState.floor);
+  if ($('lever-band-hi')) $('lever-band-hi').value = String(leverState.ceiling);
   if ($('lever-pipeline')) $('lever-pipeline').value = String(leverState.pipeline);
 
   const r = leverProjection(data, cohorts, {
     pipeline: leverState.pipeline, floor: leverState.floor,
-    churn: modes[0].key, band: true,
+    ceiling: leverState.ceiling, churn: modes[0].key, band: true,
   });
 
-  if ($('lever-floor-value')) {
-    $('lever-floor-value').textContent = fmt.money(leverState.floor)
-      + ' · ' + fmt.int(r.settledVolume) + ' close, averaging '
-      + fmt.money(r.settledPrice);
+  if ($('lever-band-value')) {
+    $('lever-band-value').textContent = fmt.money(leverState.floor) + ' to '
+      + fmt.money(leverState.ceiling) + ' · ' + fmt.int(r.settledVolume)
+      + ' close, averaging ' + fmt.money(r.settledPrice);
   }
   if ($('lever-pipeline-value')) {
     $('lever-pipeline-value').textContent = leverState.pipeline.toFixed(2) + '×'
