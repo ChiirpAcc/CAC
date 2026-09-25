@@ -2042,7 +2042,7 @@ function renderWindowCurve() {
 }
 
 // 47. Every lever, against what it does to revenue.
-const leverState = { card: 'now', churn: { holds: true },
+const leverState = { card: 'now', churn: { trend: true },
                      pipeline: 1, floor: 1500, ceiling: 2500, ready: true };
 
 function renderLevers() {
@@ -2094,7 +2094,7 @@ function renderLevers() {
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.value = m.key;
-      input.checked = m.key === 'holds';
+      input.checked = m.key === 'trend';
       const text = document.createElement('span');
       text.innerHTML = `<span>${m.label}</span>`;
       label.append(input, text);
@@ -2147,15 +2147,18 @@ function renderLevers() {
   if ($('lever-band-hi')) $('lever-band-hi').value = String(leverState.ceiling);
   if ($('lever-pipeline')) $('lever-pipeline').value = String(leverState.pipeline);
 
-  const r = leverProjection(data, cohorts, {
-    pipeline: leverState.pipeline, floor: leverState.floor,
-    ceiling: leverState.ceiling, churn: modes[0].key, band: true,
-  });
+  const common = {
+    pipeline: leverState.pipeline, floor: leverState.floor, ceiling: leverState.ceiling,
+  };
+  const r = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
+                                             evidence: 'observed' });
+  const hopeful = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
+                                                   evidence: 'september' });
 
   if ($('lever-band-value')) {
     $('lever-band-value').textContent = fmt.money(leverState.floor) + ' to '
-      + fmt.money(leverState.ceiling) + ' · ' + fmt.int(r.settledVolume)
-      + ' close, averaging ' + fmt.money(r.settledPrice);
+      + fmt.money(leverState.ceiling) + ' · ' + fmt.int(r.settledVolume) + ' to '
+      + fmt.int(hopeful.settledVolume) + ' close a month';
   }
   if ($('lever-pipeline-value')) {
     // Closes are an outcome of these two, never an input. A reader who reads
@@ -2168,18 +2171,18 @@ function renderLevers() {
   }
 
   const labels = r.path.map((_, i) => `M${i + 1}`);
-  const colours = { holds: INK.primary, projection: INK.negative, improves: INK.positive };
+  const colours = { trend: INK.primary, effort: INK.positive };
   const series = modes.map(m => ({
     label: m.label, colour: colours[m.key] || INK.primary, values: r.paths[m.key],
   }));
   // The interval is on how many prospects turn up, not on what they will pay,
   // so it is drawn once around the first churn line rather than three times.
-  if (r.lo && r.hi) {
-    series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
-                  values: r.hi });
-    series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
-                  values: r.lo });
-  }
+  // The band is what the two bodies of evidence disagree by, which is far wider
+  // than anything the arrivals noise contributes and is the honest uncertainty
+  // here. Lower edge is what has actually closed at each price this year; upper
+  // edge is what September's test implies matching would unlock.
+  series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
+                values: hopeful.paths[modes[0].key] });
 
   multiLineChart($('chart-levers'), {
     labels,
@@ -2195,8 +2198,8 @@ function renderLevers() {
     ],
     describe: i => `<strong>Month ${i + 1}</strong>`
       + modes.map(m => `<span>${m.label}: ${fmt.money(r.paths[m.key][i])}</span>`).join('')
-      + (r.lo ? `<span class="muted">Pipeline 95% band: ${fmt.money(r.lo[i])} to `
-          + `${fmt.money(r.hi[i])}</span>` : '')
+      + `<span class="muted">On September's evidence instead: `
+        + `${fmt.money(hopeful.paths[modes[0].key][i])}</span>`
       + (outlook && outlook.forward[i]
           ? `<span class="muted">Season that month: ${outlook.forward[i].factor.toFixed(2)}`
             + `×</span>` : ''),
@@ -2211,20 +2214,22 @@ function renderLevers() {
 
   $('levers-finding').innerHTML =
     (card ? `<strong>${card.label}.</strong> ${card.headline}. ` : '<strong>Set by hand.</strong> ')
-    + `<strong>Matching willingness to pay between ${fmt.money(r.ceiling)} and `
-    + `${fmt.money(r.floor)} closes ${fmt.int(r.settledVolume)} a month at an average of `
-    + `${fmt.money(r.settledPrice)}, which is ${fmt.money(r.newMrr)} of new revenue.</strong> `
-    + `Quoting everybody ${fmt.money(r.ceiling)} takes ${fmt.money(quoteHigh)} from the same `
-    + `pipeline and quoting everybody ${fmt.money(r.floor)} takes ${fmt.money(quoteLow)}. `
-    + `Matching beats the better of those by `
-    + `${fmt.pct(flat.revenue / Math.max(quoteHigh, quoteLow) - 1, 0)}, and that is the whole `
-    + `argument: a single number either turns away everyone below it or hands the surplus back `
-    + `to everyone above it. `
+    + `<strong>Two bodies of evidence disagree about this band, and the gap between them is `
+    + `wider than anything else on the chart.</strong> This year has closed `
+    + `${fmt.int(r.settledVolume)} a month at ${fmt.money(r.floor)} or better, worth `
+    + `${fmt.money(r.newMrr)}. September's test implies matching would find `
+    + `${fmt.int(hopeful.settledVolume)} a month worth ${fmt.money(hopeful.newMrr)}, which is `
+    + `${(hopeful.newMrr / Math.max(1, r.newMrr)).toFixed(1)} times as much. `
+    + `The solid line takes the first, the dashed line the second. `
+    + `The first rests on ${fmt.int(demand.sampleThisYear)} signings and the second on nine in `
+    + `a partial month, so the solid line is the one to plan on; but those `
+    + `${fmt.int(demand.sampleThisYear)} are prices people were charged rather than prices `
+    + `they would have paid, and the whole point of matching is that the difference is real. `
     + (got.length
         ? `<strong>${got.map(x => `${x.m.label.toLowerCase()} reaches a million in month `
-            + `${x.at}`).join(', and ')}.</strong> `
-        : `<strong>None of the churn assumptions on screen reach a million inside `
-          + `${r.months} months.</strong> `)
+            + `${x.at}`).join(', and ')}, on this year's evidence.</strong> `
+        : `<strong>On this year's evidence none of the churn assumptions on screen reach a `
+          + `million inside ${r.months} months.</strong> `)
     + modes.map(m => `${m.label} ends at ${fmt.money(r.paths[m.key][r.months - 1])}`).join('; ')
     + '.';
 

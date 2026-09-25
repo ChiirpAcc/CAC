@@ -3710,12 +3710,61 @@ export function demandCurve(data) {
     return { ceiling, floor, closed: qf, atCeiling: qc, revenue,
              averagePrice: qf ? revenue / qf : 0 };
   };
+  // What has actually closed at each price this year, taken from the signings
+  // themselves rather than from a curve. Two hundred and twenty-six of them
+  // against September's nine, so this is the confident edge and September is
+  // the hopeful one.
+  //
+  // The two disagree by a lot and the disagreement is the finding. September
+  // closed nine at a fixed $2,500; this year has closed none at all above
+  // $2,500 and 4.6 a month above $1,500. Either September's pipeline was not
+  // the usual pipeline, or matching unlocks willingness that quoting never
+  // found. Both are possible and neither is established, so the chart carries
+  // the span rather than picking.
+  //
+  // A caveat that runs the other way: these are prices people were charged,
+  // not prices they would have paid. Every one of them is a lower bound on
+  // that customer's willingness, which is exactly the surplus matching is
+  // meant to collect.
+  const thisYear = [];
+  {
+    const seen = new Map();
+    const at = new Map();
+    for (const row of data.customers) {
+      if (!row.active) continue;
+      if (!at.has(row.month)) at.set(row.month, new Map());
+      at.get(row.month).set(row.id, row.eopMrr || 0);
+      if (!seen.has(row.id) || row.month < seen.get(row.id)) seen.set(row.id, row.month);
+    }
+    const ms = [...at.keys()].sort();
+    const idx = new Map(ms.map((m, i) => [m, i]));
+    const year = ms[ms.length - 1].slice(0, 4);
+    for (const [id, first] of seen) {
+      if (first === ms[0] || first.slice(0, 4) !== year) continue;
+      const next = ms[idx.get(first) + 1];
+      if (!next) continue;
+      const v = at.get(next).get(id);
+      if (v === undefined || v <= 0) continue;
+      thisYear.push(v);
+    }
+    var yearMonths = new Set([...seen.values()].filter(m => m.slice(0, 4) === year)).size || 1;
+  }
+  const observed = (ceiling, floor) => {
+    const kept = thisYear.filter(v => v >= floor);
+    const revenue = kept.reduce((s, v) => s + Math.min(v, ceiling), 0) / yearMonths;
+    const closed = kept.length / yearMonths;
+    return { ceiling, floor, closed, revenue, averagePrice: closed ? revenue / closed : 0 };
+  };
+
   return {
     anchors,
     floor: best.floor,
     k: best.k,
     priceFor,
     matched,
+    observed,
+    sampleThisYear: thisYear.length,
+    monthsThisYear: yearMonths,
     volumeFor,
     // Dollars of price given up for one more customer, at that volume.
     marginAt: q => priceFor(q + 0.5) - priceFor(q - 0.5),
@@ -3804,15 +3853,24 @@ export function arrivalOutlook(data, { horizon = 24 } = {}) {
 // The three ways the curve can go, each anchored to something measured rather
 // than to a round number. Drawn together when more than one is ticked, because
 // the honest answer to "what happens to revenue" is a fan and not a line.
+// Two ends of one projection rather than three separate stories.
+//
+// The trend is the drift chart 45 measured: how much faster a cohort actually
+// falls away than the average shape says it should. Trying hard is the top of
+// that estimate's own 95% interval, which is the honest shape of "we push on
+// retention and it works" -- it is not a different world, it is the good end of
+// this one.
+//
+// The interval is clustered by cohort. The drift is fitted on four thousand
+// overlapping pairs drawn from thirty-two cohorts, and treating those as four
+// thousand independent observations understates the error elevenfold.
 export const CHURN_MODES = [
-  { key: 'holds', label: 'Churn holds',
-    blurb: 'The newest intakes with a full year behind them keep behaving as they have.' },
-  { key: 'projection', label: 'Churn keeps drifting',
-    blurb: 'The per-month drift chart 45 measured carries on, so each intake is slightly '
-      + 'worse than the one before it.' },
-  { key: 'improves', label: 'Churn improves',
-    blurb: 'Back to the best vintage on the book, the early 2024 intakes, which kept 58% of '
-      + 'their revenue at a year against 44% now.' },
+  { key: 'trend', label: 'On current trend',
+    blurb: 'The measured drift carries on, so each intake falls away a little faster '
+      + 'than the average shape says it should.' },
+  { key: 'effort', label: 'Trying hard',
+    blurb: 'The top of the 95% interval on that drift. Retention gains about 4% a year '
+      + 'instead of losing about 4%.' },
 ];
 
 // There is one pricing policy, not four. Matching is the policy; the band and
@@ -3832,8 +3890,8 @@ export const SCENARIO_CARDS = [
       + 'lengthens, it does not move.' },
   { key: 'both', label: 'Both', pipeline: 2, floor: 1000, ceiling: 2500,
     headline: 'Twice the leads and the wider band',
-    detail: 'The only combination on this chart that clears a million on churn as '
-      + 'it stands rather than on churn improving.' },
+    detail: 'The combination that clears a million soonest, and the only one that '
+      + 'does it without needing retention work to land.' },
 ];
 
 // Revenue forward, under one churn assumption and one point on the demand
@@ -3843,7 +3901,8 @@ export const SCENARIO_CARDS = [
 export const MWTP_CEILING = 2500;
 
 export function leverProjection(data, cohorts, {
-  pipeline = 1, floor = 1500, ceiling = MWTP_CEILING, churn = 'holds', months = 24, band = false,
+  pipeline = 1, floor = 1500, ceiling = MWTP_CEILING, evidence = 'observed',
+  churn = 'trend', months = 24, band = false,
 } = {}) {
   const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
   if (usable.length < 8) return null;
@@ -3884,6 +3943,7 @@ export function leverProjection(data, cohorts, {
 
   let num = 0;
   let den = 0;
+  const pairs = [];
   for (const c of usable) {
     const top = Math.min(c.maxOffset, referenceRaw.length - 1, 24);
     const at = a => (a <= top ? c.cappedRetainedRevenue[a] / c.retainedStartingRevenue[0] : null);
@@ -3895,12 +3955,21 @@ export function leverProjection(data, cohorts, {
         if (!y || y <= 0 || !reference[b]) continue;
         const moved = Math.log(y / x) - Math.log(reference[b] / reference[a]);
         if (!Number.isFinite(moved)) continue;
+        pairs.push({ gap: b - a, moved });
         num += moved * (b - a);
         den += (b - a) ** 2;
       }
     }
   }
   const drift = den ? num / den : 0;
+  // Clustered on cohorts, not on pairs. The pairs overlap heavily -- every
+  // cohort contributes one for each ordering of its own ages -- so the naive
+  // standard error is about a tenth of the real one.
+  let sse = 0;
+  for (const o of pairs) sse += (o.moved - drift * o.gap) ** 2;
+  const seNaive = pairs.length > 1 && den
+    ? Math.sqrt(sse / (pairs.length - 1) / den) : 0;
+  const driftSe = seNaive * Math.sqrt(pairs.length / Math.max(1, usable.length));
 
   const live = [];
   let covered = 0;
@@ -3924,48 +3993,32 @@ export function leverProjection(data, cohorts, {
   // pipeline multiplier scales the whole ladder: twice the leads is twice as
   // many prospects at every level of willingness, not the same prospects paying
   // more. Season goes on top of that.
-  const matched = demand.matched(ceiling, floor);
+  const matched = evidence === 'september'
+    ? demand.matched(ceiling, floor) : demand.observed(ceiling, floor);
   const scaleAt = i => pipeline * (outlook ? outlook.forward[i].factor : 1);
   const soldAt = i => matched.closed * scaleAt(i);
   const revenueAt = i => matched.revenue * scaleAt(i);
 
-  const curveFor = mode => (mode === 'improves' ? best : held);
-  const driftFor = mode => (mode === 'projection' ? drift : 0);
-
-  // A churn assumption has to reach the book already on the shelf, not only the
-  // cohorts not yet signed. A retention programme that only helped customers
-  // who have not arrived yet would be a strange programme, and the first cut of
-  // this chart had exactly that bug: improving churn moved twenty-four months
-  // out by fifteen per cent because it was reaching a fifth of the revenue.
-  //
-  // The size of the improvement is not picked. It is how much better the best
-  // vintage on the book actually was at a year than the newest one is.
-  // Expressed as a cut to the loss rather than an uplift to the level. A rate
-  // added on compounds, and at 2.6% a month it turned the whole book into the
-  // best vintage and then kept going, reaching a million on retention work
-  // alone. Cutting the monthly loss by the proportion the best vintage beat the
-  // newest one is bounded by construction: it can approach keeping everything
-  // and can never exceed it.
-  const lossRatio = (best[12] && held[12])
-    ? Math.min(1, (1 - best[12]) / (1 - held[12])) : 1;
-  const improve = (rate, mode) => (mode === 'improves'
-    ? 1 - (1 - rate) * lossRatio : rate);
-  const bookRate = mode => (mode === 'projection' ? drift : 0);
+  // One curve, two drifts. Trying hard is the top of the drift's own interval
+  // and reaches the book already on the shelf as well as the cohorts not yet
+  // signed, because a retention programme that only helped customers who have
+  // not arrived yet would be a strange programme.
+  const curveFor = () => held;
+  const driftFor = mode => (mode === 'effort' ? drift + 1.96 * driftSe : drift);
 
   const run = (mode, shift = 0) => {
-    const newCurve = curveFor(mode);
+    const newCurve = curveFor();
     const d = driftFor(mode);
     const out = [];
     for (let h = 1; h <= months; h += 1) {
       let total = 0;
       for (const c of live) {
         const to = c.age + h;
-        const raw = (reference[to] && reference[c.age])
-          ? (reference[to] / reference[c.age]) * Math.exp(bookRate(mode) * h)
-          : matureRate ** h;
-        total += c.mrr * improve(raw ** (1 / h), mode) ** h;
+        total += c.mrr * ((reference[to] && reference[c.age])
+          ? (reference[to] / reference[c.age]) * Math.exp(d * h)
+          : matureRate ** h);
       }
-      total += censored * improve(matureRate * Math.exp(bookRate(mode)), mode) ** h;
+      total += censored * (matureRate * Math.exp(d)) ** h;
       for (let k = 1; k <= h; k += 1) {
         const age = h - k;
         let money = revenueAt(k - 1);
@@ -3999,7 +4052,9 @@ export function leverProjection(data, cohorts, {
     months, book, drift, demand, outlook,
     paths, path: chosen, lo, hi,
     reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v)])),
-    matched, floor, ceiling, pipeline,
+    matched, floor, ceiling, pipeline, evidence,
+    optimistic: demand.matched(ceiling, floor),
+    conservative: demand.observed(ceiling, floor),
     settledVolume: settled,
     settledPrice: matched.averagePrice,
     newMrr: revenueAt(0),
