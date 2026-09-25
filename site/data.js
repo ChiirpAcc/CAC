@@ -3305,15 +3305,27 @@ export function cohortRevenueRetention(cohorts, {
       const base = live.reduce((s, c) => s + (c.retainedStartingRevenue[0] || 0), 0);
       if (live.length < needed || base < floor) break;
       const capped = live.reduce((s, c) => s + (c.cappedRetainedRevenue[age] || 0), 0);
+      // Each member weighted by what they were worth at the start, then asked
+      // only whether they are still here. Departure is survival, so per cohort
+      // this cannot fall: once a customer is gone they stay gone. The blended
+      // line can still dip, and when it does it is a cohort ageing out of the
+      // sample rather than money coming back, which is picked up below.
+      const survivingStart = live.reduce((s, c) => s + (c.retainedStartingRevenue[age] || 0), 0);
       const withExpansion = live.reduce((s, c) => s + (c.survivorRevenue[age] || 0), 0);
       const logoBase = live.reduce((s, c) => s + (c.survivors[0] || 0), 0);
       const logosLeft = live.reduce((s, c) => s + (c.survivors[age] || 0), 0);
       points.push({
         age,
         gross: base ? capped / base : null,
-        // The same number the other way up. Everything of the starting revenue
-        // that is no longer arriving, whether the customer left or stayed on
-        // less, which is the reading the chart is drawn in.
+        // The drawn line: the starting revenue that walked out with a customer
+        // who is no longer here. Departures only, which is what makes it a
+        // running total that cannot come back down.
+        departed: base ? 1 - survivingStart / base : null,
+        // The wider reading, carried in the hover. Everything of the starting
+        // revenue that is no longer arriving, whether the customer left or
+        // stayed on less. It is the larger number by a long way, and it is not
+        // a running total: a customer who downgrades and later returns to their
+        // old rate puts their money back, so this one can fall.
         churned: base ? 1 - capped / base : null,
         net: base ? withExpansion / base : null,
         logos: logoBase ? logosLeft / logoBase : null,
@@ -3333,6 +3345,16 @@ export function cohortRevenueRetention(cohorts, {
   })).filter(s => s.points.length > 1);
 
   const blended = curve(usable, { needed: 4 });
+
+  // Departure is survival and cannot reverse, so where the blended line falls
+  // it is always a cohort leaving the sample as the line runs right. Detected
+  // rather than asserted, because which ages kink moves as new data lands.
+  blended.dips = blended.filter((p, i) => i > 0 && p.departed < blended[i - 1].departed - 1e-9)
+    .map(p => {
+      const before = blended[blended.indexOf(p) - 1];
+      return { age: p.age, from: before.departed, to: p.departed,
+               lostFromSample: before.cohorts - p.cohorts };
+    });
 
   // The slope between one age and the next, which is what a projection needs
   // and what a cumulative curve hides. Read off the blended line.

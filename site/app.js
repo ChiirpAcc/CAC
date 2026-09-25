@@ -1527,7 +1527,7 @@ function renderRevTenure() {
   const labels = r.blended.map(p => `M${p.age}`);
   const pad = points => labels.map((_, i) => {
     const p = points.find(x => x.age === i);
-    return p ? p.churned : null;
+    return p ? p.departed : null;
   });
 
   const series = r.series
@@ -1538,7 +1538,7 @@ function renderRevTenure() {
     label: 'Every cohort blended',
     colour: INK.tertiary,
     dashed: true,
-    values: r.blended.map(p => p.churned),
+    values: r.blended.map(p => p.departed),
   });
 
   const drawn = series.flatMap(s => s.values).filter(v => v !== null && Number.isFinite(v));
@@ -1554,15 +1554,16 @@ function renderRevTenure() {
       const rows = r.series.map(s => {
         const p = s.points.find(x => x.age === i);
         return p
-          ? `<span>${s.label}: ${fmt.pct(p.churned, 1)} of its revenue gone, so `
-            + `${fmt.pct(p.gross, 1)} still arriving. ${fmt.pct(1 - p.logos, 1)} of the logos `
-            + `gone; with expansion counted it is ${fmt.pct(p.net, 1)} of the base</span>`
+          ? `<span>${s.label}: ${fmt.pct(p.departed, 1)} of its starting revenue walked out `
+            + `with a departing customer, against ${fmt.pct(1 - p.logos, 1)} of the logos. `
+            + `Counting downgrades too, ${fmt.pct(p.churned, 1)} of it is no longer `
+            + `arriving</span>`
           : `<span class="muted">${s.label}: not this old yet</span>`;
       }).join('');
       return `<strong>Month ${i} after signing</strong>${rows}`
-        + (b ? `<span class="muted">Blended ${fmt.pct(b.churned, 1)} gone, `
-               + `${b.cohorts} cohorts and ${fmt.money(b.base)} of starting revenue in the `
-               + `sample</span>` : '');
+        + (b ? `<span class="muted">Blended ${fmt.pct(b.departed, 1)} departed, `
+               + `${fmt.pct(b.churned, 1)} including downgrades, across ${b.cohorts} cohorts `
+               + `and ${fmt.money(b.base)} of starting revenue</span>` : '');
     },
   });
 
@@ -1570,25 +1571,14 @@ function renderRevTenure() {
   const half = r.atHalf;
   const year = r.atYear;
 
-  // The decay is not smooth and saying that it is would be the easy lie here.
-  // The steps are found rather than named, so they move if the data does.
-  const slopes = r.monthly.filter(m => m.age >= 2 && m.kept !== null);
-  const sorted = [...slopes].map(m => m.kept).sort((a, b) => a - b);
-  const median = sorted.length
-    ? sorted[Math.floor(sorted.length / 2)] : null;
-  const steps = slopes.filter(m => m.kept < median - 0.05).sort((a, b) => a.kept - b.kept);
-  const smooth = slopes.filter(m => !steps.includes(m));
-  const smoothMean = smooth.length
-    ? smooth.reduce((s, m) => s + m.kept, 0) / smooth.length : null;
-
-  // Whether a later intake is decaying faster than an earlier one, read at the
+  // Whether a later intake is losing faster than an earlier one, read at the
   // oldest age they all reach rather than at a fixed month that some of them
   // have not lived through.
   const common = r.series.reduce(
     (n, s) => Math.min(n, s.points[s.points.length - 1].age), Infinity);
   const atCommon = r.series
     .map(s => ({ label: s.label.replace(' intake', ''),
-                 value: (s.points.find(p => p.age === common) || {}).gross }))
+                 value: (s.points.find(p => p.age === common) || {}).departed }))
     .filter(x => x.value !== null && x.value !== undefined);
   const spread = atCommon.length > 1
     ? (Math.max(...atCommon.map(x => x.value)) - Math.min(...atCommon.map(x => x.value))) * 100
@@ -1598,102 +1588,120 @@ function renderRevTenure() {
   const olderMean = older.length
     ? older.reduce((s, x) => s + x.value, 0) / older.length : null;
 
-  // A step that shows up in more than one vintage is an age effect rather than
-  // something that happened to the book in a particular month.
-  const stepAges = steps.map(m => m.age);
-  const repeated = stepAges.filter(age => r.series.filter(s => {
-    const at = s.points.find(p => p.age === age);
-    const before = s.points.find(p => p.age === age - 1);
-    return at && before && at.gross < before.gross * (median - 0.05);
-  }).length > 1);
+  // The step the anniversary cuts into the line, found rather than named.
+  const jumps = r.blended.slice(1)
+    .map((p, i) => ({ age: p.age, size: p.departed - r.blended[i].departed }))
+    .filter(x => Number.isFinite(x.size));
+  const typical = [...jumps].map(x => x.size).sort((a, b) => a - b)[Math.floor(jumps.length / 2)];
+  const step = jumps.filter(x => x.size > typical * 2.5).sort((a, c) => c.size - a.size)[0];
+  const stepInMany = step
+    ? r.series.filter(s => {
+        const at = s.points.find(p => p.age === step.age);
+        const before = s.points.find(p => p.age === step.age - 1);
+        return at && before && at.departed - before.departed > typical * 2;
+      }).length
+    : 0;
 
   $('rev-tenure-finding').innerHTML =
-    `<strong>A cohort has lost ${year ? fmt.pct(1 - year.gross, 0) : 'much'} of the revenue `
-    + `it arrived with by the time it is a year old`
-    + (half ? `, and ${fmt.pct(1 - half.gross, 0)} of it by six months` : '')
+    `<strong>By the time a cohort is a year old, `
+    + `${year ? fmt.pct(year.departed, 0) : 'a third'} of the revenue it arrived with has `
+    + `walked out with a customer who left`
+    + (half ? `, and ${fmt.pct(half.departed, 0)} of it by six months` : '')
     + `.</strong> `
-    + (steps.length && smoothMean !== null
-        ? `It does not get there smoothly. Most months the curve gives up a little: `
-          + `${fmt.pct(1 - smoothMean, 1)} of what it still had, which on its own would put `
-          + `a cohort ${fmt.pct(1 - Math.pow(smoothMean, 12), 0)} down after a year. The rest `
-          + `of the loss is in ${steps.length === 1 ? 'one step' : `${steps.length} steps`}, `
-          + `at month ${steps.map(m => `${m.age} (${fmt.pct(1 - m.kept, 0)} in a single `
-          + `month)`).join(' and month ')}. `
-          + (repeated.length
-              ? `Month ${repeated.join(' and month ')} `
-                + `${repeated.length > 1 ? 'both fall' : 'falls'} in more than one intake, so `
-                + `${repeated.length > 1 ? 'they are age effects' : 'it is an age effect'} `
-                + `rather than something that happened to the book in one calendar month. `
-                + (repeated.some(age => age % 12 === 0)
-                    ? `The twelve-month one is the contract anniversary. `
-                    : '')
-              : '')
+    + `That is the drawn line, and it only counts departures, so it is a running total that `
+    + `cannot come back down. `
+    + (year
+        ? `<strong>Count the downgrades as well and it is ${fmt.pct(year.churned, 0)} at a `
+          + `year.</strong> The gap between those two numbers, `
+          + `${((year.churned - year.departed) * 100).toFixed(0)} points of a cohort's opening `
+          + `revenue, is customers who are still here and paying less. It is the larger half `
+          + `of the problem and it is in the hover at every point, not on the line, because it `
+          + `is not a running total: a customer who downgrades and later goes back up puts the `
+          + `money back. `
         : '')
-    + (spread !== null && newest && olderMean !== null
-        ? (spread >= 5
-            ? `<strong>The vintages do not lie on top of each other.</strong> At month `
-              + `${common}, the oldest age every intake has reached, ${newest.label} has lost `
-              + `${fmt.pct(1 - newest.value, 0)} against ${fmt.pct(1 - olderMean, 0)} for `
-              + `${older.map(x => x.label).join(' and ')}, a gap of `
-              + `${Math.abs((newest.value - olderMean) * 100).toFixed(0)} points that early in `
-              + `a cohort's life. On the sample so far the newest money is leaving `
-              + `${newest.value < olderMean ? 'faster' : 'slower'} than any intake before it. `
-            : `At month ${common}, the oldest age every intake has reached, the vintages sit `
-              + `within ${spread.toFixed(0)} points of each other `
-              + `(${atCommon.map(x => `${x.label} ${fmt.pct(1 - x.value, 0)} gone`).join(', ')}), `
-              + `so the shape is the business rather than one bad year. `)
+    + (typical && step
+        ? `The line is not a smooth slope. It gives up about `
+          + `${fmt.pct(typical, 1)} of the opening revenue in a normal month and `
+          + `${fmt.pct(step.size, 1)} at month ${step.age}`
+          + (stepInMany > 1
+              ? `, and that step falls in ${stepInMany} of the intakes, so it is the contract `
+                + `anniversary rather than something that happened to the book in one calendar `
+                + `month. `
+              : `. `)
         : '')
-    + `The money goes faster than the accounts do. At month 12 a cohort has lost `
-    + `${year ? fmt.pct(1 - year.gross, 0) : 'nearly half'} of its revenue but only `
-    + `${year ? fmt.pct(1 - year.logos, 0) : 'a third'} of its logos, because the customers `
-    + `who stay are worth less than the ones who started. Chart 4 draws the same pair of `
-    + `lines for the book as a whole; chart 45 asks what the rate is doing month by month `
-    + `rather than where the total has got to.`;
+    + (spread !== null && newest && olderMean !== null && spread >= 3
+        ? `<strong>The vintages do not lie on top of each other.</strong> At month ${common}, `
+          + `the oldest age every intake has reached, ${newest.label} has lost `
+          + `${fmt.pct(newest.value, 0)} against ${fmt.pct(olderMean, 0)} for `
+          + `${older.map(x => x.label).join(' and ')}. On the sample so far the newest money is `
+          + `leaving ${newest.value > olderMean ? 'faster' : 'slower'} than any intake before `
+          + `it. `
+        : '')
+    + `Because departures are weighted by what each customer was worth rather than counted, `
+    + `this line and the logo curve on chart 4 sit within a few points of each other the whole `
+    + `way: the customers who leave outright are not much bigger or smaller than average. `
+    + `Everything that makes revenue behave differently from head count is in the downgrade `
+    + `gap, which is why that number is quoted above. `
+    + (r.blended.dips && r.blended.dips.length
+        ? `Where the blended line falls it is the sample changing and not money returning, `
+          + `which departures forbid: `
+          + r.blended.dips.map(d => `month ${d.age} dips as ${d.lostFromSample} `
+              + `${d.lostFromSample === 1 ? 'cohort ages' : 'cohorts age'} out of the count`)
+              .join(', ')
+          + `.`
+        : '');
 
   const row = s => {
-    const cell = age => {
+    const cell = (age, key) => {
       const p = s.points.find(x => x.age === age);
-      return `<td class="n">${p ? fmt.pct(p.churned, 1) : '-'}</td>`;
+      return `<td class="n">${p ? fmt.pct(p[key], 1) : '-'}</td>`;
     };
-    return `<tr><td>${s.label}</td><td class="n">${fmt.int(s.cohorts)}</td>`
-      + `<td class="n">${fmt.money(s.points[0].base)}</td>`
-      + cell(3) + cell(6) + cell(12) + cell(18)
+    return `<tr><td>${s.label}</td><td class="n">${fmt.money(s.points[0].base)}</td>`
+      + cell(3, 'departed') + cell(6, 'departed') + cell(12, 'departed')
+      + cell(18, 'departed')
+      + `<td class="n muted">${(() => {
+          const p = s.points.find(x => x.age === 12);
+          return p ? fmt.pct(p.churned, 1) : '-';
+        })()}</td>`
       + `<td class="n">${s.points[s.points.length - 1].age}</td></tr>`;
   };
   $('rev-tenure-table').innerHTML =
-    '<thead><tr><th>Intake</th><th class="n">Cohorts</th><th class="n">Starting revenue</th>'
-    + '<th class="n">Lost by M3</th><th class="n">by M6</th><th class="n">by M12</th>'
-    + '<th class="n">by M18</th><th class="n">Oldest age</th></tr></thead><tbody>'
+    '<thead><tr><th>Intake</th><th class="n">Starting revenue</th>'
+    + '<th class="n">Departed by M3</th><th class="n">by M6</th><th class="n">by M12</th>'
+    + '<th class="n">by M18</th><th class="n">M12 incl. downgrades</th>'
+    + '<th class="n">Oldest age</th></tr></thead><tbody>'
     + r.series.map(row).join('')
     + `<tr class="muted"><td>Every cohort blended</td>`
-    + `<td class="n">${fmt.int(r.blended[0].cohorts)}</td>`
     + `<td class="n">${fmt.money(r.blended[0].base)}</td>`
     + [3, 6, 12, 18].map(a => {
         const p = r.blended.find(x => x.age === a);
-        return `<td class="n">${p ? fmt.pct(p.churned, 1) : '-'}</td>`;
+        return `<td class="n">${p ? fmt.pct(p.departed, 1) : '-'}</td>`;
       }).join('')
+    + `<td class="n">${(() => {
+        const p = r.blended.find(x => x.age === 12);
+        return p ? fmt.pct(p.churned, 1) : '-';
+      })()}</td>`
     + `<td class="n">${last.age}</td></tr></tbody>`;
 
   $('rev-tenure-note').textContent =
     'Each line is one intake year. The base is what that intake was paying when it arrived, '
-    + 'and the line is how much of those same dollars has stopped arriving by each age, so it '
-    + 'starts at nothing and climbs. A cohort that started on $100,000 and is receiving '
-    + '$80,000 three months later reads 20% here. Both ways a dollar leaves are in it: the '
-    + 'customer going, and the customer staying on less, including the ones booked down to '
-    + 'zero who are still counted present. Starting revenue is a customer’s second month '
-    + 'rather than their first, because until mid-2025 a joining charge was booked as MRR and '
-    + 'came off again the month after; indexing on month 0 would turn that one-off ending into '
-    + 'a cliff, which is the same reason chart 4 indexes where it does. Each customer is '
-    + 'capped at what they started on, so expansion cannot pull a line back below its own '
-    + 'floor and a cohort cannot grow its way out of having lost money; the hover carries the '
-    + 'uncapped figure beside it. At each age only the cohorts that have had that long to run '
-    + 'are counted, so the sample thins to the right and each line stops before it rests on '
-    + 'fewer than three intakes. Customers already present in the first month of the window '
-    + 'have no knowable start date and are in no cohort. Chart 45 asks the same question as a '
-    + 'monthly rate over calendar time instead of a running total over a cohort’s life, '
-    + 'and the two do not compound into each other: gross churn there counts a customer who '
-    + 'drops and recovers twice, once down and never back up, while this line nets the '
-    + 'recovery.';
+    + 'and the drawn line is how much of those same dollars left with a customer who is no '
+    + 'longer here. A cohort that started on $100,000 and has since lost customers who were '
+    + 'paying $20,000 of it reads 20%. Departure is survival, so per cohort the line cannot '
+    + 'come back down; where the blended line dips it is a cohort ageing out of the sample, '
+    + 'and the finding names the ages where that happens. Revenue lost to customers who stayed '
+    + 'and paid less is not on the line, because that one is not a running total: a customer '
+    + 'who downgrades and later returns to their old rate puts the money back, and a line that '
+    + 'can fall is not a cumulative loss. It is the larger number, and it is in the hover at '
+    + 'every point and in the last column of the table. Starting revenue is a customer’s '
+    + 'second month rather than their first, because until mid-2025 a joining charge was '
+    + 'booked as MRR and came off again the month after; indexing on month 0 would turn that '
+    + 'one-off ending into a cliff, which is the same reason chart 4 indexes where it does. At '
+    + 'each age only the cohorts that have had that long to run are counted, so the sample '
+    + 'thins to the right and each line stops before it rests on fewer than three intakes. '
+    + 'Customers already present in the first month of the window have no knowable start date '
+    + 'and are in no cohort. Chart 45 asks about the rate month by month over calendar time '
+    + 'rather than the running total over a cohort’s life.';
 }
 
 // 45. Monthly revenue churn by tenure, which is chart 31 in dollars.
