@@ -2233,12 +2233,16 @@ function renderLevers() {
   $('levers-finding').innerHTML =
     (card ? `<strong>${card.label}.</strong> ${card.headline}. ` : '<strong>Set by hand.</strong> ')
     + `<strong>Neither line on this chart is the demand curve, and the dial between them is `
-    + `the assumption doing the work.</strong> The year's prices are a menu: forty customers `
-    + `at exactly $1,000, twenty-four at $750, twenty-one at $500, eight at $2,250. A hundred `
-    + `and seventy-nine of two hundred and twenty-six signings sit on one of fifteen exact `
-    + `numbers, so every one of them is a lower bound on what that customer would have paid `
-    + `and nothing more. September is the only month anybody asked differently, and nine said `
-    + `yes at $2,500 where the whole prior year had produced nine at $2,250. `
+    + `the assumption doing the work.</strong> The year's prices are a menu: `
+    + demand.piles.slice(0, 4)
+        .map(x => `${fmt.int(x.customers)} customers at exactly ${fmt.money(x.price)}`)
+        .join(', ')
+    + `. ${fmt.int(demand.piles.reduce((t, x) => t + x.customers, 0))} of `
+    + `${fmt.int(demand.sampleThisYear)} signings sit on one of ${fmt.int(demand.piles.length)} `
+    + `exact numbers, so every one of them is a lower bound on what that customer would have `
+    + `paid and nothing more. September is the only month anybody asked differently, and nine `
+    + `said yes at $2,500 where the whole prior year had produced `
+    + `${fmt.int(demand.atOrAbove(2250))} at $2,250 or better. `
     + `<strong>At ${fmt.pct(r.capture, 0)} of that gap collected, this band closes `
     + `${fmt.int(r.settledVolume)} a month at ${fmt.money(r.settledPrice)}, worth `
     + `${fmt.money(r.newMrr)}.</strong> Quoting the menu unchanged gives `

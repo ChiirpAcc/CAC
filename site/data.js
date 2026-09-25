@@ -3656,12 +3656,19 @@ export function demandCurve(data) {
   const recent = months.slice(-7, -1);
   let n = 0;
   let mrr = 0;
+  // Same population rule as the menu ladder below: priced at the second
+  // month, and a customer with no second month is not counted. The first cut
+  // fell back to first-month MRR for immediate churners, which put the anchor
+  // seventeen per cent above the ladder it was meant to sit on.
   for (const m of recent) {
     const next = months[pos.get(m) + 1];
+    if (!next) continue;
     for (const [id, v] of byMonth.get(m)) {
       if (firstSeen.get(id) !== m || v <= 0) continue;
+      const second = byMonth.get(next).get(id);
+      if (second === undefined || second <= 0) continue;
       n += 1;
-      mrr += next ? (byMonth.get(next).get(id) ?? v) : v;
+      mrr += second;
     }
   }
   const anchors = [
@@ -3711,6 +3718,11 @@ export function demandCurve(data) {
     const ms = [...at.keys()].sort();
     const idx = new Map(ms.map((m, i) => [m, i]));
     const year = ms[ms.length - 1].slice(0, 4);
+    // Months are counted only where they can contribute. A signing is priced
+    // at its second month, so the last month in the push has signers and no
+    // prices, and counting it in the denominator understated every per-month
+    // figure on the menu ladder by an eighth.
+    const contributing = new Set();
     for (const [id, first] of seen) {
       if (first === ms[0] || first.slice(0, 4) !== year) continue;
       const next = ms[idx.get(first) + 1];
@@ -3718,8 +3730,9 @@ export function demandCurve(data) {
       const v = at.get(next).get(id);
       if (v === undefined || v <= 0) continue;
       thisYear.push(v);
+      contributing.add(first);
     }
-    var yearMonths = new Set([...seen.values()].filter(m => m.slice(0, 4) === year)).size || 1;
+    var yearMonths = contributing.size || 1;
   }
   const area = (from, to) => {
     const F = best.floor;
@@ -3800,6 +3813,16 @@ export function demandCurve(data) {
     blend,
     sampleThisYear: thisYear.length,
     monthsThisYear: yearMonths,
+    // How many signings sit on each exact price, largest piles first. The
+    // finding reads these rather than carrying numbers that go stale.
+    piles: (() => {
+      const counts = new Map();
+      for (const v of thisYear) counts.set(v, (counts.get(v) || 0) + 1);
+      return [...counts].filter(([, c]) => c >= 4)
+        .map(([price, customers]) => ({ price, customers }))
+        .sort((a, b) => b.customers - a.customers);
+    })(),
+    atOrAbove: x => thisYear.filter(v => v >= x).length,
     volumeFor,
     // Dollars of price given up for one more customer, at that volume.
     marginAt: q => priceFor(q + 0.5) - priceFor(q - 0.5),
@@ -3925,8 +3948,8 @@ export const SCENARIO_CARDS = [
       + 'lengthens, it does not move.' },
   { key: 'both', label: 'Both', pipeline: 2, floor: 1000, ceiling: 2500,
     headline: 'Twice the leads and the wider band',
-    detail: 'The combination that clears a million soonest, and the only one that '
-      + 'does it without needing retention work to land.' },
+    detail: 'Twice the leads and the wider band together. Whether this or More '
+      + 'pipeline alone clears a million depends on the capture dial below.' },
 ];
 
 // Revenue forward, under one churn assumption and one point on the demand
@@ -3937,7 +3960,7 @@ export const MWTP_CEILING = 2500;
 
 export function leverProjection(data, cohorts, {
   pipeline = 1, floor = 1500, ceiling = MWTP_CEILING, capture = 0.5,
-  churn = 'trend', months = 24, band = false,
+  churn = 'trend', months = 24,
 } = {}) {
   const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
   if (usable.length < 8) return null;
@@ -4018,8 +4041,13 @@ export function leverProjection(data, cohorts, {
     .filter(r => r.active && r.month === data.lastMonth)
     .reduce((s, r) => s + (r.eopMrr || 0), 0);
   const censored = Math.max(0, book - covered);
-  const matureRate = reference[24] && reference[18]
-    ? (reference[24] / reference[18]) ** (1 / 6) : 0.97;
+  // From the last six measured ages, not from the first extrapolated one.
+  // reference[24] is the first point past the truncation and is itself the
+  // product of this same slope, so using it here was a measured label on an
+  // extrapolated number.
+  const lastMeasured = referenceRaw.length - 1;
+  const matureRate = referenceRaw[lastMeasured] && referenceRaw[lastMeasured - 6]
+    ? (referenceRaw[lastMeasured] / referenceRaw[lastMeasured - 6]) ** (1 / 6) : 0.97;
 
   const demand = demandCurve(data);
   const outlook = arrivalOutlook(data, { horizon: months });
@@ -4039,10 +4067,20 @@ export function leverProjection(data, cohorts, {
   // not arrived yet would be a strange programme.
   const curveFor = () => held;
   const driftFor = mode => (mode === 'effort' ? drift + 1.96 * driftSe : drift);
+  // The drift is a carry-forward correction: it says how much faster a cohort
+  // falls away than the average shape predicts once you carry it along that
+  // shape. The existing book is carried along the reference, so it takes the
+  // whole drift. New business follows the newest cohorts' own measured curve,
+  // which already sits a fifth below the reference at a year, and carrying the
+  // drift onto that counted the deterioration twice. New cohorts take only the
+  // difference between the chosen mode and the trend, which is nought on trend
+  // and the effort lift when trying hard.
+  const newCohortDrift = mode => driftFor(mode) - drift;
 
-  const run = (mode, shift = 0) => {
+  const run = mode => {
     const newCurve = curveFor();
     const d = driftFor(mode);
+    const dNew = newCohortDrift(mode);
     const out = [];
     for (let h = 1; h <= months; h += 1) {
       let total = 0;
@@ -4055,15 +4093,9 @@ export function leverProjection(data, cohorts, {
       total += censored * (matureRate * Math.exp(d)) ** h;
       for (let k = 1; k <= h; k += 1) {
         const age = h - k;
-        let money = revenueAt(k - 1);
-        if (shift && outlook && outlook.base > 0) {
-          // The interval is on how many prospects arrive, not on what they will
-          // pay, so it scales the whole month rather than moving the ladder.
-          const lift = 1 + shift * 1.96 * outlook.sd / outlook.base;
-          money *= Math.max(0, lift);
-        }
+        const money = revenueAt(k - 1);
         total += money * (newCurve[age] ?? newCurve[newCurve.length - 1])
-          * Math.exp(d * age);
+          * Math.exp(dNew * age);
       }
       out.push(total);
     }
@@ -4072,9 +4104,7 @@ export function leverProjection(data, cohorts, {
 
   const paths = {};
   for (const m of CHURN_MODES) paths[m.key] = run(m.key);
-  const chosen = paths[churn] || paths.holds;
-  const lo = band ? run(churn, -1) : null;
-  const hi = band ? run(churn, +1) : null;
+  const chosen = paths[churn] || paths.trend;
 
   const settled = soldAt(0);
   const crosses = series => {
@@ -4084,7 +4114,7 @@ export function leverProjection(data, cohorts, {
 
   return {
     months, book, drift, demand, outlook,
-    paths, path: chosen, lo, hi,
+    paths, path: chosen,
     reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v)])),
     matched, floor, ceiling, pipeline, capture,
     optimistic: demand.matched(ceiling, floor),
