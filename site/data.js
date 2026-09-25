@@ -3311,6 +3311,10 @@ export function cohortRevenueRetention(cohorts, {
       points.push({
         age,
         gross: base ? capped / base : null,
+        // The same number the other way up. Everything of the starting revenue
+        // that is no longer arriving, whether the customer left or stayed on
+        // less, which is the reading the chart is drawn in.
+        churned: base ? 1 - capped / base : null,
         net: base ? withExpansion / base : null,
         logos: logoBase ? logosLeft / logoBase : null,
         cohorts: live.length,

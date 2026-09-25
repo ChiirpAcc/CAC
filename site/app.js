@@ -1527,7 +1527,7 @@ function renderRevTenure() {
   const labels = r.blended.map(p => `M${p.age}`);
   const pad = points => labels.map((_, i) => {
     const p = points.find(x => x.age === i);
-    return p ? p.gross : null;
+    return p ? p.churned : null;
   });
 
   const series = r.series
@@ -1538,14 +1538,14 @@ function renderRevTenure() {
     label: 'Every cohort blended',
     colour: INK.tertiary,
     dashed: true,
-    values: r.blended.map(p => p.gross),
+    values: r.blended.map(p => p.churned),
   });
 
   const drawn = series.flatMap(s => s.values).filter(v => v !== null && Number.isFinite(v));
   multiLineChart($('chart-rev-tenure'), {
     labels,
-    yMin: Math.max(0, Math.floor(Math.min(...drawn) * 10) / 10 - 0.1),
-    yMax: 1,
+    yMin: 0,
+    yMax: Math.ceil(Math.max(...drawn) * 20) / 20,
     yFormat: v => fmt.pct(v, 0),
     xTitle: 'Months since first revenue',
     series,
@@ -1554,12 +1554,13 @@ function renderRevTenure() {
       const rows = r.series.map(s => {
         const p = s.points.find(x => x.age === i);
         return p
-          ? `<span>${s.label}: ${fmt.pct(p.gross, 1)} kept, `
-            + `${fmt.pct(p.net, 1)} with expansion, ${fmt.pct(p.logos, 1)} of the logos</span>`
+          ? `<span>${s.label}: ${fmt.pct(p.churned, 1)} of its revenue gone, so `
+            + `${fmt.pct(p.gross, 1)} still arriving. ${fmt.pct(1 - p.logos, 1)} of the logos `
+            + `gone; with expansion counted it is ${fmt.pct(p.net, 1)} of the base</span>`
           : `<span class="muted">${s.label}: not this old yet</span>`;
       }).join('');
       return `<strong>Month ${i} after signing</strong>${rows}`
-        + (b ? `<span class="muted">Blended ${fmt.pct(b.gross, 1)}, `
+        + (b ? `<span class="muted">Blended ${fmt.pct(b.churned, 1)} gone, `
                + `${b.cohorts} cohorts and ${fmt.money(b.base)} of starting revenue in the `
                + `sample</span>` : '');
     },
@@ -1607,16 +1608,17 @@ function renderRevTenure() {
   }).length > 1);
 
   $('rev-tenure-finding').innerHTML =
-    `<strong>A cohort keeps ${year ? fmt.pct(year.gross, 0) : 'less'} of the revenue it `
-    + `arrived with a year in`
-    + (half ? `, and ${fmt.pct(half.gross, 0)} of it at six months` : '')
+    `<strong>A cohort has lost ${year ? fmt.pct(1 - year.gross, 0) : 'much'} of the revenue `
+    + `it arrived with by the time it is a year old`
+    + (half ? `, and ${fmt.pct(1 - half.gross, 0)} of it by six months` : '')
     + `.</strong> `
     + (steps.length && smoothMean !== null
         ? `It does not get there smoothly. Most months the curve gives up a little: `
-          + `${fmt.pct(smoothMean, 1)} of the month before, which would leave a cohort at `
-          + `${fmt.pct(Math.pow(smoothMean, 12), 0)} after a year on its own. The rest of the `
-          + `loss is in ${steps.length === 1 ? 'one step' : `${steps.length} steps`}, at `
-          + `month ${steps.map(m => `${m.age} (${fmt.pct(m.kept, 0)})`).join(' and month ')}. `
+          + `${fmt.pct(1 - smoothMean, 1)} of what it still had, which on its own would put `
+          + `a cohort ${fmt.pct(1 - Math.pow(smoothMean, 12), 0)} down after a year. The rest `
+          + `of the loss is in ${steps.length === 1 ? 'one step' : `${steps.length} steps`}, `
+          + `at month ${steps.map(m => `${m.age} (${fmt.pct(1 - m.kept, 0)} in a single `
+          + `month)`).join(' and month ')}. `
           + (repeated.length
               ? `Month ${repeated.join(' and month ')} `
                 + `${repeated.length > 1 ? 'both fall' : 'falls'} in more than one intake, so `
@@ -1630,27 +1632,28 @@ function renderRevTenure() {
     + (spread !== null && newest && olderMean !== null
         ? (spread >= 5
             ? `<strong>The vintages do not lie on top of each other.</strong> At month `
-              + `${common}, the oldest age every intake has reached, ${newest.label} is at `
-              + `${fmt.pct(newest.value, 0)} against ${fmt.pct(olderMean, 0)} for `
+              + `${common}, the oldest age every intake has reached, ${newest.label} has lost `
+              + `${fmt.pct(1 - newest.value, 0)} against ${fmt.pct(1 - olderMean, 0)} for `
               + `${older.map(x => x.label).join(' and ')}, a gap of `
-              + `${Math.abs((newest.value - olderMean) * 100).toFixed(0)} points `
-              + `${newest.value < olderMean ? 'below' : 'above'} them that early in a `
-              + `cohort's life. On the sample so far the newest money is leaving `
+              + `${Math.abs((newest.value - olderMean) * 100).toFixed(0)} points that early in `
+              + `a cohort's life. On the sample so far the newest money is leaving `
               + `${newest.value < olderMean ? 'faster' : 'slower'} than any intake before it. `
             : `At month ${common}, the oldest age every intake has reached, the vintages sit `
               + `within ${spread.toFixed(0)} points of each other `
-              + `(${atCommon.map(x => `${x.label} ${fmt.pct(x.value, 0)}`).join(', ')}), so the `
-              + `shape is the business rather than one bad year. `)
+              + `(${atCommon.map(x => `${x.label} ${fmt.pct(1 - x.value, 0)} gone`).join(', ')}), `
+              + `so the shape is the business rather than one bad year. `)
         : '')
-    + `Chart 4 draws this measure for the book as a whole against the logo curve. The gap `
-    + `between the two there is the same gap the hover shows here: at every age the logo line `
-    + `sits above the money line, because the accounts that stay are worth less than the `
-    + `accounts that started.`;
+    + `The money goes faster than the accounts do. At month 12 a cohort has lost `
+    + `${year ? fmt.pct(1 - year.gross, 0) : 'nearly half'} of its revenue but only `
+    + `${year ? fmt.pct(1 - year.logos, 0) : 'a third'} of its logos, because the customers `
+    + `who stay are worth less than the ones who started. Chart 4 draws the same pair of `
+    + `lines for the book as a whole; chart 45 asks what the rate is doing month by month `
+    + `rather than where the total has got to.`;
 
   const row = s => {
     const cell = age => {
       const p = s.points.find(x => x.age === age);
-      return `<td class="n">${p ? fmt.pct(p.gross, 1) : '-'}</td>`;
+      return `<td class="n">${p ? fmt.pct(p.churned, 1) : '-'}</td>`;
     };
     return `<tr><td>${s.label}</td><td class="n">${fmt.int(s.cohorts)}</td>`
       + `<td class="n">${fmt.money(s.points[0].base)}</td>`
@@ -1659,33 +1662,38 @@ function renderRevTenure() {
   };
   $('rev-tenure-table').innerHTML =
     '<thead><tr><th>Intake</th><th class="n">Cohorts</th><th class="n">Starting revenue</th>'
-    + '<th class="n">M3</th><th class="n">M6</th><th class="n">M12</th><th class="n">M18</th>'
-    + '<th class="n">Oldest age</th></tr></thead><tbody>'
+    + '<th class="n">Lost by M3</th><th class="n">by M6</th><th class="n">by M12</th>'
+    + '<th class="n">by M18</th><th class="n">Oldest age</th></tr></thead><tbody>'
     + r.series.map(row).join('')
     + `<tr class="muted"><td>Every cohort blended</td>`
     + `<td class="n">${fmt.int(r.blended[0].cohorts)}</td>`
     + `<td class="n">${fmt.money(r.blended[0].base)}</td>`
     + [3, 6, 12, 18].map(a => {
         const p = r.blended.find(x => x.age === a);
-        return `<td class="n">${p ? fmt.pct(p.gross, 1) : '-'}</td>`;
+        return `<td class="n">${p ? fmt.pct(p.churned, 1) : '-'}</td>`;
       }).join('')
     + `<td class="n">${last.age}</td></tr></tbody>`;
 
   $('rev-tenure-note').textContent =
     'Each line is one intake year. The base is what that intake was paying when it arrived, '
-    + 'and the line is how much of those same dollars is still arriving at each age, so it '
-    + 'starts at 100% and falls. Starting revenue is a customer’s second month rather '
-    + 'than their first, because until mid-2025 a joining charge was booked as MRR and came '
-    + 'off again the month after; indexing on month 0 would turn that one-off ending into a '
-    + 'cliff, which is the same reason chart 4 indexes where it does. Each customer is '
-    + 'capped at what they started on, so expansion cannot lift a line back over its own '
-    + 'base; the hover carries the uncapped figure beside it and the gap between the two is '
-    + 'what expansion is covering. The line falls for both of the ways revenue leaves: '
-    + 'customers going, and customers staying on less than they arrived on, including the '
-    + 'ones booked down to zero who are still counted present. At each age only the cohorts '
-    + 'that have had that long to run are counted, so the sample thins to the right and each '
-    + 'line stops before it rests on fewer than three intakes. Customers already present in '
-    + 'the first month of the window have no knowable start date and are in no cohort.';
+    + 'and the line is how much of those same dollars has stopped arriving by each age, so it '
+    + 'starts at nothing and climbs. A cohort that started on $100,000 and is receiving '
+    + '$80,000 three months later reads 20% here. Both ways a dollar leaves are in it: the '
+    + 'customer going, and the customer staying on less, including the ones booked down to '
+    + 'zero who are still counted present. Starting revenue is a customer’s second month '
+    + 'rather than their first, because until mid-2025 a joining charge was booked as MRR and '
+    + 'came off again the month after; indexing on month 0 would turn that one-off ending into '
+    + 'a cliff, which is the same reason chart 4 indexes where it does. Each customer is '
+    + 'capped at what they started on, so expansion cannot pull a line back below its own '
+    + 'floor and a cohort cannot grow its way out of having lost money; the hover carries the '
+    + 'uncapped figure beside it. At each age only the cohorts that have had that long to run '
+    + 'are counted, so the sample thins to the right and each line stops before it rests on '
+    + 'fewer than three intakes. Customers already present in the first month of the window '
+    + 'have no knowable start date and are in no cohort. Chart 45 asks the same question as a '
+    + 'monthly rate over calendar time instead of a running total over a cohort’s life, '
+    + 'and the two do not compound into each other: gross churn there counts a customer who '
+    + 'drops and recovers twice, once down and never back up, while this line nets the '
+    + 'recovery.';
 }
 
 // 45. Monthly revenue churn by tenure, which is chart 31 in dollars.
