@@ -3266,165 +3266,86 @@ export function costRecovery(data, cohorts, { age = 6 } = {}) {
 // NRR keeps expansion, so a band can exceed 100%. GRR caps each customer at
 // what they started the month on, so it cannot. The gap between them is what
 // expansion is covering.
-export function revenueRetentionByTenure(data, { cuts = [3, 6, 12] } = {}) {
-  const byMonth = new Map();
-  const firstSeen = new Map();
-  for (const row of data.customers) {
-    if (!row.active) continue;
-    if (!byMonth.has(row.month)) byMonth.set(row.month, new Map());
-    byMonth.get(row.month).set(row.id, row.eopMrr || 0);
-    if (!firstSeen.has(row.id) || row.month < firstSeen.get(row.id)) {
-      firstSeen.set(row.id, row.month);
-    }
+// Revenue kept by a cohort as it ages, which is the question chart 4 asks of
+// the whole book asked of one intake at a time.
+//
+// The base is the cohort's own starting revenue, so the line begins at 100%
+// and falls. It falls for both of the ways revenue actually leaves: customers
+// going, and customers staying on less than they arrived on. Each customer is
+// capped at what they started on, so expansion cannot lift the line back over
+// its own base and a cohort cannot grow its way out of having lost money.
+// The uncapped figure is carried alongside for the hover, because the gap
+// between them is exactly what expansion is covering.
+//
+// Starting revenue is a customer's second month, not their first. Until
+// mid-2025 a joining charge was booked into eop_mrr and came off again the
+// month after, so indexing on month 0 would make a one-off charge ending look
+// like a cliff. buildCohorts already takes this view; this follows it.
+export function cohortRevenueRetention(cohorts, {
+  maxMonths = 24, minCohorts = 3, minBase = 25000,
+} = {}) {
+  const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
+  if (!usable.length) return null;
+
+  const groups = new Map();
+  for (const c of usable) {
+    const year = c.month.slice(0, 4);
+    if (!groups.has(year)) groups.set(year, []);
+    groups.get(year).push(c);
   }
-  const months = [...byMonth.keys()].sort();
-  if (months.length < 3) return null;
-  const position = new Map(months.map((m, i) => [m, i]));
 
-  // The cut points and the labels are the ones chart 31 uses, because the
-  // whole purpose of this chart is to be laid next to that one line for line.
-  const edges = [0, ...cuts, Infinity];
-  const bands = edges.slice(0, -1).map((from, i) => {
-    const to = edges[i + 1];
-    return {
-      from,
-      to,
-      key: to === Infinity ? `${from}plus` : `${from}-${to}`,
-      label: to === Infinity
-        ? `${from} months and over`
-        : (from === 0 ? `Under ${to} months` : `${from} to ${to} months`),
-      base: 0,
-      kept: 0,
-      capped: 0,
-      observations: 0,
-      departures: 0,
-      monthly: [],
-    };
-  });
-
-  // A band holding almost no revenue in a month gives a ratio that is noise
-  // rather than a reading, so the line gaps there instead of spiking.
-  const FLOOR = 5000;
-
-  // Held apart from the banding, so the blended figure the projections start
-  // from does not move when somebody changes the cut points.
-  const settled = { base: 0, kept: 0 };
-  const joining = { base: 0, kept: 0, capped: 0, observations: 0 };
-
-  const rows = months.slice(1).map((month, i) => {
-    const now = byMonth.get(months[i]);
-    const next = byMonth.get(month);
-    const tally = bands.map(() => ({ base: 0, kept: 0, capped: 0, lost: 0, obs: 0, gone: 0 }));
-    let totalLost = 0;
-
-    for (const [id, was] of now) {
-      const censored = firstSeen.get(id) === months[0];
-      const tenure = position.get(months[i]) - position.get(firstSeen.get(id));
-      // A censored customer has no knowable tenure and goes in the last band,
-      // which is the call chart 31 makes. Dropping them instead would take the
-      // oldest and largest accounts out of the oldest line.
-      const index = censored
-        ? bands.length - 1
-        : bands.findIndex(b => tenure >= b.from && tenure < b.to);
-      if (index < 0) continue;
-      const becomes = next.get(id) || 0;
-      const t = tally[index];
-      t.base += was;
-      t.kept += becomes;
-      t.capped += Math.min(becomes, was);
-      t.obs += 1;
-      if (!next.has(id)) t.gone += 1;
-      const lost = Math.max(0, was - becomes);
-      t.lost += lost;
-      totalLost += lost;
-
-      if (censored || tenure >= 1) {
-        settled.base += was;
-        settled.kept += becomes;
-      } else {
-        joining.base += was;
-        joining.kept += becomes;
-        joining.capped += Math.min(becomes, was);
-        joining.observations += 1;
-      }
+  // At each age only the cohorts that have had that long to run are counted,
+  // the same rule chart 4 and chart 8 use. The sample therefore shrinks as the
+  // line goes right, and the line stops before it is resting on one or two
+  // intakes, which would be the oldest customers talking rather than the book.
+  const curve = (members, { floor = minBase, needed = minCohorts } = {}) => {
+    const points = [];
+    for (let age = 0; age < maxMonths; age += 1) {
+      const live = members.filter(c => c.maxOffset >= age);
+      const base = live.reduce((s, c) => s + (c.retainedStartingRevenue[0] || 0), 0);
+      if (live.length < needed || base < floor) break;
+      const capped = live.reduce((s, c) => s + (c.cappedRetainedRevenue[age] || 0), 0);
+      const withExpansion = live.reduce((s, c) => s + (c.survivorRevenue[age] || 0), 0);
+      const logoBase = live.reduce((s, c) => s + (c.survivors[0] || 0), 0);
+      const logosLeft = live.reduce((s, c) => s + (c.survivors[age] || 0), 0);
+      points.push({
+        age,
+        gross: base ? capped / base : null,
+        net: base ? withExpansion / base : null,
+        logos: logoBase ? logosLeft / logoBase : null,
+        cohorts: live.length,
+        base,
+        dollars: capped,
+      });
     }
-
-    bands.forEach((b, k) => {
-      const t = tally[k];
-      b.base += t.base;
-      b.kept += t.kept;
-      b.capped += t.capped;
-      b.observations += t.obs;
-      b.departures += t.gone;
-      if (t.base > FLOOR) b.monthly.push(t.kept / t.base);
-    });
-
-    return {
-      month,
-      bands: bands.map((b, k) => {
-        const t = tally[k];
-        return {
-          from: b.from,
-          to: b.to,
-          key: b.key,
-          label: b.label,
-          base: t.base,
-          kept: t.kept,
-          obs: t.obs,
-          // Net of expansion, so a band can sit above 100%.
-          retained: t.base > FLOOR ? t.kept / t.base : null,
-          // Each customer capped at what they started on, so it cannot.
-          grossRetained: t.base > FLOOR ? t.capped / t.base : null,
-          lost: t.lost,
-          // What this band contributes to every dollar lost that month, which
-          // is the part that decides where fixing it would actually help.
-          shareOfLosses: totalLost ? t.lost / totalLost : null,
-        };
-      }),
-      base: tally.reduce((s, t) => s + t.base, 0),
-      kept: tally.reduce((s, t) => s + t.kept, 0),
-      totalLost,
-    };
-  });
-
-  const spread = xs => {
-    if (xs.length < 3) return null;
-    const mean = xs.reduce((s, v) => s + v, 0) / xs.length;
-    const variance = xs.reduce((s, v) => s + (v - mean) ** 2, 0) / (xs.length - 1);
-    return Math.sqrt(variance);
+    return points;
   };
 
-  const summary = bands.filter(b => b.base > 0).map(b => ({
-    from: b.from,
-    to: b.to,
-    key: b.key,
-    label: b.label,
-    base: b.base,
-    kept: b.kept,
-    capped: b.capped,
-    observations: b.observations,
-    departures: b.departures,
-    nrr: b.base ? b.kept / b.base : null,
-    grr: b.base ? b.capped / b.base : null,
-    logoChurn: b.observations ? b.departures / b.observations : null,
-    sd: spread(b.monthly),
-    months: b.monthly.length,
+  const series = [...groups.keys()].sort().map(year => ({
+    key: year,
+    label: `${year} intake`,
+    cohorts: groups.get(year).length,
+    points: curve(groups.get(year)),
+  })).filter(s => s.points.length > 1);
+
+  const blended = curve(usable, { needed: 4 });
+
+  // The slope between one age and the next, which is what a projection needs
+  // and what a cumulative curve hides. Read off the blended line.
+  const monthly = blended.slice(1).map((p, i) => ({
+    age: p.age,
+    kept: blended[i].gross ? p.gross / blended[i].gross : null,
   }));
 
+  const at = (points, age) => points.find(p => p.age === age) || null;
+
   return {
-    rows,
-    bands: summary,
-    // Everything past the joining month, whatever the cut points are. Why the
-    // joining month is held out is in the note on the chart.
-    blendedNrr: settled.base ? settled.kept / settled.base : null,
-    monthlyDecay: settled.base ? 1 - settled.kept / settled.base : null,
-    joiningMonth: joining.base ? {
-      base: joining.base,
-      kept: joining.kept,
-      nrr: joining.kept / joining.base,
-      grr: joining.capped / joining.base,
-      observations: joining.observations,
-    } : null,
+    series,
+    blended,
+    monthly,
+    // The two numbers a reader wants without counting gridlines.
+    atYear: at(blended, 12),
+    atHalf: at(blended, 6),
   };
 }
 

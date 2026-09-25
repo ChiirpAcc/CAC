@@ -16,7 +16,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
-  revenueRetentionByTenure,
+  cohortRevenueRetention,
   silentLogos,
 } from './data.js';
 import {
@@ -1491,30 +1491,28 @@ function renderArrivalAnimations() {
 // 44. The same question as chart 31, asked in money.
 function renderRevTenure() {
   if (!$('chart-rev-tenure')) return;
-  const r = revenueRetentionByTenure(data);
-  if (!r || r.rows.length < 3) {
+  const r = cohortRevenueRetention(cohorts);
+  if (!r || !r.blended.length) {
     $('chart-rev-tenure').innerHTML = '<p class="empty">Not enough history yet.</p>';
     return;
   }
-  const rows = r.rows;
-  const bands = rows[0].bands;
   const palette = [INK.negative, INK.secondary, INK.primary, INK.tertiary];
 
-  // Same switch as chart 31, for the same reason: four lines is one more than
-  // this chart carries legibly. The arithmetic runs on all four either way, so
-  // turning a line off never changes another line's number.
+  // Which intakes are drawn is a switch, the same one chart 31 carries. The
+  // arithmetic runs on all of them either way: the blended line is every
+  // cohort, not the ones on screen, so turning a vintage off never moves it.
   const box = $('rev-tenure-bands');
   if (box && !box.dataset.ready) {
     const grid = document.createElement('div');
     grid.className = 'toggles';
-    bands.forEach((b, i) => {
+    r.series.forEach((s, i) => {
       const label = document.createElement('label');
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.value = String(i);
       input.checked = true;
       const text = document.createElement('span');
-      text.innerHTML = `<span>${b.label}</span>`;
+      text.innerHTML = `<span>${s.label}</span>`;
       label.append(input, text);
       grid.append(label);
     });
@@ -1524,107 +1522,170 @@ function renderRevTenure() {
   }
   const on = box
     ? new Set([...box.querySelectorAll('input:checked')].map(i => Number(i.value)))
-    : new Set(bands.map((_, i) => i));
+    : new Set(r.series.map((_, i) => i));
 
-  const labels = rows.map(x => fmt.monthLabel(x.month));
-  const series = bands
-    .map((b, i) => ({ i, b }))
+  const labels = r.blended.map(p => `M${p.age}`);
+  const pad = points => labels.map((_, i) => {
+    const p = points.find(x => x.age === i);
+    return p ? p.gross : null;
+  });
+
+  const series = r.series
+    .map((s, i) => ({ s, i }))
     .filter(({ i }) => on.has(i))
-    .map(({ i, b }) => ({
-      label: b.label,
-      colour: palette[i] || INK.tertiary,
-      values: rows.map(x => x.bands[i].retained),
-    }));
+    .map(({ s, i }) => ({ label: s.label, colour: palette[i] || INK.tertiary, values: pad(s.points) }));
+  series.push({
+    label: 'Every cohort blended',
+    colour: INK.tertiary,
+    dashed: true,
+    values: r.blended.map(p => p.gross),
+  });
 
-  if (!series.length) {
-    $('chart-rev-tenure').innerHTML = '<p class="empty">No bands selected.</p>';
-    return;
-  }
-
-  // These lines live between about 0.4 and 1.1, so a zero baseline would
-  // flatten every one of them into the same stripe.
   const drawn = series.flatMap(s => s.values).filter(v => v !== null && Number.isFinite(v));
-  const floor = Math.max(0, Math.floor(Math.min(...drawn) * 20) / 20 - 0.05);
-  const ceiling = Math.ceil(Math.max(...drawn, 1) * 20) / 20;
-
   multiLineChart($('chart-rev-tenure'), {
     labels,
-    yMin: floor,
-    yMax: ceiling,
+    yMin: Math.max(0, Math.floor(Math.min(...drawn) * 10) / 10 - 0.1),
+    yMax: 1,
     yFormat: v => fmt.pct(v, 0),
+    xTitle: 'Months since first revenue',
     series,
-    refs: [{ value: 1, label: 'Everything kept' }],
     describe: i => {
-      const x = rows[i];
-      return `<strong>${labels[i]}</strong>`
-        + x.bands.map(b => (b.retained === null
-            ? `<span>${b.label}: too little revenue to read</span>`
-            : `<span>${b.label}: ${fmt.pct(b.retained, 1)} of ${fmt.money(b.base)} kept, `
-              + `${fmt.pct(b.shareOfLosses)} of the month’s losses</span>`)).join('')
-        + `<span class="muted">${fmt.money(x.totalLost)} lost out of `
-        + `${fmt.money(x.base)} at risk</span>`;
+      const b = r.blended.find(p => p.age === i);
+      const rows = r.series.map(s => {
+        const p = s.points.find(x => x.age === i);
+        return p
+          ? `<span>${s.label}: ${fmt.pct(p.gross, 1)} kept, `
+            + `${fmt.pct(p.net, 1)} with expansion, ${fmt.pct(p.logos, 1)} of the logos</span>`
+          : `<span class="muted">${s.label}: not this old yet</span>`;
+      }).join('');
+      return `<strong>Month ${i} after signing</strong>${rows}`
+        + (b ? `<span class="muted">Blended ${fmt.pct(b.gross, 1)}, `
+               + `${b.cohorts} cohorts and ${fmt.money(b.base)} of starting revenue in the `
+               + `sample</span>` : '');
     },
   });
 
-  const recent = rows.slice(-6);
-  const meanOf = (i, key) => {
-    const xs = recent.map(x => x.bands[i][key]).filter(v => v !== null && Number.isFinite(v));
-    return xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null;
-  };
-  const kept = bands.map((_, i) => meanOf(i, 'retained'));
-  const shares = bands.map((_, i) => meanOf(i, 'shareOfLosses'));
-  const readable = kept.map((v, i) => ({ v, i })).filter(x => x.v !== null);
-  const worst = readable.reduce((a, b) => (b.v < a.v ? b : a));
-  const best = readable.reduce((a, b) => (b.v > a.v ? b : a));
-  const oldest = bands.length - 1;
-  const portfolio = recent.reduce((s, x) => s + x.kept, 0) / recent.reduce((s, x) => s + x.base, 0);
+  const last = r.blended[r.blended.length - 1];
+  const half = r.atHalf;
+  const year = r.atYear;
+
+  // The decay is not smooth and saying that it is would be the easy lie here.
+  // The steps are found rather than named, so they move if the data does.
+  const slopes = r.monthly.filter(m => m.age >= 2 && m.kept !== null);
+  const sorted = [...slopes].map(m => m.kept).sort((a, b) => a - b);
+  const median = sorted.length
+    ? sorted[Math.floor(sorted.length / 2)] : null;
+  const steps = slopes.filter(m => m.kept < median - 0.05).sort((a, b) => a.kept - b.kept);
+  const smooth = slopes.filter(m => !steps.includes(m));
+  const smoothMean = smooth.length
+    ? smooth.reduce((s, m) => s + m.kept, 0) / smooth.length : null;
+
+  // Whether a later intake is decaying faster than an earlier one, read at the
+  // oldest age they all reach rather than at a fixed month that some of them
+  // have not lived through.
+  const common = r.series.reduce(
+    (n, s) => Math.min(n, s.points[s.points.length - 1].age), Infinity);
+  const atCommon = r.series
+    .map(s => ({ label: s.label.replace(' intake', ''),
+                 value: (s.points.find(p => p.age === common) || {}).gross }))
+    .filter(x => x.value !== null && x.value !== undefined);
+  const spread = atCommon.length > 1
+    ? (Math.max(...atCommon.map(x => x.value)) - Math.min(...atCommon.map(x => x.value))) * 100
+    : null;
+  const newest = atCommon[atCommon.length - 1];
+  const older = atCommon.slice(0, -1);
+  const olderMean = older.length
+    ? older.reduce((s, x) => s + x.value, 0) / older.length : null;
+
+  // A step that shows up in more than one vintage is an age effect rather than
+  // something that happened to the book in a particular month.
+  const stepAges = steps.map(m => m.age);
+  const repeated = stepAges.filter(age => r.series.filter(s => {
+    const at = s.points.find(p => p.age === age);
+    const before = s.points.find(p => p.age === age - 1);
+    return at && before && at.gross < before.gross * (median - 0.05);
+  }).length > 1);
 
   $('rev-tenure-finding').innerHTML =
-    `<strong>Over the last six months the lines sit between `
-    + `${fmt.pct(worst.v, 1)} and ${fmt.pct(best.v, 1)}: how long a customer has been `
-    + `here barely predicts how much of their money survives the month.</strong> `
-    + `Chart 31 asks the same question in head count and gets a rising curve, because a `
-    + `head count treats a ${fmt.money(200)} account and a ${fmt.money(2000)} account as `
-    + `the same event. `
-    + `The ${bands[oldest].label.toLowerCase()} line carries `
-    + `${fmt.pct(shares[oldest])} of every dollar lost, not because it churns hardest but `
-    + `because that is where the money is. `
-    + `Across every band the book kept ${fmt.pct(portfolio, 2)} of its revenue a month over `
-    + `those six months, against ${fmt.pct(r.blendedNrr, 2)} over the whole window, which is `
-    + `the drift the projections have to carry. `
-    + (r.joiningMonth
-        ? `The step in the youngest line around 2025-09 is not a change in behaviour: until `
-          + `mid-2025 a joining charge was booked as MRR and came off the month after, so a `
-          + `joining month read ${fmt.pct(r.joiningMonth.nrr, 0)} for a billing reason. `
-          + `That month is excluded from the blended figure and from every projection.`
-        : '');
+    `<strong>A cohort keeps ${year ? fmt.pct(year.gross, 0) : 'less'} of the revenue it `
+    + `arrived with a year in`
+    + (half ? `, and ${fmt.pct(half.gross, 0)} of it at six months` : '')
+    + `.</strong> `
+    + (steps.length && smoothMean !== null
+        ? `It does not get there smoothly. Most months the curve gives up a little: `
+          + `${fmt.pct(smoothMean, 1)} of the month before, which would leave a cohort at `
+          + `${fmt.pct(Math.pow(smoothMean, 12), 0)} after a year on its own. The rest of the `
+          + `loss is in ${steps.length === 1 ? 'one step' : `${steps.length} steps`}, at `
+          + `month ${steps.map(m => `${m.age} (${fmt.pct(m.kept, 0)})`).join(' and month ')}. `
+          + (repeated.length
+              ? `Month ${repeated.join(' and month ')} `
+                + `${repeated.length > 1 ? 'both fall' : 'falls'} in more than one intake, so `
+                + `${repeated.length > 1 ? 'they are age effects' : 'it is an age effect'} `
+                + `rather than something that happened to the book in one calendar month. `
+                + (repeated.some(age => age % 12 === 0)
+                    ? `The twelve-month one is the contract anniversary. `
+                    : '')
+              : '')
+        : '')
+    + (spread !== null && newest && olderMean !== null
+        ? (spread >= 5
+            ? `<strong>The vintages do not lie on top of each other.</strong> At month `
+              + `${common}, the oldest age every intake has reached, ${newest.label} is at `
+              + `${fmt.pct(newest.value, 0)} against ${fmt.pct(olderMean, 0)} for `
+              + `${older.map(x => x.label).join(' and ')}, a gap of `
+              + `${Math.abs((newest.value - olderMean) * 100).toFixed(0)} points `
+              + `${newest.value < olderMean ? 'below' : 'above'} them that early in a `
+              + `cohort's life. On the sample so far the newest money is leaving `
+              + `${newest.value < olderMean ? 'faster' : 'slower'} than any intake before it. `
+            : `At month ${common}, the oldest age every intake has reached, the vintages sit `
+              + `within ${spread.toFixed(0)} points of each other `
+              + `(${atCommon.map(x => `${x.label} ${fmt.pct(x.value, 0)}`).join(', ')}), so the `
+              + `shape is the business rather than one bad year. `)
+        : '')
+    + `Chart 4 draws this measure for the book as a whole against the logo curve. The gap `
+    + `between the two there is the same gap the hover shows here: at every age the logo line `
+    + `sits above the money line, because the accounts that stay are worth less than the `
+    + `accounts that started.`;
 
-  const row = b =>
-    '<tr><td>' + b.label + '</td>'
-    + '<td class="n">' + fmt.int(b.observations) + '</td>'
-    + '<td class="n">' + fmt.money(b.base) + '</td>'
-    + '<td class="n"><strong>' + fmt.pct(b.nrr, 1) + '</strong></td>'
-    + '<td class="n">' + fmt.pct(b.grr, 1) + '</td>'
-    + '<td class="n">' + (b.sd ? fmt.pct(b.sd, 1) : '-') + '</td>'
-    + '<td class="n">' + fmt.pct(b.logoChurn, 1) + '</td></tr>';
+  const row = s => {
+    const cell = age => {
+      const p = s.points.find(x => x.age === age);
+      return `<td class="n">${p ? fmt.pct(p.gross, 1) : '-'}</td>`;
+    };
+    return `<tr><td>${s.label}</td><td class="n">${fmt.int(s.cohorts)}</td>`
+      + `<td class="n">${fmt.money(s.points[0].base)}</td>`
+      + cell(3) + cell(6) + cell(12) + cell(18)
+      + `<td class="n">${s.points[s.points.length - 1].age}</td></tr>`;
+  };
   $('rev-tenure-table').innerHTML =
-    '<thead><tr><th>Tenure</th><th class="n">Customer-months</th><th class="n">Revenue at risk</th>'
-    + '<th class="n">Kept</th><th class="n">Before expansion</th><th class="n">Month-to-month spread</th>'
-    + '<th class="n">Logo churn</th></tr></thead><tbody>'
-    + r.bands.map(row).join('') + '</tbody>';
+    '<thead><tr><th>Intake</th><th class="n">Cohorts</th><th class="n">Starting revenue</th>'
+    + '<th class="n">M3</th><th class="n">M6</th><th class="n">M12</th><th class="n">M18</th>'
+    + '<th class="n">Oldest age</th></tr></thead><tbody>'
+    + r.series.map(row).join('')
+    + `<tr class="muted"><td>Every cohort blended</td>`
+    + `<td class="n">${fmt.int(r.blended[0].cohorts)}</td>`
+    + `<td class="n">${fmt.money(r.blended[0].base)}</td>`
+    + [3, 6, 12, 18].map(a => {
+        const p = r.blended.find(x => x.age === a);
+        return `<td class="n">${p ? fmt.pct(p.gross, 1) : '-'}</td>`;
+      }).join('')
+    + `<td class="n">${last.age}</td></tr></tbody>`;
 
   $('rev-tenure-note').textContent =
-    'Every customer present in a month, grouped by how many months they had already been '
-    + 'here, then their revenue that month against their revenue the month after. Kept is '
-    + 'net of expansion, so a band can sit above 100%; before expansion caps each customer '
-    + 'at what they started on, so it cannot, and the gap between the two columns is what '
-    + 'expansion is covering. Customers already present in the first month of the window '
-    + 'have no knowable tenure and go in the oldest band, which is what chart 31 does with '
-    + 'them; putting them anywhere else would take the largest accounts out of the oldest '
-    + 'line. A band holding under $5,000 in a month is left as a gap rather than drawn, '
-    + 'because that ratio is noise. The blended figure quoted above excludes each '
-    + 'customer’s joining month whatever the band edges are, so moving the cut points '
-    + 'does not move it.';
+    'Each line is one intake year. The base is what that intake was paying when it arrived, '
+    + 'and the line is how much of those same dollars is still arriving at each age, so it '
+    + 'starts at 100% and falls. Starting revenue is a customer’s second month rather '
+    + 'than their first, because until mid-2025 a joining charge was booked as MRR and came '
+    + 'off again the month after; indexing on month 0 would turn that one-off ending into a '
+    + 'cliff, which is the same reason chart 4 indexes where it does. Each customer is '
+    + 'capped at what they started on, so expansion cannot lift a line back over its own '
+    + 'base; the hover carries the uncapped figure beside it and the gap between the two is '
+    + 'what expansion is covering. The line falls for both of the ways revenue leaves: '
+    + 'customers going, and customers staying on less than they arrived on, including the '
+    + 'ones booked down to zero who are still counted present. At each age only the cohorts '
+    + 'that have had that long to run are counted, so the sample thins to the right and each '
+    + 'line stops before it rests on fewer than three intakes. Customers already present in '
+    + 'the first month of the window have no knowable start date and are in no cohort.';
 }
 
 function renderPastDue() {
