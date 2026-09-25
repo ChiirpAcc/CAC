@@ -16,7 +16,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
-  cohortRevenueRetention, revenueChurnByTenure,
+  cohortRevenueRetention, revenueRetentionAtAges,
   silentLogos,
 } from './data.js';
 import {
@@ -1704,38 +1704,29 @@ function renderRevTenure() {
     + 'rather than the running total over a cohort’s life.';
 }
 
-// 45. Monthly revenue churn by tenure, which is chart 31 in dollars.
+// 45. Revenue retained at a fixed age, by signing month.
 function renderRevChurnTenure() {
   if (!$('chart-rev-churn')) return;
-  const rows = revenueChurnByTenure(data);
-  if (!rows || rows.length < 3) {
+  const r = revenueRetentionAtAges(cohorts);
+  if (!r || r.rows.length < 4) {
     $('chart-rev-churn').innerHTML = '<p class="empty">Not enough history yet.</p>';
     return;
   }
-  const bands = rows.bands;
-  const palette = [INK.negative, INK.secondary, INK.primary, INK.tertiary];
+  const palette = [INK.primary, INK.secondary, INK.tertiary, INK.negative, INK.muted || INK.primary];
+  const colourAt = i => palette[i % palette.length];
 
-  // The same switch chart 31 carries, for the same reason. The arithmetic runs
-  // on all four either way: the shares below are each band against every dollar
-  // lost, not against the bands on screen, so turning a line off never changes
-  // another line's number.
   const box = $('rev-churn-bands');
   if (box && !box.dataset.ready) {
     const grid = document.createElement('div');
     grid.className = 'toggles';
-    bands.forEach((b, i) => {
+    r.ages.forEach((age, i) => {
       const label = document.createElement('label');
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.value = String(i);
-      // Every line on but the joining month. Before mid-2025 that one is a
-      // setup fee coming off rather than churn, it runs at four times every
-      // other line, and left on by default it takes three quarters of the
-      // axis and flattens the four lines that mean something. It is drawn on
-      // request rather than hidden, and the finding says what it is.
-      input.checked = !(b.from === 0 && b.to === 1);
+      input.checked = true;
       const text = document.createElement('span');
-      text.innerHTML = `<span>${b.label}</span>`;
+      text.innerHTML = `<span>${age} months out</span>`;
       label.append(input, text);
       grid.append(label);
     });
@@ -1745,168 +1736,137 @@ function renderRevChurnTenure() {
   }
   const on = box
     ? new Set([...box.querySelectorAll('input:checked')].map(i => Number(i.value)))
-    : new Set(bands.map((_, i) => i));
+    : new Set(r.ages.map((_, i) => i));
 
-  const labels = rows.map(r => fmt.monthLabel(r.month));
-  const series = bands
-    .map((b, i) => ({ i, b }))
-    .filter(({ i }) => on.has(i))
-    .map(({ i, b }) => ({
-      label: b.label,
-      colour: palette[i] || INK.tertiary,
-      values: rows.map(r => r.bands[i].rate),
-    }));
+  const labels = r.rows.map(row => fmt.monthLabel(row.cohort));
+  const cell = (row, i) => row.points[i];
+
+  // Measured and carried are drawn as two series so the carried part can be
+  // dashed, and the last measured point is repeated into the dashed one so the
+  // two meet rather than leaving a gap at the join.
+  const series = [];
+  const legendItems = [];
+  r.ages.forEach((age, i) => {
+    if (!on.has(i)) return;
+    const colour = colourAt(i);
+    const seen = r.rows.map(row => (cell(row, i).forecast ? null : cell(row, i).value));
+    const carried = r.rows.map((row, k) => {
+      const p = cell(row, i);
+      if (p.forecast) return p.value;
+      // the join: the last measured point before the carried run begins
+      const next = r.rows[k + 1];
+      return next && cell(next, i).forecast ? p.value : null;
+    });
+    series.push({ label: `${age} months out`, colour, values: seen });
+    if (carried.some(v => v !== null && Number.isFinite(v))) {
+      series.push({ label: `${age} months out, carried forward`, colour, dashed: true,
+                    thin: true, values: carried });
+    }
+    legendItems.push({ label: `${age} months out`, colour });
+  });
 
   if (!series.length) {
-    $('chart-rev-churn').innerHTML = '<p class="empty">No bands selected.</p>';
+    $('chart-rev-churn').innerHTML = '<p class="empty">No horizons selected.</p>';
     return;
   }
-
-  // The youngest band ran at forty per cent through 2024 because a joining
-  // charge was booked as MRR and came off the month after, so the line has to
-  // carry the whole era to be honest and the axis has to hold it. Rounded to
-  // five points rather than left to the default, which jumps to a hundred and
-  // squashes every line that matters into the bottom quarter.
-  const highest = Math.max(...series.flatMap(s => s.values)
-    .filter(v => v !== null && Number.isFinite(v)));
 
   multiLineChart($('chart-rev-churn'), {
     labels,
     yMin: 0,
-    yMax: Math.ceil(highest * 20) / 20,
-    yFormat: v => fmt.pct(v, 1),
+    yMax: 1,
+    yFormat: v => fmt.pct(v, 0),
+    xTitle: 'Month the customers signed',
     series,
-    describe: i => {
-      const r = rows[i];
-      return `<strong>At risk in ${labels[i]}, gone by ${fmt.monthLabel(r.landsIn)}</strong>`
-        + r.bands.map(b => (b.rate === null
-            ? `<span class="muted">${b.label}: too little revenue to read</span>`
-            : `<span>${b.label}: ${fmt.pct(b.rate, 1)} of ${fmt.money(b.base)} lost, so `
-              + `${fmt.pct(b.kept, 1)} kept after expansion. `
-              + `${fmt.pct(b.departureRate, 1)} of it left with a departing customer; `
-              + `this band is ${fmt.pct(b.shareOfLosses)} of the month's losses</span>`)).join('')
-        + `<span class="muted">${fmt.money(r.totalLost)} lost out of ${fmt.money(r.base)} `
-        + `at risk</span>`;
+    legendItems,
+    describe: k => {
+      const row = r.rows[k];
+      return `<strong>Signed ${labels[k]}</strong>`
+        + `<span class="muted">${fmt.int(row.logos)} customers, ${fmt.money(row.start)} of `
+        + `starting revenue, ${row.age} months of life so far</span>`
+        + row.points.map(p => {
+          if (p.value === null) return `<span class="muted">${p.age} months out: too young</span>`;
+          if (!p.forecast) {
+            return `<span>${p.age} months out: ${fmt.pct(p.value, 1)} still arriving, so `
+              + `${fmt.pct(1 - p.value, 1)} gone</span>`;
+          }
+          return `<span class="muted">${p.age} months out: ${fmt.pct(p.value, 1)} carried `
+            + `forward from month ${p.from}`
+            + (p.lo !== null ? `, ${fmt.pct(p.lo, 0)} to ${fmt.pct(p.hi, 0)} at 95%` : '')
+            + `</span>`;
+        }).join('');
     },
   });
 
-  // Now against a year ago, per band. Both windows sit after the joining
-  // charge came out of MRR in 2025-09, so the comparison is like with like and
-  // the change is not the billing artefact moving.
-  const recent = rows.slice(-6);
-  const priorSix = rows.slice(-12, -6);
-  const rateOver = (window, i) => {
-    let base = 0;
-    let lost = 0;
-    for (const r of window) { base += r.bands[i].base; lost += r.bands[i].lost; }
-    return base ? lost / base : null;
-  };
-  const meanOf = (i, key) => {
-    const xs = recent.map(r => r.bands[i][key]).filter(v => v !== null && Number.isFinite(v));
-    return xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null;
-  };
-  const now = bands.map((_, i) => rateOver(recent, i));
-  const then = bands.map((_, i) => rateOver(priorSix, i));
-  const shares = bands.map((_, i) => meanOf(i, 'shareOfLosses'));
-  const oldest = bands.length - 1;
-  const joining = bands.findIndex(b => b.from === 0 && b.to === 1);
+  // Is a horizon drifting? Measured readings only, first third against last
+  // third, so a trend is not read off the carried part of the line.
+  const drift = r.ages.map((age, i) => {
+    const seen = r.rows.map(row => ({ row, p: cell(row, i) })).filter(x => !x.p.forecast);
+    if (seen.length < 6) return null;
+    const cut = Math.floor(seen.length / 3);
+    const avg = xs => xs.reduce((s, x) => s + x.p.value * x.row.start, 0)
+      / xs.reduce((s, x) => s + x.row.start, 0);
+    const first = avg(seen.slice(0, cut));
+    const last = avg(seen.slice(-cut));
+    return { age, first, last, move: (last - first) * 100, n: seen.length,
+             fromMonth: seen[0].row.cohort, toMonth: seen[seen.length - 1].row.cohort };
+  }).filter(Boolean);
 
-  // The joining month is left out of the comparison sentence. It is a real
-  // age, but what it measured before mid-2025 is a setup fee ending and what
-  // it measures now is churn, and one line cannot carry both.
-  const moved = bands
-    .map((b, i) => ({ b, i, now: now[i], then: then[i] }))
-    .filter(x => x.i !== joining && x.now !== null && x.then !== null);
-  const worse = moved.filter(x => x.now > x.then * 1.25);
-  const steady = moved.filter(x => Math.abs(x.now - x.then) < 0.015);
-
-  const windowRate = window => {
-    let base = 0;
-    let lost = 0;
-    for (const r of window) for (const b of r.bands) { base += b.base; lost += b.lost; }
-    return base ? lost / base : null;
-  };
-  const bookNow = windowRate(recent);
-  const bookThen = windowRate(priorSix);
-
-  let allLost = 0;
-  let allDeparted = 0;
-  for (const r of recent) {
-    for (const b of r.bands) {
-      allLost += b.lost;
-      allDeparted += (b.departureRate || 0) * b.base;
-    }
-  }
-  const contraction = allLost - allDeparted;
-
-  // What the joining month was before the fee came out of MRR against what it
-  // is now, which is the whole reason it is drawn on its own.
-  const early = rows.filter(r => r.month < '2025-09' && r.bands[joining].rate !== null);
-  const late = rows.filter(r => r.month >= '2025-09' && r.bands[joining].rate !== null);
-  const pooled = window => {
-    let base = 0;
-    let lost = 0;
-    for (const r of window) { base += r.bands[joining].base; lost += r.bands[joining].lost; }
-    return base ? lost / base : null;
-  };
-  const joinEarly = early.length ? pooled(early) : null;
-  const joinLate = late.length ? pooled(late) : null;
-
-  const rate = x => `${fmt.pct(x.then, 1)} to ${fmt.pct(x.now, 1)}`;
+  const twelve = drift.find(d => d.age === 12) || drift[drift.length - 1];
+  const three = drift.find(d => d.age === 3) || drift[0];
+  const carriedCount = r.rows.reduce(
+    (n, row) => n + row.points.filter(p => p.forecast && p.value !== null).length, 0);
+  const pooled12 = r.pooled.find(p => p.age === 12);
 
   $('rev-churn-finding').innerHTML =
-    (worse.length && steady.length
-      ? (() => {
-          // The multiple is stated rather than rounded up into a word. A first
-          // draft called 1.55 times "roughly doubled", which it is not.
-          const lift = worse.reduce((t, x) => t + x.now / x.then, 0) / worse.length;
-          const drift = Math.max(...steady.map(x => Math.abs(x.now - x.then))) * 100;
-          return `<strong>Revenue churn is running ${lift.toFixed(1)} times what it was in `
-            + `${worse.map(x => x.b.label.toLowerCase()).join(', ')}, and `
-            + `${drift < 0.25 ? 'has not moved' : `has moved ${drift.toFixed(1)} of a point`} `
-            + `in ${steady.map(x => x.b.label.toLowerCase()).join(' or ')}.</strong> `
-            + `Against the six months before, `
-            + worse.concat(steady).sort((a, c) => a.i - c.i)
-                .map(x => `${x.b.label.toLowerCase()} went ${rate(x)}`).join(', ')
-            + `. Whatever has changed, it has changed for customers in their first year and `
-            + `left the rest of the book alone. `;
-        })()
-      : `<strong>Over the last six months the book lost ${fmt.pct(bookNow, 1)} of its revenue `
-        + `a month, against ${fmt.pct(bookThen, 1)} over the six before.</strong> `)
-    + `Only ${fmt.pct(allLost ? allDeparted / allLost : 0)} of what goes leaves with a `
-    + `departing customer. The other ${fmt.money(contraction / recent.length)} a month is `
-    + `customers who stayed and paid less, which is the number chart 31 cannot see at all: a `
-    + `head count scores an account booked down to zero exactly the same as one paying in `
-    + `full. `
-    + `The ${bands[oldest].label.toLowerCase()} band is ${fmt.pct(shares[oldest])} of every `
-    + `dollar that goes, because that is where the money sits, even though its own rate is the `
-    + `one that has not moved. `
-    + (joinEarly !== null && joinLate !== null
-        ? `The joining month is drawn on its own and is off until you switch it on. Before `
-          + `2025-09 it ran at ${fmt.pct(joinEarly, 0)} and that figure is not churn: a setup `
-          + `fee was booked into MRR in a customer's first month and came off the next, so the `
-          + `fee ending read as half the cohort's revenue leaving. Since the fee stopped the `
-          + `same band reads ${fmt.pct(joinLate, 0)}. Folded into the youngest line it dragged `
-          + `twenty months of it and hid everything else.`
-        : '');
+    (twelve
+      ? `<strong>A year after signing, the earliest intakes still had `
+        + `${fmt.pct(twelve.first, 0)} of their revenue and the latest ones had `
+        + `${fmt.pct(twelve.last, 0)}`
+        + (Math.abs(twelve.move) < 2
+            ? `, which is the same number.</strong> `
+            : `, ${Math.abs(twelve.move).toFixed(0)} points `
+              + `${twelve.move < 0 ? 'worse' : 'better'}.</strong> `)
+      : '')
+    + (three
+        ? `At three months the same comparison runs ${fmt.pct(three.first, 0)} to `
+          + `${fmt.pct(three.last, 0)}`
+          + (Math.abs(three.move) < 2 ? ', flat' : `, ${Math.abs(three.move).toFixed(0)} points `
+            + `${three.move < 0 ? 'worse' : 'better'}`)
+          + `. `
+        : '')
+    + (twelve && three && Math.abs(twelve.move) > Math.abs(three.move) + 2
+        ? `The damage is not at the front door. A cohort looks much the same at three months as `
+          + `it always did and much worse a year in, which points at what happens between `
+          + `those two readings rather than at who is being sold to. `
+        : '')
+    + (pooled12
+        ? `Pooled across the ${pooled12.cohorts} intakes old enough to have the reading, a year `
+          + `out leaves ${fmt.pct(pooled12.value, 0)} of the opening revenue. `
+        : '')
+    + `The dashed ends are carried, not measured: ${fmt.int(carriedCount)} of the points on `
+    + `this chart are a young cohort's own last reading taken forward along the average shape, `
+    + `and the hover gives the month it was carried from and a 95% range around it. The range `
+    + `is not assumed. It is how far cohorts have actually drifted from that shape over a gap `
+    + `of the same length, so a reading carried two months is tight and one carried twelve is `
+    + `not.`;
 
   $('rev-churn-note').textContent =
-    'Read a point as the month the revenue was at risk in, not the month the loss landed in. '
-    + 'February 2024, under three months, twelve per cent means: of the revenue carried in '
-    + 'February by customers who were under three months old in February, twelve per cent was '
-    + 'gone by March. Chart 31 labels the other way round, by the month the churn event '
-    + 'happened, so the two charts sit one month apart when they are overlaid. The drawn line '
-    + 'is gross: every dollar that went away, whether the customer left or simply paid less. '
-    + 'The hover carries the same movement three more ways, because each answers a different '
-    + 'question: what was kept after expansion, how much of the loss walked out with a '
-    + 'departing customer, which is the direct analogue of chart 31 and runs an order of '
-    + 'magnitude below the drawn line, and what share of the whole month’s losses the '
-    + 'band accounts for. The joining month is its own band and is off until you switch it on, '
-    + 'because until mid-2025 it measures a setup fee ending rather than churn; the cut points '
-    + 'above it are chart 31’s. Customers already present in the window’s first '
-    + 'month have no knowable tenure and go in the oldest band, there and here. A band '
-    + 'carrying under $5,000 in a month is left as a gap rather than drawn, because that rate '
-    + 'is noise.';
+    'One point per signing month. The base is what that month’s intake was paying when it '
+    + 'arrived, and each line is how much of those same dollars was still arriving a fixed '
+    + 'number of months later. A point above January 2024 on the twelve-month line is what the '
+    + 'January 2024 intake had left in January 2025. Read down a column and you have chart '
+    + '44’s curve for that intake; read along a line and you have whether the business is '
+    + 'getting better or worse at holding what it sells. Both ways a dollar leaves are in it: '
+    + 'the customer going, and the customer staying on less. Each customer is capped at what '
+    + 'they were paying at the start, so expansion cannot lift a point above 100%. Starting '
+    + 'revenue is a customer’s second month rather than their first, for the reason given '
+    + 'on chart 44. A dashed end is carried forward rather than measured, because a cohort '
+    + 'that signed nine months ago has no twelve-month reading and stopping the line there '
+    + 'hides the part of the chart worth looking at; it is the cohort’s own last reading '
+    + 'scaled by the average shape between those two ages, and a cohort with under two months '
+    + 'of life behind it is not carried at all. Customers already present in the first month '
+    + 'of the window have no knowable start date and are in no cohort, which is why January '
+    + '2024 is small.';
 }
 
 function renderPastDue() {

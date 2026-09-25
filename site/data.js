@@ -3375,127 +3375,118 @@ export function cohortRevenueRetention(cohorts, {
   };
 }
 
-// Monthly revenue churn split by tenure, which is chart 31 asked in dollars.
+// Revenue retained at a fixed age, one point per signing month.
 //
-// Chart 31 counts who left. This counts what left, and the two are not the
-// same question: a customer booked down from $2,000 to zero is invisible to a
-// head count and is the largest single loss mechanism in this book. The cut
-// points, the labels and the censoring rule are chart 31's, so the two charts
-// can be laid on top of each other band for band.
+// Chart 44 follows one intake down its own life. This turns that sideways: how
+// much of its opening revenue was a cohort still receiving three, six, nine,
+// twelve and eighteen months out, plotted against the month it signed. Each
+// line is one horizon, so a point above January 2024 on the twelve-month line
+// is what the January 2024 intake had left in January 2025. Read down a column
+// and you get chart 44's curve; read along a line and you get whether the
+// business is getting better or worse at holding what it sells.
 //
-// Three rates come out of the same pass. The drawn one is gross revenue churn:
-// every dollar a band lost, whether the customer left or simply paid less,
-// over every dollar that band was carrying. The other two ride along in the
-// hover, because each of them answers a question the drawn line cannot:
-// departures alone is the direct money analogue of the logo rate, and net is
-// gross churn less expansion, which is the only one of the three that can go
-// negative and the only one that says whether the band grew.
-export function revenueChurnByTenure(data, { cuts = [1, 3, 6, 12] } = {}) {
-  const byMonth = new Map();
-  const firstSeen = new Map();
-  for (const row of data.customers) {
-    if (!row.active) continue;
-    if (!byMonth.has(row.month)) byMonth.set(row.month, new Map());
-    byMonth.get(row.month).set(row.id, row.eopMrr || 0);
-    if (!firstSeen.has(row.id) || row.month < firstSeen.get(row.id)) {
-      firstSeen.set(row.id, row.month);
+// The young cohorts have not lived long enough to have a reading at the longer
+// horizons, and leaving those lines to stop short hides the most interesting
+// part of the chart, which is what the recent intakes are heading for. They are
+// carried forward instead, and marked as carried rather than measured.
+export function revenueRetentionAtAges(cohorts, { ages = [3, 6, 9, 12, 18] } = {}) {
+  const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
+  if (usable.length < 4) return null;
+
+  const retained = (c, age) => {
+    const base = c.retainedStartingRevenue[0];
+    return base && c.maxOffset >= age ? c.cappedRetainedRevenue[age] / base : null;
+  };
+
+  // The average shape, which is what a young cohort is carried forward along.
+  // It stops where fewer than four cohorts have reached, the same rule the rest
+  // of the cohort work on this page uses.
+  const shape = [];
+  for (let age = 0; ; age += 1) {
+    const live = usable.filter(c => c.maxOffset >= age);
+    if (live.length < 4) break;
+    const base = live.reduce((s, c) => s + c.retainedStartingRevenue[0], 0);
+    const kept = live.reduce((s, c) => s + (c.cappedRetainedRevenue[age] || 0), 0);
+    shape.push(base ? kept / base : null);
+  }
+
+  // How far a cohort's own reading has actually moved over a gap of n months,
+  // pooled over every cohort and every starting age. This is the spread the
+  // forecast carries, measured rather than assumed: a reading carried two
+  // months is worth more than one carried twelve, and the interval says so.
+  // Bounded by the oldest horizon asked for. Past that the shape rests on a
+  // handful of cohorts and wanders, and letting that tail into the spread was
+  // putting NaN through the whole calculation and silently dropping every
+  // interval on the chart.
+  const oldest = Math.max(...ages);
+  const usableAge = age => age < shape.length && Number.isFinite(shape[age]) && shape[age] > 0;
+  const byGap = new Map();
+  for (const c of usable) {
+    const top = Math.min(c.maxOffset, oldest);
+    for (let from = 1; from <= top; from += 1) {
+      if (!usableAge(from)) continue;
+      const a = retained(c, from);
+      if (!a || a <= 0) continue;
+      for (let to = from + 1; to <= top; to += 1) {
+        if (!usableAge(to)) continue;
+        const b = retained(c, to);
+        if (!b || b <= 0) continue;
+        const moved = Math.log(b / a) - Math.log(shape[to] / shape[from]);
+        if (!Number.isFinite(moved)) continue;
+        const gap = to - from;
+        if (!byGap.has(gap)) byGap.set(gap, []);
+        byGap.get(gap).push(moved);
+      }
     }
   }
-  const months = [...byMonth.keys()].sort();
-  if (months.length < 3) return null;
-  const position = new Map(months.map((m, i) => [m, i]));
+  const spreadAt = gap => {
+    const xs = byGap.get(gap);
+    if (!xs || xs.length < 6) return null;
+    const mean = xs.reduce((s, v) => s + v, 0) / xs.length;
+    const sd = Math.sqrt(xs.reduce((s, v) => s + (v - mean) ** 2, 0) / (xs.length - 1));
+    return Number.isFinite(sd) ? sd : null;
+  };
 
-  const edges = [0, ...cuts, Infinity];
-  const bands = edges.slice(0, -1).map((from, i) => {
-    const to = edges[i + 1];
-    return {
-      from,
-      to,
-      key: to === Infinity ? `${from}plus` : `${from}-${to}`,
-      // The joining month is held out as its own band rather than folded into
-      // the youngest one. Until mid-2025 a setup fee was booked into eop_mrr
-      // and came off the month after, so a joining month reads as a fifty per
-      // cent loss for a billing reason; folded in, it dragged the whole
-      // under-three-months line for twenty months and made it unreadable.
-      label: to === Infinity
-        ? `${from} months and over`
-        : (to === 1 ? 'Joining month'
-          : from === 0 ? `Under ${to} months` : `${from} to ${to} months`),
-    };
+  const rows = usable.map(c => ({
+    cohort: c.month,
+    logos: c.survivors[0] || 0,
+    start: c.retainedStartingRevenue[0],
+    age: c.maxOffset,
+    points: ages.map(age => {
+      const seen = retained(c, age);
+      if (seen !== null) return { age, value: seen, forecast: false, lo: null, hi: null };
+      // Carried forward from the cohort's own last reading along the average
+      // shape. A cohort with almost no life behind it is not carried at all:
+      // scaling one month of evidence out to a year is not a forecast.
+      const from = c.maxOffset;
+      if (from < 2 || !usableAge(age) || !usableAge(from)) {
+        return { age, value: null, forecast: true };
+      }
+      const last = retained(c, from);
+      if (last === null) return { age, value: null, forecast: true };
+      const value = last * (shape[age] / shape[from]);
+      const sd = spreadAt(age - from);
+      return {
+        age,
+        value: Math.min(1, value),
+        forecast: true,
+        from,
+        lo: sd ? Math.max(0, value * Math.exp(-1.96 * sd)) : null,
+        hi: sd ? Math.min(1, value * Math.exp(1.96 * sd)) : null,
+      };
+    }),
+  }));
+
+  // The same readings pooled, so the finding can say whether a horizon is
+  // drifting without reading it off the picture.
+  const pooled = ages.map(age => {
+    const live = usable.filter(c => c.maxOffset >= age);
+    const base = live.reduce((s, c) => s + c.retainedStartingRevenue[0], 0);
+    const kept = live.reduce((s, c) => s + (c.cappedRetainedRevenue[age] || 0), 0);
+    return { age, cohorts: live.length, value: base ? kept / base : null, base };
   });
 
-  // A band carrying almost nothing in a month gives a rate that is noise
-  // rather than a reading, so the line gaps there instead of spiking.
-  const FLOOR = 5000;
-
-  // A row is labelled with the month the revenue was at risk in, not the month
-  // the loss landed in. "Feb 24, under three months, 12%" therefore reads as
-  // "of the revenue carried in February by customers who were under three
-  // months old in February, 12% was gone by March", which is the sentence a
-  // reader is trying to form. Chart 31 labels the other way round, by the month
-  // the churn event happened, so the two are one month apart when overlaid.
-  const rows = months.slice(0, -1).map((month, i) => {
-    const now = byMonth.get(month);
-    const next = byMonth.get(months[i + 1]);
-    const tally = bands.map(() => ({
-      base: 0, lost: 0, gained: 0, departed: 0, logos: 0, gone: 0,
-    }));
-    let totalLost = 0;
-
-    for (const [id, was] of now) {
-      const censored = firstSeen.get(id) === months[0];
-      const tenure = position.get(month) - position.get(firstSeen.get(id));
-      // A censored customer has no knowable tenure and goes in the last band,
-      // which is what chart 31 does with them.
-      const index = censored
-        ? bands.length - 1
-        : bands.findIndex(b => tenure >= b.from && tenure < b.to);
-      if (index < 0) continue;
-      const becomes = next.get(id) || 0;
-      const t = tally[index];
-      t.base += was;
-      t.logos += 1;
-      const lost = Math.max(0, was - becomes);
-      t.lost += lost;
-      t.gained += Math.max(0, becomes - was);
-      totalLost += lost;
-      if (!next.has(id)) { t.departed += was; t.gone += 1; }
-    }
-
-    return {
-      month,
-      landsIn: months[i + 1],
-      bands: bands.map((b, k) => {
-        const t = tally[k];
-        const readable = t.base > FLOOR;
-        return {
-          ...b,
-          base: t.base,
-          lost: t.lost,
-          logos: t.logos,
-          // The same movement read the other way up, so a reader who wants
-          // "kept" rather than "lost" does not have to do it in their head.
-          kept: readable ? (t.base - t.lost + t.gained) / t.base : null,
-          // Every dollar that went away, however it went.
-          rate: readable ? t.lost / t.base : null,
-          // Only the dollars that walked out with a customer, which is what a
-          // head count would have caught.
-          departureRate: readable ? t.departed / t.base : null,
-          // Gross churn less expansion. The only one that can go negative.
-          netRate: readable ? (t.lost - t.gained) / t.base : null,
-          logoRate: t.logos ? t.gone / t.logos : null,
-          // What this band contributes to every dollar lost that month, which
-          // is the part that decides where fixing it would actually help.
-          shareOfLosses: totalLost ? t.lost / totalLost : null,
-        };
-      }),
-      totalLost,
-      base: tally.reduce((s, t) => s + t.base, 0),
-    };
-  });
-
-  rows.bands = bands;
-  return rows;
+  return { ages, rows, pooled, shape };
 }
 
 export function churnByTenure(data, { cuts = [3, 6, 12] } = {}) {
