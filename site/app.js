@@ -2191,7 +2191,9 @@ function renderLevers() {
        { value: lead.book, label: 'Where the book is today', variant: 'soft' }]
     : measure.key === 'logos'
       ? [{ value: lead.logosNow, label: 'Customers today', variant: 'soft' }]
-      : [{ value: 0, label: 'Break-even', variant: 'soft' }];
+      : [{ value: 0, label: 'Break-even', variant: 'soft' },
+         { value: lead.book - lead.logosNow * lead.servePerLogo - lead.acquisitionPerMonth,
+           label: 'Today, on the same basis', variant: 'soft' }];
   const drawn = runs.flatMap(x => x.r.paths[x.cm.key][measure.key]);
   multiLineChart($('chart-levers'), {
     labels,
@@ -2267,7 +2269,10 @@ function renderLevers() {
     + 'hundred and twenty-six on one of fifteen round numbers. Customers follow the same '
     + 'cohorts in head count, by survival. Cost to serve is the trailing six months per '
     + 'active customer, chart 39’s basis; acquisition is the trailing six months of '
-    + 'spend held flat, because it is mostly salaries. The book already on the shelf decays '
+    + 'spend held flat, because it is mostly salaries. After costs is on recurring revenue '
+    + 'only: usage, one-off and pass-through revenue are not in it, and they run at about a '
+    + 'tenth on top, so a month that reads just below break-even here is about level in cash. '
+    + 'The book already on the shelf decays '
     + 'along chart 44’s curve and new business along chart 46’s, with the '
     + 'carry-forward correction chart 45 backtested at about six points of error a year out.';
 }
