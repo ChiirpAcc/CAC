@@ -3349,6 +3349,113 @@ export function cohortRevenueRetention(cohorts, {
   };
 }
 
+// Monthly revenue churn split by tenure, which is chart 31 asked in dollars.
+//
+// Chart 31 counts who left. This counts what left, and the two are not the
+// same question: a customer booked down from $2,000 to zero is invisible to a
+// head count and is the largest single loss mechanism in this book. The cut
+// points, the labels and the censoring rule are chart 31's, so the two charts
+// can be laid on top of each other band for band.
+//
+// Three rates come out of the same pass. The drawn one is gross revenue churn:
+// every dollar a band lost, whether the customer left or simply paid less,
+// over every dollar that band was carrying. The other two ride along in the
+// hover, because each of them answers a question the drawn line cannot:
+// departures alone is the direct money analogue of the logo rate, and net is
+// gross churn less expansion, which is the only one of the three that can go
+// negative and the only one that says whether the band grew.
+export function revenueChurnByTenure(data, { cuts = [3, 6, 12] } = {}) {
+  const byMonth = new Map();
+  const firstSeen = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!byMonth.has(row.month)) byMonth.set(row.month, new Map());
+    byMonth.get(row.month).set(row.id, row.eopMrr || 0);
+    if (!firstSeen.has(row.id) || row.month < firstSeen.get(row.id)) {
+      firstSeen.set(row.id, row.month);
+    }
+  }
+  const months = [...byMonth.keys()].sort();
+  if (months.length < 3) return null;
+  const position = new Map(months.map((m, i) => [m, i]));
+
+  const edges = [0, ...cuts, Infinity];
+  const bands = edges.slice(0, -1).map((from, i) => {
+    const to = edges[i + 1];
+    return {
+      from,
+      to,
+      key: to === Infinity ? `${from}plus` : `${from}-${to}`,
+      label: to === Infinity
+        ? `${from} months and over`
+        : (from === 0 ? `Under ${to} months` : `${from} to ${to} months`),
+    };
+  });
+
+  // A band carrying almost nothing in a month gives a rate that is noise
+  // rather than a reading, so the line gaps there instead of spiking.
+  const FLOOR = 5000;
+
+  const rows = months.slice(1).map((month, i) => {
+    const now = byMonth.get(months[i]);
+    const next = byMonth.get(month);
+    const tally = bands.map(() => ({
+      base: 0, lost: 0, gained: 0, departed: 0, logos: 0, gone: 0,
+    }));
+    let totalLost = 0;
+
+    for (const [id, was] of now) {
+      const censored = firstSeen.get(id) === months[0];
+      const tenure = position.get(months[i]) - position.get(firstSeen.get(id));
+      // A censored customer has no knowable tenure and goes in the last band,
+      // which is what chart 31 does with them.
+      const index = censored
+        ? bands.length - 1
+        : bands.findIndex(b => tenure >= b.from && tenure < b.to);
+      if (index < 0) continue;
+      const becomes = next.get(id) || 0;
+      const t = tally[index];
+      t.base += was;
+      t.logos += 1;
+      const lost = Math.max(0, was - becomes);
+      t.lost += lost;
+      t.gained += Math.max(0, becomes - was);
+      totalLost += lost;
+      if (!next.has(id)) { t.departed += was; t.gone += 1; }
+    }
+
+    return {
+      month,
+      bands: bands.map((b, k) => {
+        const t = tally[k];
+        const readable = t.base > FLOOR;
+        return {
+          ...b,
+          base: t.base,
+          lost: t.lost,
+          logos: t.logos,
+          // Every dollar that went away, however it went.
+          rate: readable ? t.lost / t.base : null,
+          // Only the dollars that walked out with a customer, which is what a
+          // head count would have caught.
+          departureRate: readable ? t.departed / t.base : null,
+          // Gross churn less expansion. The only one that can go negative.
+          netRate: readable ? (t.lost - t.gained) / t.base : null,
+          logoRate: t.logos ? t.gone / t.logos : null,
+          // What this band contributes to every dollar lost that month, which
+          // is the part that decides where fixing it would actually help.
+          shareOfLosses: totalLost ? t.lost / totalLost : null,
+        };
+      }),
+      totalLost,
+      base: tally.reduce((s, t) => s + t.base, 0),
+    };
+  });
+
+  rows.bands = bands;
+  return rows;
+}
+
 export function churnByTenure(data, { cuts = [3, 6, 12] } = {}) {
   const live = new Map();
   const firstSeen = new Map();
