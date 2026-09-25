@@ -2042,8 +2042,8 @@ function renderWindowCurve() {
 }
 
 // 47. Every lever, against what it does to revenue.
-const leverState = { card: 'hold', churn: { holds: true }, mode: 'volume',
-                     volume: null, price: null, ready: false };
+const leverState = { card: 'match', churn: { holds: true },
+                     pipeline: 1, floor: 1500, ready: true };
 
 function renderLevers() {
   if (!$('chart-levers')) return;
@@ -2054,13 +2054,9 @@ function renderLevers() {
   }
   const outlook = probe.outlook;
   const demand = probe.demand;
-  if (!leverState.ready) {
-    leverState.volume = Math.round(outlook ? (outlook.level3 + outlook.level6) / 2 : 30);
-    leverState.ready = true;
-  }
 
-  // Four cards, then the switches under them. Picking a card sets everything;
-  // touching a switch afterwards leaves the card behind and says so.
+  // Four whole positions first, because a reader wants something to argue with
+  // before they want a slider.
   const cardBox = $('lever-cards');
   if (cardBox && !cardBox.dataset.ready) {
     SCENARIO_CARDS.forEach(c => {
@@ -2068,8 +2064,7 @@ function renderLevers() {
       b.type = 'button';
       b.className = 'scenario-card';
       b.dataset.key = c.key;
-      b.innerHTML = `<strong>${c.label}</strong><span>${c.headline}</span>`
-        + `<em>${c.detail}</em>`;
+      b.innerHTML = `<strong>${c.label}</strong><span>${c.headline}</span><em>${c.detail}</em>`;
       cardBox.append(b);
     });
     cardBox.addEventListener('click', event => {
@@ -2078,15 +2073,8 @@ function renderLevers() {
       const c = SCENARIO_CARDS.find(x => x.key === b.dataset.key);
       if (!c) return;
       leverState.card = c.key;
-      leverState.mode = c.mode;
-      const seasonal = Math.round(outlook ? (outlook.level3 + outlook.level6) / 2 : 30);
-      if (c.mode === 'price') {
-        leverState.price = c.price;
-        leverState.volume = Math.round(demand.volumeFor(c.price));
-      } else {
-        leverState.price = null;
-        leverState.volume = Math.round(seasonal * (c.multiplier || 1));
-      }
+      leverState.pipeline = c.pipeline;
+      leverState.floor = c.floor;
       renderLevers();
     });
     cardBox.dataset.ready = '1';
@@ -2095,6 +2083,7 @@ function renderLevers() {
     b.classList.toggle('is-on', b.dataset.key === leverState.card);
   });
 
+  // The only checkboxes on the chart. Everything else is a position or a dial.
   const churnBox = $('lever-churn');
   if (churnBox && !churnBox.dataset.ready) {
     const grid = document.createElement('div');
@@ -2123,61 +2112,51 @@ function renderLevers() {
 
   const setBox = $('lever-settings');
   if (setBox && !setBox.dataset.ready) {
+    const row = (id, label, min, max, step) =>
+      '<div class="chart-control">'
+      + '<label for="lever-' + id + '">' + label + '</label>'
+      + '<input type="range" id="lever-' + id + '" min="' + min + '" max="' + max
+      + '" step="' + step + '">'
+      + '<output id="lever-' + id + '-value"></output></div>';
     setBox.innerHTML =
-      '<div class="chart-control"><label for="lever-price">Price a new customer pays</label>'
-      + '<input type="range" id="lever-price" min="800" max="2500" step="25">'
-      + '<output id="lever-price-value"></output></div>'
-      + '<div class="chart-control"><label for="lever-volume">New customers a month</label>'
-      + '<input type="range" id="lever-volume" min="5" max="90" step="1">'
-      + '<output id="lever-volume-value"></output></div>';
+      row('floor', 'Lowest price worth taking', 800, 2500, 25)
+      + row('pipeline', 'Pipeline against today', 0.4, 3, 0.05);
     setBox.addEventListener('input', event => {
       leverState.card = null;
-      if (event.target.id === 'lever-price') {
-        leverState.mode = 'price';
-        leverState.price = Number(event.target.value);
-        leverState.volume = Math.round(demand.volumeFor(leverState.price));
-      } else {
-        leverState.mode = 'volume';
-        leverState.price = null;
-        leverState.volume = Number(event.target.value);
-      }
+      if (event.target.id === 'lever-floor') leverState.floor = Number(event.target.value);
+      else leverState.pipeline = Number(event.target.value);
       renderLevers();
     });
     setBox.dataset.ready = '1';
   }
-  const shownPrice = leverState.mode === 'price'
-    ? leverState.price : demand.priceFor(leverState.volume);
-  if ($('lever-price')) $('lever-price').value = String(Math.min(2500, Math.max(800, shownPrice)));
-  if ($('lever-volume')) $('lever-volume').value = String(leverState.volume);
-  if ($('lever-price-value')) {
-    // $1,500 to $2,500 is the band September actually tested. Below it the
-    // slider still moves, because the curve puts the book there today and
-    // pinning the handle at $1,500 while the readout said $882 was a lie about
-    // where the business is.
-    $('lever-price-value').textContent = fmt.money(shownPrice)
-      + (leverState.mode === 'price' ? '' : ' (from the curve)')
-      + (shownPrice < 1500 ? ' · below the tested band' : '');
+  if ($('lever-floor')) $('lever-floor').value = String(leverState.floor);
+  if ($('lever-pipeline')) $('lever-pipeline').value = String(leverState.pipeline);
+
+  const r = leverProjection(data, cohorts, {
+    pipeline: leverState.pipeline, floor: leverState.floor,
+    churn: modes[0].key, band: true,
+  });
+
+  if ($('lever-floor-value')) {
+    $('lever-floor-value').textContent = fmt.money(leverState.floor)
+      + ' · ' + fmt.int(r.settledVolume) + ' close, averaging '
+      + fmt.money(r.settledPrice);
   }
-  if ($('lever-volume-value')) {
-    $('lever-volume-value').textContent = fmt.int(leverState.volume)
-      + (leverState.mode === 'price' ? ' (from the curve)' : '');
+  if ($('lever-pipeline-value')) {
+    $('lever-pipeline-value').textContent = leverState.pipeline.toFixed(2) + '×'
+      + (Math.abs(leverState.pipeline - 1) < 0.01 ? ' · as it is now' : '');
   }
 
-  const opts = leverState.mode === 'price'
-    ? { price: leverState.price } : { volume: leverState.volume };
-  const r = leverProjection(data, cohorts, { ...opts, churn: modes[0].key, band: true });
   const labels = r.path.map((_, i) => `M${i + 1}`);
   const colours = { holds: INK.primary, projection: INK.negative, improves: INK.positive };
-
   const series = modes.map(m => ({
     label: m.label, colour: colours[m.key] || INK.primary, values: r.paths[m.key],
   }));
-  // The interval belongs to the arrivals, not to the churn assumption, so it is
-  // drawn once around whichever churn line is listed first rather than three
-  // times over.
-  if (r.lo && r.hi && leverState.mode !== 'price') {
-    series.push({ label: 'Arrivals, 95% either side', colour: colours[modes[0].key],
-                  dashed: true, thin: true, values: r.hi });
+  // The interval is on how many prospects turn up, not on what they will pay,
+  // so it is drawn once around the first churn line rather than three times.
+  if (r.lo && r.hi) {
+    series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
+                  values: r.hi });
     series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
                   values: r.lo });
   }
@@ -2196,68 +2175,71 @@ function renderLevers() {
     ],
     describe: i => `<strong>Month ${i + 1}</strong>`
       + modes.map(m => `<span>${m.label}: ${fmt.money(r.paths[m.key][i])}</span>`).join('')
-      + (r.lo && leverState.mode !== 'price'
-          ? `<span class="muted">Arrivals 95% band: ${fmt.money(r.lo[i])} to `
-            + `${fmt.money(r.hi[i])}</span>` : '')
-      + (outlook ? `<span class="muted">${fmt.int(outlook.forward[i] ? outlook.forward[i].expected
-          : 0)} arrivals expected that month, season included</span>` : ''),
+      + (r.lo ? `<span class="muted">Pipeline 95% band: ${fmt.money(r.lo[i])} to `
+          + `${fmt.money(r.hi[i])}</span>` : '')
+      + (outlook && outlook.forward[i]
+          ? `<span class="muted">Season that month: ${outlook.forward[i].factor.toFixed(2)}`
+            + `×</span>` : ''),
   });
 
   const card = SCENARIO_CARDS.find(c => c.key === leverState.card);
-  const reached = modes.map(m => ({ m, at: r.reaches[m.key] }));
-  const got = reached.filter(x => x.at);
+  const got = modes.map(m => ({ m, at: r.reaches[m.key] })).filter(x => x.at);
+  const flat = demand.matched(r.ceiling, r.floor);
+  const atCeiling = demand.volumeFor(r.ceiling);
+  const quoteHigh = atCeiling * r.ceiling;
+  const quoteLow = demand.volumeFor(r.floor) * r.floor;
 
   $('levers-finding').innerHTML =
     (card ? `<strong>${card.label}.</strong> ${card.headline}. ` : '<strong>Set by hand.</strong> ')
-    + `At ${fmt.int(r.settledVolume)} customers a month and ${fmt.money(r.settledPrice)} each, `
-    + `that is ${fmt.money(r.newMrr)} of new revenue a month. `
+    + `<strong>Matching willingness to pay between ${fmt.money(r.ceiling)} and `
+    + `${fmt.money(r.floor)} closes ${fmt.int(r.settledVolume)} a month at an average of `
+    + `${fmt.money(r.settledPrice)}, which is ${fmt.money(r.newMrr)} of new revenue.</strong> `
+    + `Quoting everybody ${fmt.money(r.ceiling)} takes ${fmt.money(quoteHigh)} from the same `
+    + `pipeline and quoting everybody ${fmt.money(r.floor)} takes ${fmt.money(quoteLow)}. `
+    + `Matching beats the better of those by `
+    + `${fmt.pct(flat.revenue / Math.max(quoteHigh, quoteLow) - 1, 0)}, and that is the whole `
+    + `argument: a single number either turns away everyone below it or hands the surplus back `
+    + `to everyone above it. `
     + (got.length
         ? `<strong>${got.map(x => `${x.m.label.toLowerCase()} reaches a million in month `
             + `${x.at}`).join(', and ')}.</strong> `
         : `<strong>None of the churn assumptions on screen reach a million inside `
           + `${r.months} months.</strong> `)
     + modes.map(m => `${m.label} ends at ${fmt.money(r.paths[m.key][r.months - 1])}`).join('; ')
-    + `. `
-    + `The demand curve is fitted through three points, not assumed: September at `
-    + `${fmt.money(2500)} closed nine, a ${fmt.money(1500)} floor was judged good for fourteen, `
-    + `and the trailing six months run at ${fmt.int(demand.anchors[2].q)} a month at `
-    + `${fmt.money(demand.anchors[2].p)}. Giving up a customer's worth of price buys `
-    + `${fmt.money(Math.abs(demand.marginAt(10)))} at ten a month and only `
-    + `${fmt.money(Math.abs(demand.marginAt(35)))} at thirty-five, which is why volume and not `
-    + `price is the lever that moves this.`;
+    + '.';
 
-  const rows = [];
-  for (const m of CHURN_MODES) {
-    rows.push(`<tr${leverState.churn[m.key] ? '' : ' class="muted"'}><td>${m.label}</td>`
-      + `<td class="n">${fmt.money(r.paths[m.key][5])}</td>`
-      + `<td class="n">${fmt.money(r.paths[m.key][11])}</td>`
-      + `<td class="n">${fmt.money(r.paths[m.key][r.months - 1])}</td>`
-      + `<td class="n">${r.reaches[m.key] ? 'month ' + r.reaches[m.key] : 'not inside '
-        + r.months + ' months'}</td></tr>`);
-  }
+  const rows = CHURN_MODES.map(m =>
+    `<tr${leverState.churn[m.key] ? '' : ' class="muted"'}><td>${m.label}</td>`
+    + `<td class="n">${fmt.money(r.paths[m.key][5])}</td>`
+    + `<td class="n">${fmt.money(r.paths[m.key][11])}</td>`
+    + `<td class="n">${fmt.money(r.paths[m.key][r.months - 1])}</td>`
+    + `<td class="n">${r.reaches[m.key] ? 'month ' + r.reaches[m.key]
+        : 'not inside ' + r.months + ' months'}</td></tr>`);
   $('levers-table').innerHTML =
     '<thead><tr><th>Churn assumption</th><th class="n">6 months</th><th class="n">12 months</th>'
     + `<th class="n">${r.months} months</th><th class="n">Reaches a million</th></tr></thead>`
     + `<tbody>${rows.join('')}</tbody>`;
 
   $('levers-note').textContent =
-    'The book on this chart decays along the curve chart 44 measures, each month of new '
-    + 'business along the recent-intake curve chart 46 draws, and the carry is corrected by the '
-    + 'drift chart 45 backtested at about six points of error a year out. Price and volume are '
-    + 'one lever, not two: whichever you set, the other follows the demand curve, and the '
-    + 'readout says which way round it is. That curve is fitted through three points rather '
-    + 'than assumed, and only one of them is controlled. September fixed price at $2,500 and '
-    + 'closed nine, and at a $1,500 floor the same pipeline was judged good for fourteen. That '
-    + 'is a partial month and a sales judgement on the counterfactual, so it is used for the '
-    + 'slope of demand and not for its level; where the curve sits comes from the trailing six '
-    + 'months of the book. The form makes the effect diminish as volume rises, which is what '
-    + 'those three points together say: a customer’s worth of price buys a lot at ten a '
-    + 'month and almost nothing at thirty-five. Arrivals are deseasonalised against a centred '
-    + 'year of themselves, levelled on the average of the last three and last six months, and '
-    + 'the 95% band is the spread of the last twelve deseasonalised months rather than an '
-    + 'assumed one; the season is put back month by month, which is why the band is wider in '
-    + 'October than in December. The band is drawn around arrivals only, so it does not appear '
-    + 'when a price is being held and volume is following the curve.';
+    'Price is not a number on this chart, it is a ladder. The demand curve gives what the '
+    + 'q-th best prospect will pay and no more, and the policy is to match it: everyone above '
+    + 'the floor pays their own willingness, capped at $2,500. Revenue is then the area under '
+    + 'the ladder rather than a rectangle under one point, which is why it beats every single '
+    + 'price quoted to everybody. The floor is the one real decision, because it is the '
+    + 'business you are willing to turn away; the ceiling is fixed where September tested it. '
+    + 'The ladder itself is fitted through three points and only one is controlled. September '
+    + 'closed nine at a fixed $2,500 and the same pipeline was judged good for fourteen at a '
+    + '$1,500 floor, which is a partial month and a judgement on the counterfactual, so it is '
+    + 'used for the slope of demand and not its level; where the ladder sits comes from the '
+    + 'trailing six months of the book. The form makes the effect diminish as volume rises, '
+    + 'which is what those points together say. Pipeline scales the ladder rather than moving '
+    + 'it: twice the leads is twice as many prospects at every level of willingness, not the '
+    + 'same prospects paying more. Arrivals are deseasonalised against a centred year of '
+    + 'themselves, levelled on the average of the last three and last six months, and the 95% '
+    + 'band is the spread of the last twelve deseasonalised months; the season goes back on '
+    + 'month by month, which is why the band is wider in October than in December. The book '
+    + 'itself decays along chart 44’s curve, new business along chart 46’s '
+    + 'recent-intake curve, corrected by the drift chart 45 backtested.';
 }
 
 function renderPastDue() {

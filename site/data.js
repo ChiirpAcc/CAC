@@ -3686,13 +3686,37 @@ export function demandCurve(data) {
   if (!best) best = { k: 1.955, A: 126841, floor: 771, err: 0 };
 
   const priceFor = q => best.floor + best.A * Math.max(1, q) ** -best.k;
+  const volumeFor = p => (p <= best.floor ? 200 : (best.A / (p - best.floor)) ** (1 / best.k));
+
+  // Nobody sells at one price. The curve is a willingness-to-pay ladder: the
+  // q-th best prospect will pay priceFor(q) and no more. Quoting everyone the
+  // same number either turns away everybody below it or hands the surplus back
+  // to everybody above it, and both are visible in the September test, where a
+  // fixed $2,500 took $22,500 and a flat $1,500 took $20,998 from the same
+  // pipeline.
+  //
+  // Matching instead: every prospect above the floor pays their own
+  // willingness, capped at the ceiling. That is the area under the ladder
+  // rather than a rectangle under one point, which is why it beats both.
+  const area = (from, to) => {
+    const F = best.floor;
+    const term = q => F * q + best.A * q ** (1 - best.k) / (1 - best.k);
+    return term(to) - term(from);
+  };
+  const matched = (ceiling, floor) => {
+    const qc = Math.max(0, volumeFor(ceiling));
+    const qf = Math.max(qc, volumeFor(floor));
+    const revenue = qc * ceiling + area(qc, qf);
+    return { ceiling, floor, closed: qf, atCeiling: qc, revenue,
+             averagePrice: qf ? revenue / qf : 0 };
+  };
   return {
     anchors,
     floor: best.floor,
     k: best.k,
     priceFor,
-    // The inverse, for when a price target is the thing being set.
-    volumeFor: p => (p <= best.floor ? 200 : (best.A / (p - best.floor)) ** (1 / best.k)),
+    matched,
+    volumeFor,
     // Dollars of price given up for one more customer, at that volume.
     marginAt: q => priceFor(q + 0.5) - priceFor(q - 0.5),
   };
@@ -3792,28 +3816,32 @@ export const CHURN_MODES = [
 ];
 
 export const SCENARIO_CARDS = [
-  { key: 'hold', label: 'Hold the line', mode: 'volume',
-    headline: 'Sign what the season says, price where the curve puts it',
-    detail: 'Volume at the seasonal projection and price taken off the demand curve. '
-      + 'The honest do-nothing.' },
-  { key: 'premium', label: 'Premium', mode: 'price', price: 2500,
-    headline: 'Fix price at $2,500 and take the volume that comes',
-    detail: 'September, repeated. Nine or so a month at the top of the curve.' },
-  { key: 'floor', label: 'Floor at $1,500', mode: 'price', price: 1500,
-    headline: 'Hold a $1,500 floor and discount into it',
-    detail: 'The other half of the September test. More customers, less each.' },
-  { key: 'push', label: 'Volume push', mode: 'volume', multiplier: 2,
-    headline: 'Double the pipeline and let price find its level',
-    detail: 'Price falls toward the floor as volume rises, but the fall is small past '
-      + 'thirty a month, which is what makes this the only route to a million.' },
+  { key: 'match', label: 'Match willingness to pay', pipeline: 1, floor: 1500,
+    headline: '$2,500 down to $1,500, everyone at their own number',
+    detail: 'The policy, at the pipeline you already have. Beats every single price '
+      + 'quoted to everybody, which is what September actually showed.' },
+  { key: 'premium', label: 'Premium only', pipeline: 1, floor: 2500,
+    headline: 'Sell only to the top of the ladder',
+    detail: 'September as it was run. Nine close, the rest walk, and the surplus from '
+      + 'the nine is the only revenue.' },
+  { key: 'widen', label: 'Widen the band', pipeline: 1, floor: 1000,
+    headline: 'Same matching, floor dropped to $1,000',
+    detail: 'Reaches the band that retains best on this book, $1,000 to $1,500 at 77% '
+      + 'of revenue kept at a year.' },
+  { key: 'push', label: 'Volume push', pipeline: 2, floor: 1500,
+    headline: 'Twice the pipeline, same matching',
+    detail: 'Twice the leads is twice as many prospects at every level of willingness. '
+      + 'The ladder does not move, it lengthens.' },
 ];
 
 // Revenue forward, under one churn assumption and one point on the demand
 // curve. The book decays along chart 44's curve, each month of new business
 // along chart 46's recent-intake curve, and the carry is corrected by the
 // drift chart 45 backtested.
+export const MWTP_CEILING = 2500;
+
 export function leverProjection(data, cohorts, {
-  volume = null, price = null, churn = 'holds', months = 24, band = false,
+  pipeline = 1, floor = 1500, churn = 'holds', months = 24, band = false,
 } = {}) {
   const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
   if (usable.length < 8) return null;
@@ -3890,14 +3918,14 @@ export function leverProjection(data, cohorts, {
   const demand = demandCurve(data);
   const outlook = arrivalOutlook(data, { horizon: months });
 
-  // Whichever of the two was set is the input and the other follows the curve.
-  // Setting neither takes the seasonal projection.
-  const volumeAt = i => {
-    if (price !== null) return demand.volumeFor(price);
-    if (volume !== null) return volume * (outlook ? outlook.forward[i].factor : 1);
-    return outlook ? outlook.forward[i].expected : 30;
-  };
-  const priceAt = q => (price !== null ? price : demand.priceFor(q));
+  // One month of new business, priced by matching rather than by quoting. The
+  // pipeline multiplier scales the whole ladder: twice the leads is twice as
+  // many prospects at every level of willingness, not the same prospects paying
+  // more. Season goes on top of that.
+  const matched = demand.matched(MWTP_CEILING, floor);
+  const scaleAt = i => pipeline * (outlook ? outlook.forward[i].factor : 1);
+  const soldAt = i => matched.closed * scaleAt(i);
+  const revenueAt = i => matched.revenue * scaleAt(i);
 
   const curveFor = mode => (mode === 'improves' ? best : held);
   const driftFor = mode => (mode === 'projection' ? drift : 0);
@@ -3938,10 +3966,14 @@ export function leverProjection(data, cohorts, {
       total += censored * improve(matureRate * Math.exp(bookRate(mode)), mode) ** h;
       for (let k = 1; k <= h; k += 1) {
         const age = h - k;
-        let q = volumeAt(k - 1);
-        if (shift && outlook) q = Math.max(0, q + shift * 1.96 * outlook.sd
-          * (outlook.forward[k - 1].factor));
-        total += q * priceAt(q) * (newCurve[age] ?? newCurve[newCurve.length - 1])
+        let money = revenueAt(k - 1);
+        if (shift && outlook && outlook.base > 0) {
+          // The interval is on how many prospects arrive, not on what they will
+          // pay, so it scales the whole month rather than moving the ladder.
+          const lift = 1 + shift * 1.96 * outlook.sd / outlook.base;
+          money *= Math.max(0, lift);
+        }
+        total += money * (newCurve[age] ?? newCurve[newCurve.length - 1])
           * Math.exp(d * age);
       }
       out.push(total);
@@ -3955,7 +3987,7 @@ export function leverProjection(data, cohorts, {
   const lo = band ? run(churn, -1) : null;
   const hi = band ? run(churn, +1) : null;
 
-  const settled = volumeAt(0);
+  const settled = soldAt(0);
   const crosses = series => {
     const i = series.findIndex(v => v >= 1e6);
     return i < 0 ? null : i + 1;
@@ -3965,9 +3997,10 @@ export function leverProjection(data, cohorts, {
     months, book, drift, demand, outlook,
     paths, path: chosen, lo, hi,
     reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v)])),
+    matched, floor, ceiling: MWTP_CEILING, pipeline,
     settledVolume: settled,
-    settledPrice: priceAt(settled),
-    newMrr: settled * priceAt(settled),
+    settledPrice: matched.averagePrice,
+    newMrr: revenueAt(0),
   };
 }
 
