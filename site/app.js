@@ -2106,6 +2106,19 @@ function renderLevers() {
   // Each switch is a card with its own reasoning under it, so a reader who has
   // never seen the page knows what "trying hard" means before they tick it.
   // They multi-select: every combination ticked is a line.
+  const drift = probe.drift || 0;
+  const driftSe = probe.driftSe || 0;
+  const yearly = perMonth => (Math.exp(perMonth * 12) - 1) * 100;
+  const signed = v => (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(1) + '%';
+  const numberFor = m => {
+    if (m.key === 'trend') return `Churn ${signed(yearly(drift))} a year`;
+    if (m.key === 'effort') return `Churn ${signed(yearly(drift + 1.96 * driftSe))} a year`;
+    if (m.key === 'expected') return `${fmt.int(outlook ? outlook.base : 30)} new customers a month`;
+    if (m.key === 'upper') {
+      return `${fmt.int(outlook ? outlook.base + 1.96 * outlook.sd : 40)} new customers a month`;
+    }
+    return m.label;
+  };
   const toggles = (id, list, stateKey, defaultKey) => {
     const box = $(id);
     if (!box || box.dataset.ready) return;
@@ -2120,7 +2133,9 @@ function renderLevers() {
       input.checked = m.key === defaultKey;
       card.append(input);
       const body = document.createElement('div');
-      body.innerHTML = `<strong>${m.label}</strong><span>${m.headline}</span><em>${m.blurb}</em>`;
+      body.innerHTML = `<strong>${m.numbered ? numberFor(m) : m.label}</strong>`
+        + `<span>${m.numbered ? m.label + ' \u00b7 ' + m.headline : m.headline}</span>`
+        + `<em>${m.blurb}</em>`;
       card.append(body);
       grid.append(card);
     });
@@ -2151,6 +2166,7 @@ function renderLevers() {
       '<div class="chart-control range-pair-row">'
       + '<label for="lever-band-lo">The band you will price inside</label>'
       + '<div class="range-pair">'
+      + '<div class="range-fill" id="lever-band-fill"></div>'
       + '<input type="range" id="lever-band-lo" min="800" max="3000" step="25">'
       + '<input type="range" id="lever-band-hi" min="800" max="3000" step="25">'
       + '</div>'
@@ -2169,6 +2185,15 @@ function renderLevers() {
   }
   if ($('lever-band-lo')) $('lever-band-lo').value = String(leverState.floor);
   if ($('lever-band-hi')) $('lever-band-hi').value = String(leverState.ceiling);
+  if ($('lever-band-fill')) {
+    const lo = $('lever-band-lo');
+    const min = Number(lo.min);
+    const span = Number(lo.max) - min;
+    const a = ((leverState.floor - min) / span) * 100;
+    const b = ((leverState.ceiling - min) / span) * 100;
+    $('lever-band-fill').style.left = a.toFixed(2) + '%';
+    $('lever-band-fill').style.width = Math.max(0, b - a).toFixed(2) + '%';
+  }
 
   const measure = MEASURES.find(m => m.key === leverState.measure) || MEASURES[0];
   const colours = { trend: INK.primary, effort: INK.positive };
@@ -2206,7 +2231,7 @@ function renderLevers() {
     xTitle: 'Months from today',
     yFormat: measure.format,
     series: runs.map(x => ({
-      label: `${x.cm.label}, ${x.pm.label.toLowerCase()}`,
+      label: `${numberFor(x.cm)}, ${numberFor(x.pm).toLowerCase()}`,
       colour: colours[x.cm.key] || INK.primary,
       dashed: x.pm.key === 'upper',
       values: x.r.paths[x.cm.key][measure.key],

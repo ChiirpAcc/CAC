@@ -3937,11 +3937,11 @@ export function arrivalOutlook(data, { horizon = 24 } = {}) {
 // overlapping pairs drawn from thirty-two cohorts, and treating those as four
 // thousand independent observations understates the error elevenfold.
 export const CHURN_MODES = [
-  { key: 'trend', label: 'On current trend',
+  { key: 'trend', label: 'On current trend', numbered: true,
     headline: 'Revenue keeps falling away the way it has been',
     blurb: 'Each new intake loses its revenue a little faster than the one before, at '
       + 'the rate measured across every cohort on the book. Nothing is done about it.' },
-  { key: 'effort', label: 'Trying hard',
+  { key: 'effort', label: 'Retention improves', numbered: true,
     headline: 'Retention work lands, at the good end of what the data allows',
     blurb: 'The top of the 95% interval on that same measurement: retention gains about '
       + '4% a year instead of losing about 4%. Not a different world, the good end of '
@@ -3970,11 +3970,11 @@ export const MWTP_CEILING = 2500;
 // New customers a month: the deseasonalised level of the last six months with
 // the season put back, and the top of its 95% interval as the hopeful case.
 export const PROSPECT_MODES = [
-  { key: 'expected', label: 'Expected trend',
+  { key: 'expected', label: 'Expected trend', numbered: true,
     headline: 'New customers keep arriving at the recent rate',
     blurb: 'The last six months with the season taken out, then each coming month’s '
       + 'own season put back: more in October, fewer in December.' },
-  { key: 'upper', label: 'Upper end',
+  { key: 'upper', label: 'Upper end', numbered: true,
     headline: 'A good run of months, inside what the data has actually done',
     blurb: 'The top of the 95% interval on that rate, from the spread of the last twelve '
       + 'months. Not a stretch target; the better half of normal.' },
@@ -4205,6 +4205,7 @@ export function leverProjection(data, cohorts, {
     paths, path: chosen,
     reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v.mrr)])),
     logosNow, servePerLogo, acquisitionPerMonth: acquisitionNow, costBasis,
+    driftSe,
     cacNow: acq && acq.logos.length
       ? acq.totals.reduce((a, b) => a + b, 0) / Math.max(1, acq.logos.reduce((a, b) => a + b, 0))
       : null,
