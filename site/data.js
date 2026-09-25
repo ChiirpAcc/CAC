@@ -3266,7 +3266,7 @@ export function costRecovery(data, cohorts, { age = 6 } = {}) {
 // NRR keeps expansion, so a band can exceed 100%. GRR caps each customer at
 // what they started the month on, so it cannot. The gap between them is what
 // expansion is covering.
-export function revenueRetentionByTenure(data, { cuts = [1, 3, 6, 12, 24] } = {}) {
+export function revenueRetentionByTenure(data, { cuts = [3, 6, 12] } = {}) {
   const byMonth = new Map();
   const firstSeen = new Map();
   for (const row of data.customers) {
@@ -3281,6 +3281,8 @@ export function revenueRetentionByTenure(data, { cuts = [1, 3, 6, 12, 24] } = {}
   if (months.length < 3) return null;
   const position = new Map(months.map((m, i) => [m, i]));
 
+  // The cut points and the labels are the ones chart 31 uses, because the
+  // whole purpose of this chart is to be laid next to that one line for line.
   const edges = [0, ...cuts, Infinity];
   const bands = edges.slice(0, -1).map((from, i) => {
     const to = edges[i + 1];
@@ -3288,9 +3290,9 @@ export function revenueRetentionByTenure(data, { cuts = [1, 3, 6, 12, 24] } = {}
       from,
       to,
       key: to === Infinity ? `${from}plus` : `${from}-${to}`,
-      label: to === 1 ? 'First month'
-        : to === Infinity ? `${from} months and over`
-        : `${from} to ${to} months`,
+      label: to === Infinity
+        ? `${from} months and over`
+        : (from === 0 ? `Under ${to} months` : `${from} to ${to} months`),
       base: 0,
       kept: 0,
       capped: 0,
@@ -3299,37 +3301,91 @@ export function revenueRetentionByTenure(data, { cuts = [1, 3, 6, 12, 24] } = {}
       monthly: [],
     };
   });
-  const find = tenure => bands.find(b => tenure >= b.from && tenure < b.to);
 
-  for (let i = 0; i < months.length - 1; i += 1) {
+  // A band holding almost no revenue in a month gives a ratio that is noise
+  // rather than a reading, so the line gaps there instead of spiking.
+  const FLOOR = 5000;
+
+  // Held apart from the banding, so the blended figure the projections start
+  // from does not move when somebody changes the cut points.
+  const settled = { base: 0, kept: 0 };
+  const joining = { base: 0, kept: 0, capped: 0, observations: 0 };
+
+  const rows = months.slice(1).map((month, i) => {
     const now = byMonth.get(months[i]);
-    const next = byMonth.get(months[i + 1]);
-    const slice = new Map(bands.map(b => [b.key, { base: 0, kept: 0 }]));
+    const next = byMonth.get(month);
+    const tally = bands.map(() => ({ base: 0, kept: 0, capped: 0, lost: 0, obs: 0, gone: 0 }));
+    let totalLost = 0;
 
     for (const [id, was] of now) {
-      // A customer whose first month is the window's first month has no
-      // knowable tenure. Every cohort measure here excludes them.
-      if (firstSeen.get(id) === months[0]) continue;
+      const censored = firstSeen.get(id) === months[0];
       const tenure = position.get(months[i]) - position.get(firstSeen.get(id));
-      const band = find(tenure);
-      if (!band) continue;
+      // A censored customer has no knowable tenure and goes in the last band,
+      // which is the call chart 31 makes. Dropping them instead would take the
+      // oldest and largest accounts out of the oldest line.
+      const index = censored
+        ? bands.length - 1
+        : bands.findIndex(b => tenure >= b.from && tenure < b.to);
+      if (index < 0) continue;
       const becomes = next.get(id) || 0;
-      band.base += was;
-      band.kept += becomes;
-      band.capped += Math.min(becomes, was);
-      band.observations += 1;
-      if (!next.has(id)) band.departures += 1;
-      const s = slice.get(band.key);
-      s.base += was;
-      s.kept += becomes;
+      const t = tally[index];
+      t.base += was;
+      t.kept += becomes;
+      t.capped += Math.min(becomes, was);
+      t.obs += 1;
+      if (!next.has(id)) t.gone += 1;
+      const lost = Math.max(0, was - becomes);
+      t.lost += lost;
+      totalLost += lost;
+
+      if (censored || tenure >= 1) {
+        settled.base += was;
+        settled.kept += becomes;
+      } else {
+        joining.base += was;
+        joining.kept += becomes;
+        joining.capped += Math.min(becomes, was);
+        joining.observations += 1;
+      }
     }
-    // A month with almost no revenue in a band produces a ratio that is noise,
-    // and the spread is the point of collecting these.
-    for (const b of bands) {
-      const s = slice.get(b.key);
-      if (s.base > 5000) b.monthly.push(s.kept / s.base);
-    }
-  }
+
+    bands.forEach((b, k) => {
+      const t = tally[k];
+      b.base += t.base;
+      b.kept += t.kept;
+      b.capped += t.capped;
+      b.observations += t.obs;
+      b.departures += t.gone;
+      if (t.base > FLOOR) b.monthly.push(t.kept / t.base);
+    });
+
+    return {
+      month,
+      bands: bands.map((b, k) => {
+        const t = tally[k];
+        return {
+          from: b.from,
+          to: b.to,
+          key: b.key,
+          label: b.label,
+          base: t.base,
+          kept: t.kept,
+          obs: t.obs,
+          // Net of expansion, so a band can sit above 100%.
+          retained: t.base > FLOOR ? t.kept / t.base : null,
+          // Each customer capped at what they started on, so it cannot.
+          grossRetained: t.base > FLOOR ? t.capped / t.base : null,
+          lost: t.lost,
+          // What this band contributes to every dollar lost that month, which
+          // is the part that decides where fixing it would actually help.
+          shareOfLosses: totalLost ? t.lost / totalLost : null,
+        };
+      }),
+      base: tally.reduce((s, t) => s + t.base, 0),
+      kept: tally.reduce((s, t) => s + t.kept, 0),
+      totalLost,
+    };
+  });
 
   const spread = xs => {
     if (xs.length < 3) return null;
@@ -3338,8 +3394,16 @@ export function revenueRetentionByTenure(data, { cuts = [1, 3, 6, 12, 24] } = {}
     return Math.sqrt(variance);
   };
 
-  const out = bands.filter(b => b.base > 0).map(b => ({
-    ...b,
+  const summary = bands.filter(b => b.base > 0).map(b => ({
+    from: b.from,
+    to: b.to,
+    key: b.key,
+    label: b.label,
+    base: b.base,
+    kept: b.kept,
+    capped: b.capped,
+    observations: b.observations,
+    departures: b.departures,
     nrr: b.base ? b.kept / b.base : null,
     grr: b.base ? b.capped / b.base : null,
     logoChurn: b.observations ? b.departures / b.observations : null,
@@ -3347,18 +3411,20 @@ export function revenueRetentionByTenure(data, { cuts = [1, 3, 6, 12, 24] } = {}
     months: b.monthly.length,
   }));
 
-  // The blended figure every projection on this page should start from, and
-  // the reason it excludes the first month is above.
-  const settled = out.filter(b => b.from >= 1);
-  const settledBase = settled.reduce((s, b) => s + b.base, 0);
-  const settledKept = settled.reduce((s, b) => s + b.kept, 0);
-
   return {
-    bands: out,
-    firstMonth: out.find(b => b.from === 0) || null,
-    settled,
-    blendedNrr: settledBase ? settledKept / settledBase : null,
-    monthlyDecay: settledBase ? 1 - settledKept / settledBase : null,
+    rows,
+    bands: summary,
+    // Everything past the joining month, whatever the cut points are. Why the
+    // joining month is held out is in the note on the chart.
+    blendedNrr: settled.base ? settled.kept / settled.base : null,
+    monthlyDecay: settled.base ? 1 - settled.kept / settled.base : null,
+    joiningMonth: joining.base ? {
+      base: joining.base,
+      kept: joining.kept,
+      nrr: joining.kept / joining.base,
+      grr: joining.capped / joining.base,
+      observations: joining.observations,
+    } : null,
   };
 }
 

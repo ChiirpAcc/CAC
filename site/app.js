@@ -1492,53 +1492,115 @@ function renderArrivalAnimations() {
 function renderRevTenure() {
   if (!$('chart-rev-tenure')) return;
   const r = revenueRetentionByTenure(data);
-  if (!r || !r.settled.length) {
+  if (!r || r.rows.length < 3) {
     $('chart-rev-tenure').innerHTML = '<p class="empty">Not enough history yet.</p>';
     return;
   }
+  const rows = r.rows;
+  const bands = rows[0].bands;
+  const palette = [INK.negative, INK.secondary, INK.primary, INK.tertiary];
 
-  const shown = r.bands;
-  columnChart($('chart-rev-tenure'), {
-    labels: shown.map(b => b.label),
-    values: shown.map(b => b.nrr),
-    // The first month is a billing artefact, so it is drawn but not coloured
-    // like a finding.
-    colourFor: (value, i) => (shown[i] && shown[i].from === 0 ? INK.tertiary : INK.primary),
+  // Same switch as chart 31, for the same reason: four lines is one more than
+  // this chart carries legibly. The arithmetic runs on all four either way, so
+  // turning a line off never changes another line's number.
+  const box = $('rev-tenure-bands');
+  if (box && !box.dataset.ready) {
+    const grid = document.createElement('div');
+    grid.className = 'toggles';
+    bands.forEach((b, i) => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = String(i);
+      input.checked = true;
+      const text = document.createElement('span');
+      text.innerHTML = `<span>${b.label}</span>`;
+      label.append(input, text);
+      grid.append(label);
+    });
+    box.append(grid);
+    box.addEventListener('change', renderRevTenure);
+    box.dataset.ready = '1';
+  }
+  const on = box
+    ? new Set([...box.querySelectorAll('input:checked')].map(i => Number(i.value)))
+    : new Set(bands.map((_, i) => i));
+
+  const labels = rows.map(x => fmt.monthLabel(x.month));
+  const series = bands
+    .map((b, i) => ({ i, b }))
+    .filter(({ i }) => on.has(i))
+    .map(({ i, b }) => ({
+      label: b.label,
+      colour: palette[i] || INK.tertiary,
+      values: rows.map(x => x.bands[i].retained),
+    }));
+
+  if (!series.length) {
+    $('chart-rev-tenure').innerHTML = '<p class="empty">No bands selected.</p>';
+    return;
+  }
+
+  // These lines live between about 0.4 and 1.1, so a zero baseline would
+  // flatten every one of them into the same stripe.
+  const drawn = series.flatMap(s => s.values).filter(v => v !== null && Number.isFinite(v));
+  const floor = Math.max(0, Math.floor(Math.min(...drawn) * 20) / 20 - 0.05);
+  const ceiling = Math.ceil(Math.max(...drawn, 1) * 20) / 20;
+
+  multiLineChart($('chart-rev-tenure'), {
+    labels,
+    yMin: floor,
+    yMax: ceiling,
     yFormat: v => fmt.pct(v, 0),
-    refs: [{ value: r.blendedNrr, label: 'Blended, first month excluded' }],
+    series,
+    refs: [{ value: 1, label: 'Everything kept' }],
     describe: i => {
-      const b = shown[i];
-      return b.label + ': ' + fmt.pct(b.nrr, 1) + ' of revenue kept month to month'
-        + (b.grr !== null ? ', ' + fmt.pct(b.grr, 1) + ' before expansion' : '')
-        + ', on ' + fmt.int(b.observations) + ' customer-months'
-        + (b.sd ? ', month-to-month spread ' + fmt.pct(b.sd, 1) : '') + '.';
+      const x = rows[i];
+      return `<strong>${labels[i]}</strong>`
+        + x.bands.map(b => (b.retained === null
+            ? `<span>${b.label}: too little revenue to read</span>`
+            : `<span>${b.label}: ${fmt.pct(b.retained, 1)} of ${fmt.money(b.base)} kept, `
+              + `${fmt.pct(b.shareOfLosses)} of the month’s losses</span>`)).join('')
+        + `<span class="muted">${fmt.money(x.totalLost)} lost out of `
+        + `${fmt.money(x.base)} at risk</span>`;
     },
   });
 
-  const first = r.firstMonth;
-  const worst = [...r.settled].sort((x, y) => x.nrr - y.nrr)[0];
-  const best = [...r.settled].sort((x, y) => y.nrr - x.nrr)[0];
-  const range = (best.nrr - worst.nrr) * 100;
+  const recent = rows.slice(-6);
+  const meanOf = (i, key) => {
+    const xs = recent.map(x => x.bands[i][key]).filter(v => v !== null && Number.isFinite(v));
+    return xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null;
+  };
+  const kept = bands.map((_, i) => meanOf(i, 'retained'));
+  const shares = bands.map((_, i) => meanOf(i, 'shareOfLosses'));
+  const readable = kept.map((v, i) => ({ v, i })).filter(x => x.v !== null);
+  const worst = readable.reduce((a, b) => (b.v < a.v ? b : a));
+  const best = readable.reduce((a, b) => (b.v > a.v ? b : a));
+  const oldest = bands.length - 1;
+  const portfolio = recent.reduce((s, x) => s + x.kept, 0) / recent.reduce((s, x) => s + x.base, 0);
 
   $('rev-tenure-finding').innerHTML =
-    '<strong>After the first month, revenue retention barely moves with tenure: '
-    + fmt.pct(worst.nrr, 1) + ' to ' + fmt.pct(best.nrr, 1) + ', a spread of '
-    + range.toFixed(1) + ' points.</strong> '
-    + 'Blended, the book keeps ' + fmt.pct(r.blendedNrr, 2) + ' of its revenue each month, '
-    + 'which is ' + fmt.pct(r.monthlyDecay, 2) + ' of monthly decay and the number every '
-    + 'projection here starts from. '
-    + (first
-        ? 'The first month is drawn separately at ' + fmt.pct(first.nrr, 1) + ' and is not '
-          + 'in that blend: until mid-2025 a joining charge was booked as MRR and came off '
-          + 'the next month, so this transition is a billing artefact rather than churn. '
-        : '')
-    + 'Chart 31 asks the same question in head count and gets a different shape, because a '
-    + 'head count treats a ' + fmt.money(200) + ' account and a ' + fmt.money(2000)
-    + ' account as the same event. The accounts leaving late are mostly the small ones, '
-    + 'which is why the logo rate climbs with tenure and the money rate does not.';
+    `<strong>Over the last six months the lines sit between `
+    + `${fmt.pct(worst.v, 1)} and ${fmt.pct(best.v, 1)}: how long a customer has been `
+    + `here barely predicts how much of their money survives the month.</strong> `
+    + `Chart 31 asks the same question in head count and gets a rising curve, because a `
+    + `head count treats a ${fmt.money(200)} account and a ${fmt.money(2000)} account as `
+    + `the same event. `
+    + `The ${bands[oldest].label.toLowerCase()} line carries `
+    + `${fmt.pct(shares[oldest])} of every dollar lost, not because it churns hardest but `
+    + `because that is where the money is. `
+    + `Across every band the book kept ${fmt.pct(portfolio, 2)} of its revenue a month over `
+    + `those six months, against ${fmt.pct(r.blendedNrr, 2)} over the whole window, which is `
+    + `the drift the projections have to carry. `
+    + (r.joiningMonth
+        ? `The step in the youngest line around 2025-09 is not a change in behaviour: until `
+          + `mid-2025 a joining charge was booked as MRR and came off the month after, so a `
+          + `joining month read ${fmt.pct(r.joiningMonth.nrr, 0)} for a billing reason. `
+          + `That month is excluded from the blended figure and from every projection.`
+        : '');
 
   const row = b =>
-    '<tr' + (b.from === 0 ? ' class="muted"' : '') + '><td>' + b.label + '</td>'
+    '<tr><td>' + b.label + '</td>'
     + '<td class="n">' + fmt.int(b.observations) + '</td>'
     + '<td class="n">' + fmt.money(b.base) + '</td>'
     + '<td class="n"><strong>' + fmt.pct(b.nrr, 1) + '</strong></td>'
@@ -1547,19 +1609,22 @@ function renderRevTenure() {
     + '<td class="n">' + fmt.pct(b.logoChurn, 1) + '</td></tr>';
   $('rev-tenure-table').innerHTML =
     '<thead><tr><th>Tenure</th><th class="n">Customer-months</th><th class="n">Revenue at risk</th>'
-    + '<th class="n">NRR</th><th class="n">GRR</th><th class="n">Spread</th>'
+    + '<th class="n">Kept</th><th class="n">Before expansion</th><th class="n">Month-to-month spread</th>'
     + '<th class="n">Logo churn</th></tr></thead><tbody>'
-    + r.bands.map(row).join('') + '</tbody></table>';
+    + r.bands.map(row).join('') + '</tbody>';
 
   $('rev-tenure-note').textContent =
-    'Every customer-month in the window, grouped by how many months that customer had '
-    + 'already been present, then revenue this month against revenue next month. NRR keeps '
-    + 'expansion so a band can exceed 100%; GRR caps each customer at what they started on '
-    + 'so it cannot, and the gap between them is what expansion is covering. Customers whose '
-    + 'first month is the first month of the window are excluded throughout, because their '
-    + 'tenure is unknowable. Spread is the standard deviation of the monthly ratios within '
-    + 'the band, which is what the projection uses for its interval rather than an assumed '
-    + 'one.';
+    'Every customer present in a month, grouped by how many months they had already been '
+    + 'here, then their revenue that month against their revenue the month after. Kept is '
+    + 'net of expansion, so a band can sit above 100%; before expansion caps each customer '
+    + 'at what they started on, so it cannot, and the gap between the two columns is what '
+    + 'expansion is covering. Customers already present in the first month of the window '
+    + 'have no knowable tenure and go in the oldest band, which is what chart 31 does with '
+    + 'them; putting them anywhere else would take the largest accounts out of the oldest '
+    + 'line. A band holding under $5,000 in a month is left as a gap rather than drawn, '
+    + 'because that ratio is noise. The blended figure quoted above excludes each '
+    + 'customer’s joining month whatever the band edges are, so moving the cut points '
+    + 'does not move it.';
 }
 
 function renderPastDue() {
