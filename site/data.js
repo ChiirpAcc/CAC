@@ -3710,22 +3710,22 @@ export function demandCurve(data) {
     return { ceiling, floor, closed: qf, atCeiling: qc, revenue,
              averagePrice: qf ? revenue / qf : 0 };
   };
-  // What has actually closed at each price this year, taken from the signings
-  // themselves rather than from a curve. Two hundred and twenty-six of them
-  // against September's nine, so this is the confident edge and September is
-  // the hopeful one.
+  // What has closed at each price this year -- which is a record of the price
+  // list, not of demand, and the difference matters more than anything else on
+  // this chart.
   //
-  // The two disagree by a lot and the disagreement is the finding. September
-  // closed nine at a fixed $2,500; this year has closed none at all above
-  // $2,500 and 4.6 a month above $1,500. Either September's pipeline was not
-  // the usual pipeline, or matching unlocks willingness that quoting never
-  // found. Both are possible and neither is established, so the chart carries
-  // the span rather than picking.
+  // The top of the 2026 distribution reads 2300, 2250, 2250, 2250, 2250, 2250,
+  // 2250, 2250, 2250, 2000, 2000, 2000, 1869. Eight customers at exactly the
+  // same number is not willingness to pay, it is a ceiling on what was being
+  // asked for, and there is another pile of fourteen sitting at $1,500 to
+  // $1,600. Nothing above $2,300 closed all year because nothing above $2,300
+  // was quoted; somebody has paid $5,500 in the history, so the demand is not
+  // the thing that was missing.
   //
-  // A caveat that runs the other way: these are prices people were charged,
-  // not prices they would have paid. Every one of them is a lower bound on
-  // that customer's willingness, which is exactly the surplus matching is
-  // meant to collect.
+  // So this series is censored from above by policy. It is a fair reading of
+  // demand up to about $2,000, where a real spread of prices was being quoted,
+  // and it is worthless above that. September is the only month anybody asked
+  // for $2,500, and nine said yes.
   const thisYear = [];
   {
     const seen = new Map();
@@ -3901,7 +3901,7 @@ export const SCENARIO_CARDS = [
 export const MWTP_CEILING = 2500;
 
 export function leverProjection(data, cohorts, {
-  pipeline = 1, floor = 1500, ceiling = MWTP_CEILING, evidence = 'observed',
+  pipeline = 1, floor = 1500, ceiling = MWTP_CEILING, evidence = 'september',
   churn = 'trend', months = 24, band = false,
 } = {}) {
   const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);

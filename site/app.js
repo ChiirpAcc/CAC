@@ -2151,14 +2151,15 @@ function renderLevers() {
     pipeline: leverState.pipeline, floor: leverState.floor, ceiling: leverState.ceiling,
   };
   const r = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
-                                             evidence: 'observed' });
-  const hopeful = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
-                                                   evidence: 'september' });
+                                             evidence: 'september' });
+  // The other edge is what the price list produced, not what demand would bear.
+  const listed = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
+                                                  evidence: 'observed' });
 
   if ($('lever-band-value')) {
     $('lever-band-value').textContent = fmt.money(leverState.floor) + ' to '
-      + fmt.money(leverState.ceiling) + ' · ' + fmt.int(r.settledVolume) + ' to '
-      + fmt.int(hopeful.settledVolume) + ' close a month';
+      + fmt.money(leverState.ceiling) + ' · ' + fmt.int(listed.settledVolume) + ' to '
+      + fmt.int(r.settledVolume) + ' close a month';
   }
   if ($('lever-pipeline-value')) {
     // Closes are an outcome of these two, never an input. A reader who reads
@@ -2182,7 +2183,7 @@ function renderLevers() {
   // here. Lower edge is what has actually closed at each price this year; upper
   // edge is what September's test implies matching would unlock.
   series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
-                values: hopeful.paths[modes[0].key] });
+                values: listed.paths[modes[0].key] });
 
   multiLineChart($('chart-levers'), {
     labels,
@@ -2198,8 +2199,8 @@ function renderLevers() {
     ],
     describe: i => `<strong>Month ${i + 1}</strong>`
       + modes.map(m => `<span>${m.label}: ${fmt.money(r.paths[m.key][i])}</span>`).join('')
-      + `<span class="muted">On September's evidence instead: `
-        + `${fmt.money(hopeful.paths[modes[0].key][i])}</span>`
+      + `<span class="muted">If the old price list held instead: `
+        + `${fmt.money(listed.paths[modes[0].key][i])}</span>`
       + (outlook && outlook.forward[i]
           ? `<span class="muted">Season that month: ${outlook.forward[i].factor.toFixed(2)}`
             + `×</span>` : ''),
@@ -2214,22 +2215,22 @@ function renderLevers() {
 
   $('levers-finding').innerHTML =
     (card ? `<strong>${card.label}.</strong> ${card.headline}. ` : '<strong>Set by hand.</strong> ')
-    + `<strong>Two bodies of evidence disagree about this band, and the gap between them is `
-    + `wider than anything else on the chart.</strong> This year has closed `
-    + `${fmt.int(r.settledVolume)} a month at ${fmt.money(r.floor)} or better, worth `
-    + `${fmt.money(r.newMrr)}. September's test implies matching would find `
-    + `${fmt.int(hopeful.settledVolume)} a month worth ${fmt.money(hopeful.newMrr)}, which is `
-    + `${(hopeful.newMrr / Math.max(1, r.newMrr)).toFixed(1)} times as much. `
-    + `The solid line takes the first, the dashed line the second. `
-    + `The first rests on ${fmt.int(demand.sampleThisYear)} signings and the second on nine in `
-    + `a partial month, so the solid line is the one to plan on; but those `
-    + `${fmt.int(demand.sampleThisYear)} are prices people were charged rather than prices `
-    + `they would have paid, and the whole point of matching is that the difference is real. `
+    + `<strong>Matching this band closes ${fmt.int(r.settledVolume)} a month at an average of `
+    + `${fmt.money(r.settledPrice)}, worth ${fmt.money(r.newMrr)} of new revenue.</strong> `
+    + `The dashed line is what the old price list produced at the same band, `
+    + `${fmt.int(listed.settledVolume)} a month worth ${fmt.money(listed.newMrr)}, and it is `
+    + `drawn as the floor of the argument rather than as the expectation. `
+    + `<strong>That series is censored.</strong> The top of this year's signings reads `
+    + `$2,300 then eight in a row at exactly $2,250, with another fourteen stacked at $1,500 `
+    + `to $1,600. Those are price points, not willingness to pay. Nothing above $2,300 closed `
+    + `all year because nothing above $2,300 was asked for, and somebody in the history has `
+    + `paid $5,500, so demand was not the thing that was missing. September is the only month `
+    + `anybody asked for $2,500 and nine said yes. `
     + (got.length
         ? `<strong>${got.map(x => `${x.m.label.toLowerCase()} reaches a million in month `
-            + `${x.at}`).join(', and ')}, on this year's evidence.</strong> `
-        : `<strong>On this year's evidence none of the churn assumptions on screen reach a `
-          + `million inside ${r.months} months.</strong> `)
+            + `${x.at}`).join(', and ')}.</strong> `
+        : `<strong>None of the churn assumptions on screen reach a million inside `
+          + `${r.months} months.</strong> `)
     + modes.map(m => `${m.label} ends at ${fmt.money(r.paths[m.key][r.months - 1])}`).join('; ')
     + '.';
 
@@ -2256,7 +2257,10 @@ function renderLevers() {
     + 'closed nine at a fixed $2,500 and the same pipeline was judged good for fourteen at a '
     + '$1,500 floor, which is a partial month and a judgement on the counterfactual, so it is '
     + 'used for the slope of demand and not its level; where the ladder sits comes from the '
-    + 'trailing six months of the book. The form makes the effect diminish as volume rises, '
+    + 'trailing six months of the book, and the ladder above $2,300 rests on September alone '
+    + 'because the year’s signings are censored there: eight of them sit at exactly '
+    + '$2,250, which is a price list and not a demand curve. The form makes the effect '
+    + 'diminish as volume rises, '
     + 'which is what those points together say. Pipeline scales the ladder rather than moving '
     + 'it: twice the leads is twice as many prospects at every level of willingness, not the '
     + 'same prospects paying more. How many customers close is an outcome of those two and '
