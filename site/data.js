@@ -3632,79 +3632,203 @@ export function windowRetentionCurve(cohorts, { from = null, span = 3, maxAge = 
   };
 }
 
-// Every lever, against what it does to revenue.
+// What a customer costs to win, as a curve rather than a number.
 //
-// The other charts each measure one thing that has already happened. This one
-// puts the measured pieces together and asks what they are worth if they move,
-// which is the only question a plan actually needs answered.
+// September fixed price at $2,500 and closed nine; at a $1,500 floor the same
+// pipeline was judged good for fourteen. That is one controlled pair, on a
+// partial month, and it is directional rather than exact: it gives the slope
+// of demand, about two hundred dollars of price per extra customer across that
+// stretch, and says nothing about where the curve sits.
 //
-// Nothing here is invented. The book decays along the shape chart 44 measures,
-// new cohorts decay along the recent window chart 46 draws, the carry is
-// corrected by the drift chart 45 backtested, and every lever's starting value
-// is read off the data rather than set by hand.
+// So the pair is not used on its own. It is fitted together with where the book
+// actually runs, and the form is chosen so the effect diminishes as volume
+// rises, which is what the three points together say and what intuition says
+// too: the first customers you give up price for are the expensive ones, and by
+// the time you are signing thirty a month another one costs almost nothing.
 //
-// Expansion is deliberately not a lever. It is already inside the measured
-// curve, because the curve nets a customer's recovery against their own
-// earlier fall, and adding it again on top would count it twice.
-export const LEVERS = [
-  { key: 'customers', label: 'New customers a month', kind: 'count',
-    min: 10, max: 70, step: 1,
-    help: 'The last three months averaged 30, the six before that 39.' },
-  { key: 'price', label: 'What a new customer pays', kind: 'money',
-    min: 700, max: 2600, step: 1,
-    help: 'Realised, not list. The last six months came in at $1,029.' },
-  { key: 'anniversaryCut', label: 'Anniversary loss prevented', kind: 'share',
-    min: 0, max: 1, step: 0.05,
-    help: 'Month twelve costs a cohort 18 points in one month, in every vintage.' },
-  { key: 'downgradeCut', label: 'Drop-to-zero prevented', kind: 'share',
-    min: 0, max: 1, step: 0.05,
-    help: 'About 75 customers a month go to zero and stay there. Four fifths never return.' },
-  { key: 'earlyCut', label: 'First-quarter loss prevented', kind: 'share',
-    min: 0, max: 1, step: 0.05,
-    help: 'A cohort gives up 20 points in its first three months before it settles.' },
+//   price(q) = floor + A * q^-k
+//
+// Monotone by construction, so it cannot bend back and quote a higher price for
+// more customers, which a quadratic through the same three points does at about
+// thirty-one a month.
+export function demandCurve(data) {
+  const { byMonth, firstSeen, months, pos } = arrivalTables(data);
+  const recent = months.slice(-7, -1);
+  let n = 0;
+  let mrr = 0;
+  for (const m of recent) {
+    const next = months[pos.get(m) + 1];
+    for (const [id, v] of byMonth.get(m)) {
+      if (firstSeen.get(id) !== m || v <= 0) continue;
+      n += 1;
+      mrr += next ? (byMonth.get(next).get(id) ?? v) : v;
+    }
+  }
+  const anchors = [
+    { q: 9, p: 2500, label: 'September, fixed at $2,500' },
+    { q: 14, p: 1500, label: 'September, $1,500 floor' },
+    { q: n ? n / recent.length : 30, p: n ? mrr / n : 1000, label: 'Trailing six months' },
+  ];
+
+  let best = null;
+  for (let k = 0.2; k <= 6; k += 0.005) {
+    const x = anchors.map(t => t.q ** -k);
+    const sx = x.reduce((a, b) => a + b, 0);
+    const sy = anchors.reduce((s, t) => s + t.p, 0);
+    const sxx = x.reduce((a, b) => a + b * b, 0);
+    const sxy = x.reduce((s, v, i) => s + v * anchors[i].p, 0);
+    const A = (3 * sxy - sx * sy) / (3 * sxx - sx * sx);
+    const floor = (sy - A * sx) / 3;
+    if (!(A > 0) || floor < 200 || floor > 1200) continue;
+    const err = anchors.reduce((s, t) => s + (floor + A * t.q ** -k - t.p) ** 2, 0);
+    if (!best || err < best.err) best = { k, A, floor, err };
+  }
+  if (!best) best = { k: 1.955, A: 126841, floor: 771, err: 0 };
+
+  const priceFor = q => best.floor + best.A * Math.max(1, q) ** -best.k;
+  return {
+    anchors,
+    floor: best.floor,
+    k: best.k,
+    priceFor,
+    // The inverse, for when a price target is the thing being set.
+    volumeFor: p => (p <= best.floor ? 200 : (best.A / (p - best.floor)) ** (1 / best.k)),
+    // Dollars of price given up for one more customer, at that volume.
+    marginAt: q => priceFor(q + 0.5) - priceFor(q - 0.5),
+  };
+}
+
+function arrivalTables(data) {
+  const byMonth = new Map();
+  const firstSeen = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!byMonth.has(row.month)) byMonth.set(row.month, new Map());
+    byMonth.get(row.month).set(row.id, row.eopMrr || 0);
+    if (!firstSeen.has(row.id) || row.month < firstSeen.get(row.id)) {
+      firstSeen.set(row.id, row.month);
+    }
+  }
+  const months = [...byMonth.keys()].sort();
+  return { byMonth, firstSeen, months, pos: new Map(months.map((m, i) => [m, i])) };
+}
+
+// How many customers to expect a month, with the season taken out and put back.
+//
+// The level is the average of the last three and last six deseasonalised
+// months, because three is responsive and six is stable and there is no
+// principled reason to prefer either. The interval is the spread of the last
+// twelve deseasonalised months, which is what the month-to-month noise has
+// actually been rather than an assumed one.
+export function arrivalOutlook(data, { horizon = 24 } = {}) {
+  const { byMonth, firstSeen, months } = arrivalTables(data);
+  const series = months.slice(1).map(m => ({
+    month: m,
+    n: [...byMonth.get(m).keys()]
+      .filter(id => firstSeen.get(id) === m && byMonth.get(m).get(id) > 0).length,
+  }));
+  if (series.length < 18) return null;
+
+  const counts = series.map(r => r.n);
+  // Each month against a centred year of itself, so a trend does not leak into
+  // the seasonal factor.
+  const centred = counts.map((_, i) => {
+    const w = counts.slice(Math.max(0, i - 6), Math.min(counts.length, i + 7));
+    return w.reduce((a, b) => a + b, 0) / w.length;
+  });
+  const gathered = new Map();
+  series.forEach((r, i) => {
+    if (centred[i] <= 0) return;
+    const mm = r.month.slice(5);
+    if (!gathered.has(mm)) gathered.set(mm, []);
+    gathered.get(mm).push(r.n / centred[i]);
+  });
+  const factor = new Map([...gathered]
+    .map(([mm, xs]) => [mm, xs.reduce((a, b) => a + b, 0) / xs.length]));
+  const mean = [...factor.values()].reduce((a, b) => a + b, 0) / (factor.size || 1);
+  for (const [k, v] of factor) factor.set(k, v / mean);
+
+  const adjusted = series.map(r => r.n / (factor.get(r.month.slice(5)) || 1));
+  const level = w => {
+    const s = adjusted.slice(-w);
+    return s.reduce((a, b) => a + b, 0) / s.length;
+  };
+  const base = (level(3) + level(6)) / 2;
+  const last12 = adjusted.slice(-12);
+  const m12 = last12.reduce((a, b) => a + b, 0) / last12.length;
+  const sd = Math.sqrt(last12.reduce((a, b) => a + (b - m12) ** 2, 0) / (last12.length - 1));
+
+  const last = months[months.length - 1];
+  const add = (m, k) => {
+    const [y, mo] = m.split('-').map(Number);
+    const t = y * 12 + mo - 1 + k;
+    return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
+  };
+  const forward = Array.from({ length: horizon }, (_, i) => {
+    const month = add(last, i + 1);
+    const f = factor.get(month.slice(5)) || 1;
+    return {
+      month, factor: f,
+      expected: base * f,
+      lo: Math.max(0, (base - 1.96 * sd) * f),
+      hi: (base + 1.96 * sd) * f,
+    };
+  });
+  return { factor, base, sd, level3: level(3), level6: level(6), forward, series };
+}
+
+// The three ways the curve can go, each anchored to something measured rather
+// than to a round number. Drawn together when more than one is ticked, because
+// the honest answer to "what happens to revenue" is a fan and not a line.
+export const CHURN_MODES = [
+  { key: 'holds', label: 'Churn holds',
+    blurb: 'The newest intakes with a full year behind them keep behaving as they have.' },
+  { key: 'projection', label: 'Churn keeps drifting',
+    blurb: 'The per-month drift chart 45 measured carries on, so each intake is slightly '
+      + 'worse than the one before it.' },
+  { key: 'improves', label: 'Churn improves',
+    blurb: 'Back to the best vintage on the book, the early 2024 intakes, which kept 58% of '
+      + 'their revenue at a year against 44% now.' },
 ];
 
-export const LEVER_SCENARIOS = [
-  { key: 'today', label: 'Today', levers: {},
-    blurb: 'Nothing changes. Every lever sits where the data says it is now.' },
-  { key: 'price', label: 'Price only', levers: { price: 1500 },
-    blurb: 'List price actually realised. No new customers, no retention work.' },
-  { key: 'stretch', label: 'Price stretch, volume held', levers: { price: 2500 },
-    blurb: 'What this chart said before September: $2,500 with volume unchanged. Kept because it is what the regression implied and the September test refutes it.' },
-  { key: 'tested', label: 'Price stretch, as tested', levers: { price: 2500, customers: 9 },
-    blurb: 'September, measured. Nine sold at a fixed $2,500 where the mix was running thirty-two a month.' },
-  { key: 'floor', label: '$1,500 floor, as tested', levers: { price: 2143, customers: 14 },
-    blurb: 'The counterfactual from the same test: fourteen closed, blended to about $2,143.' },
-  { key: 'volume', label: 'Volume only', levers: { customers: 45 },
-    blurb: 'Half as many again arriving, at the price being realised today.' },
-  { key: 'retention', label: 'Retention only', levers: { anniversaryCut: 0.5, downgradeCut: 0.5 },
-    blurb: 'Half the anniversary and half the drop-to-zeros, nothing bought.' },
-  { key: 'balanced', label: 'Balanced', levers: { price: 1500, customers: 39, anniversaryCut: 0.5 },
-    blurb: 'The twelve-month plan: list price held, volume back to where it was in spring.' },
-  { key: 'push', label: 'Volume push', levers: { price: 1400, customers: 62 },
-    blurb: 'Price held where retention is best and volume roughly doubled. With elasticity above $1,700 measured at about minus three, this is what a million actually needs.' },
-  { key: 'downside', label: 'Downside', levers: { price: 900, customers: 22 },
-    blurb: 'The last six months of decline carrying on at the same slope.' },
+export const SCENARIO_CARDS = [
+  { key: 'hold', label: 'Hold the line', mode: 'volume',
+    headline: 'Sign what the season says, price where the curve puts it',
+    detail: 'Volume at the seasonal projection and price taken off the demand curve. '
+      + 'The honest do-nothing.' },
+  { key: 'premium', label: 'Premium', mode: 'price', price: 2500,
+    headline: 'Fix price at $2,500 and take the volume that comes',
+    detail: 'September, repeated. Nine or so a month at the top of the curve.' },
+  { key: 'floor', label: 'Floor at $1,500', mode: 'price', price: 1500,
+    headline: 'Hold a $1,500 floor and discount into it',
+    detail: 'The other half of the September test. More customers, less each.' },
+  { key: 'push', label: 'Volume push', mode: 'volume', multiplier: 2,
+    headline: 'Double the pipeline and let price find its level',
+    detail: 'Price falls toward the floor as volume rises, but the fall is small past '
+      + 'thirty a month, which is what makes this the only route to a million.' },
 ];
 
-export function leverProjection(data, cohorts, { levers = {}, months = 24 } = {}) {
+// Revenue forward, under one churn assumption and one point on the demand
+// curve. The book decays along chart 44's curve, each month of new business
+// along chart 46's recent-intake curve, and the carry is corrected by the
+// drift chart 45 backtested.
+export function leverProjection(data, cohorts, {
+  volume = null, price = null, churn = 'holds', months = 24, band = false,
+} = {}) {
+  const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
+  if (usable.length < 8) return null;
+
   const shapeFrom = group => {
     const out = [];
     for (let age = 0; ; age += 1) {
       const live = group.filter(c => c.maxOffset >= age);
       if (live.length < 4) break;
       const base = live.reduce((s, c) => s + c.retainedStartingRevenue[0], 0);
-      const kept = live.reduce((s, c) => s + (c.cappedRetainedRevenue[age] || 0), 0);
       if (!base) break;
-      out.push(kept / base);
+      out.push(live.reduce((s, c) => s + (c.cappedRetainedRevenue[age] || 0), 0) / base);
     }
     return out;
   };
-  const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
-  if (usable.length < 8) return null;
-
-  // Past where the measured curve stops, carry on at its own late slope rather
-  // than stopping the projection short or dropping to zero.
   const extend = (curve, to) => {
     const out = curve.slice();
     if (out.length < 7) return out;
@@ -3712,35 +3836,25 @@ export function leverProjection(data, cohorts, { levers = {}, months = 24 } = {}
     while (out.length <= to) out.push(out[out.length - 1] * rate);
     return out;
   };
-
-  // Truncated at two years. Past that the blend rests on four cohorts and
-  // wanders upward -- 39.6, 36.5, 34.7, 36.9, 37.0, 42.4 across ages 23 to 28 --
-  // and a curve that rises at the end makes the extrapolator read growth and
-  // cap decay at half a point a month, which left the existing book losing 29%
-  // over a year where every other measure on this page says 39%.
+  // Truncated at two years before anything is extrapolated. Past that the blend
+  // rests on four cohorts and wanders upward, which an extrapolator reads as
+  // growth and which had the book losing 29% of itself a year where every other
+  // measure on this page says 39%.
   const MEASURED_TO = 24;
   const referenceRaw = shapeFrom(usable).slice(0, MEASURED_TO);
   const reference = extend(referenceRaw, months + 40);
-  // The recent curve has to come from cohorts that have actually lived long
-  // enough to have a curve. Taking the last six cohorts outright gave a window
-  // whose oldest member was five months old, so shapeFrom stopped at age two,
-  // extend refused to carry a three-point curve, and every new cohort in the
-  // projection then held its month-two value forever. The baseline read
-  // $816,741 a year out instead of $749,266.
-  const grown = usable.filter(c => c.maxOffset >= 12);
-  const recentWindow = grown.length >= 6 ? grown.slice(-6) : usable.slice(0, 6);
-  const recentRaw = shapeFrom(recentWindow).slice(0, MEASURED_TO);
-  const recent = recentRaw.length >= 13 ? extend(recentRaw, months + 40) : reference;
 
-  // How much the reference overstates what actually happens, per month carried.
-  // Same quantity chart 45 backtested; recomputed here so the two cannot drift
-  // apart when one of them is edited.
+  const grown = usable.filter(c => c.maxOffset >= 12);
+  const pickCurve = list => {
+    const raw = shapeFrom(list).slice(0, MEASURED_TO);
+    return raw.length >= 13 ? extend(raw, months + 40) : reference;
+  };
+  const held = pickCurve(grown.length >= 6 ? grown.slice(-6) : usable.slice(0, 6));
+  const best = pickCurve(grown.slice(0, 6));
+
   let num = 0;
   let den = 0;
   for (const c of usable) {
-    // Bounded by the measured shape, not the extended one. Letting the
-    // extrapolated tail into this put a wandering three-cohort average through
-    // the drift and read the baseline $66,000 a year out too high.
     const top = Math.min(c.maxOffset, referenceRaw.length - 1, 24);
     const at = a => (a <= top ? c.cappedRetainedRevenue[a] / c.retainedStartingRevenue[0] : null);
     for (let a = 1; a <= top; a += 1) {
@@ -3758,16 +3872,12 @@ export function leverProjection(data, cohorts, { levers = {}, months = 24 } = {}
   }
   const drift = den ? num / den : 0;
 
-  // The book as it stands: every cohort at the age it has reached, plus the
-  // customers who were already here when the window opened and have no
-  // knowable start date. They are mature and decay at the mature rate.
   const live = [];
   let covered = 0;
   for (const c of cohorts) {
-    const age = c.maxOffset;
-    const mrr = c.revenue[age] || 0;
+    const mrr = c.revenue[c.maxOffset] || 0;
     if (mrr <= 0) continue;
-    live.push({ age, mrr });
+    live.push({ age: c.maxOffset, mrr });
     covered += mrr;
   }
   const book = data.customers
@@ -3777,114 +3887,87 @@ export function leverProjection(data, cohorts, { levers = {}, months = 24 } = {}
   const matureRate = reference[24] && reference[18]
     ? (reference[24] / reference[18]) ** (1 / 6) : 0.97;
 
-  // Every lever's resting position, read off the data rather than assumed.
-  const trailing = n => {
-    const ms = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort().slice(-n);
-    const set = new Set(ms);
-    const firstSeen = new Map();
-    for (const r of data.customers) {
-      if (!r.active) continue;
-      if (!firstSeen.has(r.id) || r.month < firstSeen.get(r.id)) firstSeen.set(r.id, r.month);
-    }
-    let count = 0;
-    let mrr = 0;
-    for (const r of data.customers) {
-      if (!r.active || !set.has(r.month)) continue;
-      if (firstSeen.get(r.id) !== r.month) continue;
-      if ((r.eopMrr || 0) <= 0) continue;
-      count += 1;
-      mrr += r.eopMrr;
-    }
-    return { customers: Math.round(count / ms.length), price: count ? mrr / count : 0 };
-  };
-  const now = trailing(6);
-  const base = {
-    customers: trailing(3).customers,
-    price: now.price,
-    anniversaryCut: 0,
-    downgradeCut: 0,
-    earlyCut: 0,
-  };
-  const L = { ...base, ...levers };
+  const demand = demandCurve(data);
+  const outlook = arrivalOutlook(data, { horizon: months });
 
-  // The drop-to-zero flow that never comes back, as a share of the book. Four
-  // fifths of it is permanent, which chart 45 measures rather than assumes.
-  const DROP_SHARE = 0.0104;
-  const DROP_PERMANENT = 0.78;
-
-  const softened = (curve, cut, at) => {
-    if (!cut || !curve[at] || !curve[at - 1]) return curve;
-    const out = curve.slice();
-    const keep = out[at] / out[at - 1];
-    const lift = (keep + (1 - keep) * cut) / keep;
-    for (let i = at; i < out.length; i += 1) out[i] *= lift;
-    return out;
+  // Whichever of the two was set is the input and the other follows the curve.
+  // Setting neither takes the seasonal projection.
+  const volumeAt = i => {
+    if (price !== null) return demand.volumeFor(price);
+    if (volume !== null) return volume * (outlook ? outlook.forward[i].factor : 1);
+    return outlook ? outlook.forward[i].expected : 30;
   };
+  const priceAt = q => (price !== null ? price : demand.priceFor(q));
 
-  const run = set => {
-    let newCurve = recent;
-    if (set.anniversaryCut) newCurve = softened(newCurve, set.anniversaryCut, 12);
-    if (set.earlyCut) newCurve = softened(newCurve, set.earlyCut, 3);
+  const curveFor = mode => (mode === 'improves' ? best : held);
+  const driftFor = mode => (mode === 'projection' ? drift : 0);
+
+  // A churn assumption has to reach the book already on the shelf, not only the
+  // cohorts not yet signed. A retention programme that only helped customers
+  // who have not arrived yet would be a strange programme, and the first cut of
+  // this chart had exactly that bug: improving churn moved twenty-four months
+  // out by fifteen per cent because it was reaching a fifth of the revenue.
+  //
+  // The size of the improvement is not picked. It is how much better the best
+  // vintage on the book actually was at a year than the newest one is.
+  // Expressed as a cut to the loss rather than an uplift to the level. A rate
+  // added on compounds, and at 2.6% a month it turned the whole book into the
+  // best vintage and then kept going, reaching a million on retention work
+  // alone. Cutting the monthly loss by the proportion the best vintage beat the
+  // newest one is bounded by construction: it can approach keeping everything
+  // and can never exceed it.
+  const lossRatio = (best[12] && held[12])
+    ? Math.min(1, (1 - best[12]) / (1 - held[12])) : 1;
+  const improve = (rate, mode) => (mode === 'improves'
+    ? 1 - (1 - rate) * lossRatio : rate);
+  const bookRate = mode => (mode === 'projection' ? drift : 0);
+
+  const run = (mode, shift = 0) => {
+    const newCurve = curveFor(mode);
+    const d = driftFor(mode);
     const out = [];
     for (let h = 1; h <= months; h += 1) {
       let total = 0;
       for (const c of live) {
         const to = c.age + h;
-        let factor = (reference[to] && reference[c.age])
-          ? (reference[to] / reference[c.age]) * Math.exp(drift * h)
+        const raw = (reference[to] && reference[c.age])
+          ? (reference[to] / reference[c.age]) * Math.exp(bookRate(mode) * h)
           : matureRate ** h;
-        if (set.anniversaryCut && c.age < 12 && to >= 12 && reference[12] && reference[11]) {
-          const keep = reference[12] / reference[11];
-          factor *= (keep + (1 - keep) * set.anniversaryCut) / keep;
-        }
-        total += c.mrr * factor;
+        total += c.mrr * improve(raw ** (1 / h), mode) ** h;
       }
-      total += censored * matureRate ** h;
+      total += censored * improve(matureRate * Math.exp(bookRate(mode)), mode) ** h;
       for (let k = 1; k <= h; k += 1) {
         const age = h - k;
-        total += set.customers * set.price * (newCurve[age] ?? newCurve[newCurve.length - 1]);
+        let q = volumeAt(k - 1);
+        if (shift && outlook) q = Math.max(0, q + shift * 1.96 * outlook.sd
+          * (outlook.forward[k - 1].factor));
+        total += q * priceAt(q) * (newCurve[age] ?? newCurve[newCurve.length - 1])
+          * Math.exp(d * age);
       }
-      total *= (1 + DROP_SHARE * DROP_PERMANENT * set.downgradeCut) ** h;
       out.push(total);
     }
     return out;
   };
 
-  const path = run(L);
-  const baseline = run(base);
+  const paths = {};
+  for (const m of CHURN_MODES) paths[m.key] = run(m.key);
+  const chosen = paths[churn] || paths.holds;
+  const lo = band ? run(churn, -1) : null;
+  const hi = band ? run(churn, +1) : null;
 
-  // What each lever is worth on its own, moved from where it is to where the
-  // chosen scenario puts it. Ordered by what it buys rather than by the order
-  // the controls happen to sit in.
-  const contributions = LEVERS.map(l => {
-    const one = run({ ...base, [l.key]: L[l.key] });
-    const idx = h => Math.min(months, h) - 1;
-    return {
-      key: l.key,
-      label: l.label,
-      from: base[l.key],
-      to: L[l.key],
-      moved: L[l.key] !== base[l.key],
-      at6: one[idx(6)] - baseline[idx(6)],
-      at12: one[idx(12)] - baseline[idx(12)],
-      at24: one[idx(24)] - baseline[idx(24)],
-    };
-  }).sort((a, b) => b.at12 - a.at12);
-
-  const crosses = target => {
-    const i = path.findIndex(v => v >= target);
+  const settled = volumeAt(0);
+  const crosses = series => {
+    const i = series.findIndex(v => v >= 1e6);
     return i < 0 ? null : i + 1;
   };
 
   return {
-    months, path, baseline, book, censored, drift,
-    base, levers: L, contributions,
-    reachesMillion: crosses(1e6),
-    baselineReachesMillion: (() => {
-      const i = baseline.findIndex(v => v >= 1e6);
-      return i < 0 ? null : i + 1;
-    })(),
-    at: h => ({ path: path[h - 1], baseline: baseline[h - 1] }),
+    months, book, drift, demand, outlook,
+    paths, path: chosen, lo, hi,
+    reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v)])),
+    settledVolume: settled,
+    settledPrice: priceAt(settled),
+    newMrr: settled * priceAt(settled),
   };
 }
 

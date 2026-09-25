@@ -851,3 +851,33 @@ figcaption { margin-bottom: .9rem; }
   min-width: 11ch;
   text-align: right;
 }
+
+/* Chart 47 offers four whole scenarios before it offers any switches, because
+   a reader wants a position to argue with before they want a slider. */
+.scenario-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.6rem;
+  margin: 0 0 0.9rem;
+}
+.scenario-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.scenario-card:hover { border-color: var(--series-1); }
+.scenario-card.is-on {
+  border-color: var(--series-1);
+  box-shadow: inset 0 0 0 1px var(--series-1);
+}
+.scenario-card strong { font-size: 0.95rem; }
+.scenario-card span { font-size: 0.82rem; color: var(--ink-soft); }
+.scenario-card em { font-size: 0.76rem; color: var(--ink-soft); font-style: normal; opacity: 0.85; }
