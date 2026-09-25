@@ -4018,6 +4018,24 @@ export function leverProjection(data, cohorts, {
     return raw.length >= 13 ? extend(raw, months + 40) : reference;
   };
   const held = pickCurve(grown.length >= 6 ? grown.slice(-6) : usable.slice(0, 6));
+
+  // The same two curves in head count. Survival, so a customer who leaves and
+  // returns is not counted twice and the line can only fall.
+  const logoShapeFrom = group => {
+    const out = [];
+    for (let age = 0; ; age += 1) {
+      const live = group.filter(c => c.maxOffset >= age);
+      if (live.length < 4) break;
+      const base = live.reduce((s, c) => s + (c.survivors[0] || 0), 0);
+      if (!base) break;
+      out.push(live.reduce((s, c) => s + (c.survivors[age] || 0), 0) / base);
+    }
+    return out;
+  };
+  const logoRef = extend(logoShapeFrom(usable).slice(0, MEASURED_TO), months + 40);
+  const logoHeldRaw = logoShapeFrom(grown.length >= 6 ? grown.slice(-6) : usable.slice(0, 6))
+    .slice(0, MEASURED_TO);
+  const logoHeld = logoHeldRaw.length >= 13 ? extend(logoHeldRaw, months + 40) : logoRef;
   const best = pickCurve(grown.slice(0, 6));
 
   let num = 0;
@@ -4052,12 +4070,34 @@ export function leverProjection(data, cohorts, {
 
   const live = [];
   let covered = 0;
+  let coveredLogos = 0;
   for (const c of cohorts) {
     const mrr = c.revenue[c.maxOffset] || 0;
-    if (mrr <= 0) continue;
-    live.push({ age: c.maxOffset, mrr });
+    const logos = c.survivors[c.maxOffset] || 0;
+    if (mrr <= 0 && logos <= 0) continue;
+    live.push({ age: c.maxOffset, mrr, logos });
     covered += mrr;
+    coveredLogos += logos;
   }
+  const activeNow = data.customers.filter(r => r.active && r.month === data.lastMonth).length;
+  const censoredLogos = Math.max(0, activeNow - coveredLogos);
+  const logoMatureRate = (() => {
+    const raw = logoShapeFrom(usable).slice(0, MEASURED_TO);
+    const last = raw.length - 1;
+    return raw[last] && raw[last - 6] ? (raw[last] / raw[last - 6]) ** (1 / 6) : 0.96;
+  })();
+
+  // Costs, read off the page's own cost work rather than assumed. Acquisition
+  // spend is held at its trailing six months, because it is mostly salaries
+  // and does not move with the number closed; that is exactly why cost per
+  // logo jumps in a month when closes fall. Cost to serve is per active logo,
+  // which is chart 39's basis.
+  const acq = acquisitionCosts(data, { months: 6 });
+  const acquisitionPerMonth = acq && acq.totals.length
+    ? acq.totals.reduce((a, b) => a + b, 0) / acq.totals.length : 0;
+  const serve = ongoingCostPerLogo(data);
+  const servePerLogo = serve && serve.length
+    ? serve.slice(-6).reduce((a, r) => a + r.total, 0) / Math.min(6, serve.length) : 0;
   const book = data.customers
     .filter(r => r.active && r.month === data.lastMonth)
     .reduce((s, r) => s + (r.eopMrr || 0), 0);
@@ -4109,41 +4149,58 @@ export function leverProjection(data, cohorts, {
     const newCurve = curveFor();
     const d = driftFor(mode);
     const dNew = newCohortDrift(mode);
-    const out = [];
+    const out = { mrr: [], logos: [], ongoing: [], acquisition: [], contribution: [] };
     for (let h = 1; h <= months; h += 1) {
       let total = 0;
+      let heads = 0;
       for (const c of live) {
         const to = c.age + h;
         total += c.mrr * ((reference[to] && reference[c.age])
           ? (reference[to] / reference[c.age]) * Math.exp(d * h)
           : matureRate ** h);
+        heads += c.logos * ((logoRef[to] && logoRef[c.age])
+          ? (logoRef[to] / logoRef[c.age]) * Math.exp(d * h)
+          : logoMatureRate ** h);
       }
       total += censored * (matureRate * Math.exp(d)) ** h;
+      heads += censoredLogos * (logoMatureRate * Math.exp(d)) ** h;
       for (let k = 1; k <= h; k += 1) {
         const age = h - k;
         const money = revenueAt(k - 1);
         total += money * (newCurve[age] ?? newCurve[newCurve.length - 1])
           * Math.exp(dNew * age);
+        heads += soldAt(k - 1) * (logoHeld[age] ?? logoHeld[logoHeld.length - 1])
+          * Math.exp(dNew * age);
       }
-      out.push(total);
+      const ongoing = heads * servePerLogo;
+      out.mrr.push(total);
+      out.logos.push(heads);
+      out.ongoing.push(ongoing);
+      out.acquisition.push(acquisitionPerMonth);
+      out.contribution.push(total - ongoing - acquisitionPerMonth);
     }
     return out;
   };
 
   const paths = {};
   for (const m of CHURN_MODES) paths[m.key] = run(m.key);
-  const chosen = paths[churn] || paths.trend;
+  const chosen = (paths[churn] || paths.trend).mrr;
 
   const settled = soldAt(0);
   const crosses = series => {
     const i = series.findIndex(v => v >= 1e6);
     return i < 0 ? null : i + 1;
   };
+  const logosNow = activeNow;
 
   return {
     months, book, drift, demand, outlook,
     paths, path: chosen,
-    reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v)])),
+    reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v.mrr)])),
+    logosNow, servePerLogo, acquisitionPerMonth,
+    cacNow: acq && acq.logos.length
+      ? acq.totals.reduce((a, b) => a + b, 0) / Math.max(1, acq.logos.reduce((a, b) => a + b, 0))
+      : null,
     matched, floor, ceiling, prospects,
     settledVolume: settled,
     settledPrice: matched.averagePrice,

@@ -2042,7 +2042,19 @@ function renderWindowCurve() {
 }
 
 // 47. Every lever, against what it does to revenue.
-const leverState = { card: 'band', floor: 1500, ceiling: 2500,
+const MEASURES = [
+  { key: 'mrr', label: 'Revenue', headline: 'Monthly recurring revenue',
+    blurb: 'What the book bills a month. The line at a million is the target.',
+    yTitle: 'Monthly recurring revenue', format: v => fmt.money(v) },
+  { key: 'contribution', label: 'After costs', headline: 'Revenue less cost to serve and acquisition',
+    blurb: 'Cost to serve is per active customer at the trailing six-month rate; acquisition '
+      + 'spend is held at its trailing six months because it is mostly salaries.',
+    yTitle: 'Monthly contribution', format: v => fmt.money(v) },
+  { key: 'logos', label: 'Customers', headline: 'Active customers on the book',
+    blurb: 'Head count, on the same churn and arrival assumptions as the revenue.',
+    yTitle: 'Active customers', format: v => fmt.int(v) },
+];
+const leverState = { card: 'band', floor: 1500, ceiling: 2500, measure: 'mrr',
                      churn: { trend: true }, prospects: { expected: true } };
 
 function renderLevers() {
@@ -2054,34 +2066,39 @@ function renderLevers() {
   }
   const outlook = probe.outlook;
 
-  const cardBox = $('lever-cards');
-  if (cardBox && !cardBox.dataset.ready) {
-    SCENARIO_CARDS.forEach(c => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'scenario-card';
-      b.dataset.key = c.key;
-      b.innerHTML = `<strong>${c.label}</strong><span>${c.headline}</span><em>${c.detail}</em>`;
-      cardBox.append(b);
+  const singleSelect = (id, list, stateKey, onPick) => {
+    const box = $(id);
+    if (!box) return;
+    if (!box.dataset.ready) {
+      list.forEach(c => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'scenario-card';
+        b.dataset.key = c.key;
+        b.innerHTML = `<strong>${c.label}</strong><span>${c.headline}</span>`
+          + `<em>${c.detail || c.blurb}</em>`;
+        box.append(b);
+      });
+      box.addEventListener('click', event => {
+        const b = event.target.closest('.scenario-card');
+        const c = b && list.find(x => x.key === b.dataset.key);
+        if (!c) return;
+        onPick(c);
+        renderLevers();
+      });
+      box.dataset.ready = '1';
+    }
+    [...box.querySelectorAll('.scenario-card')].forEach(b => {
+      b.classList.toggle('is-on', b.dataset.key === leverState[stateKey]);
     });
-    cardBox.addEventListener('click', event => {
-      const b = event.target.closest('.scenario-card');
-      const c = b && SCENARIO_CARDS.find(x => x.key === b.dataset.key);
-      if (!c) return;
-      leverState.card = c.key;
-      leverState.floor = c.floor;
-      leverState.ceiling = c.ceiling;
-      renderLevers();
-    });
-    cardBox.dataset.ready = '1';
-  }
-  [...cardBox.querySelectorAll('.scenario-card')].forEach(b => {
-    b.classList.toggle('is-on', b.dataset.key === leverState.card);
+  };
+  singleSelect('lever-cards', SCENARIO_CARDS, 'card', c => {
+    leverState.card = c.key;
+    leverState.floor = c.floor;
+    leverState.ceiling = c.ceiling;
   });
+  singleSelect('lever-measure', MEASURES, 'measure', c => { leverState.measure = c.key; });
 
-  // Two pairs of switches. Each pair is a projection and the top of its own
-  // interval, so a reader can see the expected case and the good case for
-  // either input without a slider for either.
   // Each switch is a card with its own reasoning under it, so a reader who has
   // never seen the page knows what "trying hard" means before they tick it.
   // They multi-select: every combination ticked is a line.
@@ -2149,8 +2166,7 @@ function renderLevers() {
   if ($('lever-band-lo')) $('lever-band-lo').value = String(leverState.floor);
   if ($('lever-band-hi')) $('lever-band-hi').value = String(leverState.ceiling);
 
-  // One projection per combination on screen. Prospects picks the line style,
-  // churn picks the colour, so four lines at most and each one readable.
+  const measure = MEASURES.find(m => m.key === leverState.measure) || MEASURES[0];
   const colours = { trend: INK.primary, effort: INK.positive };
   const runs = [];
   for (const pm of prosModes) {
@@ -2162,6 +2178,7 @@ function renderLevers() {
     }
   }
   const lead = runs[0].r;
+  const at = (x, key, i) => x.r.paths[x.cm.key][key][i];
   if ($('lever-band-value')) {
     $('lever-band-value').textContent = fmt.money(leverState.floor) + ' to '
       + fmt.money(leverState.ceiling) + ' · ' + fmt.int(lead.settledVolume)
@@ -2169,25 +2186,30 @@ function renderLevers() {
   }
 
   const labels = lead.path.map((_, i) => `M${i + 1}`);
+  const refs = measure.key === 'mrr'
+    ? [{ value: 1e6, label: 'A million a month' },
+       { value: lead.book, label: 'Where the book is today', variant: 'soft' }]
+    : measure.key === 'logos'
+      ? [{ value: lead.logosNow, label: 'Customers today', variant: 'soft' }]
+      : [{ value: 0, label: 'Break-even', variant: 'soft' }];
+  const drawn = runs.flatMap(x => x.r.paths[x.cm.key][measure.key]);
   multiLineChart($('chart-levers'), {
     labels,
-    yMin: 0,
-    yTitle: 'Monthly recurring revenue',
+    yMin: Math.min(0, ...drawn),
+    yTitle: measure.yTitle,
     xTitle: 'Months from today',
-    yFormat: fmt.money,
+    yFormat: measure.format,
     series: runs.map(x => ({
       label: `${x.cm.label}, ${x.pm.label.toLowerCase()}`,
       colour: colours[x.cm.key] || INK.primary,
       dashed: x.pm.key === 'upper',
-      values: x.r.path,
+      values: x.r.paths[x.cm.key][measure.key],
     })),
-    refs: [
-      { value: 1e6, label: 'A million a month' },
-      { value: lead.book, label: 'Where the book is today', variant: 'soft' },
-    ],
+    refs,
     describe: i => `<strong>Month ${i + 1}</strong>`
       + runs.map(x => `<span>${x.cm.label}, ${x.pm.label.toLowerCase()}: `
-        + `${fmt.money(x.r.path[i])}</span>`).join('')
+        + `${fmt.money(at(x, 'mrr', i))} revenue, ${fmt.int(at(x, 'logos', i))} customers, `
+        + `${fmt.money(at(x, 'contribution', i))} after costs</span>`).join('')
       + (outlook && outlook.forward[i]
           ? `<span class="muted">${fmt.int(outlook.forward[i].expected)} new customers expected `
             + `that month, up to ${fmt.int(outlook.forward[i].hi)}</span>` : ''),
@@ -2195,6 +2217,9 @@ function renderLevers() {
 
   const card = SCENARIO_CARDS.find(c => c.key === leverState.card);
   const reached = runs.filter(x => x.r.reaches[x.cm.key]);
+  const m12 = i => runs.map(x => ({ x, mrr: at(x, 'mrr', i), logos: at(x, 'logos', i),
+                                    contribution: at(x, 'contribution', i) }));
+  const first12 = m12(11)[0];
   $('levers-finding').innerHTML =
     (card ? `<strong>${card.label}.</strong> ` : '<strong>Band set by hand.</strong> ')
     + `Matching willingness to pay between ${fmt.money(lead.ceiling)} and `
@@ -2205,23 +2230,27 @@ function renderLevers() {
         ? `<strong>${reached.map(x => `${x.cm.label}, ${x.pm.label.toLowerCase()} reaches a `
             + `million in month ${x.r.reaches[x.cm.key]}`).join('; ')}.</strong> `
         : `<strong>Nothing on screen reaches a million inside ${lead.months} months.</strong> `)
-    + runs.map(x => `${x.cm.label}, ${x.pm.label.toLowerCase()} ends at `
-        + `${fmt.money(x.r.path[lead.months - 1])}`).join('; ') + '. '
-    + (outlook
-        ? `New customers are running at ${fmt.int(outlook.base)} a month once the season is `
-          + `taken out, with the top of the interval at ${fmt.int(outlook.base + 1.96 * outlook.sd)}.`
-        : '');
+    + `A year out on the first line drawn, the book is ${fmt.int(first12.logos)} customers `
+    + `against ${fmt.int(lead.logosNow)} today, and after ${fmt.money(lead.servePerLogo)} a `
+    + `month to serve each of them and ${fmt.money(lead.acquisitionPerMonth)} a month of `
+    + `acquisition spend it contributes ${fmt.money(first12.contribution)} a month. `
+    + `Acquisition spend is mostly salaries, so cost per new customer is spend divided by `
+    + `closes: ${fmt.money(lead.cacNow)} over the last six months, and it rises in any month `
+    + `closes fall.`;
 
   const rows = runs.map(x =>
     `<tr><td>${x.cm.label}, ${x.pm.label.toLowerCase()}</td>`
-    + `<td class="n">${fmt.money(x.r.path[5])}</td>`
-    + `<td class="n">${fmt.money(x.r.path[11])}</td>`
-    + `<td class="n">${fmt.money(x.r.path[lead.months - 1])}</td>`
+    + `<td class="n">${fmt.money(at(x, 'mrr', 5))}</td>`
+    + `<td class="n">${fmt.money(at(x, 'mrr', 11))}</td>`
+    + `<td class="n">${fmt.money(at(x, 'mrr', lead.months - 1))}</td>`
+    + `<td class="n">${fmt.int(at(x, 'logos', 11))}</td>`
+    + `<td class="n">${fmt.money(at(x, 'contribution', 11))}</td>`
     + `<td class="n">${x.r.reaches[x.cm.key] ? 'month ' + x.r.reaches[x.cm.key]
         : 'not inside ' + lead.months + ' months'}</td></tr>`);
   $('levers-table').innerHTML =
-    '<thead><tr><th>Assumptions</th><th class="n">6 months</th><th class="n">12 months</th>'
-    + `<th class="n">${lead.months} months</th><th class="n">Reaches a million</th></tr></thead>`
+    '<thead><tr><th>Assumptions</th><th class="n">Revenue, 6 mo</th><th class="n">12 mo</th>'
+    + `<th class="n">${lead.months} mo</th><th class="n">Customers, 12 mo</th>`
+    + '<th class="n">After costs, 12 mo</th><th class="n">Reaches a million</th></tr></thead>'
     + `<tbody>${rows.join('')}</tbody>`;
 
   $('levers-note').textContent =
@@ -2230,14 +2259,17 @@ function renderLevers() {
     + 'how fast revenue falls away after signing, and trying hard is the top of that '
     + 'estimate’s 95% interval. New customers a month is the last six months with the '
     + 'season taken out and put back, and the upper end is the top of its 95% interval. '
-    + 'One assumption sits underneath: what people will pay at each level is taken from '
-    + 'September, the only month a matched price was asked for, where nine paid $2,500 and '
-    + 'fourteen were judged good at a $1,500 floor. The year’s own prices cannot tell us '
-    + 'that, because they are a price list rather than a market: forty customers at exactly '
-    + '$1,000 and a hundred and seventy-nine of two hundred and twenty-six on one of fifteen '
-    + 'round numbers. The book already on the shelf decays along chart 44’s curve and '
-    + 'new business along chart 46’s, with the carry-forward correction chart 45 '
-    + 'backtested at about six points of error a year out.';
+    + 'One assumption sits underneath: how demand falls with price is September’s slope, '
+    + 'nine at $2,500 against fourteen at a $1,500 floor, and how many close at the tested '
+    + 'band in a full month is set at twenty-five, the middle of what the business expects. '
+    + 'The year’s own prices cannot answer either, because they are a price list rather '
+    + 'than a market: forty customers at exactly $1,000 and a hundred and seventy-nine of two '
+    + 'hundred and twenty-six on one of fifteen round numbers. Customers follow the same '
+    + 'cohorts in head count, by survival. Cost to serve is the trailing six months per '
+    + 'active customer, chart 39’s basis; acquisition is the trailing six months of '
+    + 'spend held flat, because it is mostly salaries. The book already on the shelf decays '
+    + 'along chart 44’s curve and new business along chart 46’s, with the '
+    + 'carry-forward correction chart 45 backtested at about six points of error a year out.';
 }
 
 function renderPastDue() {
