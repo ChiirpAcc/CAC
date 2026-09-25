@@ -3698,34 +3698,6 @@ export function demandCurve(data) {
   // Matching instead: every prospect above the floor pays their own
   // willingness, capped at the ceiling. That is the area under the ladder
   // rather than a rectangle under one point, which is why it beats both.
-  const area = (from, to) => {
-    const F = best.floor;
-    const term = q => F * q + best.A * q ** (1 - best.k) / (1 - best.k);
-    return term(to) - term(from);
-  };
-  const matched = (ceiling, floor) => {
-    const qc = Math.max(0, volumeFor(ceiling));
-    const qf = Math.max(qc, volumeFor(floor));
-    const revenue = qc * ceiling + area(qc, qf);
-    return { ceiling, floor, closed: qf, atCeiling: qc, revenue,
-             averagePrice: qf ? revenue / qf : 0 };
-  };
-  // What has closed at each price this year -- which is a record of the price
-  // list, not of demand, and the difference matters more than anything else on
-  // this chart.
-  //
-  // The top of the 2026 distribution reads 2300, 2250, 2250, 2250, 2250, 2250,
-  // 2250, 2250, 2250, 2000, 2000, 2000, 1869. Eight customers at exactly the
-  // same number is not willingness to pay, it is a ceiling on what was being
-  // asked for, and there is another pile of fourteen sitting at $1,500 to
-  // $1,600. Nothing above $2,300 closed all year because nothing above $2,300
-  // was quoted; somebody has paid $5,500 in the history, so the demand is not
-  // the thing that was missing.
-  //
-  // So this series is censored from above by policy. It is a fair reading of
-  // demand up to about $2,000, where a real spread of prices was being quoted,
-  // and it is worthless above that. September is the only month anybody asked
-  // for $2,500, and nine said yes.
   const thisYear = [];
   {
     const seen = new Map();
@@ -3749,11 +3721,73 @@ export function demandCurve(data) {
     }
     var yearMonths = new Set([...seen.values()].filter(m => m.slice(0, 4) === year)).size || 1;
   }
+  const area = (from, to) => {
+    const F = best.floor;
+    const term = q => F * q + best.A * q ** (1 - best.k) / (1 - best.k);
+    return term(to) - term(from);
+  };
+  const matched = (ceiling, floor) => {
+    const qc = Math.max(0, volumeFor(ceiling));
+    // You cannot close more customers than exist. The fitted ladder is
+    // asymptotic at its own floor, so volumeFor runs away as the price
+    // approaches it -- two hundred a month at a floor of zero, from a pipeline
+    // that produces twenty-eight. Capped at the flow actually observed.
+    const ceilingOnCount = thisYear.length / yearMonths;
+    const qf = Math.min(ceilingOnCount, Math.max(qc, volumeFor(floor)));
+    const revenue = qc * ceiling + area(qc, qf);
+    return { ceiling, floor, closed: qf, atCeiling: qc, revenue,
+             averagePrice: qf ? revenue / qf : 0 };
+  };
+  // What has closed at each price this year -- which is a record of the price
+  // list, not of demand, and the difference matters more than anything else on
+  // this chart.
+  //
+  // The top of the 2026 distribution reads 2300, 2250, 2250, 2250, 2250, 2250,
+  // 2250, 2250, 2250, 2000, 2000, 2000, 1869. Eight customers at exactly the
+  // same number is not willingness to pay, it is a ceiling on what was being
+  // asked for, and there is another pile of fourteen sitting at $1,500 to
+  // $1,600. Nothing above $2,300 closed all year because nothing above $2,300
+  // was quoted; somebody has paid $5,500 in the history, so the demand is not
+  // the thing that was missing.
+  //
+  // So this series is censored from above by policy. It is a fair reading of
+  // demand up to about $2,000, where a real spread of prices was being quoted,
+  // and it is worthless above that. September is the only month anybody asked
+  // for $2,500, and nine said yes.
   const observed = (ceiling, floor) => {
     const kept = thisYear.filter(v => v >= floor);
     const revenue = kept.reduce((s, v) => s + Math.min(v, ceiling), 0) / yearMonths;
     const closed = kept.length / yearMonths;
     return { ceiling, floor, closed, revenue, averagePrice: closed ? revenue / closed : 0 };
+  };
+
+  // Neither series is the demand curve, and pretending either one is would be
+  // the dishonest move here.
+  //
+  // The year's prices are a menu: forty customers at exactly $1,000, twenty-four
+  // at $750, twenty-one at $500, sixteen at $1,250, fourteen at $1,500, eight at
+  // $2,250. A hundred and seventy-nine of two hundred and twenty-six signings
+  // sit on one of fifteen exact numbers. Every one of those is what somebody was
+  // quoted, which is a lower bound on what they would have paid and nothing
+  // more.
+  //
+  // September is the only time anyone asked a different question, and nine said
+  // yes at $2,500 where the prior eight months had produced nine at $2,250 in
+  // total. That is one partial month, so it is not the answer either.
+  //
+  // So the gap between them is an assumption, and it is put on the chart as a
+  // dial instead of being buried in a fit. At nought you keep quoting the menu.
+  // At one you collect everything September implies is there. Neither end is a
+  // forecast; the honest position is somewhere in between and the reader should
+  // be the one to choose it.
+  const blend = (ceiling, floorAt, capture = 0.5) => {
+    const lo = observed(ceiling, floorAt);
+    const hi = matched(ceiling, floorAt);
+    const t = Math.max(0, Math.min(1, capture));
+    const closed = lo.closed + (hi.closed - lo.closed) * t;
+    const revenue = lo.revenue + (hi.revenue - lo.revenue) * t;
+    return { ceiling, floor: floorAt, closed, revenue,
+             averagePrice: closed ? revenue / closed : 0, capture: t, lo, hi };
   };
 
   return {
@@ -3763,6 +3797,7 @@ export function demandCurve(data) {
     priceFor,
     matched,
     observed,
+    blend,
     sampleThisYear: thisYear.length,
     monthsThisYear: yearMonths,
     volumeFor,
@@ -3901,7 +3936,7 @@ export const SCENARIO_CARDS = [
 export const MWTP_CEILING = 2500;
 
 export function leverProjection(data, cohorts, {
-  pipeline = 1, floor = 1500, ceiling = MWTP_CEILING, evidence = 'september',
+  pipeline = 1, floor = 1500, ceiling = MWTP_CEILING, capture = 0.5,
   churn = 'trend', months = 24, band = false,
 } = {}) {
   const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
@@ -3993,8 +4028,7 @@ export function leverProjection(data, cohorts, {
   // pipeline multiplier scales the whole ladder: twice the leads is twice as
   // many prospects at every level of willingness, not the same prospects paying
   // more. Season goes on top of that.
-  const matched = evidence === 'september'
-    ? demand.matched(ceiling, floor) : demand.observed(ceiling, floor);
+  const matched = demand.blend(ceiling, floor, capture);
   const scaleAt = i => pipeline * (outlook ? outlook.forward[i].factor : 1);
   const soldAt = i => matched.closed * scaleAt(i);
   const revenueAt = i => matched.revenue * scaleAt(i);
@@ -4052,7 +4086,7 @@ export function leverProjection(data, cohorts, {
     months, book, drift, demand, outlook,
     paths, path: chosen, lo, hi,
     reaches: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, crosses(v)])),
-    matched, floor, ceiling, pipeline, evidence,
+    matched, floor, ceiling, pipeline, capture,
     optimistic: demand.matched(ceiling, floor),
     conservative: demand.observed(ceiling, floor),
     settledVolume: settled,

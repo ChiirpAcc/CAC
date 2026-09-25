@@ -2043,7 +2043,7 @@ function renderWindowCurve() {
 
 // 47. Every lever, against what it does to revenue.
 const leverState = { card: 'now', churn: { trend: true },
-                     pipeline: 1, floor: 1500, ceiling: 2500, ready: true };
+                     pipeline: 1, floor: 1500, ceiling: 2500, capture: 0.5, ready: true };
 
 function renderLevers() {
   if (!$('chart-levers')) return;
@@ -2128,11 +2128,17 @@ function renderLevers() {
       + '<div class="chart-control">'
       + '<label for="lever-pipeline">Prospects in front of you, against today</label>'
       + '<input type="range" id="lever-pipeline" min="0.4" max="3" step="0.05">'
-      + '<output id="lever-pipeline-value"></output></div>';
+      + '<output id="lever-pipeline-value"></output></div>'
+      + '<div class="chart-control">'
+      + '<label for="lever-capture">How much of the menu gap you collect</label>'
+      + '<input type="range" id="lever-capture" min="0" max="1" step="0.05">'
+      + '<output id="lever-capture-value"></output></div>';
     setBox.addEventListener('input', event => {
       leverState.card = null;
       const GAP = 100;
-      if (event.target.id === 'lever-band-lo') {
+      if (event.target.id === 'lever-capture') {
+        leverState.capture = Number(event.target.value);
+      } else if (event.target.id === 'lever-band-lo') {
         leverState.floor = Math.min(Number(event.target.value), leverState.ceiling - GAP);
       } else if (event.target.id === 'lever-band-hi') {
         leverState.ceiling = Math.max(Number(event.target.value), leverState.floor + GAP);
@@ -2146,20 +2152,29 @@ function renderLevers() {
   if ($('lever-band-lo')) $('lever-band-lo').value = String(leverState.floor);
   if ($('lever-band-hi')) $('lever-band-hi').value = String(leverState.ceiling);
   if ($('lever-pipeline')) $('lever-pipeline').value = String(leverState.pipeline);
+  if ($('lever-capture')) $('lever-capture').value = String(leverState.capture);
 
   const common = {
     pipeline: leverState.pipeline, floor: leverState.floor, ceiling: leverState.ceiling,
   };
   const r = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
-                                             evidence: 'september' });
-  // The other edge is what the price list produced, not what demand would bear.
+                                             capture: leverState.capture });
+  // The two ends of the assumption, drawn as the band around whatever the dial
+  // is set to. Nought is the menu as quoted, one is everything September implies.
   const listed = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
-                                                  evidence: 'observed' });
+                                                  capture: 0 });
+  const full = leverProjection(data, cohorts, { ...common, churn: modes[0].key,
+                                                capture: 1 });
 
   if ($('lever-band-value')) {
     $('lever-band-value').textContent = fmt.money(leverState.floor) + ' to '
-      + fmt.money(leverState.ceiling) + ' · ' + fmt.int(listed.settledVolume) + ' to '
-      + fmt.int(r.settledVolume) + ' close a month';
+      + fmt.money(leverState.ceiling) + ' · ' + fmt.int(r.settledVolume)
+      + ' close a month at ' + fmt.money(r.settledPrice);
+  }
+  if ($('lever-capture-value')) {
+    $('lever-capture-value').textContent = fmt.pct(leverState.capture, 0)
+      + (leverState.capture === 0 ? ' · keep quoting the menu'
+        : leverState.capture === 1 ? ' · everything September implies' : '');
   }
   if ($('lever-pipeline-value')) {
     // Closes are an outcome of these two, never an input. A reader who reads
@@ -2183,6 +2198,8 @@ function renderLevers() {
   // here. Lower edge is what has actually closed at each price this year; upper
   // edge is what September's test implies matching would unlock.
   series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
+                values: full.paths[modes[0].key] });
+  series.push({ label: '', colour: colours[modes[0].key], dashed: true, thin: true,
                 values: listed.paths[modes[0].key] });
 
   multiLineChart($('chart-levers'), {
@@ -2199,8 +2216,8 @@ function renderLevers() {
     ],
     describe: i => `<strong>Month ${i + 1}</strong>`
       + modes.map(m => `<span>${m.label}: ${fmt.money(r.paths[m.key][i])}</span>`).join('')
-      + `<span class="muted">If the old price list held instead: `
-        + `${fmt.money(listed.paths[modes[0].key][i])}</span>`
+      + `<span class="muted">Menu as quoted ${fmt.money(listed.paths[modes[0].key][i])}, `
+        + `everything September implies ${fmt.money(full.paths[modes[0].key][i])}</span>`
       + (outlook && outlook.forward[i]
           ? `<span class="muted">Season that month: ${outlook.forward[i].factor.toFixed(2)}`
             + `×</span>` : ''),
@@ -2215,17 +2232,17 @@ function renderLevers() {
 
   $('levers-finding').innerHTML =
     (card ? `<strong>${card.label}.</strong> ${card.headline}. ` : '<strong>Set by hand.</strong> ')
-    + `<strong>Matching this band closes ${fmt.int(r.settledVolume)} a month at an average of `
-    + `${fmt.money(r.settledPrice)}, worth ${fmt.money(r.newMrr)} of new revenue.</strong> `
-    + `The dashed line is what the old price list produced at the same band, `
-    + `${fmt.int(listed.settledVolume)} a month worth ${fmt.money(listed.newMrr)}, and it is `
-    + `drawn as the floor of the argument rather than as the expectation. `
-    + `<strong>That series is censored.</strong> The top of this year's signings reads `
-    + `$2,300 then eight in a row at exactly $2,250, with another fourteen stacked at $1,500 `
-    + `to $1,600. Those are price points, not willingness to pay. Nothing above $2,300 closed `
-    + `all year because nothing above $2,300 was asked for, and somebody in the history has `
-    + `paid $5,500, so demand was not the thing that was missing. September is the only month `
-    + `anybody asked for $2,500 and nine said yes. `
+    + `<strong>Neither line on this chart is the demand curve, and the dial between them is `
+    + `the assumption doing the work.</strong> The year's prices are a menu: forty customers `
+    + `at exactly $1,000, twenty-four at $750, twenty-one at $500, eight at $2,250. A hundred `
+    + `and seventy-nine of two hundred and twenty-six signings sit on one of fifteen exact `
+    + `numbers, so every one of them is a lower bound on what that customer would have paid `
+    + `and nothing more. September is the only month anybody asked differently, and nine said `
+    + `yes at $2,500 where the whole prior year had produced nine at $2,250. `
+    + `<strong>At ${fmt.pct(r.capture, 0)} of that gap collected, this band closes `
+    + `${fmt.int(r.settledVolume)} a month at ${fmt.money(r.settledPrice)}, worth `
+    + `${fmt.money(r.newMrr)}.</strong> Quoting the menu unchanged gives `
+    + `${fmt.money(listed.newMrr)}; collecting all of it gives ${fmt.money(full.newMrr)}. `
     + (got.length
         ? `<strong>${got.map(x => `${x.m.label.toLowerCase()} reaches a million in month `
             + `${x.at}`).join(', and ')}.</strong> `
