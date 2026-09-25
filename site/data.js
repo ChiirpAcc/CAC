@@ -3671,9 +3671,22 @@ export function demandCurve(data) {
       mrr += second;
     }
   }
+  // September's counts were a partial month and were given as a slope, not a
+  // level: nine at $2,500 against fourteen at a $1,500 floor says how demand
+  // falls with price, and nothing about how many a full month produces. The
+  // first cut used them as absolute anchors anyway and put fifteen closes a
+  // month on the chart where the business expects twenty to thirty.
+  //
+  // So September fixes the ratio between the two prices and the level is set
+  // separately: what a full month at the tested band is expected to close,
+  // which is the one number on this chart that comes from judgement rather
+  // than data, and is named here so it is one line to change.
+  const SEPTEMBER_RATIO = 14 / 9;
+  const EXPECTED_AT_TESTED_BAND = 25;
   const anchors = [
-    { q: 9, p: 2500, label: 'September, fixed at $2,500' },
-    { q: 14, p: 1500, label: 'September, $1,500 floor' },
+    { q: EXPECTED_AT_TESTED_BAND / SEPTEMBER_RATIO, p: 2500,
+      label: 'September’s slope, at the expected level' },
+    { q: EXPECTED_AT_TESTED_BAND, p: 1500, label: 'Expected closes at a $1,500 floor' },
     { q: n ? n / recent.length : 30, p: n ? mrr / n : 1000, label: 'Trailing six months' },
   ];
 
@@ -3811,6 +3824,7 @@ export function demandCurve(data) {
     matched,
     observed,
     blend,
+    expectedAtTestedBand: EXPECTED_AT_TESTED_BAND,
     sampleThisYear: thisYear.length,
     monthsThisYear: yearMonths,
     // How many signings sit on each exact price, largest piles first. The
@@ -3924,11 +3938,14 @@ export function arrivalOutlook(data, { horizon = 24 } = {}) {
 // thousand independent observations understates the error elevenfold.
 export const CHURN_MODES = [
   { key: 'trend', label: 'On current trend',
-    blurb: 'The measured drift carries on, so each intake falls away a little faster '
-      + 'than the average shape says it should.' },
+    headline: 'Revenue keeps falling away the way it has been',
+    blurb: 'Each new intake loses its revenue a little faster than the one before, at '
+      + 'the rate measured across every cohort on the book. Nothing is done about it.' },
   { key: 'effort', label: 'Trying hard',
-    blurb: 'The top of the 95% interval on that drift. Retention gains about 4% a year '
-      + 'instead of losing about 4%.' },
+    headline: 'Retention work lands, at the good end of what the data allows',
+    blurb: 'The top of the 95% interval on that same measurement: retention gains about '
+      + '4% a year instead of losing about 4%. Not a different world, the good end of '
+      + 'this one.' },
 ];
 
 // There is one pricing policy, not four. Matching is the policy; the band and
@@ -3954,9 +3971,13 @@ export const MWTP_CEILING = 2500;
 // the season put back, and the top of its 95% interval as the hopeful case.
 export const PROSPECT_MODES = [
   { key: 'expected', label: 'Expected trend',
-    blurb: 'The last six months, deseasonalised, with each coming month’s season put back.' },
+    headline: 'New customers keep arriving at the recent rate',
+    blurb: 'The last six months with the season taken out, then each coming month’s '
+      + 'own season put back: more in October, fewer in December.' },
   { key: 'upper', label: 'Upper end',
-    blurb: 'The top of the 95% interval on that: what a good run of months looks like.' },
+    headline: 'A good run of months, inside what the data has actually done',
+    blurb: 'The top of the 95% interval on that rate, from the spread of the last twelve '
+      + 'months. Not a stretch target; the better half of normal.' },
 ];
 
 export function leverProjection(data, cohorts, {

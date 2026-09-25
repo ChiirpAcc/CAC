@@ -2082,27 +2082,38 @@ function renderLevers() {
   // Two pairs of switches. Each pair is a projection and the top of its own
   // interval, so a reader can see the expected case and the good case for
   // either input without a slider for either.
+  // Each switch is a card with its own reasoning under it, so a reader who has
+  // never seen the page knows what "trying hard" means before they tick it.
+  // They multi-select: every combination ticked is a line.
   const toggles = (id, list, stateKey, defaultKey) => {
     const box = $(id);
     if (!box || box.dataset.ready) return;
     const grid = document.createElement('div');
-    grid.className = 'toggles';
+    grid.className = 'scenario-cards toggle-cards';
     list.forEach(m => {
-      const label = document.createElement('label');
+      const card = document.createElement('label');
+      card.className = 'scenario-card toggle-card';
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.value = m.key;
       input.checked = m.key === defaultKey;
-      const text = document.createElement('span');
-      text.innerHTML = `<span>${m.label}</span>`;
-      label.append(input, text);
-      grid.append(label);
+      card.append(input);
+      const body = document.createElement('div');
+      body.innerHTML = `<strong>${m.label}</strong><span>${m.headline}</span><em>${m.blurb}</em>`;
+      card.append(body);
+      grid.append(card);
     });
     box.append(grid);
     box.addEventListener('change', () => {
       leverState[stateKey] = Object.fromEntries(
         [...box.querySelectorAll('input:checked')].map(i => [i.value, true]));
+      [...box.querySelectorAll('.toggle-card')].forEach(c => {
+        c.classList.toggle('is-on', c.querySelector('input').checked);
+      });
       renderLevers();
+    });
+    [...box.querySelectorAll('.toggle-card')].forEach(c => {
+      c.classList.toggle('is-on', c.querySelector('input').checked);
     });
     box.dataset.ready = '1';
   };

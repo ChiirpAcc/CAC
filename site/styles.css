@@ -908,3 +908,9 @@ figcaption { margin-bottom: .9rem; }
 .range-pair input[type="range"]:last-child::-webkit-slider-runnable-track { background: none; }
 .range-pair input[type="range"]:last-child::-moz-range-track { background: none; }
 .chart-control output { min-width: 22ch; }
+
+/* Switches drawn as cards, so the reasoning sits under the label. They
+   multi-select, which is what separates them from the scenario cards above. */
+.toggle-card { cursor: pointer; flex-direction: row; align-items: flex-start; gap: 0.6rem; }
+.toggle-card input { margin-top: 0.25rem; flex: 0 0 auto; }
+.toggle-card > div { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
