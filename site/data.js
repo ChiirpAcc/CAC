@@ -3364,7 +3364,7 @@ export function cohortRevenueRetention(cohorts, {
 // departures alone is the direct money analogue of the logo rate, and net is
 // gross churn less expansion, which is the only one of the three that can go
 // negative and the only one that says whether the band grew.
-export function revenueChurnByTenure(data, { cuts = [3, 6, 12] } = {}) {
+export function revenueChurnByTenure(data, { cuts = [1, 3, 6, 12] } = {}) {
   const byMonth = new Map();
   const firstSeen = new Map();
   for (const row of data.customers) {
@@ -3386,9 +3386,15 @@ export function revenueChurnByTenure(data, { cuts = [3, 6, 12] } = {}) {
       from,
       to,
       key: to === Infinity ? `${from}plus` : `${from}-${to}`,
+      // The joining month is held out as its own band rather than folded into
+      // the youngest one. Until mid-2025 a setup fee was booked into eop_mrr
+      // and came off the month after, so a joining month reads as a fifty per
+      // cent loss for a billing reason; folded in, it dragged the whole
+      // under-three-months line for twenty months and made it unreadable.
       label: to === Infinity
         ? `${from} months and over`
-        : (from === 0 ? `Under ${to} months` : `${from} to ${to} months`),
+        : (to === 1 ? 'Joining month'
+          : from === 0 ? `Under ${to} months` : `${from} to ${to} months`),
     };
   });
 
@@ -3396,9 +3402,15 @@ export function revenueChurnByTenure(data, { cuts = [3, 6, 12] } = {}) {
   // rather than a reading, so the line gaps there instead of spiking.
   const FLOOR = 5000;
 
-  const rows = months.slice(1).map((month, i) => {
-    const now = byMonth.get(months[i]);
-    const next = byMonth.get(month);
+  // A row is labelled with the month the revenue was at risk in, not the month
+  // the loss landed in. "Feb 24, under three months, 12%" therefore reads as
+  // "of the revenue carried in February by customers who were under three
+  // months old in February, 12% was gone by March", which is the sentence a
+  // reader is trying to form. Chart 31 labels the other way round, by the month
+  // the churn event happened, so the two are one month apart when overlaid.
+  const rows = months.slice(0, -1).map((month, i) => {
+    const now = byMonth.get(month);
+    const next = byMonth.get(months[i + 1]);
     const tally = bands.map(() => ({
       base: 0, lost: 0, gained: 0, departed: 0, logos: 0, gone: 0,
     }));
@@ -3406,7 +3418,7 @@ export function revenueChurnByTenure(data, { cuts = [3, 6, 12] } = {}) {
 
     for (const [id, was] of now) {
       const censored = firstSeen.get(id) === months[0];
-      const tenure = position.get(months[i]) - position.get(firstSeen.get(id));
+      const tenure = position.get(month) - position.get(firstSeen.get(id));
       // A censored customer has no knowable tenure and goes in the last band,
       // which is what chart 31 does with them.
       const index = censored
@@ -3426,6 +3438,7 @@ export function revenueChurnByTenure(data, { cuts = [3, 6, 12] } = {}) {
 
     return {
       month,
+      landsIn: months[i + 1],
       bands: bands.map((b, k) => {
         const t = tally[k];
         const readable = t.base > FLOOR;
@@ -3434,6 +3447,9 @@ export function revenueChurnByTenure(data, { cuts = [3, 6, 12] } = {}) {
           base: t.base,
           lost: t.lost,
           logos: t.logos,
+          // The same movement read the other way up, so a reader who wants
+          // "kept" rather than "lost" does not have to do it in their head.
+          kept: readable ? (t.base - t.lost + t.gained) / t.base : null,
           // Every dollar that went away, however it went.
           rate: readable ? t.lost / t.base : null,
           // Only the dollars that walked out with a customer, which is what a
