@@ -17,6 +17,7 @@ import {
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
+  leverProjection, LEVERS, LEVER_SCENARIOS,
   silentLogos,
 } from './data.js';
 import {
@@ -2040,6 +2041,177 @@ function renderWindowCurve() {
     + 'the window have no knowable start date and are in no cohort.';
 }
 
+// 47. Every lever, against what it does to revenue.
+const leverState = {};
+function renderLevers() {
+  if (!$('chart-levers')) return;
+  const probe = leverProjection(data, cohorts, { levers: {} });
+  if (!probe) {
+    $('chart-levers').innerHTML = '<p class="empty">Not enough history yet.</p>';
+    return;
+  }
+  if (!leverState.ready) {
+    Object.assign(leverState, probe.base);
+    leverState.scenario = 'today';
+    leverState.ready = true;
+  }
+
+  const fmtLever = (l, v) => (l.kind === 'money' ? fmt.money(v)
+    : l.kind === 'share' ? fmt.pct(v, 0) : fmt.int(v));
+
+  const scenarioBox = $('lever-scenarios');
+  if (scenarioBox && !scenarioBox.dataset.ready) {
+    const grid = document.createElement('div');
+    grid.className = 'toggles';
+    LEVER_SCENARIOS.forEach(s => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'lever-scenario';
+      input.value = s.key;
+      input.checked = s.key === 'today';
+      const text = document.createElement('span');
+      text.innerHTML = `<span>${s.label}</span>`;
+      label.append(input, text);
+      grid.append(label);
+    });
+    scenarioBox.append(grid);
+    scenarioBox.addEventListener('change', event => {
+      const s = LEVER_SCENARIOS.find(x => x.key === event.target.value);
+      if (!s) return;
+      // A scenario sets every lever, including the ones it does not name, so
+      // picking one always lands on the same place whatever was moved before.
+      Object.assign(leverState, probe.base, s.levers);
+      leverState.scenario = s.key;
+      renderLevers();
+    });
+    scenarioBox.dataset.ready = '1';
+  }
+
+  const box = $('lever-controls');
+  if (box && !box.dataset.ready) {
+    LEVERS.forEach(l => {
+      const row = document.createElement('div');
+      row.className = 'chart-control';
+      const label = document.createElement('label');
+      label.setAttribute('for', `lever-${l.key}`);
+      label.textContent = l.label;
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.id = `lever-${l.key}`;
+      input.min = String(l.min);
+      input.max = String(l.max);
+      input.step = String(l.step);
+      const out = document.createElement('output');
+      out.id = `lever-${l.key}-value`;
+      row.append(label, input, out);
+      box.append(row);
+    });
+    box.addEventListener('input', event => {
+      const l = LEVERS.find(x => `lever-${x.key}` === event.target.id);
+      if (!l) return;
+      leverState[l.key] = Number(event.target.value);
+      // Moving a slider by hand is no longer any named scenario.
+      leverState.scenario = null;
+      const picked = document.querySelector('input[name="lever-scenario"]:checked');
+      if (picked) picked.checked = false;
+      renderLevers();
+    });
+    box.dataset.ready = '1';
+  }
+  for (const l of LEVERS) {
+    const input = $(`lever-${l.key}`);
+    if (input) input.value = String(leverState[l.key]);
+    const out = $(`lever-${l.key}-value`);
+    if (out) out.textContent = fmtLever(l, leverState[l.key]);
+  }
+
+  const chosen = Object.fromEntries(LEVERS.map(l => [l.key, leverState[l.key]]));
+  const r = leverProjection(data, cohorts, { levers: chosen });
+  const labels = r.path.map((_, i) => `M${i + 1}`);
+
+  multiLineChart($('chart-levers'), {
+    labels,
+    yMin: 0,
+    yTitle: 'Monthly recurring revenue',
+    xTitle: 'Months from today',
+    yFormat: fmt.money,
+    series: [
+      { label: 'With the levers as set', colour: INK.primary, values: r.path },
+      { label: 'If nothing changes', colour: INK.tertiary, dashed: true, thin: true,
+        values: r.baseline },
+    ],
+    refs: [
+      { value: 1e6, label: 'A million a month' },
+      { value: r.book, label: 'Where the book is today', variant: 'soft' },
+    ],
+    describe: i => {
+      const a = r.path[i];
+      const b = r.baseline[i];
+      return `<strong>Month ${i + 1}</strong>`
+        + `<span>With the levers as set: ${fmt.money(a)}</span>`
+        + `<span>If nothing changes: ${fmt.money(b)}</span>`
+        + `<span class="muted">${a >= b ? 'Ahead' : 'Behind'} by `
+        + `${fmt.money(Math.abs(a - b))}, and ${fmt.money(Math.abs(a - r.book))} `
+        + `${a >= r.book ? 'above' : 'below'} today</span>`;
+    },
+  });
+
+  const s = LEVER_SCENARIOS.find(x => x.key === leverState.scenario);
+  const moved = r.contributions.filter(c => c.moved);
+  const best = moved[0];
+  const m12 = r.at(12);
+
+  $('levers-finding').innerHTML =
+    (s ? `<strong>${s.label}.</strong> ${s.blurb} ` : '<strong>Levers set by hand.</strong> ')
+    + (r.reachesMillion
+        ? `<strong>This reaches a million a month in month ${r.reachesMillion}.</strong> `
+        : `<strong>This does not reach a million inside ${r.months} months</strong>, ending at `
+          + `${fmt.money(r.path[r.path.length - 1])}. `)
+    + `A year out it is ${fmt.money(m12.path)} against ${fmt.money(m12.baseline)} if nothing `
+    + `changes, a difference of ${fmt.money(Math.abs(m12.path - m12.baseline))}. `
+    + (best && Math.abs(best.at12) > 1000
+        ? `Of what has been moved, <strong>${best.label.toLowerCase()} is doing the most `
+          + `work</strong>: on its own it is worth ${fmt.money(best.at12)} a year out, which is `
+          + `${fmt.pct(Math.abs(m12.path - m12.baseline) > 0
+              ? best.at12 / (m12.path - m12.baseline) : 0)} of the whole gain. `
+        : '')
+    + `The dashed line is not flat because the business is stable. It is two large flows that `
+    + `nearly cancel: the book on it today loses about ${fmt.money(295123)} of itself over `
+    + `twelve months and new business at the current rate puts back about the same.`;
+
+  const row = c => {
+    const l = LEVERS.find(x => x.key === c.key);
+    const cell = v => `<td class="n">${Math.abs(v) < 500 ? '--'
+      : (v > 0 ? '+' : '-') + fmt.money(Math.abs(v)).replace('$', '$')}</td>`;
+    return `<tr${c.moved ? '' : ' class="muted"'}><td>${c.label}</td>`
+      + `<td class="n">${fmtLever(l, c.from)}</td>`
+      + `<td class="n">${c.moved ? fmtLever(l, c.to) : 'not moved'}</td>`
+      + cell(c.at6) + cell(c.at12) + cell(c.at24) + '</tr>';
+  };
+  $('levers-table').innerHTML =
+    '<thead><tr><th>Lever</th><th class="n">Today</th><th class="n">Set to</th>'
+    + '<th class="n">Worth at 6 months</th><th class="n">at 12</th><th class="n">at 24</th>'
+    + '</tr></thead><tbody>' + r.contributions.map(row).join('') + '</tbody>';
+
+  $('levers-note').textContent =
+    'Nothing in this chart is invented. The book on it today decays along the curve chart 44 '
+    + 'measures, each month of new business decays along the recent-intake curve chart 46 '
+    + 'draws, and the carry is corrected by the per-month drift chart 45 backtested at about '
+    + 'six points of error a year out. Every lever starts where the data puts it: new '
+    + 'customers a month is the trailing three months, price is what the last six months of '
+    + 'signings actually realised rather than list, and the three retention levers start at '
+    + 'nothing prevented. Customers already here when the window opened have no knowable start '
+    + 'date, so they are held as one mature block and decay at the mature rate. Each row of '
+    + 'the table is that lever moved on its own from today to where it is set, which is why '
+    + 'the rows do not add to the total: two levers that both act on the same revenue overlap. '
+    + 'Expansion is not a lever here on purpose, because the measured curve already nets a '
+    + 'customer’s recovery against their own earlier fall and counting it again would '
+    + 'count it twice. Price and volume are treated as independent, which is what the history '
+    + 'says inside the range it covers, $733 to $1,739 of realised monthly price; above that '
+    + 'the chart is extrapolating and the scenario called Price stretch says so.';
+}
+
 function renderPastDue() {
   if (!$('chart-pastdue')) return;
   const t = pastDueTrend(data);
@@ -3726,6 +3898,7 @@ function boot() {
     renderRevTenure();
     renderRevChurnTenure();
     renderWindowCurve();
+    renderLevers();
     renderArrivalAnimations();
     renderProjection();
     renderCalculator();
