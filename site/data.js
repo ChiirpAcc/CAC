@@ -3249,6 +3249,119 @@ export function costRecovery(data, cohorts, { age = 6 } = {}) {
 // Customers already present when the window opens have unknowable tenure and
 // go in the oldest band, which is the conservative choice: it puts them in the
 // band this is trying not to blame.
+// Revenue kept month over month, cut by how long the customer has been here.
+//
+// Chart 31 asks the same question in head count. This one asks it in money,
+// and the two do not agree: the logo rate rises with tenure while the revenue
+// rate barely moves after the first quarter. A head count treats a $200
+// account and a $2,000 account as the same event, and the accounts leaving
+// late are mostly the small ones.
+//
+// Month 0 is reported separately and never blended in. Until mid-2025 the
+// joining charge was booked as MRR and came off the next month, so the first
+// transition reads about 55% and is a billing artefact rather than decay.
+// Folding it into a "under 3 months" band drags that band to 77% and invents
+// an early-life cliff that is not there.
+//
+// NRR keeps expansion, so a band can exceed 100%. GRR caps each customer at
+// what they started the month on, so it cannot. The gap between them is what
+// expansion is covering.
+export function revenueRetentionByTenure(data, { cuts = [1, 3, 6, 12, 24] } = {}) {
+  const byMonth = new Map();
+  const firstSeen = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!byMonth.has(row.month)) byMonth.set(row.month, new Map());
+    byMonth.get(row.month).set(row.id, row.eopMrr || 0);
+    if (!firstSeen.has(row.id) || row.month < firstSeen.get(row.id)) {
+      firstSeen.set(row.id, row.month);
+    }
+  }
+  const months = [...byMonth.keys()].sort();
+  if (months.length < 3) return null;
+  const position = new Map(months.map((m, i) => [m, i]));
+
+  const edges = [0, ...cuts, Infinity];
+  const bands = edges.slice(0, -1).map((from, i) => {
+    const to = edges[i + 1];
+    return {
+      from,
+      to,
+      key: to === Infinity ? `${from}plus` : `${from}-${to}`,
+      label: to === 1 ? 'First month'
+        : to === Infinity ? `${from} months and over`
+        : `${from} to ${to} months`,
+      base: 0,
+      kept: 0,
+      capped: 0,
+      observations: 0,
+      departures: 0,
+      monthly: [],
+    };
+  });
+  const find = tenure => bands.find(b => tenure >= b.from && tenure < b.to);
+
+  for (let i = 0; i < months.length - 1; i += 1) {
+    const now = byMonth.get(months[i]);
+    const next = byMonth.get(months[i + 1]);
+    const slice = new Map(bands.map(b => [b.key, { base: 0, kept: 0 }]));
+
+    for (const [id, was] of now) {
+      // A customer whose first month is the window's first month has no
+      // knowable tenure. Every cohort measure here excludes them.
+      if (firstSeen.get(id) === months[0]) continue;
+      const tenure = position.get(months[i]) - position.get(firstSeen.get(id));
+      const band = find(tenure);
+      if (!band) continue;
+      const becomes = next.get(id) || 0;
+      band.base += was;
+      band.kept += becomes;
+      band.capped += Math.min(becomes, was);
+      band.observations += 1;
+      if (!next.has(id)) band.departures += 1;
+      const s = slice.get(band.key);
+      s.base += was;
+      s.kept += becomes;
+    }
+    // A month with almost no revenue in a band produces a ratio that is noise,
+    // and the spread is the point of collecting these.
+    for (const b of bands) {
+      const s = slice.get(b.key);
+      if (s.base > 5000) b.monthly.push(s.kept / s.base);
+    }
+  }
+
+  const spread = xs => {
+    if (xs.length < 3) return null;
+    const mean = xs.reduce((s, v) => s + v, 0) / xs.length;
+    const variance = xs.reduce((s, v) => s + (v - mean) ** 2, 0) / (xs.length - 1);
+    return Math.sqrt(variance);
+  };
+
+  const out = bands.filter(b => b.base > 0).map(b => ({
+    ...b,
+    nrr: b.base ? b.kept / b.base : null,
+    grr: b.base ? b.capped / b.base : null,
+    logoChurn: b.observations ? b.departures / b.observations : null,
+    sd: spread(b.monthly),
+    months: b.monthly.length,
+  }));
+
+  // The blended figure every projection on this page should start from, and
+  // the reason it excludes the first month is above.
+  const settled = out.filter(b => b.from >= 1);
+  const settledBase = settled.reduce((s, b) => s + b.base, 0);
+  const settledKept = settled.reduce((s, b) => s + b.kept, 0);
+
+  return {
+    bands: out,
+    firstMonth: out.find(b => b.from === 0) || null,
+    settled,
+    blendedNrr: settledBase ? settledKept / settledBase : null,
+    monthlyDecay: settledBase ? 1 - settledKept / settledBase : null,
+  };
+}
+
 export function churnByTenure(data, { cuts = [3, 6, 12] } = {}) {
   const live = new Map();
   const firstSeen = new Map();

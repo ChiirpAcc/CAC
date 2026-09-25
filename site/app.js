@@ -16,6 +16,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
+  revenueRetentionByTenure,
   silentLogos,
 } from './data.js';
 import {
@@ -1485,6 +1486,80 @@ function renderArrivalAnimations() {
       + `occupied. Chart 22 draws every month at once, so nothing on it says which came `
       + `first and a relationship that had changed would be invisible. Adding them one at `
       + `a time is what makes that checkable.`;
+}
+
+// 44. The same question as chart 31, asked in money.
+function renderRevTenure() {
+  if (!$('chart-rev-tenure')) return;
+  const r = revenueRetentionByTenure(data);
+  if (!r || !r.settled.length) {
+    $('chart-rev-tenure').innerHTML = '<p class="empty">Not enough history yet.</p>';
+    return;
+  }
+
+  const shown = r.bands;
+  columnChart($('chart-rev-tenure'), {
+    labels: shown.map(b => b.label),
+    values: shown.map(b => b.nrr),
+    // The first month is a billing artefact, so it is drawn but not coloured
+    // like a finding.
+    colourFor: (value, i) => (shown[i] && shown[i].from === 0 ? INK.tertiary : INK.primary),
+    yFormat: v => fmt.pct(v, 0),
+    refs: [{ value: r.blendedNrr, label: 'Blended, first month excluded' }],
+    describe: i => {
+      const b = shown[i];
+      return b.label + ': ' + fmt.pct(b.nrr, 1) + ' of revenue kept month to month'
+        + (b.grr !== null ? ', ' + fmt.pct(b.grr, 1) + ' before expansion' : '')
+        + ', on ' + fmt.int(b.observations) + ' customer-months'
+        + (b.sd ? ', month-to-month spread ' + fmt.pct(b.sd, 1) : '') + '.';
+    },
+  });
+
+  const first = r.firstMonth;
+  const worst = [...r.settled].sort((x, y) => x.nrr - y.nrr)[0];
+  const best = [...r.settled].sort((x, y) => y.nrr - x.nrr)[0];
+  const range = (best.nrr - worst.nrr) * 100;
+
+  $('rev-tenure-finding').innerHTML =
+    '<strong>After the first month, revenue retention barely moves with tenure: '
+    + fmt.pct(worst.nrr, 1) + ' to ' + fmt.pct(best.nrr, 1) + ', a spread of '
+    + range.toFixed(1) + ' points.</strong> '
+    + 'Blended, the book keeps ' + fmt.pct(r.blendedNrr, 2) + ' of its revenue each month, '
+    + 'which is ' + fmt.pct(r.monthlyDecay, 2) + ' of monthly decay and the number every '
+    + 'projection here starts from. '
+    + (first
+        ? 'The first month is drawn separately at ' + fmt.pct(first.nrr, 1) + ' and is not '
+          + 'in that blend: until mid-2025 a joining charge was booked as MRR and came off '
+          + 'the next month, so this transition is a billing artefact rather than churn. '
+        : '')
+    + 'Chart 31 asks the same question in head count and gets a different shape, because a '
+    + 'head count treats a ' + fmt.money(200) + ' account and a ' + fmt.money(2000)
+    + ' account as the same event. The accounts leaving late are mostly the small ones, '
+    + 'which is why the logo rate climbs with tenure and the money rate does not.';
+
+  const row = b =>
+    '<tr' + (b.from === 0 ? ' class="muted"' : '') + '><td>' + b.label + '</td>'
+    + '<td class="n">' + fmt.int(b.observations) + '</td>'
+    + '<td class="n">' + fmt.money(b.base) + '</td>'
+    + '<td class="n"><strong>' + fmt.pct(b.nrr, 1) + '</strong></td>'
+    + '<td class="n">' + fmt.pct(b.grr, 1) + '</td>'
+    + '<td class="n">' + (b.sd ? fmt.pct(b.sd, 1) : '-') + '</td>'
+    + '<td class="n">' + fmt.pct(b.logoChurn, 1) + '</td></tr>';
+  $('rev-tenure-table').innerHTML =
+    '<thead><tr><th>Tenure</th><th class="n">Customer-months</th><th class="n">Revenue at risk</th>'
+    + '<th class="n">NRR</th><th class="n">GRR</th><th class="n">Spread</th>'
+    + '<th class="n">Logo churn</th></tr></thead><tbody>'
+    + r.bands.map(row).join('') + '</tbody></table>';
+
+  $('rev-tenure-note').textContent =
+    'Every customer-month in the window, grouped by how many months that customer had '
+    + 'already been present, then revenue this month against revenue next month. NRR keeps '
+    + 'expansion so a band can exceed 100%; GRR caps each customer at what they started on '
+    + 'so it cannot, and the gap between them is what expansion is covering. Customers whose '
+    + 'first month is the first month of the window are excluded throughout, because their '
+    + 'tenure is unknowable. Spread is the standard deviation of the monthly ratios within '
+    + 'the band, which is what the projection uses for its interval rather than an assumed '
+    + 'one.';
 }
 
 function renderPastDue() {
@@ -3160,6 +3235,7 @@ function boot() {
     renderTenureChurn();
     renderZeroMrr();
     renderPastDue();
+    renderRevTenure();
     renderArrivalAnimations();
     renderProjection();
     renderCalculator();
