@@ -3505,6 +3505,133 @@ export function revenueRetentionAtAges(cohorts, { ages = [3, 6, 9, 12, 18] } = {
   return { ages, rows, pooled, shape, drift };
 }
 
+// The retention curve for a chosen run of signing months.
+//
+// Chart 44 blends every intake into one curve and chart 45 reads a fixed age
+// across all of them. Neither lets you ask the question a forecast actually
+// needs: what does the curve look like for the customers we are signing now,
+// as against the ones we signed two years ago. This takes a window of signing
+// months and draws that window's own curve, so two windows can be compared
+// like for like and the newer one is what a forecast should be built on.
+//
+// The window's curve stops where the window's own youngest cohort stops. Past
+// that it is carried along the reference shape with the same measured
+// correction chart 45 uses, so the part of the curve the window has not lived
+// through is still shown and still marked as carried.
+export function windowRetentionCurve(cohorts, { from = null, span = 3, maxAge = 24 } = {}) {
+  const usable = cohorts
+    .filter(c => (c.retainedStartingRevenue[0] || 0) > 0)
+    .sort((a, b) => (a.month < b.month ? -1 : 1));
+  if (usable.length < 6) return null;
+
+  const months = usable.map(c => c.month);
+  const start = from && months.includes(from) ? from : months[0];
+  const startAt = months.indexOf(start);
+  const chosen = usable.slice(startAt, startAt + span);
+  if (!chosen.length) return null;
+
+  const blend = (group, age) => {
+    const live = group.filter(c => c.maxOffset >= age);
+    if (!live.length) return null;
+    const base = live.reduce((s, c) => s + c.retainedStartingRevenue[0], 0);
+    const kept = live.reduce((s, c) => s + (c.cappedRetainedRevenue[age] || 0), 0);
+    const logoBase = live.reduce((s, c) => s + (c.survivors[0] || 0), 0);
+    const logos = live.reduce((s, c) => s + (c.survivors[age] || 0), 0);
+    return base
+      ? { value: kept / base, cohorts: live.length, base,
+          logos: logoBase ? logos / logoBase : null }
+      : null;
+  };
+
+  // The reference every window is carried along and compared against: every
+  // cohort, the same rule chart 44 uses.
+  const shape = [];
+  for (let age = 0; age <= maxAge; age += 1) {
+    const live = usable.filter(c => c.maxOffset >= age);
+    if (live.length < 4) { shape.push(null); break; }
+    const b = blend(usable, age);
+    shape.push(b ? b.value : null);
+  }
+  const usableAge = age => age < shape.length && Number.isFinite(shape[age]) && shape[age] > 0;
+
+  // How far a cohort drifts from that shape over a gap of n months, and how
+  // much the shape overstates what actually happens per month carried. Both
+  // measured on every cohort, both used the same way chart 45 uses them.
+  const byGap = new Map();
+  for (const c of usable) {
+    const top = Math.min(c.maxOffset, maxAge);
+    const at = a => (c.retainedStartingRevenue[0] && a <= top
+      ? c.cappedRetainedRevenue[a] / c.retainedStartingRevenue[0] : null);
+    for (let a = 1; a <= top; a += 1) {
+      if (!usableAge(a)) continue;
+      const x = at(a);
+      if (!x || x <= 0) continue;
+      for (let b = a + 1; b <= top; b += 1) {
+        if (!usableAge(b)) continue;
+        const y = at(b);
+        if (!y || y <= 0) continue;
+        const moved = Math.log(y / x) - Math.log(shape[b] / shape[a]);
+        if (!Number.isFinite(moved)) continue;
+        if (!byGap.has(b - a)) byGap.set(b - a, []);
+        byGap.get(b - a).push(moved);
+      }
+    }
+  }
+  let num = 0;
+  let den = 0;
+  for (const [gap, xs] of byGap) for (const m of xs) { num += m * gap; den += gap * gap; }
+  const drift = den ? num / den : 0;
+  const spreadAt = gap => {
+    const xs = byGap.get(gap);
+    if (!xs || xs.length < 6) return null;
+    const mean = xs.reduce((s, v) => s + v, 0) / xs.length;
+    const sd = Math.sqrt(xs.reduce((s, v) => s + (v - mean) ** 2, 0) / (xs.length - 1));
+    return Number.isFinite(sd) ? sd : null;
+  };
+
+  const oldest = Math.max(...chosen.map(c => c.maxOffset));
+  const anchorAge = Math.min(oldest, shape.length - 1);
+  const anchor = blend(chosen, anchorAge);
+
+  const curve = [];
+  for (let age = 0; age <= maxAge; age += 1) {
+    if (!usableAge(age)) break;
+    const seen = age <= anchorAge ? blend(chosen, age) : null;
+    if (seen) {
+      curve.push({ age, value: seen.value, logos: seen.logos, cohorts: seen.cohorts,
+                   forecast: false, lo: null, hi: null });
+      continue;
+    }
+    if (!anchor || !usableAge(anchorAge)) break;
+    const value = anchor.value * (shape[age] / shape[anchorAge])
+      * Math.exp(drift * (age - anchorAge));
+    const sd = spreadAt(age - anchorAge);
+    curve.push({
+      age, value: Math.min(1, value), logos: null, cohorts: chosen.length, forecast: true,
+      from: anchorAge,
+      lo: sd ? Math.max(0, value * Math.exp(-1.96 * sd)) : null,
+      hi: sd ? Math.min(1, value * Math.exp(1.96 * sd)) : null,
+    });
+  }
+
+  const at = age => curve.find(p => p.age === age) || null;
+  return {
+    months,
+    start,
+    span,
+    end: chosen[chosen.length - 1].month,
+    cohorts: chosen.length,
+    logos: chosen.reduce((s, c) => s + (c.survivors[0] || 0), 0),
+    startingRevenue: chosen.reduce((s, c) => s + c.retainedStartingRevenue[0], 0),
+    anchorAge,
+    curve,
+    reference: shape.map((v, age) => ({ age, value: v })).filter(p => p.value !== null),
+    drift,
+    atYear: at(12),
+    atHalf: at(6),
+  };
+}
+
 export function churnByTenure(data, { cuts = [3, 6, 12] } = {}) {
   const live = new Map();
   const firstSeen = new Map();

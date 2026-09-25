@@ -16,7 +16,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
-  cohortRevenueRetention, revenueRetentionAtAges,
+  cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   silentLogos,
 } from './data.js';
 import {
@@ -1869,6 +1869,167 @@ function renderRevChurnTenure() {
     + '2024 is small.';
 }
 
+// 46. The retention curve for a chosen run of signing months.
+function renderWindowCurve() {
+  if (!$('chart-window-curve')) return;
+  const probe = windowRetentionCurve(cohorts, { span: 3 });
+  if (!probe) {
+    $('chart-window-curve').innerHTML = '<p class="empty">Not enough history yet.</p>';
+    return;
+  }
+  const box = $('window-controls');
+  if (box && !box.dataset.ready) {
+    const spans = document.createElement('div');
+    spans.className = 'toggles';
+    [3, 6, 12].forEach(n => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'window-span';
+      input.value = String(n);
+      input.checked = n === 3;
+      const text = document.createElement('span');
+      text.innerHTML = `<span>${n} months</span>`;
+      label.append(input, text);
+      spans.append(label);
+    });
+    const slide = document.createElement('div');
+    slide.className = 'slider-row';
+    const range = document.createElement('input');
+    range.type = 'range';
+    range.id = 'window-start';
+    range.min = '0';
+    range.value = '0';
+    const read = document.createElement('output');
+    read.id = 'window-start-label';
+    slide.append(range, read);
+    box.append(spans, slide);
+    box.addEventListener('input', renderWindowCurve);
+    box.addEventListener('change', renderWindowCurve);
+    box.dataset.ready = '1';
+  }
+
+  const spanInput = box && box.querySelector('input[name="window-span"]:checked');
+  const span = spanInput ? Number(spanInput.value) : 3;
+  const range = $('window-start');
+  // The slider cannot run past the point where the window would fall off the
+  // end of the data, and the span changes where that point is.
+  const maxStart = Math.max(0, probe.months.length - span);
+  if (range) {
+    range.max = String(maxStart);
+    if (Number(range.value) > maxStart) range.value = String(maxStart);
+  }
+  const startAt = range ? Number(range.value) : 0;
+  const r = windowRetentionCurve(cohorts, { from: probe.months[startAt], span });
+  if (!r || !r.curve.length) {
+    $('chart-window-curve').innerHTML = '<p class="empty">No cohorts in that window.</p>';
+    return;
+  }
+  const windowLabel = r.span === 1
+    ? fmt.monthLabel(r.start)
+    : `${fmt.monthLabel(r.start)} to ${fmt.monthLabel(r.end)}`;
+  if ($('window-start-label')) $('window-start-label').textContent = windowLabel;
+
+  const labels = r.reference.map(p => `M${p.age}`);
+  const pick = (points, key, want) => labels.map((_, age) => {
+    const p = points.find(x => x.age === age);
+    if (!p) return null;
+    if (want === 'measured' && p.forecast) return null;
+    if (want === 'carried' && !p.forecast) {
+      const next = points.find(x => x.age === age + 1);
+      return next && next.forecast ? p[key] : null;
+    }
+    return p[key];
+  });
+
+  const series = [
+    { label: `${windowLabel} intake`, colour: INK.primary,
+      values: pick(r.curve, 'value', 'measured') },
+    { label: 'Every intake, for comparison', colour: INK.tertiary, dashed: true, thin: true,
+      values: r.reference.map(p => p.value) },
+  ];
+  const carried = pick(r.curve, 'value', 'carried');
+  if (carried.some(v => v !== null && Number.isFinite(v))) {
+    series.splice(1, 0, { label: `${windowLabel}, carried forward`, colour: INK.primary,
+                          dashed: true, values: carried });
+  }
+
+  multiLineChart($('chart-window-curve'), {
+    labels,
+    yMin: 0,
+    yMax: 1,
+    yFormat: v => fmt.pct(v, 0),
+    xTitle: 'Months since first revenue',
+    series,
+    legendItems: [
+      { label: `${windowLabel} intake`, colour: INK.primary },
+      { label: 'Every intake', colour: INK.tertiary },
+    ],
+    describe: age => {
+      const p = r.curve.find(x => x.age === age);
+      const ref = r.reference.find(x => x.age === age);
+      if (!p) {
+        return `<strong>Month ${age}</strong>`
+          + (ref ? `<span class="muted">Every intake: ${fmt.pct(ref.value, 1)}</span>` : '');
+      }
+      return `<strong>Month ${age} after signing</strong>`
+        + (p.forecast
+            ? `<span class="muted">${windowLabel}: ${fmt.pct(p.value, 1)} carried from month `
+              + `${p.from}`
+              + (p.lo !== null ? `, ${fmt.pct(p.lo, 0)} to ${fmt.pct(p.hi, 0)} at 95%` : '')
+              + `</span>`
+            : `<span>${windowLabel}: ${fmt.pct(p.value, 1)} of its revenue still arriving`
+              + (p.logos !== null ? `, ${fmt.pct(p.logos, 1)} of its logos` : '') + `</span>`)
+        + (ref ? `<span class="muted">Every intake at this age: ${fmt.pct(ref.value, 1)}`
+                 + `</span>` : '');
+    },
+  });
+
+  const year = r.atYear;
+  const refYear = r.reference.find(p => p.age === 12);
+  const gap = year && refYear ? (year.value - refYear.value) * 100 : null;
+  const carriedCount = r.curve.filter(p => p.forecast).length;
+
+  $('window-curve-finding').innerHTML =
+    `<strong>${r.cohorts} intake${r.cohorts === 1 ? '' : 's'} signed between `
+    + `${windowLabel}: ${fmt.int(r.logos)} customers on ${fmt.money(r.startingRevenue)} of `
+    + `opening revenue.</strong> `
+    + (year
+        ? `A year in they ${year.forecast ? 'are on track to keep' : 'kept'} `
+          + `${fmt.pct(year.value, 0)} of it`
+          + (year.forecast && year.lo !== null
+              ? ` on a range of ${fmt.pct(year.lo, 0)} to ${fmt.pct(year.hi, 0)}`
+              : '')
+          + (gap !== null
+              ? `, against ${fmt.pct(refYear.value, 0)} for the book as a whole, `
+                + `${Math.abs(gap).toFixed(0)} points ${gap < 0 ? 'worse' : 'better'}. `
+              : '. ')
+        : '')
+    + `Measured out to month ${r.anchorAge}`
+    + (carriedCount
+        ? `, then carried along the average shape for ${carriedCount} more, with the `
+          + `correction and the range chart 45 backtested. `
+        : `. `)
+    + `Move the slider to walk the window through the book. What the forecast should be built `
+    + `on is whichever window you think looks like the customers you are signing now, not the `
+    + `dashed line, which has two years of better cohorts in it.`;
+
+  $('window-curve-note').textContent =
+    'One window of signing months at a time, blended into a single curve, against every intake '
+    + 'blended as a dashed reference. The slider moves the window through the book and the '
+    + 'radio buttons set how many signing months it covers: three months is responsive and '
+    + 'noisy, twelve is smooth and slow to notice a change. The base is what those intakes '
+    + 'were paying when they arrived and the line is how much of those same dollars is still '
+    + 'arriving at each age. Each customer is capped at what they started on, so expansion '
+    + 'cannot lift the line above its own base, and the loss counts both a customer leaving '
+    + 'and a customer staying on less. A window is measured only as far as its own youngest '
+    + 'cohort has lived; past that the line is dashed and carried along the reference shape, '
+    + 'with the per-month correction and the 95% range that chart 45 backtested. A narrow '
+    + 'window near the right-hand end of the slider is carried a long way on very little, so '
+    + 'read the range rather than the point. Customers already present in the first month of '
+    + 'the window have no knowable start date and are in no cohort.';
+}
+
 function renderPastDue() {
   if (!$('chart-pastdue')) return;
   const t = pastDueTrend(data);
@@ -3544,6 +3705,7 @@ function boot() {
     renderPastDue();
     renderRevTenure();
     renderRevChurnTenure();
+    renderWindowCurve();
     renderArrivalAnimations();
     renderProjection();
     renderCalculator();

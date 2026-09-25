@@ -833,3 +833,21 @@ figcaption { margin-bottom: .9rem; }
   font-variant-numeric: tabular-nums;
 }
 .calc-presets button.is-on .preset-figure { color: var(--series-1); }
+
+/* Chart 46 moves a window of signing months through the book, so it needs a
+   slider beside the span buttons rather than another row of checkboxes. */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+}
+.slider-row input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: var(--series-1); }
+.slider-row output {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--ink-muted, inherit);
+  min-width: 11ch;
+  text-align: right;
+}
