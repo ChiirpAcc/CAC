@@ -179,6 +179,7 @@ function renderLtvAtAge() {
   const verdict = v => (v >= 3 ? INK.positive : v >= 1 ? INK.tertiary : INK.negative);
 
   stackedColumnChart($('chart-ltv-cac'), {
+    yTitle: 'Lifetime value per dollar of CAC',
     labels: shown.map(r => fmt.monthLabel(r.month)),
     observed: shown.map(r => r.observed),
     projected: shown.map(r => r.projected),
@@ -703,6 +704,8 @@ function renderEra() {
         values: shift(cutFor(i, pick(era))),
       })),
       yFormat: v => fmt.pct(v),
+      yTitle: money ? 'Share of revenue kept, indexed to month 1'
+        : 'Share of the cohort still there',
       yMin: Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20),
       yMax: Math.max(1, Math.ceil(Math.max(...real) * 20) / 20),
       xTitle: 'Months since first revenue',
@@ -1068,6 +1071,7 @@ function renderCostDrivers() {
 
   const labels = c.months.map(fmt.monthLabel);
   multiLineChart($('chart-cost-drivers'), {
+    yTitle: 'Cost per logo, per month',
     labels, series, yFormat: fmt.money,
     describe: i => labels[i] + ': ' + fmt.money(c.costPerLogo[i]) + ' per logo on '
       + fmt.int(c.logos[i]) + ' new logos. '
@@ -1179,6 +1183,7 @@ function renderContribution() {
   const left = months.map(m => m.arpa - chargeAt(m.month));
 
   multiLineChart($('chart-contribution'), {
+    yTitle: 'Dollars per logo, per month',
     labels,
     yFormat: fmt.money,
     series: [
@@ -1294,6 +1299,7 @@ function renderServeTeams() {
   });
 
   multiLineChart($('chart-serve-teams'), {
+    yTitle: 'Cost of sales per logo, per month',
     labels, series, yFormat: fmt.money,
     describe: i => labels[i] + ': ' + fmt.money(c.months[i].cogsPerLogo)
       + ' per active logo. '
@@ -1393,6 +1399,7 @@ function renderTenureChurn() {
   }
 
   multiLineChart($('chart-tenure-churn'), {
+    yTitle: 'Share of the band’s logos lost that month',
     labels,
     yFormat: v => fmt.pct(v, 1),
     series,
@@ -1543,6 +1550,7 @@ function renderRevTenure() {
 
   const drawn = series.flatMap(s => s.values).filter(v => v !== null && Number.isFinite(v));
   multiLineChart($('chart-rev-tenure'), {
+    yTitle: 'Share of the cohort’s opening revenue lost',
     labels,
     yMin: 0,
     yMax: Math.ceil(Math.max(...drawn) * 20) / 20,
@@ -1771,6 +1779,7 @@ function renderRevChurnTenure() {
   }
 
   multiLineChart($('chart-rev-churn'), {
+    yTitle: 'Share of opening revenue still arriving',
     labels,
     yMin: 0,
     yMax: 1,
@@ -1955,6 +1964,7 @@ function renderWindowCurve() {
   }
 
   multiLineChart($('chart-window-curve'), {
+    yTitle: 'Share of opening revenue still arriving',
     labels,
     yMin: 0,
     yMax: 1,
@@ -2041,6 +2051,7 @@ function renderPastDue() {
 
   const labels = t.rows.map(r => fmt.monthLabel(r.month));
   multiLineChart($('chart-pastdue'), {
+    yTitle: 'Share of live logos billed and not paying',
     labels,
     yFormat: v => fmt.pct(v, 1),
     series: [
@@ -2087,6 +2098,7 @@ function renderZeroMrr() {
 
   const labels = rows.map(r => fmt.monthLabel(r.month));
   multiLineChart($('chart-zero-mrr'), {
+    yTitle: 'Share of live logos paying nothing',
     labels,
     yFormat: v => fmt.pct(v, 1),
     series: [
@@ -2195,6 +2207,7 @@ function renderFullCost() {
   const chosen = COST_GROUPS.filter(g => on.has(g.key));
 
   stackedColumnChart($('chart-full-cost'), {
+    yTitle: 'Returned per dollar the cohort has cost',
     labels: shown.map(r => fmt.monthLabel(r.month)),
     observed: shown.map(r => r.observed),
     projected: shown.map(r => r.projected),
@@ -2386,6 +2399,7 @@ function renderProjection() {
 
   // ---------------------------------------------------------------- 34 logos
   multiLineChart($('chart-projection-logos'), {
+    yTitle: 'Live logos',
     labels,
     yFormat: fmt.int,
     series: [
@@ -2470,6 +2484,7 @@ function renderProjection() {
 
   // ---------------------------------------------------------------- 35 revenue
   multiLineChart($('chart-projection-mrr'), {
+    yTitle: 'Monthly recurring revenue',
     labels,
     yFormat: fmt.money,
     series: [
@@ -2549,6 +2564,7 @@ function renderProjection() {
   }));
 
   multiLineChart($('chart-projection-cash'), {
+    yTitle: 'Monthly cost to run',
     labels: futLabels,
     yFormat: fmt.money,
     series: net.map((s, i) => ({
@@ -2641,6 +2657,7 @@ function renderFloors() {
   };
 
   columnChart($('chart-floor'), {
+    yTitle: 'Customers in the band',
     labels: names,
     values: counts,
     yFormat: fmt.int,
@@ -2721,6 +2738,7 @@ function renderFloors() {
   // ------------------------------------------------------------------ 38
   const labels = r.acceptance.map(a => fmt.pct(a.rate, 0) + ' accept');
   multiLineChart($('chart-reprice'), {
+    yTitle: 'Monthly recurring revenue',
     labels,
     yFormat: fmt.money,
     series: [
@@ -2946,6 +2964,7 @@ function renderOngoing() {
   ];
 
   multiLineChart($('chart-ongoing'), {
+    yTitle: 'Cost to serve one logo, per month',
     labels,
     yFormat: fmt.money,
     series: [
@@ -3166,6 +3185,7 @@ function renderSpend() {
   }
 
   multiLineChart($('chart-spend'), {
+    yTitle: 'Monthly spend',
     labels,
     yFormat: fmt.money,
     series: [
@@ -3789,6 +3809,7 @@ function renderStatic() {
   // 4. Blended retention curve, indexed to month 2.
   const blended = blendedRetention(cohorts);
   multiLineChart($('chart-retention'), {
+    yTitle: 'Share kept, indexed to month 1',
     labels: blended.map(p => `M${p.offset}`),
     series: [
       { label: 'Logos retained', colour: INK.primary, values: blended.map(p => p.logos) },
@@ -3849,6 +3870,7 @@ function renderStatic() {
   const departureSeries = recent.map(r => dep.get(r.month)?.rate ?? null);
 
   multiLineChart($('chart-churn'), {
+    yTitle: 'Share of live logos lost that month',
     labels,
     series: [
       { label: 'Customers who stopped appearing', colour: INK.negative,
@@ -3908,6 +3930,7 @@ function renderStatic() {
   // month 3. Lines against the cohort date put the movement first, and a
   // third age is worth carrying now that the curves are monotonic.
   multiLineChart($('chart-age-retention'), {
+    yTitle: 'Share of the cohort still there',
     labels: windowed.map(c => fmt.monthLabel(c.month)),
     series: [
       { label: 'Still there at month 3', colour: INK.primary, values: m3.map(p => p.value) },
@@ -3932,6 +3955,7 @@ function renderStatic() {
 
   // 10. Monthly logo flows.
   flowChart($('chart-flows'), {
+    yTitle: 'Logos gained and lost',
     labels,
     added: recent.map(r => r.newLogos),
     reactivated: recent.map(r => r.reactivatedLogos),
@@ -4003,6 +4027,7 @@ function renderAssumptionDependent() {
   const paybackAtRisk = bars.filter(b => b.projected && b.never >= 0.25).length;
 
   columnChart($('chart-payback'), {
+    yTitle: 'Months until the cohort covered its CAC',
     labels,
     values: bars.map(b => b.value),
     yFormat: v => Math.round(v) + 'm',
@@ -4066,6 +4091,7 @@ function renderAssumptionDependent() {
   const mature = economics.filter(c => c.recovery.length >= 6).slice(-6);
   const span = Math.max(...mature.map(c => c.recovery.length), 0);
   multiLineChart($('chart-recovery'), {
+    yTitle: 'Cumulative gross profit as a share of CAC',
     labels: Array.from({ length: span }, (_, i) => `M${i + 1}`),
     series: mature.map((c, i) => ({
       label: c.month,
@@ -4170,6 +4196,7 @@ function renderAssumptionDependent() {
   const baseRevenue = revenuePerLogo.find(v => v !== null);
 
   multiLineChart($('chart-unit'), {
+    yTitle: 'Dollars per logo, per month',
     labels: months.map(r => fmt.monthLabel(r.month)),
     series: [
       { label: 'Cost per logo', colour: INK.negative,
@@ -4243,6 +4270,7 @@ function renderForward() {
   // 11. The fan. Every window drawn faintly so the spread is visible, with the
   // two period averages over the top so the shift is readable.
   multiLineChart($('chart-forward'), {
+    yTitle: 'Share of acquisition cost recovered',
     labels,
     series: [
       ...starts.map(s => ({ label: s.month, colour: INK.tertiary, thin: true, values: s.curve })),
@@ -4296,6 +4324,7 @@ function renderForward() {
   // 12. The same thing as one number per starting month.
   const monthsWord = horizon + ' month' + (horizon === 1 ? '' : 's');
   lineChart($('chart-forward-trend'), {
+    yTitle: 'Share of acquisition cost recovered',
     labels: starts.map(s => fmt.monthLabel(s.month)),
     values: starts.map(s => s.survival),
     colour: INK.negative,
@@ -4527,6 +4556,7 @@ function renderForward() {
   // 18. Rolling correlation, the momentum question.
   const measuredLabels = cap.measured.map(p => fmt.monthLabel(p.month));
   multiLineChart($('chart-momentum'), {
+    yTitle: 'Rolling correlation with churn',
     labels: measuredLabels,
     series: [
       { label: 'New arrivals against churn', colour: INK.primary, values: cap.rollingArrivals },
@@ -4635,6 +4665,7 @@ function renderSeasonal() {
   const colours = [INK.tertiary, INK.secondary, INK.negative];
 
   multiLineChart($('chart-seasonal'), {
+    yTitle: 'Share of logos kept',
     labels,
     series: s.series.map((row, i) => ({
       label: fmt.monthLabel(row.month) + (row.monthsBack ? ` (${row.monthsBack}mo ago)` : ' (latest)'),
@@ -4686,6 +4717,7 @@ function renderSeasonal() {
   // Where this sits above the logo line, the survivors are paying more than
   // they were, and expansion is covering some of the loss.
   multiLineChart($('chart-seasonal-revenue'), {
+    yTitle: 'Share of revenue kept',
     labels,
     series: s.series.map((row, i) => ({
       label: fmt.monthLabel(row.month) + (row.monthsBack ? ` (${row.monthsBack}mo ago)` : ' (latest)'),
@@ -5494,6 +5526,7 @@ function renderSignups() {
 
   // 14. Attach rate and fee are two different movements.
   if ($('chart-onboarding')) multiLineChart($('chart-onboarding'), {
+    yTitle: 'Share of new customers charged a setup fee',
     labels,
     series: [
       { label: 'Share charged a setup fee', colour: INK.primary,
@@ -5545,6 +5578,7 @@ function renderSignups() {
   const types = sx.typeTotals.map(x => x.type);
   const palette = [INK.tertiary, INK.primary, INK.secondary, INK.negative, INK.positive];
   multiLineChart($('chart-start-type'), {
+    yTitle: 'Share of the month’s starts',
     labels,
     series: types.map((type, i) => ({
       label: type,

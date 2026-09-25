@@ -10,7 +10,7 @@ const NS = 'http://www.w3.org/2000/svg';
 
 const W = 720;
 const H = 300;
-const PAD = { top: 18, right: 56, bottom: 34, left: 54 };
+const PAD = { top: 18, right: 68, bottom: 34, left: 68 };
 
 const plot = {
   x0: PAD.left,
@@ -68,8 +68,18 @@ export const fmt = {
   },
 };
 
-function frame(svg, { yMin, yMax, ticks = 5, yFormat = fmt.int, zeroLine = false }) {
+function frame(svg, { yMin, yMax, ticks = 5, yFormat = fmt.int, zeroLine = false,
+                      yTitle = null }) {
   const y = linearScale(yMin, yMax);
+
+  // Rotated up the left gutter. Every chart on this page says what its y axis
+  // counts, because "12%" on its own is a different claim depending on whether
+  // it is of customers, of revenue, or of the revenue a cohort started with.
+  if (yTitle) {
+    const mid = plot.y0 + plot.height / 2;
+    el('text', { x: 14, y: mid, class: 'axis-title',
+                 transform: `rotate(-90 14 ${mid.toFixed(2)})` }, svg).textContent = yTitle;
+  }
 
   for (let i = 0; i <= ticks; i += 1) {
     const value = yMin + ((yMax - yMin) * i) / ticks;
@@ -186,7 +196,7 @@ const INK = {
 };
 
 // A single line over months.
-export function lineChart(container, { labels, values, yFormat = fmt.int, describe,
+export function lineChart(container, { labels, values, yFormat = fmt.int, describe, yTitle = null,
                                        colour = INK.primary, yMin = null, yMax = null,
                                        refs = [], area = false, legendItems = null }) {
   const svg = makeSvg(container);
@@ -197,7 +207,7 @@ export function lineChart(container, { labels, values, yFormat = fmt.int, descri
   const hi = yMax !== null ? yMax : niceCeil(Math.max(...real));
   const bottom = yMin !== null ? lo : Math.max(0, lo - (hi - lo) * 0.15);
 
-  const y = frame(svg, { yMin: bottom, yMax: hi, yFormat });
+  const y = frame(svg, { yMin: bottom, yMax: hi, yFormat, yTitle });
   const band = bandScale(labels.length);
   const x = i => band.centre(i);
 
@@ -233,14 +243,14 @@ export function lineChart(container, { labels, values, yFormat = fmt.int, descri
 export function multiLineChart(container, { labels, series, yFormat = fmt.int, describe,
                                             yMin = null, yMax = null, refs = [],
                                             showLegend = true, legendItems = null,
-                                            xTitle = null }) {
+                                            xTitle = null, yTitle = null }) {
   const svg = makeSvg(container);
   const all = series.flatMap(s => s.values).filter(v => v !== null && Number.isFinite(v));
   if (!all.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
 
   const lo = yMin !== null ? yMin : Math.min(...all, 0);
   const hi = yMax !== null ? yMax : niceCeil(Math.max(...all));
-  const y = frame(svg, { yMin: lo, yMax: hi, yFormat });
+  const y = frame(svg, { yMin: lo, yMax: hi, yFormat, yTitle });
   const band = bandScale(labels.length);
   const x = i => band.centre(i);
 
@@ -275,7 +285,7 @@ export function multiLineChart(container, { labels, series, yFormat = fmt.int, d
 
 // Columns, optionally with reference lines. Nulls leave a gap rather than a
 // zero-height bar sitting on the axis.
-export function columnChart(container, { labels, values, yFormat = fmt.int, describe,
+export function columnChart(container, { labels, values, yFormat = fmt.int, describe, yTitle = null,
                                          colour = INK.primary, refs = [], yMax = null,
                                          colourFor = null, legendItems = null }) {
   const svg = makeSvg(container);
@@ -284,7 +294,7 @@ export function columnChart(container, { labels, values, yFormat = fmt.int, desc
 
   const hi = yMax !== null ? yMax : niceCeil(Math.max(...real, ...refs.map(r => r.value)));
   const lo = Math.min(0, ...real);
-  const y = frame(svg, { yMin: lo, yMax: hi, yFormat, zeroLine: lo < 0 });
+  const y = frame(svg, { yMin: lo, yMax: hi, yFormat, zeroLine: lo < 0, yTitle });
   const band = bandScale(labels.length);
 
   values.forEach((value, i) => {
@@ -349,7 +359,7 @@ function hatchPattern(svg, colour) {
 // textures, because a reader must never be able to mistake the projected part
 // for evidence. Solid is observed, hatched is projected, and a hairline marks
 // the seam so where the evidence stops is never a matter of judging a shade.
-export function stackedColumnChart(container, { labels, observed, projected,
+export function stackedColumnChart(container, { labels, observed, projected, yTitle = null,
                                                 yFormat = fmt.int, describe, colourFor,
                                                 colour = INK.primary, refs = [], yMax = null,
                                                 legendItems = null, columnLabels = null,
@@ -365,7 +375,7 @@ export function stackedColumnChart(container, { labels, observed, projected,
   if (!real.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
 
   const hi = yMax !== null ? yMax : niceCeil(Math.max(...real, ...refs.map(r => r.value)));
-  const y = frame(svg, { yMin: 0, yMax: hi, yFormat });
+  const y = frame(svg, { yMin: 0, yMax: hi, yFormat, yTitle });
   const band = bandScale(labels.length);
   const base = y(0);
 
@@ -431,7 +441,8 @@ export function stackedColumnChart(container, { labels, observed, projected,
 // New and reactivated stack upward, churned is drawn downward, and net is a
 // line on its own axis. Net is the sum of the other two, so drawing it as a
 // third column would read as a third independent quantity.
-export function flowChart(container, { labels, added, reactivated, churned, net, describe }) {
+export function flowChart(container, { labels, added, reactivated, churned, net, describe,
+                                       yTitle = null }) {
   const svg = makeSvg(container);
   const upper = added.map((v, i) => (v || 0) + (reactivated[i] || 0));
   const extent = niceCeil(Math.max(
@@ -448,7 +459,7 @@ export function flowChart(container, { labels, added, reactivated, churned, net,
   const y = frame(svg, {
     yMin: lo, yMax: hi, ticks: steps * 2,
     yFormat: v => Math.abs(Math.round(v)).toLocaleString(),
-    zeroLine: true,
+    zeroLine: true, yTitle,
   });
   const band = bandScale(labels.length);
 
@@ -503,6 +514,21 @@ export function dualAxisChart(container, { labels, left, right, describe, refs =
   const leftMax = niceCeil(Math.max(...realLeft));
   const rightMax = niceCeil(Math.max(...realRight));
   const ticks = 5;
+
+  // Two axes, so each one has to say which series it belongs to. The titles
+  // are coloured to match their own line rather than relying on the reader
+  // pairing them by position.
+  const mid = plot.y0 + plot.height / 2;
+  if (left.label) {
+    el('text', { x: 14, y: mid, class: 'axis-title', fill: left.colour,
+                 transform: `rotate(-90 14 ${mid.toFixed(2)})` }, svg).textContent = left.label;
+  }
+  if (right.label) {
+    const rx = W - 12;
+    el('text', { x: rx, y: mid, class: 'axis-title', fill: right.colour,
+                 transform: `rotate(90 ${rx} ${mid.toFixed(2)})` }, svg)
+      .textContent = right.label;
+  }
 
   for (let i = 0; i <= ticks; i += 1) {
     const yy = plot.y1 - (plot.height * i) / ticks;
@@ -559,12 +585,13 @@ export function dualAxisChart(container, { labels, left, right, describe, refs =
 }
 
 // One point per cohort with a horizontal mean for each series.
-export function scatterOverTime(container, { labels, series, describe, yFormat = fmt.pct }) {
+export function scatterOverTime(container, { labels, series, describe, yFormat = fmt.pct,
+                                             yTitle = null }) {
   const svg = makeSvg(container);
   const all = series.flatMap(s => s.values).filter(v => v !== null && Number.isFinite(v));
   if (!all.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
 
-  const y = frame(svg, { yMin: 0, yMax: Math.min(1, niceCeil(Math.max(...all))), yFormat });
+  const y = frame(svg, { yMin: 0, yMax: Math.min(1, niceCeil(Math.max(...all))), yFormat, yTitle });
   const band = bandScale(labels.length);
 
   for (const s of series) {
@@ -607,7 +634,7 @@ export function scatterXY(container, { points, xLabel, yLabel,
   const yLo = 0;
   const yHi = yMax !== null ? yMax : niceCeil(Math.max(...ys));
 
-  const y = frame(svg, { yMin: yLo, yMax: yHi, yFormat });
+  const y = frame(svg, { yMin: yLo, yMax: yHi, yFormat, yTitle: yLabel });
   const x = v => plot.x0 + ((v - xLo) / (xHi - xLo || 1)) * plot.width;
 
   for (let i = 0; i <= 5; i += 1) {
