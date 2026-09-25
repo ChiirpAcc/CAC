@@ -2208,8 +2208,15 @@ function renderLevers() {
     + 'Expansion is not a lever here on purpose, because the measured curve already nets a '
     + 'customer’s recovery against their own earlier fall and counting it again would '
     + 'count it twice. Price and volume are treated as independent, which is what the history '
-    + 'says inside the range it covers, $733 to $1,739 of realised monthly price; above that '
-    + 'the chart is extrapolating and the scenario called Price stretch says so.';
+    + 'says inside the range it covers, $733 to $1,739 of realised monthly price. Above that '
+    + 'they are not. A September test fixed price at $2,500 and closed nine where the mix was '
+    + 'running thirty-two a month; at a $1,500 floor the same pipeline was judged to be worth '
+    + 'fourteen, blending to roughly $2,143. That is an elasticity near minus three above about '
+    + '$1,700, so the two stretch scenarios are shown both ways, with volume held as the '
+    + 'regression implied and with volume as the test actually found it. The sliders do not '
+    + 'couple: moving price alone leaves volume where it is, which is right below $1,700 and '
+    + 'wrong above it, and it is left to the reader rather than wired in because one month of '
+    + 'nine deals is not enough to fit a curve on.';
 }
 
 function renderPastDue() {
