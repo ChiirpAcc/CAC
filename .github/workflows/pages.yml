@@ -60,6 +60,15 @@ jobs:
           cp -r data/. _site/data/
           rm -f _site/data/README.md
 
+          # Seal the deployed JSON. The page source carries no numbers, but
+          # the data files did, in plain text, and pointing a language model
+          # at the site let it read them directly. Each file is gzipped and
+          # base64-encoded behind a marker, under the same name; the browser
+          # decodes it in readFile. The repository's data/ is untouched, so
+          # the validator, the animations and the local preview all read the
+          # plain files. Friction, not security: the repository is public.
+          python scripts/seal_data.py _site/data
+
           # Stamp the commit onto every module, stylesheet and image reference.
           #
           # The animations needed this more than the modules did and did not

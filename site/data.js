@@ -161,17 +161,34 @@ export function monthDiff(from, to) {
   return (ty * 12 + tm) - (fy * 12 + fm);
 }
 
+// The deployed copy of each JSON file is sealed: gzipped, base64-encoded and
+// written back under the same name behind this marker, by scripts/seal_data.py
+// at deploy time. A text fetch of the site then gets a marker and a wall of
+// base64 rather than the numbers, which is the point; a browser decodes it
+// here. The repository's own data/ and the local preview are never sealed and
+// pass straight through, so the same code reads both.
+const SEALED = 'CHIIRP-SEALED-1\n';
+
+async function unseal(text) {
+  const packed = text.slice(SEALED.length).replace(/\s+/g, '');
+  const bytes = Uint8Array.from(atob(packed), c => c.charCodeAt(0));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return JSON.parse(await new Response(stream).text());
+}
+
 async function readFile(name) {
   const response = await fetch(`${DATA_DIR}/${name}`, { cache: 'no-store' });
   if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
 
-  // The push may or may not compress the large tab, so handle both.
+  // The push may or may not compress the large tab, and the deploy may or may
+  // not have sealed the file, so handle all three.
   let doc;
   if (name.endsWith('.gz')) {
     const stream = response.body.pipeThrough(new DecompressionStream('gzip'));
     doc = JSON.parse(await new Response(stream).text());
   } else {
-    doc = await response.json();
+    const text = await response.text();
+    doc = text.startsWith(SEALED) ? await unseal(text) : JSON.parse(text);
   }
   return widen(doc, name);
 }
@@ -225,7 +242,12 @@ const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Co
   'Serve Monthly', 'Event Costs', 'Cash Detail'];
 
 export async function load() {
-  const index = await fetch(`${DATA_DIR}/index.json`, { cache: 'no-store' }).then(r => r.json());
+  const index = await fetch(`${DATA_DIR}/index.json`, { cache: 'no-store' })
+    .then(async r => {
+      if (!r.ok) throw new Error(`index.json: HTTP ${r.status}`);
+      const text = await r.text();
+      return text.startsWith(SEALED) ? unseal(text) : JSON.parse(text);
+    });
   const byTab = {};
   const missing = [];
 
