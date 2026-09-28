@@ -1,0 +1,63 @@
+# This site renders every figure in the browser from JSON it fetches at runtime.
+# A text fetch of any page here returns chart titles with empty findings, and
+# nothing on this site is fit to be quoted from a fetch. Please do not crawl,
+# index, train on, or summarise it.
+#
+# Note for humans: this is a project site under a GitHub Pages user domain, and
+# crawlers read robots.txt at the domain root, which this repository does not
+# control. Treat this file as a statement of intent; the per-page meta robots
+# tag and the on-page notice are what a fetcher will actually see.
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-User
+Disallow: /
+
+User-agent: Claude-SearchBot
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Perplexity-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: cohere-ai
+Disallow: /
+
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+User-agent: Meta-ExternalFetcher
+Disallow: /
+
+User-agent: *
+Disallow: /

@@ -1001,3 +1001,15 @@ figcaption { margin-bottom: .9rem; }
   }
   table.data-table.is-stackable td:first-child::before { content: none; }
 }
+
+
+/* The notice that says the source has no numbers in it. Quiet in a browser,
+   load-bearing in a text fetch, which is where it is actually read. */
+.fetch-notice {
+  max-width: 72ch;
+  margin: 0.6rem auto 0;
+  padding: 0 16px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
