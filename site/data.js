@@ -2854,6 +2854,32 @@ export function costLedger(data, { months = 3 } = {}) {
 // Divided by PAYING logos rather than all of them, because a zero-MRR account
 // cannot carry any of this and pretending otherwise flatters every month.
 // Acquisition is not here: it belongs to the cohort that caused it.
+// The month's spend on keeping customers, in the five layers chart 39 draws.
+//
+// One implementation, shared by the per-logo view (chart 39) and the
+// per-account view (chart 49), so the two cannot disagree about what a month
+// cost: summing chart 49's accounts in a month gives chart 39's total.
+// Acquisition is not here. It belongs to the cohort that caused it.
+export function serveSpend(data, month) {
+  const spend = {};
+  for (const row of data.expenses) {
+    if (row.month !== month || row.amount === null) continue;
+    const a = row.account || '';
+    let key = null;
+    // Variable: follows the payment rather than the customer.
+    if (/^5000-04/.test(a) || /^6100-06/.test(a)) key = 'variable';
+    // Platform: per-seat licence and hosting. Follows the customer.
+    else if (/^5000-0[23]/.test(a)) key = 'platform';
+    // The people who look after customers, whichever account they sit in.
+    else if (/^5050-/.test(a)) key = 'people';
+    else if (row.bucket === 'SPLIT' && !/Partnerships/i.test(a)) key = 'people';
+    else if (/^6200-|^8000-/.test(a)) key = 'admin';
+    else if (/^6300-/.test(a)) key = 'product';
+    if (key) spend[key] = (spend[key] || 0) + row.amount;
+  }
+  return spend;
+}
+
 export function ongoingCostPerLogo(data) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
@@ -2868,22 +2894,7 @@ export function ongoingCostPerLogo(data) {
       + (r.oneTime || 0) + (r.passThrough || 0), 0);
     if (!paying) return null;
 
-    const spend = {};
-    for (const row of data.expenses) {
-      if (row.month !== month || row.amount === null) continue;
-      const a = row.account || '';
-      let key = null;
-      // Variable: follows the payment rather than the customer.
-      if (/^5000-04/.test(a) || /^6100-06/.test(a)) key = 'variable';
-      // Platform: per-seat licence and hosting. Follows the customer.
-      else if (/^5000-0[23]/.test(a)) key = 'platform';
-      // The people who look after customers, whichever account they sit in.
-      else if (/^5050-/.test(a)) key = 'people';
-      else if (row.bucket === 'SPLIT' && !/Partnerships/i.test(a)) key = 'people';
-      else if (/^6200-|^8000-/.test(a)) key = 'admin';
-      else if (/^6300-/.test(a)) key = 'product';
-      if (key) spend[key] = (spend[key] || 0) + row.amount;
-    }
+    const spend = serveSpend(data, month);
 
     const per = k => (spend[k] || 0) / paying;
     const layers = {
@@ -2901,6 +2912,136 @@ export function ongoingCostPerLogo(data) {
       total: Object.values(layers).reduce((s, v) => s + v, 0),
     };
   }).filter(Boolean);
+}
+
+
+// What each account costs to keep, month by month, across both Stripe
+// environments.
+//
+// Chart 39 says what the average paying customer costs. That is the wrong
+// number for a conversation about one customer, because the cost that follows
+// a payment is not average: merchant fees and revenue share scale with what
+// the account pays, and an account paying $150 does not carry the same
+// variable cost as one paying $1,500. This spreads each month's spend the way
+// the layer actually behaves. Platform, people, G&A and R&D are per paying
+// logo, exactly as chart 39 divides them. Variable is the month's merchant and
+// revenue-share spend as a share of the month's revenue, applied to each
+// account's own revenue. Summed over the accounts in a month, every layer
+// returns the ledger figure for that month, so nothing is invented and nothing
+// is lost.
+//
+// Accounts that have never carried a subscription are out, as everywhere on
+// this page. An account that is live but at zero MRR this month carries only
+// its variable cost: it cannot carry a share of fixed cost, and pretending it
+// can would flatter every paying account beside it.
+//
+// Serve cost is platform, people and variable: what it takes to keep the
+// account working. Loaded adds G&A. R&D is carried but kept out of both, for
+// the reason given on chart 39: charging tomorrow's product to today's
+// customers concludes that a company investing in product has worse unit
+// economics than one that is not.
+export function accountServeCost(data) {
+  const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
+  if (!months.length) return null;
+  const never = neverPaidIds(data);
+
+  const byMonth = [];
+  const rows = [];
+  for (const month of months) {
+    const live = data.customers.filter(r => r.active && r.month === month && !never.has(r.id));
+    const payingRows = live.filter(r => (r.eopMrr || 0) > 0);
+    if (!payingRows.length) continue;
+    const revenueOf = r => (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
+    const revenue = live.reduce((s, r) => s + revenueOf(r), 0);
+    const spend = serveSpend(data, month);
+    const perLogo = k => (spend[k] || 0) / payingRows.length;
+    const variableRate = revenue ? (spend.variable || 0) / revenue : 0;
+    const monthRows = live.map(r => {
+      const paying = (r.eopMrr || 0) > 0;
+      const rev = revenueOf(r);
+      const platform = paying ? perLogo('platform') : 0;
+      const people = paying ? perLogo('people') : 0;
+      const admin = paying ? perLogo('admin') : 0;
+      const product = paying ? perLogo('product') : 0;
+      const variable = rev * variableRate;
+      const serve = platform + people + variable;
+      return {
+        id: r.id, name: r.name || null, source: r.source || null, month,
+        status: r.subscriptionStatus || null,
+        paying,
+        mrr: r.eopMrr || 0, revenue: rev, netCash: r.netCash === null ? null : r.netCash,
+        platform, people, variable, admin, product,
+        serve,
+        loaded: serve + admin,
+        contribution: rev - serve,
+        loadedContribution: rev - serve - admin,
+      };
+    });
+    rows.push(...monthRows);
+
+    const envs = {};
+    for (const env of ['S1', 'S2']) {
+      const mine = monthRows.filter(r => r.source === env && r.paying);
+      if (!mine.length) { envs[env] = null; continue; }
+      const sum = k => mine.reduce((s, r) => s + r[k], 0);
+      envs[env] = {
+        paying: mine.length,
+        live: monthRows.filter(r => r.source === env).length,
+        revenuePerAccount: sum('revenue') / mine.length,
+        servePerAccount: sum('serve') / mine.length,
+        loadedPerAccount: sum('loaded') / mine.length,
+        contributionPerAccount: sum('contribution') / mine.length,
+        under: mine.filter(r => r.contribution < 0).length,
+        underLoaded: mine.filter(r => r.loadedContribution < 0).length,
+        shortfall: mine.filter(r => r.contribution < 0).reduce((s, r) => s - r.contribution, 0),
+      };
+    }
+    byMonth.push({
+      month,
+      live: live.length,
+      paying: payingRows.length,
+      revenue,
+      variableRate,
+      spend: { platform: spend.platform || 0, people: spend.people || 0,
+               variable: spend.variable || 0, admin: spend.admin || 0, product: spend.product || 0 },
+      perLogo: { platform: perLogo('platform'), people: perLogo('people'),
+                 admin: perLogo('admin'), product: perLogo('product') },
+      envs,
+    });
+  }
+  if (!byMonth.length) return null;
+
+  // A variable rate far from the run of recent months is an invoice booked in
+  // one month and credited in another, which chart 39 and the price floors
+  // both report rather than smooth. The same rule, so the same months.
+  const recent = byMonth.slice(-6);
+  const rates = recent.map(m => m.variableRate).sort((a, b) => a - b);
+  const mid = rates.length >> 1;
+  const medianRate = rates.length % 2 ? rates[mid] : (rates[mid - 1] + rates[mid]) / 2;
+  const outliers = recent
+    .filter(m => m.variableRate > medianRate * 1.5 || m.variableRate < medianRate * 0.5)
+    .map(m => m.month);
+
+  const last = byMonth[byMonth.length - 1];
+  const window = byMonth.slice(-6).map(m => m.month);
+  // Months under water in the last six, per account, so one odd month cannot
+  // put an account on the list by itself.
+  const underCount = new Map();
+  for (const r of rows) {
+    if (!window.includes(r.month) || !r.paying) continue;
+    if (r.contribution < 0) underCount.set(r.id, (underCount.get(r.id) || 0) + 1);
+  }
+  // The latest month's contribution is also stated at the window's median
+  // variable rate, so a month carrying an invoice that was credited later
+  // does not put a hundred accounts under water by itself. Both are kept: the
+  // booked figure is what the ledger says, the other is what it will say.
+  const latest = rows.filter(r => r.month === last.month)
+    .map(r => ({ ...r,
+      monthsUnder: underCount.get(r.id) || 0,
+      contributionAtMedianRate: r.revenue - r.platform - r.people - r.revenue * medianRate }));
+
+  return { months: byMonth.map(m => m.month), byMonth, rows, latest, last, window,
+           medianRate, outliers };
 }
 
 

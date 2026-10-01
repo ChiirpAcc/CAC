@@ -154,6 +154,15 @@ month once the classification work landed. The definitions have not moved;
 the classes they treat differently have grown. The page says so itself
 when the gap passes two points.
 
+### `serveSpend(data, month)` and `accountServeCost(data)`
+
+`serveSpend` is the month's spend in the five serve layers, lifted out of
+`ongoingCostPerLogo` so that chart 39 (per paying logo) and chart 49 (per
+account) read the same figure. `accountServeCost` spreads it: fixed layers
+per paying logo, variable per dollar of revenue, zero-MRR live accounts
+carrying variable cost only. Per environment per month it reports paying
+and live counts, revenue and cost per account, and accounts under water.
+
 ### Three guards and checks added since
 
 **`checkVocabulary(doc, customers)`** — above. Silent when the push uses
@@ -227,6 +236,7 @@ judgement for a person.
 | **39** | What it costs to keep one customer, by layer | `data.expenses`, `data.customers` | `ongoingCostPerLogo`. Divided by **paying** logos, since a zero-MRR account cannot carry fixed cost. Acquisition excluded — it belongs to the cohort that caused it. |
 | **40** | What the business spends to run, by layer | `data.expenses` | `costLedger`. |
 | **41** | Every cost line by account, last six months | `data.expenses`, QB Accounts | `costLedger` at line granularity. |
+| **49** | What each account costs to keep, across S1 and S2 | `data.expenses`, `data.customers` | `accountServeCost`. Chart 39 per account. Platform, people, G&A and R&D per **paying** logo, variable at the month's rate on the account's own revenue, so the accounts in a month sum back to chart 39's layers exactly. Both functions read the month's spend from `serveSpend`, the one implementation. Contribution is all revenue less platform, people and variable; the latest month is also stated at the window's median variable rate, because an invoice credited in the next month otherwise puts a hundred accounts under water on its own. CSV of every account and month from the figure. |
 | **43** | Customers being billed who are not paying | `data.customers` | `pastDueTrend`. Share of live logos whose `subscription_status` reads `past_due` or `unpaid`. Starts at the first month the push carries a status at all, because a zero before that is an absence of measurement rather than of the problem. |
 
 ### Projection and pricing decisions

@@ -116,6 +116,9 @@ rebuild.
 .github/workflows/pages.yml           deploy on push to data/** or site/**
 .github/workflows/validate-data.yml   check a data push, open an issue
 scripts/validate_data.py              the checks
+scripts/reconcile_ledger.py           tie the pushed ledger to a QuickBooks export
+METRICS.md                            the metric set, each defined once
+RECONCILIATION.md                     the last tie-out, written by the script
 data/*.json                           pushed by the pipeline, never edited
 site/index.html                       structure
 site/styles.css                       design
@@ -154,6 +157,19 @@ is opened instead, because a page carrying a warning is more useful than no
 page.
 
 Run it locally with `python scripts/validate_data.py`.
+
+### Reconciliation
+
+`scripts/reconcile_ledger.py` ties `data/qb_expenses.json` to a QuickBooks
+Transaction Detail by Account export, account by account and month by month,
+and Stripe cash to QuickBooks revenue by month. The export carries names and
+stays outside the repository; the script reads account totals from it and
+writes `RECONCILIATION.md`. A month the pipeline pulled before QuickBooks
+closed it is reported as close timing; any other difference fails the run.
+
+```bash
+python scripts/reconcile_ledger.py --export "path/to/Transaction Detail by Account.xlsx"
+```
 
 ## Known open items
 

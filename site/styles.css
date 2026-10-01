@@ -725,7 +725,7 @@ figcaption { margin-bottom: .9rem; }
 
 .data-table .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; }
 .data-table .trend { font-size: .76rem; color: var(--ink-mid); white-space: nowrap; }
-#list-actions button {
+#list-actions button, .chart-control button {
   font: inherit;
   padding: .35rem .8rem;
   border: 1px solid var(--rule-strong);
@@ -733,7 +733,7 @@ figcaption { margin-bottom: .9rem; }
   color: var(--ink);
   cursor: pointer;
 }
-#list-actions button:hover { background: var(--surface-sunk); }
+#list-actions button:hover, .chart-control button:hover { background: var(--surface-sunk); }
 #list-status { color: var(--ink-soft); font-size: .82rem; }
 
 /* Cost calculator, chart 42 ------------------------------------------------ */

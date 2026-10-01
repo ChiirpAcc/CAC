@@ -12,7 +12,7 @@ import {
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
-  ongoingCostPerLogo, costLedger, neverPaidIds,
+  ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
@@ -3487,6 +3487,147 @@ function renderOngoing() {
 }
 
 
+// 49. What each account costs to keep, month by month, across S1 and S2.
+// Chart 39 per account: the same five layers, spread the way each behaves,
+// with the accounts that pay less than they cost named underneath.
+function renderAccountServe() {
+  if (!$('chart-account-serve')) return;
+  const a = accountServeCost(data);
+  if (!a) {
+    $('chart-account-serve').innerHTML = '<p class="empty">No expense lines in this push.</p>';
+    return;
+  }
+  const shown = a.byMonth.slice(-12);
+  const labels = shown.map(m => fmt.monthLabel(m.month));
+  const env = (m, key, field) => (m.envs[key] ? m.envs[key][field] : null);
+
+  multiLineChart($('chart-account-serve'), {
+    labels,
+    yTitle: 'Per paying account, a month',
+    yFormat: fmt.money,
+    series: [
+      { label: 'S1 pays', colour: INK.primary, values: shown.map(m => env(m, 'S1', 'revenuePerAccount')) },
+      { label: 'S1 costs to keep', colour: INK.primary, dashed: true,
+        values: shown.map(m => env(m, 'S1', 'servePerAccount')) },
+      { label: 'S2 pays', colour: INK.secondary, values: shown.map(m => env(m, 'S2', 'revenuePerAccount')) },
+      { label: 'S2 costs to keep', colour: INK.secondary, dashed: true,
+        values: shown.map(m => env(m, 'S2', 'servePerAccount')) },
+    ],
+    describe: i => {
+      const m = shown[i];
+      const line = key => {
+        const e = m.envs[key];
+        if (!e) return `<span class="muted">${key}: no paying accounts</span>`;
+        return `<span>${key}: ${fmt.int(e.paying)} paying, pay ${fmt.money(e.revenuePerAccount)}, `
+          + `cost ${fmt.money(e.servePerAccount)}, ${fmt.int(e.under)} under water</span>`;
+      };
+      return `<strong>${labels[i]}</strong>${line('S1')}${line('S2')}`
+        + `<span class="muted">Platform ${fmt.money(m.perLogo.platform)}, people `
+        + `${fmt.money(m.perLogo.people)} a paying logo; variable `
+        + `${fmt.pct(m.variableRate, 1)} of revenue</span>`;
+    },
+  });
+
+  const l = a.last;
+  const s1 = l.envs.S1;
+  const s2 = l.envs.S2;
+  const outlier = a.outliers.includes(l.month);
+  const paying = a.latest.filter(r => r.paying);
+  const underNow = paying.filter(r => r.contribution < 0);
+  const underAtMedian = paying.filter(r => r.contributionAtMedianRate < 0);
+  const chronic = paying.filter(r => r.monthsUnder >= a.window.length);
+  const shortfall = underNow.reduce((s, r) => s - r.contribution, 0);
+  const envSentence = (key, e) => (e
+    ? `${key === 'S1' ? 'an S1' : 'an S2'} account paid ${fmt.money(e.revenuePerAccount)} and cost `
+      + `${fmt.money(e.servePerAccount)} to keep, ${fmt.int(e.under)} of ${fmt.int(e.paying)} under water`
+    : `${key} had no paying accounts`);
+
+  $('account-serve-finding').innerHTML =
+    `<strong>In ${fmt.monthLabel(l.month)} ${envSentence('S1', s1)}; ${envSentence('S2', s2)}.</strong> `
+    + `Between them ${fmt.int(underNow.length)} paying accounts paid less than it cost to keep them, `
+    + `a shortfall of ${fmt.money(shortfall)} for the month, and ${fmt.int(chronic.length)} of those `
+    + `have been under water in every one of the last ${a.window.length} months. `
+    + (outlier
+        ? `${fmt.monthLabel(l.month)} carries merchant and revenue-share spend at `
+          + `${fmt.pct(l.variableRate, 1)} of revenue against a usual ${fmt.pct(a.medianRate, 1)}, `
+          + `an invoice booked and credited in different months, so the month overstates the `
+          + `variable cost of every account; at the usual rate ${fmt.int(underAtMedian.length)} `
+          + `accounts are under water rather than ${fmt.int(underNow.length)}. The table ranks by `
+          + `months under water rather than by the one month for that reason. `
+        : `The table ranks by months under water, so one odd month cannot put an account on it. `)
+    + (s2 && s1
+        ? `S2 is ${fmt.int(s2.paying)} accounts against ${fmt.int(s1.paying)}, young and small, so `
+          + `its line moves with single customers and is read for direction rather than level.`
+        : '');
+
+  const ranked = paying
+    .filter(r => r.monthsUnder > 0 || r.contribution < 0)
+    .sort((x, y) => (y.monthsUnder - x.monthsUnder) || (x.contribution - y.contribution))
+    .slice(0, 25);
+  const nameCell = r => `${r.name ? r.name : '<span class="muted">unnamed</span>'}`
+    + `<br><span class="mono">${r.id}</span>`;
+  $('account-serve-table').innerHTML =
+    '<thead><tr><th>Account</th><th>Env</th><th>Status</th><th class="n">MRR</th>'
+    + '<th class="n">All revenue</th><th class="n">Costs to keep</th><th class="n">Contribution</th>'
+    + `<th class="n">Under, last ${a.window.length}</th></tr></thead><tbody>`
+    + ranked.map(r => `<tr><td>${nameCell(r)}</td><td>${r.source || '–'}</td>`
+      + `<td class="muted">${r.status || '–'}</td>`
+      + `<td class="n">${fmt.money(r.mrr)}</td><td class="n">${fmt.money(r.revenue)}</td>`
+      + `<td class="n">${fmt.money(r.serve)}</td>`
+      + `<td class="n">${r.contribution < 0 ? '<span class="notviable">' : ''}`
+      + `${fmt.money(r.contribution)}${r.contribution < 0 ? '</span>' : ''}</td>`
+      + `<td class="n">${fmt.int(r.monthsUnder)}</td></tr>`).join('')
+    + '</tbody>';
+
+  $('account-serve-note').textContent =
+    `Chart 39 per account. The month's spend in each layer is the same figure chart 39 draws, `
+    + `and summing this table's accounts in a month returns it exactly; the only new thing here `
+    + `is how it is spread. Platform, support and success, G&A and R&D are divided equally among `
+    + `paying accounts, as chart 39 divides them. Merchant fees and revenue share follow the `
+    + `payment, so each account carries the month's rate on its own revenue: an account paying `
+    + `ten times as much carries ten times the variable cost. Costs to keep is platform, people `
+    + `and variable; contribution is everything the account paid, subscription, usage, one-off `
+    + `and pass-through, less that. G&A and R&D are in the download and not in the table, for the `
+    + `reason chart 39 gives. Live accounts at zero MRR this month carry only their variable cost `
+    + `and are not listed. S1 and S2 accounts are costed on the same ledger, because the ledger `
+    + `does not know which environment a customer is in; the environment only decides which `
+    + `line an account is counted on. The download holds every account for every month since `
+    + `${fmt.monthLabel(a.months[0])}, ${fmt.int(a.rows.length)} rows, with the five layers apart.`;
+
+  const button = $('account-serve-download');
+  if (button && !button.dataset.ready) {
+    const csv = () => {
+      const head = ['customer_id', 'company_name', 'source', 'month', 'subscription_status',
+        'paying', 'mrr', 'revenue', 'net_cash', 'platform', 'people', 'variable', 'ga', 'rd',
+        'serve_cost', 'contribution', 'loaded_cost', 'loaded_contribution'];
+      const cell = v => {
+        if (v === null || v === undefined) return '';
+        if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(2);
+        const t = String(v);
+        return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+      };
+      const line = r => [r.id, r.name, r.source, r.month, r.status, r.paying ? 1 : 0, r.mrr,
+        r.revenue, r.netCash, r.platform, r.people, r.variable, r.admin, r.product, r.serve,
+        r.contribution, r.loaded, r.loadedContribution].map(cell).join(',');
+      return [head.join(',')].concat(a.rows.map(line)).join('\n');
+    };
+    button.addEventListener('click', () => {
+      const blob = new Blob([csv()], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `chiirp-cost-to-keep-by-account-${a.last.month}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      $('account-serve-status').textContent =
+        `${fmt.int(a.rows.length)} account-months exported.`;
+    });
+    button.dataset.ready = '1';
+  }
+}
+
 // 40. The ledger behind every other cost figure on this page.
 function renderLedger() {
   if (!$('ledger-table')) return;
@@ -4168,6 +4309,7 @@ function boot() {
     renderSpend();
     renderLedger();
     renderOngoing();
+    renderAccountServe();
     renderFloors();
     renderUpgradeList();
     renderCampaign();
