@@ -96,6 +96,13 @@ ledger books an invoice and its credit note in different months and a mean
 over a window that closes between them counts the charge and never the
 reversal. The months that trip that rule are reported, not smoothed.
 
+## 5a. Events
+
+| Metric | Definition | Chart | Function |
+|---|---|---|---|
+| **Event cost** | Sponsorship plus travel for one event. Sponsorship is what QuickBooks booked where it differs from the Event Costs tab; a fee that paid for several events is split equally across them and also reported as a package. | Events tab | `eventRoi`, `EVENT_FEES_QB`, `EVENT_PACKAGES` |
+| **Event return** | For customers whose HubSpot lead source names the event: net cash collected since the window opened, and contribution on chart 49's basis. Net of cost is contribution less event cost. Sourcing, not the partnerships 60-day attribution, and tagged customers only. | Events tab | `eventRoi` |
+
 ## 6. Forward
 
 | Metric | Definition | Chart | Function |
@@ -106,7 +113,9 @@ reversal. The months that trip that rule are reported, not smoothed.
 
 ## What is not on the list, and why
 
-- **Anything from HubSpot.** Not a source for this page.
+- **Anything from HubSpot, except one field.** The Events tab reads the
+  HubSpot lead source the pipeline matches to Stripe (v120), to say which
+  customers an event brought. Nothing else on the page uses HubSpot.
 - **A cost per account by CSM.** There is no assignment per account in the
   data, so people cost is spread evenly. The day the pipeline carries an
   owner, chart 49 can divide the people layer by it without changing

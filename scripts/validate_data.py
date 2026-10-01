@@ -293,6 +293,97 @@ def check_departures_are_booked(waterfall, customers):
                f"the last six months.")
 
 
+
+LEAD_MEDIUMS = {"event", "webinar", "digital", "partner or referral"}
+YEAR_PREFIX = re.compile(r"^20\d\d - ")
+
+
+def check_lead_source(customers):
+    """The four checks the v120 brief asks for on lead_source and lead_medium.
+
+    A blank is expected for most customers, so a high blank rate is a note. A
+    blank rate of 100% is not: it means the Lead Source tab was empty or the
+    join to Stripe found nothing, and every event figure on the page then
+    reads zero for a reason that has nothing to do with events.
+    """
+    if not customers:
+        return
+    cols = customers.get("columns") or []
+    if "lead_source" not in cols:
+        return
+    source_of, medium_of, conflicts = {}, {}, 0
+    for r in customers["rows"]:
+        src = str(r.get("lead_source") or "").strip()
+        med = str(r.get("lead_medium") or "").strip()
+        cid = r.get("customer_id")
+        if not src:
+            continue
+        if cid in source_of and source_of[cid] != src:
+            conflicts += 1
+        source_of[cid] = src
+        medium_of[cid] = med
+    ids = {r.get("customer_id") for r in customers["rows"]}
+    if not source_of:
+        report("error", "Customer Waterfall",
+               f"lead_source and lead_medium are present but blank on all {len(customers['rows']):,} "
+               f"rows. The brief expects most customers untagged, never all of them: the Lead "
+               f"Source tab is empty or the Stripe id join matched nothing. Every event figure "
+               f"on the page reads zero until this is fixed.")
+        return
+    bad = sorted({m for m in medium_of.values() if m not in LEAD_MEDIUMS})
+    if bad:
+        report("warning", "Customer Waterfall",
+               f"lead_medium carries values outside the four mediums: {', '.join(bad)}.")
+    event_no_year = sorted({s for c, s in source_of.items()
+                            if medium_of[c] == "event" and not YEAR_PREFIX.match(s)})
+    year_not_event = sorted({s for c, s in source_of.items()
+                             if medium_of[c] != "event" and YEAR_PREFIX.match(s)})
+    if event_no_year or year_not_event:
+        report("warning", "Customer Waterfall",
+               f"the year-prefix rule does not hold: {len(event_no_year)} event values without a "
+               f"year, {len(year_not_event)} year-prefixed values not marked event.")
+    if conflicts:
+        report("warning", "Customer Waterfall",
+               f"{conflicts} rows carry a lead_source different from the same customer's other "
+               f"rows. A customer keeps one source.")
+    counts = {}
+    for m in medium_of.values():
+        counts[m] = counts.get(m, 0) + 1
+    report("note", "Customer Waterfall",
+           f"lead source on {len(source_of):,} of {len(ids):,} customers "
+           f"({len(source_of) / len(ids):.0%}); by medium "
+           + ", ".join(f"{k} {v:,}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1]))
+           + ".")
+
+
+def check_ledger_closed(expenses):
+    """Flag a trailing ledger month that has not closed in QuickBooks.
+
+    The site stops at the last month whose ledger is at least half the median
+    of the six before it. This says so on the push, so the reader of the
+    report knows why the page ends a month earlier than the customer file.
+    """
+    if not expenses:
+        return
+    totals = {}
+    for r in expenses["rows"]:
+        v = number(r.get("amount"))
+        m = str(r.get("month") or "")
+        if v is None or not MONTH.match(m):
+            continue
+        totals[m] = totals.get(m, 0.0) + v
+    months = sorted(totals)
+    if len(months) < 4:
+        return
+    last = months[-1]
+    prior = sorted(totals[m] for m in months[-7:-1])
+    mid = len(prior) // 2
+    median = prior[mid] if len(prior) % 2 else (prior[mid - 1] + prior[mid]) / 2
+    if totals[last] < median * 0.5:
+        report("note", "QB Expenses",
+               f"{last} holds ${totals[last]:,.0f} of ledger against a median of ${median:,.0f}, "
+               f"so it has not closed. The site stops at the month before it until it does.")
+
 def main():
     index = load("index.json")
     if index is None:
@@ -326,6 +417,8 @@ def main():
         customers = load("customer_waterfall.json")
         check_presence_is_not_payment(waterfall, customers)
         check_departures_are_booked(waterfall, customers)
+        check_lead_source(customers)
+        check_ledger_closed(load("qb_expenses.json"))
 
         # The base count is the one number that needs no interpretation, so a
         # sharp move in it is worth a look even when nothing is malformed.

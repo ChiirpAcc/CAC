@@ -40,6 +40,7 @@
     <button id="tab-story" role="tab" aria-selected="false" aria-controls="view-story">The argument</button>
     <button id="tab-all" role="tab" aria-selected="true" aria-controls="view-all">Every chart</button>
     <button id="tab-list" role="tab" aria-selected="false" aria-controls="view-list">Upgrade list</button>
+    <button id="tab-events" role="tab" aria-selected="false" aria-controls="view-events">Events</button>
   </nav>
 
   <!-- The story view holds no charts of its own. The four it presents are
@@ -820,6 +821,44 @@
   </div>
 
   </div><!-- view-all -->
+
+  <section id="view-events" class="wrap" hidden>
+    <header class="story-head">
+      <h2>What each event cost, and what its customers have paid since</h2>
+      <p>One row per event. Cost is the sponsorship QuickBooks booked plus the
+        travel, with a fee that paid for several events split across them. The
+        customers are the ones HubSpot tags with that event as their lead source,
+        matched to Stripe. Tagged customers only: most of the book carries no tag.</p>
+    </header>
+    <p class="finding" id="events-coverage"></p>
+    <figure class="card wide" id="fig-events">
+      <figcaption><h3>Contribution from tagged customers, less what the event cost</h3></figcaption>
+      <div class="plot" id="chart-events"></div>
+      <p class="finding" id="events-finding"></p>
+      <div class="chart-control">
+        <button type="button" id="events-download">Download events and their customers as CSV</button>
+        <output id="events-status"></output>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="events-table"></table>
+      </div>
+      <p class="note" id="events-note"></p>
+    </figure>
+    <figure class="card wide" id="fig-event-packages">
+      <figcaption><h3>Fees that paid for more than one event</h3></figcaption>
+      <div class="table-scroll">
+        <table class="data-table" id="event-packages-table"></table>
+      </div>
+      <p class="note" id="event-packages-note"></p>
+    </figure>
+    <figure class="card wide" id="fig-event-sources">
+      <figcaption><h3>Where tagged customers came from, by medium</h3></figcaption>
+      <div class="table-scroll">
+        <table class="data-table" id="event-sources-table"></table>
+      </div>
+      <p class="note" id="event-sources-note"></p>
+    </figure>
+  </section>
 
   <section id="view-list" class="wrap" hidden>
     <header class="story-head">

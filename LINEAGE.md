@@ -236,8 +236,14 @@ judgement for a person.
 | **39** | What it costs to keep one customer, by layer | `data.expenses`, `data.customers` | `ongoingCostPerLogo`. Divided by **paying** logos, since a zero-MRR account cannot carry fixed cost. Acquisition excluded — it belongs to the cohort that caused it. |
 | **40** | What the business spends to run, by layer | `data.expenses` | `costLedger`. |
 | **41** | Every cost line by account, last six months | `data.expenses`, QB Accounts | `costLedger` at line granularity. |
-| **49** | What each account costs to keep, across S1 and S2 | `data.expenses`, `data.customers` | `accountServeCost`. Chart 39 per account. Platform, people, G&A and R&D per **paying** logo, variable at the month's rate on the account's own revenue, so the accounts in a month sum back to chart 39's layers exactly. Both functions read the month's spend from `serveSpend`, the one implementation. Contribution is all revenue less platform, people and variable; the latest month is also stated at the window's median variable rate, because an invoice credited in the next month otherwise puts a hundred accounts under water on its own. CSV of every account and month from the figure. |
+| **49** | What each account costs to keep, across S1 and S2 | `data.expenses`, `data.customers` | `accountServeCost`. Chart 39 per account. Platform, people, G&A and R&D per **paying** logo, variable at the month's rate on the account's own revenue, so the accounts in a month sum back to chart 39's layers exactly. Both functions read the month's spend from `serveSpend`, the one implementation. Contribution is all revenue less platform, people and variable; the latest month is also stated at the window's median variable rate, because a month pulled before its credits were posted overstates variable cost (Aug 2026: 117 under water as booked, 113 at the usual rate). CSV of every account and month from the figure. |
 | **43** | Customers being billed who are not paying | `data.customers` | `pastDueTrend`. Share of live logos whose `subscription_status` reads `past_due` or `unpaid`. Starts at the first month the push carries a status at all, because a zero before that is an absence of measurement rather than of the problem. |
+
+### The Events tab
+
+| Report | Source | Transformation |
+|---|---|---|
+| What each event cost, and what its customers have paid since | `data.eventCosts` (Event Costs tab), `data.customers` (`lead_source`, `lead_medium`, v120), `accountServeCost` | `eventRoi`. Cost is the tab's sponsor plus travel, with the sponsor replaced by `EVENT_FEES_QB` where QuickBooks booked something different, and a fee in `EVENT_PACKAGES` split equally across the events it paid for. Customers are those whose lead source names the event, matched by name and year or through `EVENT_ALIASES`; events with a cost and no tagged customer stay on the list at zero. Collected is net cash; contribution is chart 49's, summed per customer. Sourcing, not attribution: the partnerships 60-day rule will disagree. |
 
 ### Projection and pricing decisions
 
@@ -273,6 +279,16 @@ underlying relationship changes, the GIF moves and the sentence under it
 does not.
 
 ---
+
+## 4a. The window, as of v120
+
+`load()` admits a month only if it is at or after `HISTORY_STARTS`, before the
+reader's current month, and no later than the last month whose QB Expenses
+total is at least half the median of the six months before it
+(`ledgerThrough`). The third condition exists because Stripe closes a month
+when it ends and QuickBooks weeks later: the 1 October push carried all of
+September's revenue against $114,865 of ledger. Until a month's ledger closes,
+the whole page stops at the month before it.
 
 ## 5. What runs between a push and a chart
 

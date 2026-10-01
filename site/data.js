@@ -267,9 +267,35 @@ export async function load() {
     if (!byTab[tab]) throw new Error(`${tab} is missing from the push`);
   }
 
-  // One gate for every tab: after the window opens, before the month that is
-  // still accruing.
-  const inWindow = month => month && month >= HISTORY_STARTS && month < CURRENT_MONTH;
+  // One gate for every tab: after the window opens, and no later than the last
+  // month both sides hold in full.
+  //
+  // The clock alone is not enough. Stripe closes a month the day it ends;
+  // QuickBooks closes it two to four weeks later. A push taken in between
+  // carries a whole month of revenue against a few days of cost, and every
+  // chart that sets one against the other reads that month as nearly free to
+  // run: the 1 October push put a month of revenue against $114,865 of a
+  // usual $1.5M of ledger. So the last month is also capped at the last month
+  // whose ledger is at least half the median of the six before it, which a
+  // closed month always clears and an open one does not.
+  const ledgerTotals = new Map();
+  for (const r of byTab['QB Expenses'].rows) {
+    const value = num(r.amount);
+    if (!r.month || value === null) continue;
+    ledgerTotals.set(r.month, (ledgerTotals.get(r.month) || 0) + value);
+  }
+  const ledgerMonths = [...ledgerTotals.keys()].filter(m => m < CURRENT_MONTH).sort();
+  let ledgerThrough = null;
+  ledgerMonths.forEach((m, i) => {
+    const prior = ledgerMonths.slice(Math.max(0, i - 6), i).map(k => ledgerTotals.get(k))
+      .sort((a, b) => a - b);
+    const mid = prior.length >> 1;
+    const median = !prior.length ? null
+      : prior.length % 2 ? prior[mid] : (prior[mid - 1] + prior[mid]) / 2;
+    if (median === null || ledgerTotals.get(m) >= median * 0.5) ledgerThrough = m;
+  });
+  const inWindow = month => month && month >= HISTORY_STARTS && month < CURRENT_MONTH
+    && (ledgerThrough === null || month <= ledgerThrough);
   const complete = rows => rows.filter(r => inWindow(r.month));
 
   // What it costs to keep a logo, as opposed to winning one. The revenue side
@@ -421,6 +447,12 @@ export async function load() {
       subscriptionStatus: r.subscription_status || '',
       unpaidDue: num(r.unpaid_due) || 0,
       unpaidInvoices: num(r.unpaid_invoice_count) || 0,
+      // Where HubSpot says the customer came from, matched to Stripe by the
+      // pipeline (v120). Blank means nobody tagged them, which is most of the
+      // book and is not the same as organic. leadMedium is event, webinar,
+      // digital or partner or referral; an event value carries a year prefix.
+      leadSource: String(r.lead_source || '').trim() || null,
+      leadMedium: String(r.lead_medium || '').trim() || null,
     }));
 
 
@@ -478,10 +510,28 @@ export async function load() {
       }))
     : [];
 
+  // What each event cost, one row per event in the month it happened. Not
+  // windowed: an event's cost belongs to it whenever the customers it brought
+  // were billed. Sponsor is the 6100-07 fee, travel the 6100-41 to 45 lines.
+  const eventCosts = byTab['Event Costs']
+    ? byTab['Event Costs'].rows
+        .filter(r => r.event && /^\d{4}-\d{2}$/.test(String(r.month || '')))
+        .map(r => ({
+          event: String(r.event).trim(),
+          month: r.month,
+          sponsor: num(r.sponsor),
+          travel: num(r.travel),
+          costSource: String(r.cost_source || '').trim() || null,
+          note: String(r.note || '').trim() || null,
+        }))
+    : [];
+
   const vocabulary = checkVocabulary(byTab['Customer Waterfall'], customers);
 
   return {
     pushedAt: index.pushed_at || null,
+    ledgerThrough,
+    hasLeadSource: (byTab['Customer Waterfall'].columns || []).includes('lead_source'),
     pipelineVersion: byTab['Customer Waterfall'].pipeline_version || null,
     historyStarts: HISTORY_STARTS,
     waterfall,
@@ -489,6 +539,7 @@ export async function load() {
     expenses,
     customers,
     cashDetail,
+    eventCosts,
     lifetimes,
     lifetimeRecords,
     signups,
@@ -3032,9 +3083,11 @@ export function accountServeCost(data) {
     if (r.contribution < 0) underCount.set(r.id, (underCount.get(r.id) || 0) + 1);
   }
   // The latest month's contribution is also stated at the window's median
-  // variable rate, so a month carrying an invoice that was credited later
-  // does not put a hundred accounts under water by itself. Both are kept: the
-  // booked figure is what the ledger says, the other is what it will say.
+  // variable rate, so a month the pipeline pulled before its credits were
+  // posted cannot put accounts under water by itself. In Aug 2026 a $69,848
+  // revenue-share credit dated the 31st was not yet in the push; at the usual
+  // rate 113 accounts are under water rather than 117. Both are kept: the
+  // booked figure is what the push says, the other is what the close will say.
   const latest = rows.filter(r => r.month === last.month)
     .map(r => ({ ...r,
       monthsUnder: underCount.get(r.id) || 0,
@@ -3042,6 +3095,273 @@ export function accountServeCost(data) {
 
   return { months: byMonth.map(m => m.month), byMonth, rows, latest, last, window,
            medianRate, outliers };
+}
+
+
+// What each event cost and what the customers it brought have paid since.
+//
+// Two inputs, kept apart so either can be checked. The cost is the Event
+// Costs tab, one row per event, with the sponsorship fee corrected to
+// QuickBooks wherever the two disagree: the tab was built from the planning
+// sheet, and QuickBooks is what was actually paid. The customers are the ones
+// HubSpot tags with that event as their lead source, matched to Stripe by the
+// pipeline.
+//
+// This is sourcing, not attribution. A customer tagged "2025 - Pantheon" is
+// counted for Pantheon whenever they signed. The partnerships ROI credits
+// revenue only to deals opened within sixty days of the event, less pre-event
+// and renewal deals, so the two will disagree and both are right about
+// different questions. Most customers carry no tag at all, and that is the
+// answer rather than a gap: every figure here is about tagged customers only.
+
+// Sponsorship fees as QuickBooks booked them, from the Transaction Detail by
+// Account export of Sep 2025 to Sep 2026 (6100-07, P&L basis, each prepaid
+// traced to its bill). Only events where QuickBooks differs from the tab, or
+// where the tab has no fee, are here.
+export const EVENT_FEES_QB = {
+  'HSF 2025': { sponsor: 64000,
+    basis: 'Titanium sponsorship $52,500, co-op postcard $10,000 and website $1,500, Sep 2025.' },
+  'Nexstar Super Meeting 2025': { sponsor: 12750,
+    basis: 'Single booth $10,500 and an additional attendee $2,250, Oct 2025.' },
+  'Nuve Networks Tour': { sponsor: 4998,
+    basis: 'Nuve Controls, recognised Oct 2025. The tab models $10,000.' },
+  'Clover Mastermind 2025': { sponsor: 12500,
+    basis: 'Clover Marketing, Fall Mastermind 2025 sponsor, Oct 2025. The tab has no fee.' },
+  'Zoom Drain Expo - Vortex': { sponsor: 10000,
+    basis: 'Zoom Drain Franchising, 2025 Vortex silver sponsor, Oct 2025. The tab marks it absent.' },
+  'We Mean Business Conference': { sponsor: 10000,
+    basis: 'We Mean Business, sponsor, Nov 2025. The tab marks it absent.' },
+  'Service World': { sponsor: 2900,
+    basis: 'Service World Expo, Oct 2025. The tab marks it absent.' },
+  'BDR Spark 2026': { sponsor: 17900,
+    basis: 'Business Development Resources, $1,492 a month recognised over twelve months from Jan 2026.' },
+  'EGIA Epic 2026': { sponsor: 16445,
+    basis: 'Trade show $10,945 and a further $5,500, Feb 2026.' },
+  'RynoX 2026': { sponsor: 40000,
+    basis: 'RYNO Strategic Solutions, billed Nov 2025 and recognised Feb 2026. The tab says no cost.' },
+  'Raising GOATS 2026': { sponsor: 12500,
+    basis: 'EGIA bill for the Raising Goats conference, Mar 2026. The tab has $4,000.' },
+  'Redwood Leadership Summit': { sponsor: 10000,
+    basis: 'Redwood Services sponsorship, Apr 2026. The tab has $3,000.' },
+};
+
+// One fee that paid for several events. The fee is split equally across the
+// events it covers, and the package is also reported whole, because which of
+// the stops earned the customers is not something the fee can say.
+export const EVENT_PACKAGES = [
+  { key: 'lennox-live-2026', label: 'Lennox LIVE 2026, two stops', fee: 18800,
+    events: ['Lennox Live Anaheim 2026', 'Lennox Live New Orleans 2026'],
+    basis: 'One $18,000 sponsorship recognised Mar 2026 plus two $400 registrations in Jan 2026.' },
+  { key: 'grosso-2026', label: 'Grosso University, six events', fee: 25000,
+    events: [],
+    basis: 'Paid Jul 2026 for six Grosso events and recognised $2,083 a month from Aug 2026 '
+      + 'in 6100-05. None of the six had happened inside this window, so it carries no customers yet.' },
+  { key: 'pantheon-2026', label: 'ServiceTitan Pantheon 2026, shared booth', fee: 48750,
+    events: [],
+    basis: 'The $195,000 package is shared four ways; two partners each paid $48,750 and a third '
+      + '$50,258, so the CHIIRP share is a quarter. The event is in October 2026, after this window.' },
+];
+
+// Lead source values that do not match an Event Costs row by name. Filled
+// from the first push that carried lead_source; anything not listed and not
+// matched by name is reported as unmatched rather than guessed.
+export const EVENT_ALIASES = {};
+
+const eventWords = text => String(text || '').toLowerCase()
+  .replace(/\b20\d\d\b/g, ' ')
+  .replace(/&/g, ' and ')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .replace(/\b(the|annual|conference|event|events|summit|expo|live|tour)\b/g, ' ')
+  .trim().replace(/\s+/g, ' ');
+const eventYear = (name, month) => {
+  const m = String(name || '').match(/\b(20\d\d)\b/);
+  return m ? m[1] : String(month || '').slice(0, 4) || null;
+};
+
+export function eventRoi(data) {
+  const costs = data.eventCosts || [];
+  const tagged = data.customers.filter(r => r.leadSource);
+  if (!tagged.length && !costs.length) return null;
+
+  // Cost per event: the tab, corrected to QuickBooks, with package fees split.
+  const packaged = new Map();
+  for (const pack of EVENT_PACKAGES) {
+    const members = pack.events.filter(e => costs.some(c => c.event === e));
+    for (const e of members) packaged.set(e, { pack, share: pack.fee / members.length });
+  }
+  const costRows = costs.map(c => {
+    const qb = EVENT_FEES_QB[c.event];
+    const pk = packaged.get(c.event);
+    const sponsor = pk ? pk.share : qb ? qb.sponsor : c.sponsor;
+    const sponsorBasis = pk ? `${pk.pack.label}: ${pk.pack.basis}`
+      : qb ? `QuickBooks: ${qb.basis}` : `Event Costs tab, ${c.costSource || 'source not stated'}.`;
+    const known = sponsor !== null || c.travel !== null;
+    return {
+      ...c,
+      tabSponsor: c.sponsor,
+      sponsor,
+      sponsorBasis,
+      corrected: Boolean(qb || pk),
+      packageKey: pk ? pk.pack.key : null,
+      cost: known ? (sponsor || 0) + (c.travel || 0) : null,
+      year: eventYear(c.event, c.month),
+      words: eventWords(c.event),
+    };
+  });
+
+  // Customers by lead source. A customer keeps one source, the first the
+  // pipeline found, so the latest row is as good as any.
+  const sourceOf = new Map();
+  const mediumOf = new Map();
+  for (const r of data.customers) {
+    if (r.leadSource) { sourceOf.set(r.id, r.leadSource); mediumOf.set(r.id, r.leadMedium); }
+  }
+  const serve = accountServeCost(data);
+  const contributionBy = new Map();
+  if (serve) {
+    for (const r of serve.rows) {
+      contributionBy.set(r.id, (contributionBy.get(r.id) || 0) + r.contribution);
+    }
+  }
+  const lastMonth = data.lastMonth;
+  const never = neverPaidIds(data);
+
+  const bySource = new Map();
+  for (const r of data.customers) {
+    const src = sourceOf.get(r.id);
+    if (!src) continue;
+    if (!bySource.has(src)) {
+      bySource.set(src, { source: src, medium: mediumOf.get(r.id) || null, ids: new Set(),
+        rows: [] });
+    }
+    const b = bySource.get(src);
+    b.ids.add(r.id);
+    b.rows.push(r);
+  }
+
+  const summarise = (ids, rows) => {
+    const firstRevenue = new Map();
+    let collected = 0;
+    let revenue = 0;
+    let mrrNow = 0;
+    const liveNow = new Set();
+    const cashByMonth = new Map();
+    for (const r of rows) {
+      collected += r.netCash || 0;
+      const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
+      revenue += rev;
+      if (rev > 0) {
+        const seen = firstRevenue.get(r.id);
+        if (seen === undefined || r.month < seen) firstRevenue.set(r.id, r.month);
+      }
+      if (r.month === lastMonth && r.active) {
+        liveNow.add(r.id);
+        mrrNow += r.eopMrr || 0;
+      }
+    }
+    let contribution = 0;
+    let measured = false;
+    for (const id of ids) {
+      if (contributionBy.has(id)) { contribution += contributionBy.get(id); measured = true; }
+    }
+    return {
+      customers: ids.size,
+      paid: [...ids].filter(id => firstRevenue.has(id)).length,
+      neverPaid: [...ids].filter(id => never.has(id)).length,
+      liveNow: liveNow.size,
+      mrrNow,
+      collected,
+      revenue,
+      contribution: measured ? contribution : null,
+      firstRevenueMonths: [...firstRevenue.values()].sort(),
+    };
+  };
+
+  // Match each event-medium source to a cost row: alias first, then by name
+  // and year, then by name alone when only one row carries that name.
+  const used = new Set();
+  const events = [];
+  for (const b of bySource.values()) {
+    if (b.medium !== 'event') continue;
+    const aliased = EVENT_ALIASES[b.source];
+    const year = (b.source.match(/^(20\d\d)\s*-/) || [])[1] || null;
+    const words = eventWords(b.source.replace(/^20\d\d\s*-\s*/, ''));
+    let cost = null;
+    if (aliased) cost = costRows.find(c => c.event === aliased) || null;
+    if (!cost) cost = costRows.find(c => c.words === words && c.year === year) || null;
+    if (!cost) {
+      const byName = costRows.filter(c => c.words === words);
+      if (byName.length === 1 && !year) cost = byName[0];
+    }
+    if (cost) used.add(cost.event);
+    events.push({ source: b.source, year, cost, ...summarise(b.ids, b.rows) });
+  }
+  // Events that cost money and brought no tagged customer still belong on the
+  // list: an event with a fee and nobody tagged is a result, and the most
+  // expensive kind.
+  for (const c of costRows) {
+    if (used.has(c.event)) continue;
+    events.push({ source: null, year: c.year, cost: c, customers: 0, paid: 0, neverPaid: 0,
+      liveNow: 0, mrrNow: 0, collected: 0, revenue: 0, contribution: 0,
+      firstRevenueMonths: [] });
+  }
+
+  for (const e of events) {
+    const cost = e.cost ? e.cost.cost : null;
+    e.label = e.cost ? e.cost.event : e.source;
+    e.month = e.cost ? e.cost.month : null;
+    e.spend = cost;
+    e.cashMultiple = cost ? e.collected / cost : null;
+    e.net = cost !== null && e.contribution !== null ? e.contribution - cost : null;
+    e.costPerCustomer = cost !== null && e.paid ? cost / e.paid : null;
+    e.matched = Boolean(e.cost && e.source);
+  }
+  events.sort((a, b) => String(a.month || a.year || '').localeCompare(String(b.month || b.year || ''))
+    || String(a.label).localeCompare(String(b.label)));
+
+  // The package view: one row per shared fee, its events summed.
+  const packages = EVENT_PACKAGES.map(pack => {
+    const members = events.filter(e => e.cost && e.cost.packageKey === pack.key);
+    const sum = k => members.reduce((s, e) => s + (e[k] || 0), 0);
+    const travel = members.reduce((s, e) => s + (e.cost.travel || 0), 0);
+    const spend = members.length ? pack.fee + travel : null;
+    return { ...pack, members, customers: sum('customers'), paid: sum('paid'),
+      collected: sum('collected'), contribution: members.length ? sum('contribution') : null,
+      mrrNow: sum('mrrNow'), spend,
+      cashMultiple: spend ? sum('collected') / spend : null,
+      net: spend !== null && members.length ? sum('contribution') - spend : null };
+  });
+
+  // Coverage, which the brief says must travel with every figure.
+  const liveIds = new Set(data.customers.filter(r => r.month === lastMonth && r.active).map(r => r.id));
+  const taggedLive = [...liveIds].filter(id => sourceOf.has(id));
+  const mediums = new Map();
+  for (const [id, medium] of mediumOf) {
+    const key = medium || 'unstated';
+    if (!mediums.has(key)) mediums.set(key, { medium: key, customers: 0, live: 0 });
+    const m = mediums.get(key);
+    m.customers += 1;
+    if (liveIds.has(id)) m.live += 1;
+  }
+  const unmatchedSources = events.filter(e => e.source && !e.cost).map(e => e.source);
+  const costed = events.filter(e => e.spend !== null);
+
+  return {
+    lastMonth,
+    events,
+    packages,
+    mediums: [...mediums.values()].sort((a, b) => b.customers - a.customers),
+    coverage: { live: liveIds.size, taggedLive: taggedLive.length,
+      share: liveIds.size ? taggedLive.length / liveIds.size : null,
+      taggedEver: sourceOf.size },
+    unmatchedSources,
+    totals: {
+      spend: costed.reduce((s, e) => s + e.spend, 0),
+      collected: costed.reduce((s, e) => s + e.collected, 0),
+      contribution: costed.reduce((s, e) => s + (e.contribution || 0), 0),
+      customers: costed.reduce((s, e) => s + e.paid, 0),
+    },
+  };
 }
 
 
