@@ -7,7 +7,7 @@ import {
   seasonalSurvival,
   hasRevenueClasses, CLASS_MARGINS, LEGACY_PLATFORM_MARGIN, environmentSplit,
   signupEconomics, priceAgainstRetention,
-  arrivalsAgainstChurn, HISTORY_STARTS, departures, acquisitionCosts,
+  arrivalsAgainstChurn, departures, acquisitionCosts,
   ltvAtAge, signupPriceHistory, priceBands, projectionBasis, pricingScenarios, priceComparison,
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
@@ -4825,6 +4825,8 @@ function renderStatic() {
 
   const censored = cohorts.censoredCount || 0;
   renderVocabularyWarning();
+  if ($('story-window-start')) $('story-window-start').textContent = fmt.monthLabel(data.historyStarts);
+  if ($('story-window-end')) $('story-window-end').textContent = fmt.monthLabel(data.lastMonth);
 
   $('stamp').textContent =
     (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
@@ -4846,10 +4848,16 @@ function renderStatic() {
         const rc = revenueCheck(data);
         if (!rc) return ' No Cash Detail in this push, so nothing on this page is '
           + 'reconciled against an independent statement of revenue.';
-        return ' Revenue ties to Cash Detail'
-          + (rc.ties ? '' : ` only to ${fmt.pct(1 - rc.worstTie.gap, 1)} in `
-            + `${fmt.monthLabel(rc.worstTie.month)}`)
-          + `; over the last twelve months ${fmt.pct(rc.unclassifiedShare, 1)} of collected `
+        // Both tabs are pipeline outputs built from the same Stripe charges, so
+        // agreement shows they are copies of one figure, not that it is right.
+        // The independent check, Stripe against QuickBooks, is RECONCILIATION.md.
+        return ' Cash Detail and the Customer Waterfall carry the same collected cash'
+          + (rc.ties ? ' in every month' : ` to within ${fmt.pct(rc.worstTie.gap, 1)}, the widest gap `
+            + `in ${fmt.monthLabel(rc.worstTie.month)}`)
+          + '. Both are built from the same Stripe charges, so that shows the two tabs agree '
+          + 'with each other, not that either is right, and the MRR the charts use is not part of '
+          + 'this check'
+          + `. Over the last twelve months ${fmt.pct(rc.unclassifiedShare, 1)} of collected `
           + `cash carries no product name and the published residual is `
           + `${fmt.pct(Math.abs(rc.residualShare), 1)} of it.`;
       })();
@@ -5027,11 +5035,11 @@ function renderStatic() {
 
 // Cost and profit. Settled inputs, so this runs once like everything else.
 function renderAssumptionDependent() {
-  // Every cohort that can carry a cost per logo, not a fixed window. The
-  // acquisition cost only starts in 2024-01, so cohorts older than that have
-  // no denominator and would be 61 empty slots. Windowing to 24 on top of
-  // that cut off the eight oldest cohorts with cost data, which are the most
-  // mature and the best performing, and made the picture look worse than it is.
+  // Every cohort that can carry a cost per logo, not a fixed window. The page
+  // window opens at the first month of the QuickBooks ledger, so every cohort
+  // in it has a denominator. Windowing to 24 on top of that cut off the eight
+  // oldest cohorts with cost data, which are the most mature and the best
+  // performing, and made the picture look worse than it is.
   // Every cohort with a cost, through to the trailing month. The youngest are
   // drawn muted rather than withheld: the measure is realised profit, so a
   // young cohort sits low because it has had less time, not because it is
@@ -6099,7 +6107,7 @@ function renderAnnotations() {
     `A bar is either what happened or a projection of what will, never a blank: ${recovered.length} of these are the month a cohort actually crossed its cost and ${shown.length - recovered.length} are projected. A gap would read as "never", and what it means is "not yet".`,
     `The projection is the same one chart 1 draws hatched, so the two cannot disagree: the pooled month-on-month revenue path of the cohorts with a year of history, which is mostly churn because revenue per surviving customer is roughly flat after the first month. Measured at the month this chart predicts, chart 1 reads 1.0x for the same cohort. The difference between them is the question, not the model: this one asks when a cohort crosses its cost, that one asks where it stands at a fixed age.`,
     `The range around each projection comes from resampling whole donor cohorts rather than resampling the average, so it answers how far one cohort could sit from the typical path rather than how well the typical path is known.`,
-    `The run starts at ${HISTORY_STARTS} because acquisition cost is not recorded before then, which is an absence of data rather than a verdict on earlier cohorts.`,
+    `The run starts at ${data.historyStarts} because that is the first month the QuickBooks ledger carries, so an older cohort would have revenue and no acquisition cost to set against it. That is an absence of data rather than a verdict on earlier cohorts. The first bar holds only the customers with a Stripe start date in that month: everyone else present then may have started earlier and is left out rather than dated to the boundary.`,
   ]);
 
   const mature = ec.filter(c => c.recovery.length >= 6).slice(-6);
