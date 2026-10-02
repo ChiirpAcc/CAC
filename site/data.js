@@ -6034,9 +6034,9 @@ export function projectedBreakEven(data, cohorts, options) {
 // because bonuses and commissions move with outcomes rather than with staff,
 // so both are carried.
 //
-// Nothing in this function is touched by the Customer Success slider. That
-// slider decides how much of the spend counts as acquisition cost, which
-// changes CAC. The spend itself is what it is.
+// Nothing in this function depends on the Customer Success split, which is
+// settled and has no control. The split decides how much of the spend counts
+// as acquisition cost; the spend itself is what it is.
 export function capacityAnalysis(data, { horizon = 4, windows = null } = {}) {
   const activeByMonth = new Map();
   for (const row of data.customers) {

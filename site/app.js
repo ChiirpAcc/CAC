@@ -5430,6 +5430,35 @@ function unitCostSeries() {
     baseYear, baseCost, baseRevenue, index };
 }
 
+// Whether chart 19's gap between the two rules holds at every horizon the
+// slider offers, computed rather than asserted. Worked out once per load,
+// because the answer does not depend on where the slider sits.
+let horizonGaps = null;
+function horizonGapSentence() {
+  if (!horizonGaps) {
+    const max = Number($('forward-horizon').max) || 9;
+    horizonGaps = [];
+    for (let h = 1; h <= max; h += 1) {
+      const f = forwardSurvival(data, { horizon: h, windows: null });
+      if (f.earlier && f.recent) {
+        horizonGaps.push({ h, gap: (f.earlier.rate - f.recent.rate) * 100, z: f.z });
+      }
+    }
+  }
+  if (!horizonGaps.length) return '';
+  const below = horizonGaps.filter(g => g.gap > 0);
+  const zs = horizonGaps.map(g => g.z);
+  const range = `${Math.min(...horizonGaps.map(g => g.gap)).toFixed(1)} to `
+    + `${Math.max(...horizonGaps.map(g => g.gap)).toFixed(1)} points`;
+  return below.length === horizonGaps.length
+    ? `It does at every horizon from 1 to ${horizonGaps[horizonGaps.length - 1].h} months, `
+      + `${range} below the earlier average, with the naive z running from `
+      + `${Math.min(...zs).toFixed(1)} to ${Math.max(...zs).toFixed(1)}, so it is weakest at the `
+      + 'longest horizons, where there are fewest windows.'
+    : `It holds at ${below.length} of the ${horizonGaps.length} horizons the slider offers, `
+      + 'so it is not yet structural.';
+}
+
 // Forward survival. Independent of the split and the margin, so drawn once.
 function renderForward() {
   // Chart 19 used to borrow this control silently from chart 18, several
@@ -5469,10 +5498,10 @@ function renderForward() {
   const recent = starts.slice(-fw.recentCount);
   const earlier = starts.slice(0, -fw.recentCount);
 
-  // 11. The fan. Every window drawn faintly so the spread is visible, with the
+  // 18. The fan. Every window drawn faintly so the spread is visible, with the
   // two period averages over the top so the shift is readable.
   multiLineChart($('chart-forward'), {
-    yTitle: 'Share of acquisition cost recovered',
+    yTitle: 'Share of the starting month’s base still active',
     labels,
     series: [
       ...starts.map(s => ({ label: s.month, colour: INK.tertiary, thin: true, values: s.curve })),
@@ -5502,9 +5531,15 @@ function renderForward() {
   });
 
   const spread = Math.max(...starts.map(s => s.survival)) - Math.min(...starts.map(s => s.survival));
+  // "Not by a little" only where the fall is both a couple of points and large
+  // against its own noise: at twelve months the fall is about a point with a z
+  // of -1.5, and the heading used to say the same thing there.
+  const fall = (fw.earlier.rate - fw.recent.rate) * 100;
   $('forward-finding').innerHTML =
     (fw.recent.rate < fw.earlier.rate
-      ? '<strong>It is getting worse, and not by a little.</strong> '
+      ? (fall >= 2 && fw.z <= -3
+          ? '<strong>It is getting worse, and not by a little.</strong> '
+          : '<strong>It is getting worse, by a small margin at this horizon.</strong> ')
       : '<strong>It has stopped getting worse.</strong> ')
     + horizon + '-month survival ran at '
     + fmt.pct(fw.earlier.rate, 1) + ' across ' + earlier.length + ' earlier windows and '
@@ -5523,28 +5558,33 @@ function renderForward() {
     + 'independent samples. The naive two-proportion z is ' + fw.z.toFixed(1)
     + ', best read as large rather than as a p-value.';
 
-  // 12. The same thing as one number per starting month.
+  // 19. The same thing as one number per starting month.
   const monthsWord = horizon + ' month' + (horizon === 1 ? '' : 's');
+  // The worse of the two averages is drawn red and the better in the neutral
+  // rule, whichever period that is. The recent average used to be the green
+  // "goal" rule while it was the lower one, so colour read backwards.
+  const recentWorse = fw.recent.rate < fw.earlier.rate;
   lineChart($('chart-forward-trend'), {
-    yTitle: 'Share of acquisition cost recovered',
+    yTitle: 'Share of the starting month’s base still active',
     labels: starts.map(s => fmt.monthLabel(s.month)),
     values: starts.map(s => s.survival),
-    colour: INK.negative,
+    colour: INK.primary,
     yFormat: v => fmt.pct(v),
     refs: [
       { value: fw.earlier.rate,
-        label: 'average of the earlier ' + earlier.length, variant: 'ref-floor' },
+        label: 'average of the earlier ' + earlier.length, variant: recentWorse ? '' : 'ref-floor' },
       { value: fw.recent.rate,
-        label: 'average of the latest ' + recent.length, variant: 'ref-goal' },
+        label: 'average of the latest ' + recent.length, variant: recentWorse ? 'ref-floor' : '' },
     ],
     // The chart drew one unlabelled line against one unlabelled dashed rule,
     // which left the reader to guess what either was.
     legendItems: [
       { label: 'Share of that month’s base still active ' + monthsWord + ' later',
-        colour: 'var(--series-neg)' },
+        colour: 'var(--series-1)' },
       { label: 'Average of the earlier ' + earlier.length + ' starting months',
-        colour: 'var(--series-neg)' },
-      { label: 'Average of the latest ' + recent.length, colour: 'var(--series-pos)' },
+        colour: recentWorse ? 'var(--ink-soft)' : 'var(--series-neg)' },
+      { label: 'Average of the latest ' + recent.length,
+        colour: recentWorse ? 'var(--series-neg)' : 'var(--ink-soft)' },
     ],
     describe: i => '<strong>' + starts[i].month + ' start</strong>'
       + '<span>' + fmt.pct(starts[i].survival, 1) + ' still active ' + monthsWord + ' on</span>'
@@ -5564,8 +5604,8 @@ function renderForward() {
     + 'merely worse than history. '
     + (fw.recent.rate < fw.earlier.rate
         ? 'Move the slider and the whole line drops, because more time means more loss; '
-          + 'what matters is whether the gap between the two rules survives that, and it '
-          + 'does at every horizon, which makes it structural rather than a recent shock.'
+          + 'what matters is whether the gap between the two rules survives that. '
+          + horizonGapSentence()
         : 'The recent average now sits above the earlier one, so the decline this chart '
           + 'was built to show has stopped at this horizon.');
   $('forward-trend-note').textContent =
@@ -5574,9 +5614,9 @@ function renderForward() {
     + 'changes with it. A decline that is steady at every horizon is structural; one that only '
     + 'appears at short horizons would be a recent shock instead.';
 
-  // 17 and 18. Customer Success capacity, and whether either relationship is
-  // moving. Neither is touched by the sliders: the split decides how much CS
-  // spend counts as acquisition cost, not how much was spent.
+  // 20 and 21. Customer Success capacity, and whether either relationship is
+  // moving. Neither has a control: the Customer Success split is settled at
+  // zero acquisition, and it never changed how much was spent anyway.
   // Stale claim check, stated from the data rather than from memory.
   // The second Stripe environment, measured by what it is doing now rather than
   // by its share of all history. As a share of every customer month ever
@@ -5683,16 +5723,23 @@ function renderForward() {
       + fmt.int(data.customers.length) + ' customer months, ' + fmt.pct(s2Share, 2)
       + '. That is a young environment rather than a broken feed.';
 
-  const cap = capacityAnalysis(data);
+  const CAP_HORIZON = 4;
+  const cap = capacityAnalysis(data, { horizon: CAP_HORIZON });
   const cp = cap.points;
   const capLabels = cp.map(p => fmt.monthLabel(p.month));
   const rc = cap.correlations;
   const sign = v => (v >= 0 ? '+' : '') + v.toFixed(2);
+  // A 95% interval on a correlation, by Fisher's transform. On 27 overlapping
+  // months a correlation of +0.18 admits anything from about -0.2 to +0.5, and
+  // the finding has to be read with that in view.
+  const nMeasured = cap.measured.length;
+  const interval = r => {
+    if (r === null || nMeasured < 4) return '';
+    const z = Math.atanh(r);
+    const se = 1 / Math.sqrt(nMeasured - 3);
+    return ` (95% ${sign(Math.tanh(z - 1.96 * se))} to ${sign(Math.tanh(z + 1.96 * se))})`;
+  };
 
-  // Indexed so two quantities in different units can share an axis.
-  const baseChurn = cp[0].churn;
-  const baseCap = cp[0].csPerLogo;
-  const baseWhole = cp[0].retentionPerLogo;
   // Two scales, because the two quantities are dollars and a percentage and
   // indexing both to 100 threw away the levels. A reader could see that spend
   // had risen 39% without ever learning that it is about two hundred dollars
@@ -5706,7 +5753,7 @@ function renderForward() {
       format: v => '$' + Math.round(v).toLocaleString(),
     },
     right: {
-      label: 'Forward churn',
+      label: `Share of the month's base gone ${CAP_HORIZON} months later`,
       colour: INK.negative,
       values: cp.map(p => p.churn),
       format: v => (v * 100).toFixed(0) + '%',
@@ -5718,44 +5765,44 @@ function renderForward() {
       + ', Support ' + fmt.money(cp[i].teams['Support']) + '</span>'
       + '<span>Per logo ' + fmt.money(cp[i].retentionPerLogo) + ' across ' + fmt.int(cp[i].logos) + '</span>'
       + '<span>Customer Success alone ' + fmt.money(cp[i].csPerLogo) + ' per logo</span>'
-      + '<span>Forward churn ' + fmt.pct(cp[i].churn, 1) + '</span>',
+      + '<span>Share gone ' + CAP_HORIZON + ' months later ' + fmt.pct(cp[i].churn, 1) + '</span>',
   });
 
-  const firstHalf = cap.measured.slice(0, 12), secondHalf = cap.measured.slice(12);
   const avg = (rows, key) => rows.reduce((s, x) => s + x[key], 0) / rows.length;
-  const capGrowth = (avg(secondHalf, 'csPerLogo') / avg(firstHalf, 'csPerLogo') - 1) * 100;
-
   const csShare = avg(cp, 'csPerLogo') / avg(cp, 'retentionPerLogo');
   $('capacity-finding').innerHTML =
-    '<strong>Spending more on Customer Success is not associated with keeping more '
-    + 'customers, and on this page that is the useful answer rather than a '
-    + 'disappointing one.</strong> Customer Success alone correlates with forward churn '
-    + 'at ' + sign(rc.capacity) + '; adding Technical Account Manager and Support, which '
-    + 'together are the other ' + fmt.pct(1 - csShare) + ' of the spend, takes it to '
-    + sign(rc.wholeFunction) + ', and ' + sign(rc.wholeFunctionGivenTime) + ' once the '
-    + 'shared time trend is removed. None of those is a relationship. '
-    + 'Two things follow, and they point the same way. Retention is not currently '
-    + 'rate-limited by how much is spent on the team that does retention, so the churn '
-    + 'this page is about will not be fixed by adding headcount there. And the cost of '
-    + 'serving customers can be argued about on its own terms rather than treated as '
-    + 'untouchable insurance against churn — which matters, because chart 29 shows '
-    + 'that is where the money actually goes.';
+    '<strong>On this sample, spending more on Customer Success is not associated with '
+    + 'keeping more customers.</strong> Customer Success alone correlates with churn '
+    + CAP_HORIZON + ' months on at ' + sign(rc.capacity) + interval(rc.capacity)
+    + '; adding Technical Account Manager and Support, which together are the other '
+    + fmt.pct(1 - csShare) + ' of the spend, takes it to ' + sign(rc.wholeFunction)
+    + interval(rc.wholeFunction) + ', and ' + sign(rc.wholeFunctionGivenTime) + ' once the '
+    + 'shared time trend is removed. Every one of those intervals spans zero, so none is a '
+    + 'relationship, and none is wide enough to rule one out either: the data cannot say '
+    + 'whether more headcount there would move churn. What it does say is that the churn this '
+    + 'page is about has not tracked how much was spent on the team that does retention, so '
+    + 'the cost of serving customers can be argued about on its own terms rather than treated '
+    + 'as untouchable insurance against churn.';
 
   $('capacity-note').textContent =
-    'Read the direction, not the strength: this is ' + cp.length + ' monthly observations of '
-    + 'two series that both drift over the period, which is far too few for a correlation to '
-    + 'carry weight, and no trend line is drawn through them. The stronger form of this '
-    + 'question is not a correlation at all. It is whether accounts that lost their CSM '
-    + 'churned differently from accounts that kept one, and that needs CSM assignment per '
-    + 'account, which the pushed data does not carry. '
-    + 'Spend is the only measure of the team in the pushed data; headcount is not there. '
-    + 'Salaries track headcount more closely than the total, since bonuses and commissions '
-    + 'move with outcomes rather than with staff. Both indexed to '
-    + cp[0].month + ' so they can share an axis. What this does give you is a control: with '
-    + 'CS capacity held constant, the association between new arrivals and churn is '
-    + sign(rc.arrivalsGivenCapacity) + ' rather than ' + sign(rc.arrivals) + '.';
+    'Two scales in real units: on the left, Customer Success, Technical Account Manager and '
+    + 'Support spend together per live logo; on the right, the share of each month\'s base '
+    + 'gone ' + CAP_HORIZON + ' months later. The heading names Customer Success because that '
+    + 'is the question; the line is the whole function, and Customer Success alone is in the '
+    + 'tooltip. ' + cp.length + ' months are drawn and the last ' + (cp.length - nMeasured)
+    + ' have no churn yet, because their ' + CAP_HORIZON + ' months have not elapsed, so every '
+    + 'correlation is on ' + nMeasured + ' months. Read the direction, not the strength: two '
+    + 'series that both drift over the period, on that few points, cannot carry a correlation, '
+    + 'and no trend line is drawn through them. The stronger form of this question is not a '
+    + 'correlation at all. It is whether accounts that lost their CSM churned differently from '
+    + 'accounts that kept one, and that needs CSM assignment per account, which the pushed data '
+    + 'does not carry. Spend is the only measure of the team in the pushed data; headcount is '
+    + 'not there. On the same ' + nMeasured + ' months, with CS capacity held constant, the '
+    + 'association between new arrivals and churn is ' + sign(rc.arrivalsGivenCapacity)
+    + ' rather than ' + sign(rc.arrivals) + '. Chart 22 asks the arrivals question on its own, '
+    + 'on the starting months every horizon can reach, so its figure differs from this one.';
 
-  // 18. Rolling correlation, the momentum question.
+  // 21. Rolling correlation, the momentum question.
   const measuredLabels = cap.measured.map(p => fmt.monthLabel(p.month));
   multiLineChart($('chart-momentum'), {
     yTitle: 'Rolling correlation with churn',
@@ -5778,11 +5825,17 @@ function renderForward() {
       + (cap.rollingArrivals[i] === null
           ? '<span class="muted">inside the first ' + cap.rollingWidth + ' months, no window yet</span>'
           : '<span>Arrivals ' + sign(cap.rollingArrivals[i]) + '</span>'
-            + '<span>CS capacity ' + sign(cap.rollingCapacity[i]) + '</span>'),
+            + '<span>CS capacity ' + sign(cap.rollingCapacity[i]) + '</span>'
+            + (cap.rollingWholeFunction && cap.rollingWholeFunction[i] !== null
+                ? '<span>Whole retention function ' + sign(cap.rollingWholeFunction[i]) + '</span>' : '')
+            + (cap.rollingPrice && cap.rollingPrice[i] !== null
+                ? '<span>Price at signup ' + sign(cap.rollingPrice[i]) + '</span>' : '')),
   });
 
   const live = cap.rollingArrivals.filter(v => v !== null);
   const liveCap = cap.rollingCapacity.filter(v => v !== null);
+  const liveWhole = (cap.rollingWholeFunction || []).filter(v => v !== null);
+  const livePrice = (cap.rollingPrice || []).filter(v => v !== null);
   // Written off the numbers rather than around them. An earlier version of this
   // asserted that one relationship "was never there" and the other "has barely
   // moved", which was true of the sample it was written for and became false
@@ -5791,9 +5844,15 @@ function renderForward() {
   const rangeOf = xs => Math.max(...xs) - Math.min(...xs);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const signFlips = xs => xs.slice(1).filter((v, i) => (v < 0) !== (xs[i] < 0)).length;
-  const widest = rangeOf(liveCap) >= rangeOf(live)
-    ? { label: 'Customer Success', xs: liveCap }
-    : { label: 'New arrivals', xs: live };
+  // Every line drawn, not the two the text used to read: the widest swing was
+  // on a line the finding never mentioned.
+  const lines = [
+    { label: 'New arrivals', xs: live },
+    { label: 'Customer Success', xs: liveCap },
+    { label: 'The whole retention function', xs: liveWhole },
+    { label: 'Price at signup', xs: livePrice },
+  ].filter(l => l.xs.length);
+  const widest = lines.reduce((a, b) => (rangeOf(b.xs) > rangeOf(a.xs) ? b : a));
 
   // One plain sentence per line, then the conclusion. The previous version
   // reported ranges and sign counts for both series at once, which is accurate
@@ -5809,17 +5868,18 @@ function renderForward() {
   };
 
   $('momentum-finding').innerHTML =
-    '<strong>Neither line means anything, and the chart is here to show that rather '
+    '<strong>None of these lines means anything, and the chart is here to show that rather '
     + 'than to hide it in a single number.</strong> '
-    + '<span class="muted">New arrivals against churn</span> ' + read(live) + '. '
-    + '<span class="muted">Customer Success against churn</span> ' + read(liveCap) + '. '
+    + lines.map(l => '<span class="muted">' + l.label + ' against churn</span> ' + read(l.xs) + '. ').join('')
     + 'A relationship that was real and faded would walk toward zero and stay there; a '
     + 'relationship that was real and held would sit on one side of zero. Over '
-    + live.length + ' overlapping twelve-month windows these do neither, and '
-    + widest.label + ' alone covers ' + rangeOf(widest.xs).toFixed(2) + ' points end to '
-    + 'end, which is most of the range a correlation can occupy. '
-    + 'Read it as the reason not to quote any single pooled figure from these two '
-    + 'series — including the ones on the chart above.';
+    + live.length + ' overlapping twelve-month windows '
+    + (lines.every(l => Math.min(...l.xs) < 0 && Math.max(...l.xs) > 0)
+        ? 'all ' + lines.length + ' cross zero, and ' : 'these do neither, and ')
+    + widest.label.toLowerCase() + ' covers the widest range, ' + rangeOf(widest.xs).toFixed(2)
+    + ' points end to end, which is most of the range a correlation can occupy. '
+    + 'Read it as the reason not to quote any single pooled figure from these '
+    + 'series, including the ones on the chart above.';
 
   $('momentum-note').textContent =
     'Correlation against forward churn computed over a moving ' + cap.rollingWidth
