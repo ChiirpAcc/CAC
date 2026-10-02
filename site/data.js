@@ -1751,10 +1751,16 @@ export const REVENUE_GROUPS = [
 // divides by the size of the cohort that arrived. The two are different
 // questions and the numbers are not interchangeable, which is why the
 // acquisition group is flagged `once` and handled apart from the rest.
+//
+// The denominator leaves out the accounts that never carried a subscription,
+// the same rule costToServe and every serve-cost chart applies. Counting them
+// here divided chart 28's costs by one count and its revenue by another, 767
+// against 718 in the first month of the window.
 export function costRates(data) {
+  const never = neverPaidIds(data);
   const liveByMonth = new Map();
   for (const row of data.customers) {
-    if (!row.active) continue;
+    if (!row.active || never.has(row.id)) continue;
     liveByMonth.set(row.month, (liveByMonth.get(row.month) || 0) + 1);
   }
 
@@ -3110,9 +3116,10 @@ export function accountServeCost(data) {
   }
   if (!byMonth.length) return null;
 
-  // A variable rate far from the run of recent months is an invoice booked in
-  // one month and credited in another, which chart 39 and the price floors
-  // both report rather than smooth. The same rule, so the same months.
+  // A variable rate far from the run of recent months is an invoice in the
+  // push without the credit that reverses it, because the month was pulled
+  // before the credit was posted. Chart 39 and the price floors both report it
+  // rather than smooth it. The same rule, so the same months.
   const recent = byMonth.slice(-6);
   const rates = recent.map(m => m.variableRate).sort((a, b) => a - b);
   const mid = rates.length >> 1;
@@ -3753,12 +3760,13 @@ export function priceFloors(data, { window = 6 } = {}) {
   // Per month rather than pooled, so the summary can be a median.
   //
   // A pooled mean over the window is the obvious choice and it is wrong here.
-  // The ledger books an invoice and its credit note in different months, and
-  // the window closes between them: in 2026-08 a $69,847 revenue-share bill
-  // was raised and credited in full, the credit landed in 2026-09, and the
-  // window ends at 2026-08. So the charge is counted and the reversal never
-  // is. That single month reads 18.9% of revenue against a usual 9.7% and
-  // drags the pooled rate to 11.1%.
+  // A push taken before a month closes can carry an invoice without the credit
+  // that reverses it: in 2026-08 a $69,848 revenue-share bill was raised on the
+  // 12th and credited in full on the 31st, inside August, and this push pulled
+  // August before the credit was posted (RECONCILIATION.md). So the charge is
+  // counted and the reversal is not. That single month reads 19.0% of revenue
+  // against a usual 9.7% and drags the pooled rate to 11.1%. The next push
+  // carries the closed August.
   //
   // A median across the months ignores it without anyone having to hand-code
   // which month to drop, and it will ignore the next one too.
@@ -3855,7 +3863,7 @@ export function priceFloors(data, { window = 6 } = {}) {
       ['merchant', 'revshare', 'software', 'hosting', 'support', 'success', 'ga', 'rd', 'da']
         .map(k => [k, per(k)])),
     // Months whose variable rate sits far from the median, which on this
-    // ledger means an invoice booked in one month and credited in another.
+    // ledger means an invoice pulled before its credit was posted.
     // Reported rather than silently smoothed.
     outliers: byMonth
       .map(r => ({ month: r.month,
@@ -5054,9 +5062,10 @@ export function leverProjection(data, cohorts, {
 // staffing that has already gone, and support has fallen a third in that time.
 // Platform cost of sales follows the customer and is a rate per active logo.
 // Revenue share follows the bill and is a rate on revenue; its rate is the
-// median of the trailing six rather than the mean, because August carries a
-// revenue-share invoice that was raised and credited in full and the mean
-// would carry that forward for a year. Depreciation is shown and left out of
+// median of the trailing six rather than the mean, because this push pulled
+// August before its revenue-share credit was posted, so August carries the
+// invoice without the reversal and the mean would carry that forward for a
+// year. Depreciation is shown and left out of
 // the total, because it is not cash.
 export const COST_DRIVERS = {
   acquisition: { driver: 'fixed', window: 3,

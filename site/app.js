@@ -1287,23 +1287,21 @@ function renderContribution() {
   const c = costToServe(data);
   if (!c) return;
 
-  // The same switches as the chart at the top, minus acquisition. Acquisition
-  // divides by NEW logos and everything here divides by ACTIVE ones, so
-  // putting it on this chart would invite subtracting one from the other.
   // Acquisition was left off this chart on the grounds that it divides by NEW
   // logos where everything else divides by ACTIVE ones. That is a real
   // objection to netting them per logo, and a bad reason to leave the question
   // unanswerable: "are we making money overall" is the first thing anyone
-  // asks. It is offered as a last switch, off by default, spreading the
-  // month's whole acquisition bill across the active base. That is a
-  // different basis from the rest of the chart and the hint says so.
+  // asks. It is the last switch, on by default with every other cost, spreading
+  // the month's whole acquisition bill across the active base. That is a
+  // different basis from the rest of the chart, and the hint, the tooltip and
+  // the note all read the switch rather than assuming its state.
   const acqByMonth = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
   const ACQ_SPREAD = {
     key: 'acqspread',
     label: 'Acquisition, spread over the active base',
     defaultOn: true,
     hint: 'The whole month’s acquisition bill divided by every active logo, not just '
-        + 'the new ones. A different basis from the rows above — it answers whether '
+        + 'the new ones. A different basis from the rows above: it answers whether '
         + 'the business as a whole washes its face.',
   };
   // Chart 28 opens with every cost ticked, because what is left after
@@ -1356,7 +1354,9 @@ function renderContribution() {
           }).join('')
         + `<span>Leaves ${fmt.money(m.arpa - charge)}, `
         + `${fmt.pct(m.arpa ? (m.arpa - charge) / m.arpa : 0, 1)} of what they pay</span>`
-        + `<span class="muted">Acquisition is not in this figure</span>`;
+        + `<span class="muted">${on.has('acqspread')
+          ? 'Acquisition spread over the active base is in this figure'
+          : 'Acquisition is not in this figure'}</span>`;
     },
   });
 
@@ -1378,12 +1378,12 @@ function renderContribution() {
           + `whole picture on one line: ${fmt.money(meanArpa - meanLeft)} of cost against `
           + `${fmt.money(meanArpa)} of revenue, or about `
           + `$${(perDollar === null ? 0 : perDollar * 5).toFixed(2)} kept for every $5 spent. `
-          + 'What a customer pays here is everything they pay — subscription, usage and '
+          + 'What a customer pays here is everything they pay: subscription, usage and '
           + 'message credits, setup, and 10DLC pass-through. An earlier version of this '
           + 'chart counted subscription alone, which understated revenue by about a tenth '
           + 'and made the same months read as break-even when they are not. '
         : cogsOnly
-          ? 'That is cost of sales only, so it is gross contribution — the figure to use '
+          ? 'That is cost of sales only, so it is gross contribution: the figure to use '
             + 'for ratios and for any outside comparison, and not a profit. '
           : 'Tick every box for what a customer contributes to the whole company; tick '
             + 'only the cost-of-sales rows for the gross figure outside comparisons use. ')
@@ -1403,24 +1403,29 @@ function renderContribution() {
           + 'sides together over a cohort’s life.');
 
   $('contribution-note').textContent =
-    'What a customer pays is everything they pay — subscription MRR plus usage and '
-    + 'message credits, setup and one-time charges, and 10DLC and carrier pass-through — '
+    'What a customer pays is everything they pay, subscription MRR plus usage and '
+    + 'message credits, setup and one-time charges, and 10DLC and carrier pass-through, '
     + 'across every active logo, divided by that logo count. Accounts that have never once '
     + 'carried a subscription are excluded from the count: a test account or an agency '
     + 'monitoring seat is not a customer whose cost anybody should be spreading. '
-    + 'The costs are the real monthly figures '
-    + 'from the finance tab over the same active count'
+    + 'The costs are the real monthly figures from the finance tab over the same count, '
+    + 'never-paid accounts left out of both sides'
     + (c.logosAgree
-        ? ' — and the two sources agree on that count in every month, which is the '
-          + 'main thing making this chart trustworthy'
-        : ', and the two sources disagree on that count in at least one month')
+        ? ', and the pipeline\'s own active count agrees with it in every month'
+        : '; the pipeline\'s own active count, which keeps them, differs from it')
     + '. G&A and R&D are spread evenly across active logos, because nothing ties a '
-    + 'landlord or a developer to a particular customer. Acquisition is deliberately '
-    + 'absent: it divides by NEW logos where everything here divides by ACTIVE ones, and '
-    + 'putting the two on one chart invites subtracting one from the other. Cost of sales '
-    + 'alone gives gross contribution, which is what ratios and outside benchmarks use; '
-    + 'everything ticked gives what a customer contributes toward the whole business. '
-    + 'Neither is the other and neither is profit.';
+    + 'landlord or a developer to a particular customer. '
+    + (on.has('acqspread')
+      ? 'Acquisition is ticked, spread over the active base: it divides by NEW logos where '
+        + 'everything else here divides by ACTIVE ones, so it says whether the business as '
+        + 'a whole covers its costs, not whether a customer pays back. '
+      : 'Acquisition is unticked: it divides by NEW logos where everything here divides by '
+        + 'ACTIVE ones, and spreading it is a choice the last switch leaves to you. ')
+    + 'The August revenue share in this push is the figure QuickBooks held before the '
+    + 'month closed, well over twice a usual month, so the six-month mean in the finding '
+    + 'carries it. Cost of sales alone gives gross contribution, which is what ratios and '
+    + 'outside benchmarks use; everything ticked gives what a customer contributes toward '
+    + 'the whole business. Neither is the other and neither is profit.';
 }
 
 
@@ -1431,24 +1436,33 @@ function renderServeTeams() {
 
   const labels = c.months.map(m => fmt.monthLabel(m.month));
   const palette = [INK.primary, INK.secondary, INK.tertiary, INK.accent, INK.negative];
+  // Five lines is the most a reader can follow; the rest are summed into one
+  // so the lines still add up to the dashed total. The tab carries seven teams
+  // now, and drawing five while the note said five summed to the total left
+  // Customer Support and Hosting out of a chart that claimed to hide nothing.
   const top = c.teamTotals.slice(0, 5);
-
-  // The general "Cost of Sales" account is a sibling of the named teams rather
-  // than their parent — the five sum exactly to the total — but the bare name
-  // reads like a total and makes the finding sound circular.
-  const name = label => (label === 'Cost of Sales' ? 'Cost of sales, unsplit' : label);
+  const rest = c.teamTotals.slice(5);
+  const perLogo = (m, amount) => (m.activeLogos ? amount / m.activeLogos : null);
+  const teamAt = (m, label) => (m.teams.find(t => t.label === label)?.amount || 0);
 
   const series = top.map((team, i) => ({
-    label: name(team.label),
+    label: team.label,
     colour: palette[i],
-    values: c.months.map(m => {
-      const row = m.teams.find(t => t.label === team.label);
-      return row && m.activeLogos ? row.amount / m.activeLogos : null;
-    }),
+    values: c.months.map(m => perLogo(m, teamAt(m, team.label))),
   }));
+  if (rest.length) {
+    series.push({
+      label: rest.length === 1 ? rest[0].label : `${rest.map(t => t.label).join(' and ')}`,
+      colour: 'var(--ink-soft)', thin: true,
+      values: c.months.map(m => perLogo(m, rest.reduce((s, t) => s + teamAt(m, t.label), 0))),
+    });
+  }
+  // The total over the same count as the lines, so the lines sum to it. The
+  // tab's own cogs_per_logo divides by its own active count, which keeps the
+  // never-paid accounts, and drawing it here put two denominators on one chart.
   series.push({
     label: 'All cost of sales', colour: 'var(--ink)', dashed: true,
-    values: c.months.map(m => m.cogsPerLogo),
+    values: c.months.map(m => perLogo(m, m.teams.reduce((s, t) => s + (t.amount || 0), 0))),
   });
 
   multiLineChart($('chart-serve-teams'), {
@@ -1461,29 +1475,39 @@ function renderServeTeams() {
 
   const grand = c.teamTotals.reduce((s, t) => s + t.amount, 0);
   const biggest = c.teamTotals[0];
+  // Which kind of cost is larger, read from the team names rather than
+  // asserted: the finding used to say "people, not infrastructure" while
+  // software and hosting were the larger of the two.
+  const sumOf = test => c.teamTotals.filter(t => test.test(t.label)).reduce((s, t) => s + t.amount, 0);
+  const infra = sumOf(/Software|Hosting/i);
+  const people = sumOf(/Customer Success|Technical Account|Support/i);
   $('serve-teams-finding').innerHTML =
-    '<strong>' + name(biggest.label) + ' is ' + fmt.pct(biggest.amount / grand)
+    '<strong>' + biggest.label + ' is ' + fmt.pct(biggest.amount / grand)
     + ' of what it costs to serve the base.</strong> ' + fmt.money(biggest.amount)
     + ' of ' + fmt.money(grand) + ' across ' + c.months.length + ' months. '
-    + c.teamTotals.slice(1, 4).map(t => name(t.label) + ' ' + fmt.pct(t.amount / grand)).join(', ')
+    + c.teamTotals.slice(1, 4).map(t => t.label + ' ' + fmt.pct(t.amount / grand)).join(', ')
     + '. This is the chart to argue over if the answer to thin margins is to serve '
     + 'customers more cheaply rather than to charge more, because it names where the '
-    + 'money actually goes — people, not infrastructure. A headcount answer and a '
-    + 'pricing answer are the only two on the table, and this says which one is big '
-    + 'enough to matter.';
+    + 'money actually goes. Software and hosting together are ' + fmt.money(infra) + ', '
+    + fmt.pct(infra / grand) + ' of it; the three teams of people who look after customers '
+    + 'are ' + fmt.money(people) + ', ' + fmt.pct(people / grand) + '. '
+    + (infra > people
+      ? 'So the larger lever is what the platform costs to run, not headcount, '
+      : 'So the larger lever is headcount, not what the platform costs to run, ')
+    + 'and a pricing answer is the other one on the table.';
 
   $('serve-teams-note').textContent =
     'Every account booked to cost of sales, divided by active logos in the same '
-    + 'month. There are five and they sum exactly to the total, which the dashed line '
-    + 'draws, so nothing is hidden and nothing is counted twice. The largest is the '
-    + 'general cost of sales account rather than a named team, which is a reporting '
-    + 'limit rather than a finding: half the cost of serving customers is not '
-    + 'attributed to anybody in the source. One line here '
-    + 'has a spike in the latest month that is not a cost increase: a $69,847 revenue '
-    + 'share invoice was raised in 2026-08 and credited in full on the 31st, and the '
-    + 'credit lands in 2026-09 which is outside this window. The charge is in and the '
-    + 'reversal is not, so August reads about $70,000 high. Underlying August is close '
-    + 'to July. One more line '
+    + 'month, never-paid accounts left out. The pushed tab carries ' + c.teamTotals.length
+    + ' teams; the five largest are drawn and '
+    + (rest.length ? 'the other ' + rest.length + ' are summed into the faint line, so ' : 'so ')
+    + 'the lines add up to the dashed total over the same count, and nothing is hidden or '
+    + 'counted twice. One line here '
+    + 'has a spike in the latest month that is not a cost increase. QuickBooks dates a '
+    + '$69,848 vendor credit against the August revenue share invoice on the 31st, inside '
+    + 'August, but this push pulled August before that credit was posted, so the charge is '
+    + 'in and the reversal is not and August reads about $70,000 high. The next push carries '
+    + 'the closed month, and underlying August is close to July. One more line '
     + 'is worth explaining, because it looks wrong and is not: the Sales & Marketing '
     + 'line inside cost of sales. That is the Service Titan revenue share and partner '
     + 'rebates, both paid on what customers who have already been won go on to bill. '
@@ -2582,9 +2606,9 @@ function renderCostForecast(projection) {
     + 'is a rate per '
     + 'active logo over the last six months, applied to the customers chart 47 projects. '
     + 'Revenue share follows the bill and is a rate on recurring revenue; the rate is the '
-    + 'median of the last six months rather than the mean, because August carries a '
-    + 'revenue-share invoice that was raised and credited in full and the mean would carry '
-    + 'it for a year. Depreciation is shown and left out of every total, because it is not '
+    + 'median of the measured months rather than the mean, because this push pulled August '
+    + 'before its revenue-share credit was posted, so August carries the invoice without the '
+    + 'credit and the mean would carry it for a year. Depreciation is shown and left out of every total, because it is not '
     + 'cash. Revenue here is recurring only; usage, one-off and pass-through run at about a '
     + 'tenth on top and are not in the contribution line. Chart 47’s after-costs view '
     + 'uses exactly this rollup, so the two agree to the dollar.';
@@ -3318,9 +3342,9 @@ function renderFloors() {
     + 'hundreds of accounts, not a saving available one at a time. Acquisition is not in '
     + 'either floor. '
     + 'Every rate here is the median of the last six months rather than the pooled '
-    + 'mean, because this ledger books an invoice and its credit note in different '
-    + 'months and the window closes between them, so a reversed charge is counted '
-    + 'once and never taken back.'
+    + 'mean, because a push taken before a month closes can carry an invoice without '
+    + 'the credit that reverses it, which this one does for August, and a mean would '
+    + 'count that charge as though it stood.'
     + (f.outliers.length
         ? ' ' + f.outliers.map(o => fmt.monthLabel(o.month) + ' at '
             + fmt.pct(o.rate, 1)).join(', ')
@@ -3582,9 +3606,10 @@ function renderOngoing() {
 
   const a = rows[0];
   const b = rows[rows.length - 1];
-  // The latest month carries a revenue-share invoice that was credited in the
-  // following month, so its variable layer is roughly double. Leading a
-  // finding with it would quote the one month on the chart worth distrusting.
+  // The latest month carries a revenue-share invoice whose credit, dated the
+  // 31st inside the month, was posted after this push pulled it, so its
+  // variable layer is roughly double. Leading a finding with it would quote the
+  // one month on the chart worth distrusting.
   const medianOf = pick => {
     const s = rows.slice(-6).map(pick).sort((x, y) => x - y);
     const i = s.length >> 1;
@@ -3604,8 +3629,8 @@ function renderOngoing() {
     + `subscription, usage, setup and pass-through together — went `
     + `from ${fmt.money(a.arpa)} to ${fmt.money(typicalArpa)}.</strong> `
     + `Both figures are the median of the last six months rather than the last one, `
-    + `because ${fmt.monthLabel(b.month)} carries a revenue-share invoice that was `
-    + `credited in the month after and reads ${fmt.money(b.total)} as a result. `
+    + `because ${fmt.monthLabel(b.month)} was pulled before its revenue-share credit was `
+    + `posted, so it carries the invoice without the credit and reads ${fmt.money(b.total)} as a result. `
     + `Cost per logo has risen `
     + `${fmt.pct((typical - a.total) / a.total, 0)} against `
     + `${fmt.pct((typicalArpa - a.arpa) / a.arpa, 0)} on price, which is `
@@ -3640,8 +3665,9 @@ function renderOngoing() {
     + 'every person who looks after customers whichever account they sit in; merchant and '
     + 'revenue share are the two costs that follow a payment rather than a customer, so '
     + 'they are the only layer that moves with price. The last month of the variable layer '
-    + 'is overstated: a revenue-share invoice was raised and credited in the same month and '
-    + 'the credit falls outside this window, which chart 37 handles by taking medians. '
+    + 'is overstated: QuickBooks dates the credit against that month\'s revenue-share invoice '
+    + 'on the 31st, inside the month, but this push pulled the month before the credit was '
+    + 'posted. Chart 37 handles it by taking medians, and the next push carries the closed month. '
     + 'Both denominators are shown in the tooltip, because the gap between paying and '
     + 'active logos is itself part of why this line rises.';
 }
@@ -4278,9 +4304,10 @@ function renderLedger() {
     + `${fmt.money(perNew)} each. The two per-logo figures divide by different `
     + `denominators and must not be added. `
     + `<strong>One row needs reading with care:</strong> 6100-06 is the Service Titan `
-    + `revenue share and partner rebates, and the latest month carries a $69,847 invoice `
-    + `that was credited in full on the 31st, with the credit falling into the following `
-    + `month and therefore outside this table. Underlying it is close to the month before.`;
+    + `revenue share and partner rebates, and the latest month carries a $69,848 invoice `
+    + `whose credit QuickBooks dates the 31st, inside the month, but which was posted after `
+    + `this push pulled the month, so the table has the charge and not the reversal. `
+    + `Underlying it is close to the month before.`;
 
   $('ledger-note').textContent =
     'Every QuickBooks account carrying a non-zero amount in the window, grouped into the '
@@ -4475,8 +4502,9 @@ function renderSpend() {
     + 'The cash row is what arrived and is shown as a check rather than as a fifth '
     + 'component. '
     + 'One month to read with care: the merchant and revenue share layer carries an '
-    + 'invoice in the latest month that was credited in the month after, so it reads about '
-    + '$70,000 high and the layer beneath it is closer to the months before.';
+    + 'invoice in the latest month whose credit was posted after this push pulled the month, '
+    + 'so it reads about $70,000 high and the layer beneath it is closer to the months before. '
+    + 'The next push carries the closed month.';
 }
 
 
