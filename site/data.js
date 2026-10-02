@@ -461,7 +461,7 @@ export async function load() {
       annualGross: num(r.annual_line_gross) || 0,
       // Billed and not collected. A customer being invoiced and not paying is
       // still a customer, which is why they stay in the base, but the share of
-      // them is a leading indicator rather than a footnote. See pastDueTrend.
+      // them is a leading indicator rather than a footnote. See pastDueNow.
       subscriptionStatus: r.subscription_status || '',
       unpaidDue: num(r.unpaid_due) || 0,
       unpaidInvoices: num(r.unpaid_invoice_count) || 0,
@@ -6905,55 +6905,49 @@ export function revenueCheck(data) {
   };
 }
 
-export function pastDueTrend(data, { months = 18 } = {}) {
-  const byMonth = new Map();
-
+// Billed and not paying, in the latest month.
+//
+// subscription_status is the customer's status today, stamped onto every
+// month the customer appears in, not a status as of each month end. Across
+// the push no customer carries more than one value, every customer flagged
+// past due is flagged in every month they are present, and accounts that are
+// canceled today read canceled back to 2024. Drawn as a series it rose by
+// construction: today's flags projected back over a smaller base. So this
+// reports the one month it describes, and counts how many customers carry
+// more than one status, which is what would change if the pipeline started
+// dating it.
+export function pastDueNow(data) {
+  const statuses = new Map();
   for (const row of data.customers) {
-    if (!row.active) continue;
-    const bucket = byMonth.get(row.month)
-      || { month: row.month, live: 0, atRisk: 0, mrrAtRisk: 0, due: 0, mrr: 0 };
-    bucket.live += 1;
-    bucket.mrr += row.eopMrr || 0;
-    if (row.subscriptionStatus === 'past_due' || row.subscriptionStatus === 'unpaid') {
-      bucket.atRisk += 1;
-      bucket.mrrAtRisk += row.eopMrr || 0;
-      bucket.due += row.unpaidDue || 0;
-    }
-    byMonth.set(row.month, bucket);
+    if (!row.subscriptionStatus) continue;
+    if (!statuses.has(row.id)) statuses.set(row.id, new Set());
+    statuses.get(row.id).add(row.subscriptionStatus);
   }
+  if (!statuses.size) return null;
+  const changing = [...statuses.values()].filter(v => v.size > 1).length;
 
-  const all = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
-  // The status columns only start once subscriptions were joined, so months
-  // before that read as a flat zero and would draw a fictional improvement.
-  const carrying = all.filter(m => m.atRisk > 0);
-  if (!carrying.length) return null;
-  const from = carrying[0].month;
-
-  const rows = all
-    .filter(m => m.month >= from)
-    .slice(-months)
-    .map(m => ({ ...m, share: m.live ? m.atRisk / m.live : 0 }));
-
-  const first = rows[0];
-  const last = rows[rows.length - 1];
+  const month = data.lastMonth;
+  const live = data.customers.filter(r => r.active && r.month === month);
+  const atRiskRows = live.filter(r => r.subscriptionStatus === 'past_due'
+    || r.subscriptionStatus === 'unpaid');
+  const byStatus = new Map();
+  for (const r of live) {
+    const key = r.subscriptionStatus || 'no status';
+    byStatus.set(key, (byStatus.get(key) || 0) + 1);
+  }
   return {
-    rows,
-    first,
-    last,
-    rising: last.share > first.share,
-    change: last.share - first.share,
-    // Straight-line through the shares, so a single bad month does not read
-    // as a trend on its own.
-    slope: (() => {
-      const n = rows.length;
-      if (n < 3) return null;
-      const mx = (n - 1) / 2;
-      const my = rows.reduce((s, r) => s + r.share, 0) / n;
-      let num2 = 0;
-      let den = 0;
-      rows.forEach((r, i) => { num2 += (i - mx) * (r.share - my); den += (i - mx) ** 2; });
-      return den ? num2 / den : null;
-    })(),
+    month,
+    live: live.length,
+    atRisk: atRiskRows.length,
+    pastDue: atRiskRows.filter(r => r.subscriptionStatus === 'past_due').length,
+    unpaid: atRiskRows.filter(r => r.subscriptionStatus === 'unpaid').length,
+    share: live.length ? atRiskRows.length / live.length : null,
+    mrrAtRisk: atRiskRows.reduce((s, r) => s + (r.eopMrr || 0), 0),
+    due: atRiskRows.reduce((s, r) => s + (r.unpaidDue || 0), 0),
+    byStatus: [...byStatus.entries()].map(([status, n]) => ({ status, n }))
+      .sort((a, b) => b.n - a.n),
+    customersWithStatus: statuses.size,
+    changing,
   };
 }
 

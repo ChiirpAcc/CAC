@@ -15,7 +15,7 @@ import {
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
-  bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
+  bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted,
@@ -2658,56 +2658,65 @@ function watchTables() {
   window.addEventListener('resize', markScrollable);
 }
 
+// 43. Billed and not paying.
+//
+// One month, not a series. The status in the push is each customer's status
+// today, stamped onto every month they appear in, so a line of it rose by
+// construction: today's flags projected back over a smaller base. See
+// pastDueNow. The latest month is the only one it describes.
 function renderPastDue() {
   if (!$('chart-pastdue')) return;
-  const t = pastDueTrend(data);
+  const t = pastDueNow(data);
   if (!t) {
     $('chart-pastdue').innerHTML =
       '<p class="empty">No subscription status in this push.</p>';
     return;
   }
 
-  const labels = t.rows.map(r => fmt.monthLabel(r.month));
-  multiLineChart($('chart-pastdue'), {
-    yTitle: 'Share of live logos billed and not paying',
-    labels,
-    yFormat: v => fmt.pct(v, 1),
-    series: [
-      { label: 'Past due or unpaid, share of live logos', colour: INK.negative,
-        values: t.rows.map(r => r.share) },
+  const bad = s => s === 'past_due' || s === 'unpaid';
+  columnChart($('chart-pastdue'), {
+    yTitle: `Live logos in ${fmt.monthLabel(t.month)}, by subscription status`,
+    labels: t.byStatus.map(b => b.status.replace('_', ' ')),
+    values: t.byStatus.map(b => b.n),
+    yFormat: fmt.int,
+    colourFor: (v, i) => (bad(t.byStatus[i].status) ? INK.negative : INK.tertiary),
+    refs: [],
+    legendItems: [
+      { label: 'Billed and not paying', colour: 'var(--series-neg)' },
+      { label: 'Every other status', colour: 'var(--series-3)' },
     ],
     describe: i => {
-      const r = t.rows[i];
-      return labels[i] + ': ' + fmt.int(r.atRisk) + ' of ' + fmt.int(r.live)
-        + ' live logos (' + fmt.pct(r.share, 1) + ') are past due or unpaid, carrying '
-        + fmt.money(r.mrrAtRisk) + ' of MRR'
-        + (r.due ? ' and ' + fmt.money(r.due) + ' of balance outstanding' : '')
-        + '.';
+      const b = t.byStatus[i];
+      return `<strong>${b.status.replace('_', ' ')}</strong>`
+        + `<span>${fmt.int(b.n)} of ${fmt.int(t.live)} live logos, ${fmt.pct(b.n / t.live, 1)}</span>`;
     },
   });
 
-  const dir = t.rising ? 'risen' : 'fallen';
   $('pastdue-finding').innerHTML =
-    '<strong>' + fmt.pct(t.last.share, 1) + ' of live logos are being billed and not '
-    + 'paying, ' + dir + ' from ' + fmt.pct(t.first.share, 1) + ' in '
-    + fmt.monthLabel(t.first.month) + '.</strong> That is ' + fmt.int(t.last.atRisk)
-    + ' accounts carrying ' + fmt.money(t.last.mrrAtRisk) + ' of MRR that is counted in '
-    + 'every revenue figure on this page and is not arriving as cash. '
-    + (t.slope !== null && t.rising
-        ? 'The trend is worth more than the level: a customer stops paying before they '
-          + 'cancel, so this is churn that has already happened and has not been booked yet. '
-        : 'The level matters less than the direction, and the direction is not currently '
-          + 'worsening. ')
-    + 'They stay in the base because an invoice going unpaid is a customer with a problem '
-    + 'rather than a departure, and treating them as gone would book the loss twice.';
+    '<strong>' + fmt.int(t.atRisk) + ' of ' + fmt.int(t.live) + ' live logos, '
+    + fmt.pct(t.share, 1) + ', are being billed and not paying in '
+    + fmt.monthLabel(t.month) + '.</strong> ' + fmt.int(t.pastDue) + ' are past due and '
+    + fmt.int(t.unpaid) + ' unpaid, carrying ' + fmt.money(t.mrrAtRisk) + ' of MRR that is '
+    + 'counted in every revenue figure on this page and is not arriving as cash'
+    + (t.due ? ', with ' + fmt.money(t.due) + ' of balance outstanding' : '') + '. '
+    + 'A customer stops paying before they cancel, so some of this is churn that has '
+    + 'already happened and has not been booked yet. They stay in the base because an '
+    + 'invoice going unpaid is a customer with a problem rather than a departure, and '
+    + 'treating them as gone would book the loss twice.';
 
   $('pastdue-note').textContent =
-    'Share of live logos whose subscription reads past_due or unpaid, against all logos '
-    + 'counted present that month. The series starts at the first month the pushed data '
-    + 'carries a subscription status at all; before that the columns are empty and a zero '
-    + 'here would be an absence of measurement rather than an absence of the problem. '
-    + 'Departed accounts with an unpaid balance are excluded, because that is a '
-    + 'collections question rather than a warning about the standing base.';
+    'This is a snapshot, not a trend. The subscription status in the push is each '
+    + 'customer\'s status today, stamped onto every month they appear in: of '
+    + fmt.int(t.customersWithStatus) + ' customers carrying a status, '
+    + (t.changing
+      ? fmt.int(t.changing) + ' carry more than one, so some months may be dated, but most are not. '
+      : 'none carries more than one value across their months. ')
+    + 'A line through the months would therefore be today\'s flags projected back over a '
+    + 'smaller base, and would rise by construction, which is why only the latest month is '
+    + 'drawn. Whether the level is rising needs a status as of each month end, which the '
+    + 'pipeline does not yet push. The share is against every logo counted present in '
+    + fmt.monthLabel(t.month) + '. Departed accounts with an unpaid balance are excluded, '
+    + 'because that is a collections question rather than a warning about the standing base.';
 }
 
 function renderZeroMrr() {
