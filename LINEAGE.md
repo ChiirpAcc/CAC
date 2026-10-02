@@ -25,7 +25,7 @@ The pipeline pushes ten files. The site loads eight of them.
 | New Customer Cohorts | `signup_pricing.json` | 314 | yes | Signup price and start type |
 | Subscription Lifetimes | `subscription_lifetimes.json` | 1,199 | yes | Fallback subscription spans |
 | Cash Detail | `cash_detail.json` | 45,635 | **yes** | Revenue decomposition, residual, and the page's own reconciliation |
-| **Event Costs** | `event_costs.json` | 36 | listed, unused | — |
+| Event Costs | `event_costs.json` | 36 | yes | The Events tab: sponsor and travel per event, corrected to QuickBooks in `EVENT_FEES_QB` |
 
 `Cash Detail` is loaded as of this session. Its identity is
 `accounted_for + residual = net_cash`, where `accounted_for` is the sum of
@@ -349,6 +349,16 @@ catch it earlier still.
 | `ENGAGEMENT` | 150 accounts, 3 bands | data.js | **Hand-entered** from an export dated 2026-09-22. The `usageMultiple` values (2.2 / 0.6 / 0.05) are estimates, not measurements. No pipeline source exists. |
 | `halfLife` | 9 months | donor weighting | A modelling choice with no true value to discover. |
 | Churn and pricing presets | various | `CHURN_PRESETS`, `PRICING_PRESETS` | Deliberately exposed as switches. |
+
+### Decisions taken on 2 October 2026
+
+| Question | Decision | Why |
+|---|---|---|
+| Which count is a month's new customers | The cohort count (`logosStarted`) everywhere a month's arrivals are an input: charts 7, 20 to 27, the pricing scenarios and the GIFs (`make_gifs.py` `cohort_sizes`, checked equal month for month). The projection (34 to 36) enters first appearances (`logosAppeared`), because it counts everyone present and that is what enters such a base. The Waterfall Summary's `new_logos` is read only by chart 10, which says so. | One count of a new customer, as CLAUDE.md asks. The summary books everyone already present as new in the window's first month (59 against 20); that month is blank on the cohort count. Chart 22 reads +0.30 at four months on it, not significant, so the conclusion stands. |
+| Age of a customer present when the window opens | The oldest bucket (24 months) in `projectBase`, unless Subscription Lifetimes gives a real start date. | Dating 767 long-standing customers from 2024-01 made them most of the age-0 to age-12 survival curve through 2024. Chart 31 already puts the same customers in its oldest band. The twelve-month logo backtest improves from 2.2% to 0.3% off; MRR is unchanged at 3.8%. |
+| Where merchant processing sits in `COST_GROUPS` | With revenue share, not platform. | Card fees are charged on every payment and scale with the bill. `COST_LAYERS`, `serveSpend` and `priceFloors` already grouped them that way; chart 48's forecast now carries them on revenue rather than per customer. Defaults are unchanged in total. |
+| The two variable rates, 9.0% and 9.7% | Kept, both stated. | One merchant and revenue-share spend on two denominators: chart 49 divides by everything an account pays, the price floors by subscription revenue. Chart 49's finding now gives both. |
+| Chart 33's carried cost rate | Each group carried on its `COST_DRIVERS` rule, the one chart 48 uses: payroll at the mean of three months, platform at the mean of six, merchant fees and revenue share at the median of six. | A flat mean of three carried August's revenue-share bill, pulled before its credit was posted, into every projected month. |
 
 ---
 

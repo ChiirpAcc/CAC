@@ -1413,10 +1413,14 @@ export function pricingScenarios(data, { months = 23, horizon = 12, cac: cacOver
   }
 
   // The base: the eleven months before any rise, and the window's cost per logo.
-  const early = data.waterfall.filter(w => w.month < '2025-08');
-  const baseQ = early.reduce((s, w) => s + (w.newLogos || 0), 0) / (early.length || 1);
+  // Volumes and cost per logo on the cohort count, the denominator charts 1,
+  // 2, 7, 17 and 26 use, so this cannot price a logo differently from them.
+  const started = logosStarted(data);
+  const intake = data.waterfall.map(w => ({ month: w.month, newLogos: started.get(w.month) ?? null }));
+  const early = intake.filter(w => w.month < '2025-08' && w.newLogos);
+  const baseQ = early.reduce((s, w) => s + w.newLogos, 0) / (early.length || 1);
   const byMonth = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
-  const cpl = data.waterfall
+  const cpl = intake
     .filter(w => w.newLogos && byMonth.has(w.month))
     .map(w => byMonth.get(w.month) / w.newLogos);
   // Two costs per logo, because which one you use is a real decision rather
@@ -1454,7 +1458,7 @@ export function pricingScenarios(data, { months = 23, horizon = 12, cac: cacOver
   //
   // The flat figure is kept as an override so the sensitivity rows can ask
   // what happens at a cost per logo the business has not yet seen.
-  const series = data.waterfall
+  const series = intake
     .filter(w => w.newLogos && byMonth.has(w.month))
     .map(w => ({ month: w.month, logos: w.newLogos, cpl: byMonth.get(w.month) / w.newLogos }));
 
@@ -1659,9 +1663,16 @@ export const COST_GROUPS = [
     hint: 'Sales, marketing and partnerships. One charge, in the month the cohort signed.',
     match: isAcquisition },
 
+  // Software and hosting only. Merchant processing used to sit here because it
+  // shares the 5000-00 section, but it is charged on every payment and so
+  // scales with what customers pay, not with how many there are. Every other
+  // cost map on the page (COST_LAYERS, serveSpend, priceFloors) already put it
+  // with revenue share, and the forecast in chart 48 carried it per customer
+  // when it moves with the bill. It goes with revenue share below.
   { key: 'platform', label: 'Platform cost of sales', defaultOn: true,
-    hint: 'Software, hosting and merchant processing. The closest thing here to a true per-customer cost.',
-    match: r => r.bucket === 'COGS' && /^5000-00/.test(r.section || '') },
+    hint: 'Software and hosting. The closest thing here to a true per-customer cost.',
+    match: r => r.bucket === 'COGS' && /^5000-00/.test(r.section || '')
+      && !/^5000-04/.test(r.account || '') },
 
   // Support, technical account management and customer success are one team
   // from a customer's point of view and are split three ways only because the
@@ -1685,10 +1696,11 @@ export const COST_GROUPS = [
   // customer stays, and they would carry on if acquisition stopped tomorrow.
   // Strictly it is contra-revenue; it sits in cost of sales because there is
   // nothing here to net it against.
-  { key: 'revshare', label: 'Revenue share and partner rebates', defaultOn: true,
-    hint: 'Paid on what existing customers bill, so it recurs while they stay. '
-        + 'A cost of keeping them, not of winning them.',
-    match: r => r.bucket === 'COGS' && /^6100-00/.test(r.section || '') },
+  { key: 'revshare', label: 'Merchant fees, revenue share and partner rebates', defaultOn: true,
+    hint: 'Card processing on every payment, and revenue share and rebates on partner customers. '
+        + 'Paid on what existing customers bill, so it recurs while they stay.',
+    match: r => (r.bucket === 'COGS' && /^6100-00/.test(r.section || ''))
+      || (r.bucket === 'COGS' && /^5000-04/.test(r.account || '')) },
 
   { key: 'ga', label: 'General and administrative', defaultOn: false,
     hint: 'Rent, insurance, legal, accounting and the G&A payroll. Spread evenly across active logos.',
@@ -1783,15 +1795,22 @@ export function costRates(data) {
   }
 
   // A cohort measured at month 18 runs past the end of the file, and those
-  // months need a rate. The mean of the last three is used, and the fact that
-  // it is a carried figure rather than a measured one is reported alongside so
-  // the chart can say how much of its own cost side is assumed.
-  const tail = months.slice(-3);
+  // months need a rate. Each group is carried on the rule chart 48 uses for it
+  // (COST_DRIVERS): payroll at the mean of the last three months, platform at
+  // the mean of six, merchant fees and revenue share at the median of six.
+  // A flat mean of three carried August's revenue-share bill, pulled before
+  // its credit was posted, into every projected month at full size. The fact
+  // that it is a carried figure is reported alongside, so the chart can say
+  // how much of its own cost side is assumed.
   const carried = {};
   for (const g of ongoing) {
-    carried[g.key] = tail.length
-      ? tail.reduce((s, m) => s + rates.get(m)[g.key], 0) / tail.length
-      : 0;
+    const rule = COST_DRIVERS[g.key] || { window: 3 };
+    const vals = months.slice(-(rule.window || 3)).map(m => rates.get(m)[g.key]).sort((a, b) => a - b);
+    if (!vals.length) { carried[g.key] = 0; continue; }
+    const mid = vals.length >> 1;
+    carried[g.key] = rule.robust
+      ? (vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2)
+      : vals.reduce((t, v) => t + v, 0) / vals.length;
   }
 
   return { rates, carried, months, lastMonth: months[months.length - 1] || null };
@@ -2040,6 +2059,22 @@ function donorWeights(donors, halfLife) {
 // logo volume, because that is a decision rather than a prediction — the
 // scenarios are three volumes the business has actually run, and the reader
 // picks which one they believe.
+// Customers by the month they first appear in the customer file, which is
+// what enters a projection that counts everyone present. The window's first
+// month is blank: everyone already there appears in it.
+export function logosAppeared(data) {
+  const first = new Map();
+  for (const row of data.customers) {
+    if (!row.active) continue;
+    if (!first.has(row.id) || row.month < first.get(row.id)) first.set(row.id, row.month);
+  }
+  const start = [...first.values()].sort()[0];
+  const counts = new Map();
+  for (const m of first.values()) if (m !== start) counts.set(m, (counts.get(m) || 0) + 1);
+  if (start) counts.set(start, null);
+  return counts;
+}
+
 export function projectBase(data, { months = 12 } = {}) {
   const first = new Map();
   const live = new Map();
@@ -2053,6 +2088,26 @@ export function projectBase(data, { months = 12 } = {}) {
   if (all.length < 13) return null;
   const last = all[all.length - 1];
 
+  // A customer already present when the window opens has an age the file
+  // cannot see. Dating them from the window's first month put 767 long-standing
+  // customers into the age-0 to age-12 buckets through 2024, so the survival
+  // curve for a new customer was mostly the curve for an old one. They go in
+  // the oldest bucket instead, the rule chart 31 applies to the same people,
+  // unless Stripe gives a real start date, which wins as it does in
+  // buildCohorts.
+  const windowStart = all[0];
+  const OLDEST = 24;
+  const startOf = new Map();
+  for (const [id, m] of first) {
+    if (m !== windowStart) { startOf.set(id, m); continue; }
+    const known = data.lifetimes?.get(id);
+    startOf.set(id, known && known <= m ? known : null);
+  }
+  const ageAt = (id, month) => {
+    const start = startOf.get(id);
+    return start === null || start === undefined ? OLDEST : monthDiff(start, month);
+  };
+
   // Age-specific monthly survival, pooled over every month-pair in the window.
   // Ages with a thin denominator fall back to the overall rate rather than
   // carrying a number built on a handful of customers.
@@ -2062,7 +2117,7 @@ export function projectBase(data, { months = 12 } = {}) {
     const now = live.get(all[i]);
     const next = live.get(all[i + 1]);
     for (const id of now.keys()) {
-      const age = Math.min(monthDiff(first.get(id), all[i]), 24);
+      const age = Math.min(ageAt(id, all[i]), OLDEST);
       seen.set(age, (seen.get(age) || 0) + 1);
       if (next.has(id)) kept.set(age, (kept.get(age) || 0) + 1);
     }
@@ -2082,7 +2137,7 @@ export function projectBase(data, { months = 12 } = {}) {
   const payS = [];
   for (const month of all.slice(-6)) {
     for (const [id, mrr] of live.get(month)) {
-      const age = Math.min(monthDiff(first.get(id), month), 36);
+      const age = Math.min(ageAt(id, month), 36);
       payN[age] = (payN[age] || 0) + 1;
       payS[age] = (payS[age] || 0) + mrr;
     }
@@ -2099,7 +2154,7 @@ export function projectBase(data, { months = 12 } = {}) {
   const stateAt = month => {
     const v = [];
     for (const id of live.get(month).keys()) {
-      const age = monthDiff(first.get(id), month);
+      const age = ageAt(id, month);
       v[age] = (v[age] || 0) + 1;
     }
     return v.map(x => x || 0);
@@ -2144,7 +2199,9 @@ export function projectBase(data, { months = 12 } = {}) {
   // from twelve months back using the arrivals that actually happened, and
   // compare the last step against what the file says.
   const backFrom = all[all.length - 13];
-  const arrivalsByMonth = new Map(data.waterfall.map(w => [w.month, w.newLogos]));
+  // Arrivals that actually happened, as first appearances in the customer
+  // file: the same quantity the model's age 0 counts.
+  const arrivalsByMonth = logosAppeared(data);
   const test = run(backFrom, 12, k => arrivalsByMonth.get(monthAdd(backFrom, k)) ?? 0);
   const endLogos = live.get(last).size;
   const endMrr = [...live.get(last).values()].reduce((s, v) => s + v, 0);
@@ -2176,7 +2233,11 @@ export function projectBase(data, { months = 12 } = {}) {
 // The three arrival rates worth drawing, each one a volume the business has
 // actually run rather than a number chosen to make a point.
 export function arrivalScenarios(data) {
-  const w = data.waterfall.filter(r => r.newLogos != null);
+  // First appearances, the quantity projectBase enters at age 0, read from
+  // the customer file rather than the summary tab.
+  const appeared = logosAppeared(data);
+  const w = data.waterfall.map(r => ({ month: r.month, newLogos: appeared.get(r.month) ?? null }))
+    .filter(r => r.newLogos != null);
   if (!w.length) return [];
   const mean = rows => rows.reduce((s, r) => s + r.newLogos, 0) / rows.length;
   const latest = w[w.length - 1];
@@ -5153,11 +5214,11 @@ export const COST_DRIVERS = {
   acquisition: { driver: 'fixed', window: 3,
     why: 'Sales, marketing and partnerships payroll. Held at the last quarter.' },
   platform: { driver: 'perLogo', window: 6,
-    why: 'Software, hosting and merchant processing. Follows the customer.' },
+    why: 'Software and hosting. Follows the customer.' },
   support: { driver: 'fixed', window: 3,
     why: 'Support and success payroll. Held at the last quarter.' },
   revshare: { driver: 'perRevenue', window: 6, robust: true,
-    why: 'Paid on what customers bill. A rate on revenue, median of the last six.' },
+    why: 'Merchant fees and revenue share, paid on what customers bill. A rate on revenue, median of the last six.' },
   ga: { driver: 'fixed', window: 3,
     why: 'Rent, insurance, legal and the G&A payroll. Held at the last quarter.' },
   rd: { driver: 'fixed', window: 3,
@@ -6164,7 +6225,11 @@ export function capacityAnalysis(data, { horizon = 4, windows = null } = {}) {
     }
   }
 
-  const newLogos = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+  // Arrivals are the cohort count, the one count of a new customer the page
+  // keeps (first month present, a real Stripe start date where there is one).
+  // The summary's new_logos is not read: in the window's first month it books
+  // every customer already there as new. That month is blank here instead.
+  const newLogos = logosStarted(data);
   const months = [...activeByMonth.keys()].sort();
   const last = months[months.length - 1];
 
@@ -6695,7 +6760,8 @@ export function arrivalsAgainstChurn(data, { horizon = 4, windows = null } = {})
     active.get(row.month).add(row.id);
   }
 
-  const arrivals = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+  // The cohort count, not the summary's new_logos: see capacityAnalysis.
+  const arrivals = logosStarted(data);
 
   const all = [...active.keys()].sort();
   const last = all[all.length - 1];

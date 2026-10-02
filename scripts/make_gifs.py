@@ -172,14 +172,71 @@ F_TITLE, F_LABEL, F_TICK, F_BIG = font(26, True), font(15), font(13), font(19, T
 LIVE_EVENTS = {"new", "reactivation", "flat", "expansion", "contraction"}
 
 
+def cohort_sizes(rows):
+    """New customers per month, the cohort count the site's buildCohorts keeps.
+
+    A customer's month is the first month they are present inside the window,
+    or their Stripe start date where Subscription Lifetimes has one that falls
+    between the window start and that month, counted only if present in it.
+    Customers present in the window's
+    first month, or flagged 'shifted forward', with no Stripe start date, are
+    censored and counted nowhere, so the first month is None. The summary's
+    new_logos is not read: it books everyone already there as new in month one.
+    """
+    first, shifted = {}, set()
+    for row in rows:
+        m = row.get("month")
+        if not m or m < HISTORY_STARTS or (LAST_COMPLETE and m > LAST_COMPLETE):
+            continue
+        if "shifted forward" in str(row.get("start_type") or "").lower():
+            shifted.add(row["customer_id"])
+        if row.get("event_type") not in LIVE_EVENTS:
+            continue
+        cid = row["customer_id"]
+        if cid not in first or m < first[cid]:
+            first[cid] = m
+    lifetimes = {}
+    try:
+        doc = load("subscription_lifetimes.json")
+        cols = doc.get("columns") or []
+        id_key = next((c for c in cols if "stripe customer id" in str(c).lower()), None)
+        start_key = next((c for c in cols if "start date" in str(c).lower()), None)
+        if id_key and start_key:
+            for r in doc["rows"]:
+                start = str(r.get(start_key) or "")[:7]
+                if len(start) == 7 and start[4] == "-" and HISTORY_STARTS <= start:
+                    lifetimes[r.get(id_key)] = start
+    except FileNotFoundError:
+        pass
+    window_start = min(first.values()) if first else None
+    sizes = defaultdict(int)
+    for cid, m in first.items():
+        known = lifetimes.get(cid)
+        if (m == window_start or cid in shifted) and not known:
+            continue
+        month = known if known and window_start <= known <= m else m
+        # buildCohorts sizes a cohort by who is present in its first month, so
+        # a customer dated back to a Stripe start before their first billed
+        # month joins the cohort but not its count.
+        if month == m:
+            sizes[month] += 1
+    out = dict(sizes)
+    if window_start:
+        out[window_start] = None
+    return out
+
+
 def read_months():
     mrr = defaultdict(dict)
-    for row in load("customer_waterfall.json")["rows"]:
+    rows = load("customer_waterfall.json")["rows"]
+    for row in rows:
         if row.get("event_type") not in LIVE_EVENTS:
             continue
         mrr[row["month"]][row["customer_id"]] = number(row.get("eop_mrr")) or 0.0
 
-    waterfall = {r["month"]: r for r in load("waterfall_summary.json")["rows"]}
+    # Arrivals by month, keyed the way the builders below read them.
+    sizes = cohort_sizes(rows)
+    waterfall = {m: {"new_logos": v} for m, v in sizes.items()}
     # The same last month the site stops at, so a push carrying a partial
     # month is not charted here and dropped there.
     last = min(max(mrr), LAST_COMPLETE) if LAST_COMPLETE else max(mrr)

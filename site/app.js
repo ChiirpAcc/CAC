@@ -2652,10 +2652,10 @@ function renderCostForecast(projection) {
     + 'six-month average would carry staffing that has already gone. Two years of history '
     + 'says these lines ran as a fairly steady share of revenue, acquisition at about a '
     + 'quarter of MRR and G&A at about a fifth, which is the case for the second basis; the '
-    + '2026 cuts are the case for the first. Platform cost of sales follows the customer and '
-    + 'is a rate per '
+    + '2026 cuts are the case for the first. Platform cost of sales, software and hosting, '
+    + 'follows the customer and is a rate per '
     + 'active logo over the last six months, applied to the customers chart 47 projects. '
-    + 'Revenue share follows the bill and is a rate on recurring revenue; the rate is the '
+    + 'Merchant fees and revenue share follow the bill and are a rate on recurring revenue; the rate is the '
     + 'median of the last six months rather than the mean, because this push pulled August '
     + 'before its revenue-share credit was posted, so August carries the invoice without the '
     + 'credit and the mean would carry it for a year. Depreciation is shown and left out of every total, because it is not '
@@ -3876,6 +3876,10 @@ function renderAccountServe() {
   });
 
   const l = a.last;
+  // The price floors divide the same merchant and revenue-share spend by
+  // subscription revenue, chart 49 by everything an account pays. One cost,
+  // two denominators, so both are stated rather than one silently differing.
+  const floorsRate = (priceFloors(data) || {}).variablePct ?? null;
   const s1 = l.envs.S1;
   const s2 = l.envs.S2;
   const outlier = a.outliers.includes(l.month);
@@ -3896,7 +3900,8 @@ function renderAccountServe() {
     + `have been under water in every one of the last ${a.window.length} months. `
     + (outlier
         ? `${fmt.monthLabel(l.month)} carries merchant and revenue-share spend at `
-          + `${fmt.pct(l.variableRate, 1)} of revenue against a usual ${fmt.pct(a.medianRate, 1)}, `
+          + `${fmt.pct(l.variableRate, 1)} of all revenue against a usual ${fmt.pct(a.medianRate, 1)} `
+          + `(the price floors state the same cost as ${fmt.pct(floorsRate, 1)} of subscription revenue), `
           + `because the push was taken before the month's revenue-share credit was posted, so `
           + `it overstates the variable cost of every account; at the usual rate ${fmt.int(underAtMedian.length)} `
           + `accounts are under water rather than ${fmt.int(underNow.length)}. The table ranks by `
