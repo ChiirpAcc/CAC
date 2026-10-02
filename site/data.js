@@ -6161,7 +6161,14 @@ export function capacityAnalysis(data, { horizon = 4, windows = null } = {}) {
 // positions keeps seasonality out of the answer: a trade business does not
 // churn evenly through the year, so March against March says more than March
 // against the average of everything.
-export function seasonalSurvival(data, { horizon = 4 } = {}) {
+//
+// Revenue is valued at the start the way buildCohorts values a cohort: the
+// customers whose first revenue fell in the starting month are taken at their
+// second month. Until mid-2025 that first month carried a joining charge as
+// MRR that came off the month after, and leaving it in put 24% of the April
+// 2024 base in a one-off, so the two older lines read a fall the latest line,
+// which has no charge, does not. Everyone else is taken at the starting month.
+export function seasonalSurvival(data, { horizon = 4, cohorts = null } = {}) {
   const mrrByMonth = new Map();
   for (const row of data.customers) {
     if (!row.active) continue;
@@ -6178,13 +6185,21 @@ export function seasonalSurvival(data, { horizon = 4 } = {}) {
   if (!complete.length) return { horizon, anchor: null, series: [] };
 
   const anchor = complete[complete.length - 1];
+  const intakeOf = new Map((cohorts || buildCohorts(data)).map(c => [c.month, new Set(c.ids)]));
 
   const series = [24, 12, 0].map(back => {
     const start = monthAdd(anchor, -back);
     const base = mrrByMonth.get(start);
     if (!base || !base.size) return null;
 
-    const startMrr = [...base.values()].reduce((s, v) => s + v, 0);
+    const intake = intakeOf.get(start) || new Set();
+    const next = mrrByMonth.get(monthAdd(start, 1)) || new Map();
+    const startValue = id => ((intake.has(id) && next.has(id) ? next.get(id) : base.get(id)) || 0);
+    const startMrr = [...base.keys()].reduce((s, id) => s + startValue(id), 0);
+    const intakeShare = startMrr
+      ? [...base.keys()].filter(id => intake.has(id)).reduce((s, id) => s + (base.get(id) || 0), 0)
+        / [...base.values()].reduce((s, v) => s + (v || 0), 0)
+      : null;
     const curve = [1];
     const revenueCurve = [1];
 
@@ -6209,6 +6224,9 @@ export function seasonalSurvival(data, { horizon = 4 } = {}) {
       monthsBack: back,
       n: base.size,
       startMrr,
+      intake: intake.size,
+      intakeShare,
+      zeroAtStart: [...base.values()].filter(v => !(v > 0)).length,
       curve,
       revenueCurve,
       survival: curve[horizon],

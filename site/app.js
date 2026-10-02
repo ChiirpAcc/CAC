@@ -5806,17 +5806,11 @@ function renderForward() {
     + 'carry no window and are blank rather than zero. With only twelve months behind each '
     + 'point these move around, so read the direction rather than the level.';
 
-  // 15. Against new arrivals.
-  const newByMonth = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
-  const points = starts
-    .filter(s => newByMonth.get(s.month) != null)
-    .map(s => ({ x: newByMonth.get(s.month), y: 1 - s.survival, month: s.month }));
-
   renderArrivals();
   renderHorizons();
 }
 
-// 19. The same window, this year against one and two years ago. Driven by its
+// 11. The same window, this year against one and two years ago. Driven by its
 // own slider rather than by the assumptions, because the horizon is a way of
 // looking rather than a modelling choice.
 function renderSeasonal() {
@@ -5835,7 +5829,7 @@ function renderSeasonal() {
   const horizon = Number(slider.value);
   $('horizon-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');
 
-  const s = seasonalSurvival(data, { horizon });
+  const s = seasonalSurvival(data, { horizon, cohorts });
   if (!s.series.length) {
     $('chart-seasonal').innerHTML = '<p class="empty">Not enough history for that window.</p>';
     return;
@@ -5886,14 +5880,13 @@ function renderSeasonal() {
     + 'population from the cohort charts: chart 8 follows one year’s new intakes '
     + 'from their own signup month, where this follows everyone present in a given '
     + 'month whenever they joined. The two can disagree about which year looks worst '
-    + 'and both still be right, and they currently do — chart 8 has 2026 ahead at '
-    + 'month 4 and this has it well behind. The book is mostly tenured customers so '
-    + 'this chart is largely about them, while chart 8 at that age is built only from '
-    + 'the 2026 cohorts old enough to have run four months, which are the early ones, '
-    + 'before the worst intakes arrived. Neither is the whole answer. Base sizes: '
+    + 'and both still be right. The book is mostly tenured customers so this chart is '
+    + 'largely about them, while chart 8 at ' + horizon + ' month' + (horizon === 1 ? '' : 's')
+    + ' is built only from the cohorts of the current year old enough to have run that '
+    + 'long, which are its earliest. Neither is the whole answer. Base sizes: '
     + s.series.map(r => fmt.monthLabel(r.month) + ' ' + fmt.int(r.n)).join(', ') + '.';
 
-  // 20. The same fixed sets, followed by revenue rather than by headcount.
+  // 12. The same fixed sets, followed by revenue rather than by headcount.
   // Where this sits above the logo line, the survivors are paying more than
   // they were, and expansion is covering some of the loss.
   multiLineChart($('chart-seasonal-revenue'), {
@@ -5937,15 +5930,25 @@ function renderSeasonal() {
       // With the window reaching back to 2024 there is a third point, and it
       // changes the reading: the year-on-year comparison alone made a single
       // exceptional year look like the baseline.
+      // Only called an outlier when it is one: on the booked first month the
+      // year-ago line read as one because the two older bases carried a joining
+      // charge the latest does not.
       const twoBack = twoYears || null;
-      const context = twoBack
-        ? ' Against two years earlier the picture is not a straight decline: '
-          + fmt.monthLabel(twoBack.month) + ' kept '
-          + fmt.pct(twoBack.revenueRetention, 1) + ' of its revenue, so '
-          + fmt.monthLabel(yearAgo.month) + ' at '
-          + fmt.pct(yearAgo.revenueRetention, 1) + ' is the outlier in the series rather '
-          + 'than the standard the latest window is failing to meet.'
-        : '';
+      const yearAgoOutlier = twoBack && yearAgo.revenueRetention
+        - Math.max(twoBack.revenueRetention, latest.revenueRetention) > 0.05;
+      const context = !twoBack ? ''
+        : yearAgoOutlier
+          ? ' Against two years earlier the picture is not a straight decline: '
+            + fmt.monthLabel(twoBack.month) + ' kept '
+            + fmt.pct(twoBack.revenueRetention, 1) + ' of its revenue, so '
+            + fmt.monthLabel(yearAgo.month) + ' at '
+            + fmt.pct(yearAgo.revenueRetention, 1) + ' is the outlier in the series rather '
+            + 'than the standard the latest window is failing to meet.'
+          : ' Two years earlier ' + fmt.monthLabel(twoBack.month) + ' kept '
+            + fmt.pct(twoBack.revenueRetention, 1) + ', so the latest window is '
+            + Math.abs((latest.revenueRetention - twoBack.revenueRetention) * 100).toFixed(1)
+            + ' points ' + (latest.revenueRetention < twoBack.revenueRetention ? 'below' : 'above')
+            + ' that as well.';
       return head
         + fmt.pct(latest.revenueRetention, 1) + ' of ' + fmt.monthLabel(latest.month)
         + ' revenue survived ' + horizon + ' months, against '
@@ -5958,11 +5961,20 @@ function renderSeasonal() {
     })();
 
   $('seasonal-revenue-note').textContent =
-    'The same customers as chart 11, followed by what they pay rather than by whether they '
-    + 'are still there. No new customers enter it, so this is not net revenue retention for '
-    + 'the business; it is what one fixed set did. Above the logo line means survivors grew '
-    + 'and expansion is offsetting churn. Below it means the ones who stayed are also paying '
-    + 'less. Starting revenue: '
+    'The same customers as chart 11, followed by their recurring MRR rather than by whether '
+    + 'they are still there. Usage, setup and pass-through are not in it, so a survivor who '
+    + 'moved spend from subscription to usage reads here as revenue lost. No new customers '
+    + 'enter it, so this is not net revenue retention for the business; it is what one fixed '
+    + 'set did. Above the logo line means survivors grew and expansion is offsetting churn. '
+    + 'Below it means the ones who stayed are also paying less. The customers who started in '
+    + 'the starting month are valued at their second month, as every cohort chart values them, '
+    + 'because until mid-2025 their first month carried a joining charge as MRR that came off '
+    + 'the month after; on the booked figure that charge was '
+    + s.series.map(r => `${fmt.pct(r.intakeShare, 0)} of ${fmt.monthLabel(r.month)}`).join(', ')
+    + ' revenue, and it made the older lines fall for a reason the latest does not share. '
+    + 'Customers at zero MRR in the starting month count on the logo line and weigh nothing '
+    + 'here: ' + s.series.map(r => `${fmt.int(r.zeroAtStart)} of ${fmt.int(r.n)}`).join(', ')
+    + '. Starting revenue: '
     + s.series.map(r => fmt.monthLabel(r.month) + ' ' + fmt.money(r.startMrr)).join(', ') + '.';
 }
 
@@ -6467,7 +6479,7 @@ function renderAnnotations() {
   ]);
 
   // 11 and 12, the year on year pair.
-  const seas = seasonalSurvival(data, { horizon: Number($('horizon').value) || 4 });
+  const seas = seasonalSurvival(data, { horizon: Number($('horizon').value) || 4, cohorts });
   if (seas.series.length) {
     const now = seas.series[seas.series.length - 1];
     const yr = seas.series.find(s => s.monthsBack === 12);
