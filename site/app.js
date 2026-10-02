@@ -3530,7 +3530,9 @@ function renderUpgradeList() {
           : r.heldBefore
             ? '<span class="held">held it before</span>'
             : '<span class="muted">new price</span>'}</td>`
-      + `<td class="n">${r.tenure === null ? '–' : fmt.int(r.tenure)}</td>`
+      // An account present in the window's first month may be older than the
+      // window, so its tenure is a floor and is shown as one.
+      + `<td class="n">${r.tenure === null ? '–' : fmt.int(r.tenure) + (r.since === data.historyStarts ? '+' : '')}</td>`
       + `<td>${r.source || '–'}</td>`
       + `<td class="trend">${spark(r.series)}</td>`
       + '</tr>').join('');
@@ -3538,7 +3540,7 @@ function renderUpgradeList() {
   };
 
   $('list-low-title').textContent =
-    `Paying something, under ${fmt.money(l.lowBand)} — ${fmt.int(l.low.length)} accounts`;
+    `Paying something, under ${fmt.money(l.lowBand)}: ${fmt.int(l.low.length)} accounts`;
   $('list-low-table').innerHTML = table(l.low, l.lowBand);
 
   const viable = l.low.filter(r => r.viable);
@@ -3547,11 +3549,12 @@ function renderUpgradeList() {
   $('list-low-finding').innerHTML =
     `<strong>${fmt.int(l.low.length)} accounts are eligible, of which `
     + `${fmt.int(viable.length)} are worth asking and ${fmt.int(held.length)} have already `
-    + `held the price.</strong> They pay ${fmt.money(l.totals.lowMrr)} a month between them `
-    + `and their targets sum to ${fmt.money(l.totals.lowTarget)}. `
+    + `held the price.</strong> They pay ${fmt.money(l.totals.lowMrr)} a month between them; `
+    + `the ${fmt.int(viable.length)} worth asking pay ${fmt.money(l.totals.lowViableMrr)} and `
+    + `their targets sum to ${fmt.money(l.totals.lowViableTarget)}. `
     + `<strong>Start with the "held it before" names.</strong> Asking a customer to return `
     + `to a price they once accepted is a different conversation from inventing one, and `
-    + `treating that as half the churn risk is the single assumption this list rests on — `
+    + `treating that as half the churn risk is the single assumption this list rests on: `
     + `the first calls will test it. `
     + (cleanup.length
         ? `${fmt.int(cleanup.length)} are marked not viable: reaching the floor would mean `
@@ -3565,45 +3568,61 @@ function renderUpgradeList() {
     + `${fmt.int(l.totals.excludedTooYoung)} are under ${l.minTenure} months old, where `
     + `re-pricing means negotiating against your own onboarding.`;
 
+  // Counted live: the note used to type "33 accounts, $1,200 against $200",
+  // which moved with every push.
+  const inflated = l.low.filter(r => r.peakEver > r.settledPeak);
+  const inflatedGaps = inflated.map(r => r.peakEver - r.settledPeak).sort((a, b) => a - b);
+  const worstInflated = inflated.reduce((a, b) =>
+    (!a || b.peakEver - b.settledPeak > a.peakEver - a.settledPeak ? b : a), null);
+  const capped = l.low.filter(r => r.since === data.historyStarts).length;
+  const canonicalHere = l.low.filter(r => r.canonicalId).length;
   $('list-note').textContent =
     'Active accounts in ' + fmt.monthLabel(l.month) + ' paying more than '
     + fmt.money(l.minMrr) + ' and less than ' + fmt.money(l.lowBand)
-    + ' a month, with at least ' + l.minTenure + ' months behind them. The target for each is max(floor, min(peak ever '
-    + 'paid after their first month, current x 3)), with the floor at $600. The first '
-    + 'month is excluded because until mid-2025 a joining charge was booked into MRR '
-    + 'there, so a raw peak can be a one-off dressed as a subscription — 33 accounts on '
-    + 'this list carried an inflated peak, median $200 too high, one reading $1,200 '
-    + 'against a settled price of $200. The floor protects solvency, the settled peak '
-    + 'anchors to a price the customer genuinely held, and the cap stops an '
-    + 'account at $50 being asked for $900 because of one odd month years ago. $600 '
-    + 'rather than the ' + (() => {
+    + ' a month, with at least ' + l.minTenure + ' months behind them. Every account is asked '
+    + 'for the same flat ' + fmt.money(600) + ' under the floor rule, or ' + fmt.money(500)
+    + ' at $300 or less and ' + fmt.money(750) + ' above it under the tiered rule; nothing is '
+    + 'scaled to the account. The settled peak, the highest month after the first, decides '
+    + 'only whether an account has held the price before and whether it is worth asking. The '
+    + 'first month is left out of that peak because until mid-2025 a joining charge was '
+    + 'booked into MRR there, so a raw peak can be a one-off dressed as a subscription: '
+    + (inflated.length
+      ? fmt.int(inflated.length) + ' accounts on this list carry an inflated peak, median '
+        + fmt.money(inflatedGaps[inflatedGaps.length >> 1]) + ' too high, the worst reading '
+        + fmt.money(worstInflated.peakEver) + ' against a settled price of '
+        + fmt.money(worstInflated.settledPeak) + '. '
+      : 'none on this list does now. ')
+    + fmt.money(600) + ' rather than the ' + (() => {
         const pf = priceFloors(data);
         if (!pf) return 'allocated floor';
-        // A third of the accounts ASKED, not a third of the whole payer base.
-        // The ask is this list; the floor is spread over everyone still paying.
-        const lost = l.low.length / 3;
+        // A third of the accounts ASKED, which is the viable ones, not the
+        // whole list. The floor is spread over everyone still paying.
+        const lost = viable.length / 3;
         const after = (pf.fixedPerMonth / (pf.paying.length - lost)) / (1 - pf.variablePct);
         return fmt.money(pf.allocatedFloor) + ' the cost base needs today, because losing a '
-          + 'third of the ' + fmt.int(l.low.length) + ' accounts asked pushes that floor to '
+          + 'third of the ' + fmt.int(viable.length) + ' accounts asked pushes that floor to '
           + 'about ' + fmt.money(after);
       })()
     + ' and a target set at the floor would '
     + 'be underwater the month it landed. Charts 37 and 38 have that arithmetic, and '
     + 'tenure and usage were tested as multipliers on top of peak and made the result '
     + 'worse, so they are not used. The Stripe identifier is '
-    + 'the one in the billing export and is present for every account; the Chiirp '
-    + 'identifier is not in the pushed data — canonical_id is populated on ' + (() => {
-        const ids = new Set(data.customers.filter(r => r.canonicalId).map(r => r.id));
-        return fmt.int(ids.size);
-      })() + ' of '
-    + 'the customers here — so it is dropped from the table and the export '
-    + 'to carry it. '
+    + 'the one in the billing export and is present for every account. The Chiirp '
+    + 'identifier is not in the pushed data for these accounts: canonical_id is populated on '
+    + fmt.int(canonicalHere) + ' of the ' + fmt.int(l.low.length) + ' here, so neither the '
+    + 'table nor the export carries it. '
     + (l.totals.namesMissing
         ? fmt.int(l.totals.namesMissing) + ' accounts have no company name in the file and '
           + 'will need looking up by Stripe ID. '
         : '')
-    + 'Peak is the highest month in the last six, so an account showing a peak above its '
-    + 'current figure has fallen rather than always been small. The last six months run '
+    + (capped
+      ? 'Months here counts from the first month the window holds, so the ' + fmt.int(capped)
+        + ' accounts already present then show their count with a plus: they are at least that '
+        + 'old. '
+      : '')
+    + 'The settled peak is over the whole window, so an account showing one above its '
+    + 'current figure has paid more at some point rather than always been small; the last six '
+    + 'months beside it say whether that was recent. They run '
     + 'oldest to newest and a dot means the account was not active that month. Nothing '
     + 'here is a churn risk score: it is what each account pays against what it costs, '
     + 'and the judgement about which are worth a call is yours.';
@@ -3642,7 +3661,8 @@ function renderUpgradeList() {
       a.remove();
       URL.revokeObjectURL(url);
       $('list-status').textContent =
-        `${fmt.int(l.low.length)} accounts exported.`;
+        `${fmt.int(l.low.length + l.zeros.length)} accounts exported: ${fmt.int(l.low.length)} `
+        + `paying under ${fmt.money(l.lowBand)} and ${fmt.int(l.zeros.length)} paying nothing.`;
     });
     button.dataset.ready = '1';
   }
@@ -4749,9 +4769,8 @@ function renderCampaign() {
   // not say 33% is asking the reader to trust a label instead of a number.
   const spread = ruleSpread(data);
   const figureFor = {
-    // Median and max are identical across the last two rules, because the
-    // 3x cap binds on the same accounts either way. The total asked is what
-    // actually separates them, so that is what each button carries.
+    // Every target is flat under either rule, so the total asked is what
+    // separates them, and each button carries its own pool's total.
     floor: () => {
       const s = spread.floor;
       return s ? `${fmt.money(s.median)} each, ${fmt.money(s.total)} asked` : '';
@@ -4878,15 +4897,26 @@ function renderCampaign() {
       + `<tr class="rule-above emphasis"><td><strong>All ${fmt.int(econ.totalAccounts)}</strong></td>`
       + '<td></td><td></td><td></td><td></td><td></td>'
       + `<td class="n"><strong>${fmt.money(econ.totalKeeps)}</strong></td></tr>`
+      // The gain is measured from leaving every band alone, after its background
+      // churn and after revenue share as well as the merchant fee. That row was
+      // not shown, so the after-campaign figure sat under the bigger "All" total
+      // and read as a fall labelled as a gain.
       + (bc
-          ? `<tr class="rule-above"><td><strong>After the campaign</strong></td>`
+          ? `<tr class="rule-above"><td>Left alone, after background churn and revenue share</td>`
+            + '<td></td><td></td><td></td><td></td><td></td>'
+            + `<td class="n">${fmt.money(bc.doNothing)}</td></tr>`
+            + `<tr><td><strong>After the campaign</strong>, same basis</td>`
             + `<td class="n">${fmt.int(bc.kept)} kept, ${fmt.int(bc.lost)} lost</td>`
             + '<td></td><td></td><td></td><td></td>'
             + `<td class="n"><strong>${fmt.money(bc.contribution)}</strong> `
             + `<span class="${bc.gain >= 0 ? 'held' : 'notviable'}">`
             + `${bc.gain >= 0 ? '+' : ''}${fmt.money(bc.gain)}</span></td></tr>`
           : '')
-      + '</tbody></table>';
+      + '</tbody></table>'
+      + '<p class="note">A separate scenario on the ' + fmt.int(econ.totalAccounts)
+      + ' accounts in the engagement export. The band switches drive only the last two rows; '
+      + 'the headline and the table below run on the list\'s viable accounts and do not read '
+      + 'the bands.</p>';
   }
 
   $('camp-note').textContent =
@@ -4894,19 +4924,27 @@ function renderCampaign() {
     + 'nobody has run this campaign, so the honest output is a range with the inputs '
     + 'visible. The pricing rule decides what each account is asked for; the churn '
     + 'setting decides how many refuse. "Scaled to the ask" is the most realistic and the '
-    + 'least certain — it raises churn with the size of the increase and halves it '
+    + 'least certain: it raises churn with the size of the increase and halves it '
     + 'where the customer has held that price before, on the reasoning that returning to '
     + 'a known number is an easier conversation than accepting a new one. That halving is '
     + 'the single assumption the whole case rests on and it has never been tested here. '
     + 'The floor line is the one to watch: losing accounts spreads the same fixed cost '
     + 'across fewer payers, so an aggressive campaign can raise the bar faster than it '
     + 'raises prices and leave the survivors underwater. Only accounts marked viable in '
-    + 'the list below are included; the rest are a cancellation decision rather than a '
-    + 'sale and counting them would flatter every figure here. '
+    + 'the list below are asked; the rest, and the accounts the eligibility rules leave '
+    + 'out, keep paying what they pay in the after figure, and asking them would flatter '
+    + 'every figure here. '
     + 'The band table is the part that changes the conclusion. All three bands pay about '
     + 'the same, but hosting and messaging follow usage while the per-seat licence does '
-    + 'not, so a dormant account costs a third of what a heavy user costs and keeps more '
-    + 'of what it pays. That inverts the obvious answer: the accounts that look most '
+    + 'not, so a dormant account costs '
+    + (() => {
+        const users = econ && econ.bands.find(b => b.key === 'users');
+        const dormant = econ && econ.bands.find(b => b.key === 'dormant');
+        return users && dormant && users.cost
+          ? fmt.pct(dormant.cost / users.cost, 0) + ' of what a heavy user costs'
+          : 'less than a heavy user';
+      })()
+    + ' and keeps more of what it pays. That inverts the obvious answer: the accounts that look most '
     + 'worth re-pricing are the most profitable business on the book, and sending them an '
     + 'invoice change is the fastest way to lose it. Active users are the only band whose '
     + 'price is genuinely out of line with what they consume. '
@@ -4914,8 +4952,8 @@ function renderCampaign() {
     + ENGAGEMENT.asOf + ' (' + engagementAge() + ') and joined on Stripe customer id; '
     + 'they are not in the pushed workbook, so they are exactly as stale as that date '
     + 'and nothing here will refresh them. The usage multiples behind '
-    + 'the cost column are estimates rather than measurements — 2.2x average hosting '
-    + 'for heavy senders, 0.6x for light, 0.05x for dormant — and they are the '
+    + 'the cost column are estimates rather than measurements, 2.2x average hosting '
+    + 'for heavy senders, 0.6x for light and 0.05x for dormant, and they are the '
     + 'assumption most worth replacing with real per-account message volume.';
 }
 

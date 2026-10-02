@@ -2316,10 +2316,12 @@ export function bandEconomics(data) {
     const pays = b.mrr / b.accounts;
     // Per-seat licence is the same for everyone; hosting scales with use;
     // the merchant fee is a share of whatever they pay.
-    const cost = c.software + c.hosting * b.usageMultiple + pays * merchantShare;
+    const fixedCost = c.software + c.hosting * b.usageMultiple;
+    const cost = fixedCost + pays * merchantShare;
     return {
       ...b,
       pays,
+      fixedCost,
       cost,
       keeps: pays - cost,
       keepsTotal: (pays - cost) * b.accounts,
@@ -2385,14 +2387,17 @@ export function bandCampaign(data, { ask = ['users'], rule = 'tiered', churn = n
       kept += survivors;
       lost += t.n * p;
     }
-    const contribution = revenue - kept * b.cost - revenue * f.variablePct;
+    // The merchant fee is in variablePct, which follows the new price. b.cost
+    // carries it too, on the old price, so subtracting both charged it twice;
+    // only the per-account part of the cost is taken per survivor here.
+    const contribution = revenue - kept * b.fixedCost - revenue * f.variablePct;
     return { key: b.key, label: b.label, asked, revenue, kept, lost, contribution };
   });
 
   const doNothing = econ.bands.reduce((s, b) => {
     const p = background[b.key];
     const rev = b.mrr * (1 - p);
-    return s + rev - b.accounts * (1 - p) * b.cost - rev * f.variablePct;
+    return s + rev - b.accounts * (1 - p) * b.fixedCost - rev * f.variablePct;
   }, 0);
 
   const contribution = rows.reduce((s, r) => s + r.contribution, 0);
@@ -2426,7 +2431,7 @@ export const PRICING_PRESETS = [
     blurb: 'One number for all of them. Simplest to run and to explain, and it '
          + 'clears the cost floor by a margin at every churn level.' },
   { key: 'tiered', label: 'Tiered by what they pay now',
-    blurb: 'Under $300 to $500, $300 to $499 to $750. Asks less of the cheapest '
+    blurb: '$300 or less to $500, over $300 to $750. Asks less of the cheapest '
          + 'accounts, more of the ones already close to covering themselves.' },
 ];
 
@@ -2434,8 +2439,9 @@ export const PRICING_PRESETS = [
 //
 // Peak MRR is not it. Until mid-2025 a joining charge was booked into eop_mrr
 // in a customer's first month, so a raw peak can be a one-off dressed as a
-// subscription: 33 of the accounts on this list carry an inflated peak, median
-// $200 too high, and one reads $1,200 against a settled price of $200. Asking
+// subscription: about thirty of the accounts on this list carry an inflated
+// peak, typically $200 too high, and renderUpgradeList counts them live rather
+// than this comment carrying a figure that moves with every push. Asking
 // a customer to "return" to a number they were only ever charged once is a
 // conversation that ends badly and deserves to.
 //
@@ -2472,24 +2478,33 @@ function outcome(account, rule, churnRate, floor, cap) {
   } else {
     const mult = target / Math.max(cur, 1);
     churn = Math.min(0.8, Math.max(0.10, 0.333 * (mult - 1)));
-    if (target <= account.peakEver) churn *= 0.5;
+    // The settled peak, the same test the list's "held it before" uses. The
+    // raw peak counts a one-off joining charge as a price once held, which
+    // halved the churn on accounts the list does not mark as having held it.
+    if (target <= (account.settledPeak || 0)) churn *= 0.5;
   }
   return { target, churn, asked: true };
 }
 
 // The spread of targets each rule produces, so a button can state its own
 // numbers rather than describe them.
+// Each rule on its own pool: whether an account is viable depends on what it
+// would be asked for, so the tiered button used to price the floor rule's 108
+// accounts while the calculator ran the tiered rule's 114.
 export function ruleSpread(data, { floor = 600, cap = 3 } = {}) {
-  const list = upgradeList(data, { lowBand: 500, floor });
-  if (!list) return {};
-  const pool = list.low.filter(r => r.viable);
+  const pools = {};
+  for (const rule of ['floor', 'tiered']) {
+    const list = upgradeList(data, { lowBand: 500, floor, rule });
+    if (!list) return {};
+    pools[rule] = list.low.filter(r => r.viable);
+  }
   const median = a => {
     const s = a.slice().sort((x, y) => x - y);
     if (!s.length) return null;
     const i = s.length >> 1;
     return s.length % 2 ? s[i] : (s[i - 1] + s[i]) / 2;
   };
-  const targets = rule => pool.map(r => {
+  const targets = rule => pools[rule].map(r => {
     if (rule === 'tiered') return r.mrr <= 300 ? 500 : 750;
     return floor;
   });
@@ -2515,11 +2530,14 @@ export function campaign(data, {
   let asked = 0;
   let lost = 0;
   let after = others.reduce((s, v) => s + v, 0);
-  // Accounts under the band that are not in the pool keep paying what they pay.
+  // Accounts under the band that are not in the pool keep paying what they pay,
+  // and so do the ones the eligibility rules exclude. Those were in `before`
+  // and never added back, which put every outcome $4,127 a month too low.
   for (const r of list.low) {
     if (pool.includes(r)) continue;
     after += r.mrr;
   }
+  for (const r of list.excludedRows) after += r.mrr;
   let before = floors.totalMrr;
 
   for (const r of pool) {
@@ -2548,6 +2566,7 @@ export function campaign(data, {
   const untouchedBelow = [
     ...others,
     ...list.low.filter(r => !pool.includes(r)).map(r => r.mrr),
+    ...list.excludedRows.map(r => r.mrr),
   ];
 
   return {
@@ -2670,6 +2689,7 @@ export function upgradeList(data, {
   return {
     month: last, window, lowBand, minMrr, minTenure,
     zeros, low,
+    excludedRows: lowAll.filter(r => !low.includes(r)),
     totals: {
       accounts: zeros.length + low.length,
       zeroCount: zeros.length,
