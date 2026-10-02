@@ -3065,7 +3065,7 @@ function renderProjection() {
   $('projection-logos-finding').innerHTML =
     (holdRate !== null
       ? `<strong>It takes ${holdRate} new customers a month just to stand still, and the `
-        + `last three months have averaged ${paths[paths.length - 2].rate}.</strong> `
+        + `last three months have averaged ${(paths.find(s => s.key === 'recent') || paths[0]).rate}.</strong> `
       : '<strong>The base is falling on the rates the business is currently running.</strong> ')
     + `From ${fmt.int(now)} logos today, twelve months out lands between `
     + `${fmt.int(worst)} and ${fmt.int(best)} depending on how many arrive: `
@@ -3135,9 +3135,22 @@ function renderProjection() {
   const logoMoveBest = (Math.max(...ends) - now) / now;
   const mrrMoveBest = (mrrBest - mrrNow) / mrrNow;
 
+  // What a logo pays by age, read from the model rather than typed: the typed
+  // version said "well over a thousand" where the curve read $936.
+  const secondYear = Array.from({ length: 12 }, (_, k) => p.pays(12 + k));
+  const ageSentence = `a first-month logo pays ${fmt.money(p.pays(0))} a month and one in its `
+    + `second year about ${fmt.money(secondYear.reduce((s, v) => s + v, 0) / secondYear.length)}`;
+  const worseEverywhere = paths.every(s => mrrMove(s.rows[11].mrr) < move(s.rows[11].logos));
+  const betterEverywhere = paths.every(s => mrrMove(s.rows[11].mrr) >= move(s.rows[11].logos));
   $('projection-mrr-finding').innerHTML =
-    `<strong>Revenue does worse than the logo count on every path, because the base is `
-    + `ageing and an older logo pays less.</strong> `
+    (worseEverywhere
+      ? `<strong>Revenue does worse than the logo count on every path, because the base is `
+        + `ageing and an older logo pays less.</strong> `
+      : betterEverywhere
+        ? `<strong>Revenue does at least as well as the logo count on every path, because `
+          + `the customers arriving pay more than the ones they replace.</strong> `
+        : `<strong>Revenue does better than the logo count on some paths and worse on `
+          + `others.</strong> `)
     + `From ${fmt.money(mrrNow)} a month today to between ${fmt.money(mrrWorst)} and `
     + `${fmt.money(mrrBest)}: `
     + paths.map(s => `${s.label.toLowerCase()} ${fmt.money(s.rows[11].mrr)} `
@@ -3148,10 +3161,13 @@ function renderProjection() {
         ? `On the best path the base moves ${logoMoveBest >= 0 ? '+' : ''}`
           + `${fmt.pct(logoMoveBest, 1)} while revenue moves `
           + `${mrrMoveBest >= 0 ? '+' : ''}${fmt.pct(mrrMoveBest, 1)}, and the difference is `
-          + `mix rather than churn: a first-month logo pays well over a thousand a month and `
-          + `one past its first year pays around five hundred, so replacing an old customer `
+          + `mix rather than churn: ${ageSentence}, so replacing an old customer `
           + `with a new one flatters the headcount and not the revenue for long. `
-        : '')
+        : `On the best path the base moves ${logoMoveBest >= 0 ? '+' : ''}`
+          + `${fmt.pct(logoMoveBest, 1)} and revenue ${mrrMoveBest >= 0 ? '+' : ''}`
+          + `${fmt.pct(mrrMoveBest, 1)}: ${ageSentence}, so a path that keeps arriving keeps `
+          + `topping the book up with its best-paying customers, and ageing does not cost `
+          + `revenue faster than heads. `)
     + `The spread between the best and worst of these three is `
     + `${fmt.money((mrrBest - mrrWorst) * 12)} of annual revenue, which is what the `
     + `arrival rate is worth over a year.`;
@@ -3160,19 +3176,28 @@ function renderProjection() {
     'Revenue is the projected logo count at each age multiplied by what a logo of that '
     + 'age actually pays, measured across the last six months so the curve reflects '
     + 'current pricing rather than the whole window’s. That curve falls with age: '
-    + 'a first-month logo pays well over a thousand a month and one past its first year '
-    + 'pays around five hundred, so a base that is ageing loses revenue even where it '
-    + 'holds its headcount. Same model, same scenarios and same backtest as the chart '
+    + ageSentence + ', so a base that is ageing loses revenue even where it '
+    + 'holds its headcount. Applied to today\'s base the six-month curve gives '
+    + fmt.pct(1 / p.calibration, 1) + ' of what it actually bills, so every path is scaled to '
+    + 'start from the observed ' + fmt.money(mrrNow) + ' and only the movement from there is '
+    + 'the model\'s; unscaled, every path would start ' + (p.calibration > 1 ? 'below' : 'above')
+    + ' today\'s revenue before anybody had left. '
+    + 'Same model, same scenarios and same backtest as the chart '
     + 'above. No price change is modelled in either direction.';
 
   // ---------------------------------------------------------------- 36 cash
   const served = costToServe(data);
   const costPerLogo = served ? served.months.slice(-6)
     .reduce((s, m) => s + m.cogsPerLogo, 0) / 6 : 0;
-  const cac = data.cacMonthly.slice(-6);
+  // The cost to win a logo from the same function chart 47 uses, over the same
+  // six complete months on both sides of the division and the cohort count.
+  // This used to divide six months of spend ending in a partial month by six
+  // months of summary logos ending a month earlier.
+  const acq6 = acquisitionCosts(data, { months: 6, cohorts });
   const cacPerLogo = (() => {
-    const spend = cac.reduce((s, r) => s + (r.cacTotalActual || 0), 0);
-    const logos = data.waterfall.slice(-6).reduce((s, w) => s + (w.newLogos || 0), 0);
+    const counted = acq6.months.map((m, i) => i).filter(i => acq6.logos[i] !== null);
+    const spend = counted.reduce((s, i) => s + acq6.totals[i], 0);
+    const logos = counted.reduce((s, i) => s + acq6.logos[i], 0);
     return logos ? spend / logos : 0;
   })();
 
@@ -3182,7 +3207,7 @@ function renderProjection() {
   }));
 
   multiLineChart($('chart-projection-cash'), {
-    yTitle: 'Monthly cost to run',
+    yTitle: 'Monthly contribution after serving and acquiring',
     labels: futLabels,
     yFormat: fmt.money,
     series: net.map((s, i) => ({
@@ -3201,32 +3226,35 @@ function renderProjection() {
   const cheapest = net[net.length - 1];
 
   // The first draft said the high-spend path "never catches up", which the
-  // numbers contradicted almost exactly: by month twelve the monthly lines are
-  // within a rounding error of each other. The crossover is the finding.
+  // numbers contradicted. Whether the lines cross inside the year moves with
+  // every push, so the headline branches on it rather than asserting either.
   const top = net[0];
   const bottom = net[net.length - 1];
   const gapAt = k => bottom.values[k] - top.values[k];
   const closed = net[0].values.findIndex((_, k) => gapAt(k) <= 0);
   const cum = s => s.values.reduce((a, v) => a + v, 0);
 
+  const cumGap = cum(bottom) - cum(top);
   $('projection-cash-finding').innerHTML =
-    `<strong>Spending more on acquisition costs ${fmt.money(gapAt(0))} a month at the `
-    + `start and ${fmt.money(gapAt(11))} a month by the end of the year: over twelve `
-    + `months the two paths very nearly converge.</strong> `
+    (closed >= 0
+      ? `<strong>Spending more on acquisition costs ${fmt.money(gapAt(0))} a month at the `
+        + `start, and the two paths cross in month ${closed + 1}: by the end of the year the `
+        + `higher rate is ${fmt.money(-gapAt(11))} a month ahead.</strong> `
+      : `<strong>Spending more on acquisition costs ${fmt.money(gapAt(0))} a month at the `
+        + `start and ${fmt.money(gapAt(11))} a month by the end of the year.</strong> `)
     + `At ${fmt.money(cacPerLogo)} to win a logo and ${fmt.money(costPerLogo)} a month to `
     + `serve one, ${top.rate} arrivals a month starts at ${fmt.money(top.values[0])} and `
     + `ends at ${fmt.money(top.values[11])}, while ${bottom.rate} a month starts at `
-    + `${fmt.money(bottom.values[0])} and ends at ${fmt.money(bottom.values[11])} — `
-    + `the higher rate is climbing and the lower one is falling. `
-    + (closed >= 0
-        ? `They cross in month ${closed + 1}. `
-        : `They have not crossed by month twelve, but the gap has closed from `
-          + `${fmt.money(gapAt(0))} to ${fmt.money(gapAt(11))} and is still narrowing, so `
-          + `the crossover sits just outside this window. `)
-    + `Cumulatively the cheaper path is still ${fmt.money(cum(bottom) - cum(top))} ahead `
-    + `over the year, which is the price of growth rather than an argument against it: `
-    + `the spend that looks expensive here is what fills the cohorts chart 33 shows paying `
-    + `back at around nine months. <strong>The real conclusion is about retention, not `
+    + `${fmt.money(bottom.values[0])} and ends at ${fmt.money(bottom.values[11])}. `
+    + (closed >= 0 ? ''
+      : `The gap has closed from ${fmt.money(gapAt(0))} to ${fmt.money(gapAt(11))}, so `
+        + `the crossover sits outside this window. `)
+    + (cumGap >= 0
+      ? `Cumulatively the cheaper path is still ${fmt.money(cumGap)} ahead over the year, `
+        + `which is the price of growth rather than an argument against it: the spend that `
+        + `looks expensive here is what fills the cohorts chart 33 follows to break-even. `
+      : `Cumulatively the higher rate is already ${fmt.money(-cumGap)} ahead over the year. `)
+    + `<strong>The real conclusion is about retention, not `
     + `acquisition.</strong> Both paths flatten toward the same number because the base `
     + `underneath them is decaying at the same rate, and no arrival rate in this range `
     + `changes that.`;
@@ -3235,7 +3263,7 @@ function renderProjection() {
     'Projected revenue less the cost of serving the projected base less the cost of '
     + 'acquiring that month’s new logos, at '
     + fmt.money(costPerLogo) + ' per active logo a month and ' + fmt.money(cacPerLogo)
-    + ' per new logo, both the mean of the last six months. It is a monthly contribution '
+    + ' per logo started, both over the last six complete months. It is a monthly contribution '
     + 'line and not a cash-flow forecast: it excludes G&A and R&D, which are real and '
     + 'add roughly ' + (served ? fmt.money(served.months.slice(-1)[0].opexPerLogo) : '--')
     + ' per active logo a month, and it excludes everything the business does that is not '

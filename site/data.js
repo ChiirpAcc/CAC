@@ -2108,6 +2108,22 @@ export function projectBase(data, { months = 12 } = {}) {
     return v.map(x => x || 0);
   };
 
+  // The age curve is an average over six months, so applied to one month's
+  // base it does not reproduce that month's MRR: on the push this was written
+  // against it priced the August book 8% below what it actually billed, and
+  // every path then fell 6 to 10% in its first month before anybody had left.
+  // The curve is scaled so that, applied to the latest base, it reproduces the
+  // MRR that base actually bills, and only the movement from there is the
+  // model's. The backtest walks with the same scale, so it tests the model as
+  // drawn; scaling it at its own start instead would price a year-old base on
+  // today's curve twice over.
+  const observedMrr = month => [...live.get(month).values()].reduce((s, v) => s + v, 0);
+  const calibrationAt = month => {
+    const modelled = stateAt(month).reduce((s, v, age) => s + v * pays(age), 0);
+    return modelled > 0 ? observedMrr(month) / modelled : 1;
+  };
+  const scale = calibrationAt(last);
+
   const run = (from, steps, arrivals) => {
     let state = stateAt(from);
     const out = [];
@@ -2121,7 +2137,7 @@ export function projectBase(data, { months = 12 } = {}) {
       out.push({
         month: monthAdd(from, k),
         logos: state.reduce((s, v) => s + v, 0),
-        mrr: state.reduce((s, v, age) => s + v * pays(age), 0),
+        mrr: scale * state.reduce((s, v, age) => s + v * pays(age), 0),
       });
     }
     return out;
@@ -2149,6 +2165,7 @@ export function projectBase(data, { months = 12 } = {}) {
     run: arrivals => run(last, months, arrivals),
     survival,
     pays,
+    calibration: scale,
     blended,
     backtest: {
       from: backFrom,
