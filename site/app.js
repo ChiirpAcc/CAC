@@ -3281,9 +3281,21 @@ function renderFloors() {
   const f = r.floors;
 
   // ------------------------------------------------------------------ 37
-  const edges = [0, 1, 120, 300, 500, 665, 900, 1200, 1600, Infinity];
-  const names = ['Pays nothing', '$1-119', '$120-299', '$300-499', '$500-664',
-                 '$665-899', '$900-1,199', '$1,200-1,599', '$1,600+'];
+  // Two of the edges are the floors themselves, read from priceFloors, so a
+  // band never straddles a verdict. They were typed as the floors of an older
+  // push, $120 and $665, and the $300 to $499 band came to straddle a $475
+  // allocated floor while being coloured as wholly below it.
+  const marginalEdge = Math.ceil(f.marginalFloor);
+  const allocatedEdge = Math.ceil(f.allocatedFloor);
+  const fixedEdges = [300, 900, 1200, 1600].filter(e => e > marginalEdge && e !== allocatedEdge);
+  const edges = [...new Set([0, 1, marginalEdge, allocatedEdge, ...fixedEdges])]
+    .sort((a, b) => a - b).concat(Infinity);
+  const names = edges.slice(0, -1).map((lo, i) => {
+    const hi = edges[i + 1];
+    if (lo === 0) return 'Pays nothing';
+    return hi === Infinity ? `$${lo.toLocaleString()}+`
+      : `$${lo.toLocaleString()}-${(hi - 1).toLocaleString()}`;
+  });
   const counts = names.map(() => 0);
   const money = names.map(() => 0);
   for (const v of f.paying) {
@@ -3339,7 +3351,7 @@ function renderFloors() {
     + `One more or one fewer customer changes ${fmt.money(f.marginalPerLogo)} of licence `
     + `and hosting plus ${fmt.pct(f.variablePct, 1)} of what they pay, so the price at `
     + `which a customer starts putting cash in the bank is `
-    + `${fmt.money(f.marginalFloor)} a month \— not `
+    + `${fmt.money(f.marginalFloor)} a month, not `
     + `${fmt.money(f.allocatedFloor)}. `
     + `${fmt.int(belowMarginal.length)} paying customers sit under that, between them `
     + `worth ${fmt.money(belowMarginal.reduce((s, v) => s + v, 0))} a month. `
@@ -3363,12 +3375,13 @@ function renderFloors() {
     + 'pricing and wrong for keep-or-cut, because none of it is saved by losing one '
     + 'customer. R&D is in neither floor: charging tomorrow’s product to today’s '
     + 'customers would conclude that a company investing in product has worse unit '
-    + 'economics than one that is not. Acquisition is in neither either — it belongs '
+    + 'economics than one that is not. Acquisition is not in either floor: it belongs '
     + 'to the cohort that caused it, which is chart 33. Of the fixed cost, roughly '
     + fmt.money(f.removablePayrollPerLogo) + ' a logo is payroll that could come out if '
-    + 'enough customers went for headcount to follow — that is a step change across '
-    + 'hundreds of accounts, not a saving available one at a time. Acquisition is not in '
-    + 'either floor. '
+    + 'enough customers went for headcount to follow. That is a step change across '
+    + 'hundreds of accounts, not a saving available one at a time. The two lowest band '
+    + 'edges above zero are the floors themselves, so every bar sits wholly on one side of '
+    + 'each. '
     + 'Every rate here is the median of the last six months rather than the pooled '
     + 'mean, because a push taken before a month closes can carry an invoice without '
     + 'the credit that reverses it, which this one does for August, and a mean would '
@@ -3387,11 +3400,12 @@ function renderFloors() {
     yTitle: 'Monthly recurring revenue',
     labels,
     yFormat: fmt.money,
+    // The floor the survivors then need is a few hundred dollars on an axis
+    // that runs to about $800k, where it drew flat on the baseline. It is in
+    // the hover and the finding instead.
     series: [
       { label: 'Monthly revenue after the exercise', colour: INK.primary,
         values: r.acceptance.map(a => a.mrr) },
-      { label: 'What the survivors then have to pay', colour: INK.negative,
-        dashed: true, values: r.acceptance.map(a => a.floor) },
     ],
     refs: [{ value: f.totalMrr, label: 'revenue today', variant: 'ref-goal' }],
     describe: i => {
@@ -3405,11 +3419,21 @@ function renderFloors() {
     },
   });
 
+  // The last row is the base going into the final round, not what is left
+  // after it. When everyone in that round is below the floor the round
+  // removes them all, and the base ends at nothing.
   const end = r.spiral[r.spiral.length - 1];
+  const emptied = end.below === end.logos;
+  const finalCount = end.logos - end.below;
   $('reprice-finding').innerHTML =
-    `<strong>Cutting everyone below the allocated floor does not converge \— it `
+    `<strong>Cutting everyone below the allocated floor does not converge: it `
     + `runs the base from ${fmt.int(f.paying.length)} paying logos to `
-    + `${fmt.int(end.logos)}.</strong> The fixed cost stays when the customer goes, so `
+    + (emptied
+      ? `none, over ${r.spiral.length} rounds. The last round starts with `
+        + `${fmt.int(end.logos)} logos and every one of them is under a `
+        + `${fmt.money(end.floor)} floor.</strong> `
+      : `${fmt.int(finalCount)} after ${r.spiral.length} rounds.</strong> `)
+    + `The fixed cost stays when the customer goes, so `
     + `every round raises the floor and pushes more customers under it: `
     + r.spiral.slice(0, 4).map(s =>
         `${fmt.int(s.logos)} logos at a ${fmt.money(s.floor)} floor`).join(', then ')
@@ -3610,7 +3634,9 @@ function renderOngoing() {
   ];
 
   multiLineChart($('chart-ongoing'), {
-    yTitle: 'Cost to serve one logo, per month',
+    // Keep, not serve: the total carries G&A and R&D. Chart 49 leaves both out
+    // of what it calls serving, and the floors in chart 37 leave out R&D.
+    yTitle: 'Cost to keep one paying logo, per month',
     labels,
     yFormat: fmt.money,
     series: [
@@ -3645,16 +3671,24 @@ function renderOngoing() {
   };
   const typical = medianOf(r => r.total);
   const typicalArpa = medianOf(r => r.arpa);
-  const move = k => (a[k] ? (b[k] - a[k]) / a[k] : null);
+  // Ranked on the same six-month medians as the headline. Ranking on the raw
+  // last month named merchant and revenue share the largest rise on the very
+  // month the sentence before it said to distrust.
   const ranked = layers
-    .map(l => ({ ...l, from: a[l.key], to: b[l.key], delta: b[l.key] - a[l.key] }))
+    .map(l => {
+      const to = medianOf(r => r[l.key]);
+      return { ...l, from: a[l.key], to, delta: to - a[l.key],
+               move: a[l.key] ? (to - a[l.key]) / a[l.key] : null };
+    })
     .sort((x, y) => y.delta - x.delta);
   const worst = ranked[0];
+  const flattest = [...ranked].sort((x, y) => Math.abs(x.move ?? 0) - Math.abs(y.move ?? 0))[0];
+  const overhead = ['admin', 'people'].includes(worst.key);
 
   $('ongoing-finding').innerHTML =
     `<strong>Keeping a customer cost ${fmt.money(a.total)} a month in `
-    + `${fmt.monthLabel(a.month)} and ${fmt.money(typical)} now, while what they pay — `
-    + `subscription, usage, setup and pass-through together — went `
+    + `${fmt.monthLabel(a.month)} and ${fmt.money(typical)} now, while what they pay, `
+    + `subscription, usage, setup and pass-through together, went `
     + `from ${fmt.money(a.arpa)} to ${fmt.money(typicalArpa)}.</strong> `
     + `Both figures are the median of the last six months rather than the last one, `
     + `because ${fmt.monthLabel(b.month)} was pulled before its revenue-share credit was `
@@ -3664,11 +3698,11 @@ function renderOngoing() {
     + `${fmt.pct((typicalArpa - a.arpa) / a.arpa, 0)} on price, which is `
     + `why the margin has narrowed even though the average customer pays more than they `
     + `used to. `
-    // "the whole of the increase" was asserted. The largest layer is currently
-    // 38% of the rise, with the next one close behind it, so say the share.
+    // "the whole of the increase" was asserted. Say the share instead, on the
+    // medians, so the ranking and the headline read the same months.
     + `<strong>${worst.label} is the largest part of the increase</strong>: `
-    + `${fmt.money(worst.from)} to ${fmt.money(worst.to)} a logo, `
-    + `${fmt.pct(move(worst.key), 0)}, which is `
+    + `${fmt.money(worst.from)} to ${fmt.money(worst.to)} a logo on the six-month median, `
+    + `${fmt.pct(worst.move, 0)}, which is `
     + `${(() => {
         const rise = ranked.filter(l => l.delta > 0).reduce((s, l) => s + l.delta, 0);
         return rise ? fmt.pct(worst.delta / rise, 0) : 'most';
@@ -3677,18 +3711,29 @@ function renderOngoing() {
         ? `${ranked[1].label} is close behind at ${fmt.money(ranked[1].from)} to `
           + `${fmt.money(ranked[1].to)}, so this is not a single line running away. `
         : ''}`
-    + `Platform is the one that has not moved — `
-    + `${fmt.money(a.platform)} to ${fmt.money(b.platform)} — so the product scales `
-    + `with the customer count and the company does not. That is the distinction worth `
-    + `carrying out of this chart: none of the rise is the cost of running software for `
-    + `more people. It is the cost of being a bigger company, spread over a base that has `
-    + `stopped growing.`;
+    + `${flattest.label} has moved least, ${fmt.money(flattest.from)} to `
+    + `${fmt.money(flattest.to)}. `
+    + (overhead && flattest.key === 'platform'
+      ? `So the product scales with the customer count and the company does not. That is `
+        + `the distinction worth carrying out of this chart: little of the rise is the cost `
+        + `of running software for more people. It is the cost of being a bigger company, `
+        + `spread over a base that has stopped growing.`
+      : overhead
+        ? `Most of the rise is overhead rather than the cost of running software for more `
+          + `people: the cost of being a bigger company, spread over a base that has `
+          + `stopped growing.`
+        : `The largest rise follows the customer rather than the company, so it is a cost `
+          + `of serving more usage, not of overhead.`);
 
   $('ongoing-note').textContent =
     'Every recurring cost the business carries, divided by PAYING logos rather than all of '
     + 'them, because an account at zero MRR cannot carry any of this and dividing by it '
     + 'flatters every month. Acquisition is deliberately absent: it belongs to the cohort '
-    + 'that caused it, and chart 33 charges it there. The layers are exclusive and sum to '
+    + 'that caused it, and chart 33 charges it there. G&A and R&D are in, because this '
+    + 'asks what it costs to keep the company running per customer; chart 49 and the floors '
+    + 'in chart 37, which ask what a customer costs to serve, leave R&D out, since charging tomorrow\'s product '
+    + 'to today\'s customers would make a company investing in product look worse. The '
+    + 'layers are exclusive and sum to '
     + 'the dashed line. Platform is per-seat software and hosting; support and success is '
     + 'every person who looks after customers whichever account they sit in; merchant and '
     + 'revenue share are the two costs that follow a payment rather than a customer, so '

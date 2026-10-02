@@ -3750,8 +3750,9 @@ export function eventReports(data) {
 // it cannot cover the company. It is the wrong number for deciding whether to
 // keep an individual customer, because none of that cost leaves with them.
 //
-// The gap between the two is the whole argument: on current numbers it is
-// $120 against $665.
+// The gap between the two is the whole argument: on the push of October 2026
+// it is $117 against $475. Chart 37 reads both from here, never from this
+// comment.
 export function priceFloors(data, { window = 6 } = {}) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
@@ -3805,12 +3806,13 @@ export function priceFloors(data, { window = 6 } = {}) {
       else if (/^5000-03/.test(a)) key = 'hosting';
       else if (/^5050-/.test(a)) key = 'support';
       else if (row.bucket === 'SPLIT' && !/Partnerships/i.test(a)) key = 'success';
-      // 6100-0x other than the revenue share above is acquisition spend —
-      // professional services, advertising, tradeshows, content — and sits in
+      // 6100-0x other than the revenue share above is acquisition spend:
+      // professional services, advertising, tradeshows, content. It sits in
       // the CAC bucket. It was being counted here as a cost of serving, which
-      // put $78 a logo a month of acquisition into the price floor and pushed
-      // it about $86 too high. Acquisition belongs to the cohort that caused
-      // it, which is chart 33's job, not to the standing base.
+      // put about $60 a logo a month of acquisition into the price floor and
+      // pushed it about $66 too high on the October 2026 push. Acquisition
+      // belongs to the cohort that caused it, which is chart 33's job, not to
+      // the standing base.
       else if (/^6200-/.test(a)) key = 'ga';
       else if (/^6300-/.test(a)) key = 'rd';
       else if (/^8000-/.test(a)) key = 'da';
