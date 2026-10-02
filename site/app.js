@@ -18,7 +18,7 @@ import {
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
-  silentLogos,
+  silentLogos, logosStarted,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -349,9 +349,9 @@ function renderLtvAtAge() {
 }
 
 
-// 13. What each price band actually returns.
+// 14. What each price band actually returns.
 //
-// This exists because chart 12 invites a conclusion it cannot support. Two
+// This exists because chart 13 invites a conclusion it cannot support. Two
 // lines on two scales appear to cross somewhere, and a crossing looks like an
 // optimum: price here, capture the most revenue. It is not one. The scales can
 // be slid until the lines meet anywhere on the chart, so the meeting point
@@ -388,11 +388,12 @@ function renderPriceBands() {
     },
     describe: i => {
       const b = pb.bands[i];
-      return `<strong>${b.label} at signup</strong>
+      return `<strong>${b.label} a month from month 2</strong>
         <span>${fmt.int(b.n)} customers, average ${fmt.money(b.price)}</span>
         <span>${fmt.money(b.cashPerCustomer)} of cash over ${horizon} months</span>
         <span>${b.perDollar.toFixed(1)}x the monthly price</span>
-        <span class="muted">${fmt.pct(b.survival, 0)} still there at month ${horizon}</span>`;
+        <span>${fmt.pct(b.feeEraShare, 0)} started before ${fmt.monthLabel(pb.feeEraEnds)}</span>
+        <span class="muted">${fmt.pct(b.survival, 0)} still there at month ${horizon - 1}</span>`;
     },
   });
 
@@ -405,34 +406,55 @@ function renderPriceBands() {
       <td class="n">${b.perDollar.toFixed(1)}x</td>
     </tr>`).join('');
   $('price-bands-table').innerHTML =
-    '<thead><tr><th>Price at signup</th><th class="n">Customers</th><th class="n">Average price</th>'
-    + `<th class="n">Alive at month ${horizon}</th><th class="n">Cash each</th>`
+    '<thead><tr><th>Pays a month</th><th class="n">Customers</th><th class="n">Average price</th>'
+    + `<th class="n">Alive at month ${horizon - 1}</th><th class="n">Cash each</th>`
     + '<th class="n">Per $1 of price</th></tr></thead><tbody>' + rows + '</tbody>';
 
   const best = pb.bands.reduce((a, b) => (b.cashPerCustomer > a.cashPerCustomer ? b : a));
-  const bestPer = pb.bands.reduce((a, b) => (b.perDollar > a.perDollar ? b : a));
   const top = pb.bands[pb.bands.length - 1];
-  const rising = top.cashPerCustomer >= best.cashPerCustomer - 1;
+  // Every adjacent pair, not the top band against the best: the old test
+  // printed "keeps rising" over a band that returned less than the one below.
+  const steps = pb.bands.slice(1).map((b, i) => b.cashPerCustomer - pb.bands[i].cashPerCustomer);
+  const cashRises = steps.every(d => d > 0);
+  const perSteps = pb.bands.slice(1).map((b, i) => b.perDollar - pb.bands[i].perDollar);
+  const perDirection = perSteps.every(d => d > 0) ? 'rises'
+    : perSteps.every(d => d < 0) ? 'falls' : 'moves without a direction';
+  const dips = pb.bands.slice(1).filter((b, i) => steps[i] <= 0);
+  const first = pb.bands[0];
 
-  $('price-bands-finding').innerHTML = rising
-    ? `<strong>No ceiling is visible inside the range we charge.</strong> Cash per customer keeps `
-      + `rising with price, ${fmt.money(pb.bands[0].cashPerCustomer)} in the ${pb.bands[0].label} `
-      + `band against ${fmt.money(top.cashPerCustomer)} in ${top.label}. What falls is the return `
-      + `per dollar charged: ${bestPer.perDollar.toFixed(1)}x at ${bestPer.label} down to `
-      + `${top.perDollar.toFixed(1)}x at the top. Higher prices bring in more, just less than `
-      + `proportionally more, and nothing here marks a price to stop at.`
-    : `<strong>Cash per customer peaks in the ${best.label} band</strong> at `
-      + `${fmt.money(best.cashPerCustomer)}, above both the cheaper and the dearer bands. `
-      + `That is the shape an optimum would make, on ${fmt.int(best.n)} customers.`;
+  $('price-bands-finding').innerHTML = (cashRises
+    ? `<strong>No ceiling is visible inside the range we charge.</strong> Cash per customer rises `
+      + `with every band, ${fmt.money(first.cashPerCustomer)} in ${first.label} against `
+      + `${fmt.money(top.cashPerCustomer)} in ${top.label}. `
+    : best === top
+      ? `<strong>The dearest band returns the most cash</strong>, ${fmt.money(top.cashPerCustomer)} `
+        + `against ${fmt.money(first.cashPerCustomer)} in ${first.label}, but not at every step: `
+        + `${dips.map(b => b.label).join(' and ')} ${dips.length === 1 ? 'returns' : 'return'} less than the band below. `
+      : `<strong>Cash per customer peaks in the ${best.label} band</strong> at `
+        + `${fmt.money(best.cashPerCustomer)}, on ${fmt.int(best.n)} customers. `)
+    + `The return per dollar of monthly price ${perDirection} with price, `
+    + `${first.perDollar.toFixed(1)}x at ${first.label} and ${top.perDollar.toFixed(1)}x at ${top.label}`
+    + (perDirection === 'rises'
+      ? ', so a dearer customer does not just pay more, they pay it for longer.'
+      : perDirection === 'falls'
+        ? ', so higher prices bring in more, just less than proportionally more.'
+        : '.');
 
   $('price-bands-note').textContent =
     'Every customer who signed in the window and has had ' + horizon + ' full months since, '
-    + fmt.int(pb.n) + ' of them, grouped by the subscription booked at signup. Bands with fewer '
-    + 'than ten customers are dropped. Read this as what each kind of customer did, not as a '
-    + 'demand curve: we never offered a price outside this range, so it cannot say how many '
-    + 'customers a price we have not charged would win. It is also selection rather than '
-    + 'causation, because a customer who pays more is usually a larger business, not the same '
-    + 'business charged more.';
+    + fmt.int(pb.n) + ' of them, grouped by what they paid a month from their second month. '
+    + 'The booked signup price is not used, because until mid-2025 it carried a joining charge '
+    + 'that came off the month after: banded on it, ' + fmt.int(pb.bookedBandChanged)
+    + ' of these customers sit in a different band, and the fee era fills the dearest bands. '
+    + 'A customer with no paid second month is '
+    + 'banded on the booked price. The cash is everything they paid, so the first month still '
+    + 'carries the charge, and the tooltip gives each band\'s share of starts from before '
+    + fmt.monthLabel(pb.feeEraEnds) + '. Alive at month ' + (horizon - 1) + ' counts the signup '
+    + 'month as month 0, as chart 8 does. Bands with fewer than ten customers are dropped. Read '
+    + 'this as what each kind of customer did, not as a demand curve: we never offered a price '
+    + 'outside this range, so it cannot say how many customers a price we have not charged '
+    + 'would win. It is also selection rather than causation, because a customer who pays more '
+    + 'is usually a larger business, not the same business charged more.';
 }
 
 
@@ -6070,8 +6092,8 @@ const MEANS = {
 
   'chart-start-type':
     'The share of a month that is not a standard start is the share of the cohort dating that '
-    + 'is approximate. Shifted forward customers are the left censoring problem, already '
-    + 'classified by hand upstream, which is a better answer than any rule that infers them. '
+    + 'is approximate. Shifted forward customers have had their start date moved upstream, and '
+    + 'the cohort charts leave them out rather than guess at when they began. '
     + 'The annual customers are worth watching separately: two of them carry enough to make '
     + 'the months holding them read high.',
 
@@ -6636,8 +6658,7 @@ function renderSignups() {
   const first = ms[0];
   const last = ms[ms.length - 1];
 
-  // 13. Volume, price and the product of the two, indexed so three quantities
-  // in different units can share one axis.
+  // 13. Volume against price.
   // Two real scales rather than both indexed to 100. Indexing answered "how
   // far has each moved", which hid the thing being asked: what a customer
   // costs now against how many are arriving, in the units those are actually
@@ -6650,12 +6671,18 @@ function renderSignups() {
   // window could not show that.
   const ph = signupPriceHistory(data);
   const phLabels = ph.map(r => fmt.monthLabel(r.month));
+  // Volume is the page's one count of a logo, customers dated by their first
+  // revenue. The count of new events with a price was a third definition, up
+  // to nine short of it in a month. The boundary month is blank: its count is
+  // only the customers with a Stripe start date in it.
+  const started = logosStarted(data, cohorts);
+  const volume = ph.map(r => started.get(r.month) ?? null);
   dualAxisChart($('chart-price-volume'), {
     labels: phLabels,
     left: {
       label: 'New logos',
       colour: INK.negative,
-      values: ph.map(r => r.count),
+      values: volume,
       format: v => Math.round(v),
     },
     right: {
@@ -6668,9 +6695,11 @@ function renderSignups() {
       shadow: { values: ph.map(r => r.mean), label: 'As booked in new_mrr' },
     },
     describe: i => '<strong>' + fmt.monthLabel(ph[i].month) + '</strong>'
-      + '<span>' + fmt.int(ph[i].count) + ' new logos</span>'
-      + '<span>Average ' + fmt.money(ph[i].mean) + ', median ' + fmt.money(ph[i].median) + '</span>'
-      + '<span class="muted">' + fmt.money(ph[i].booked) + ' of new MRR booked</span>',
+      + '<span>' + (volume[i] === null ? 'No count at the window boundary' : fmt.int(volume[i]) + ' new logos') + '</span>'
+      + '<span>Paying ' + fmt.money(ph[i].recurringMean) + ' a month from month 2, on '
+      + fmt.int(ph[i].recurringN) + ' still paying</span>'
+      + '<span class="muted">Booked at an average ' + fmt.money(ph[i].mean) + ', median '
+      + fmt.money(ph[i].median) + '</span>',
   });
 
   const withRec = ph.filter(r => r.recurringMean !== null);
@@ -6705,8 +6734,15 @@ function renderSignups() {
     + 'mid-2025 the first month’s charge was booked as MRR and taken off again the next '
     + 'month as a contraction, worth ' + fmt.money(avg(premiumEarly)) + ' a customer on average, '
     + 'against ' + (Math.abs(avg(premiumLate)) < 25 ? 'nothing'
-        : fmt.money(Math.abs(avg(premiumLate)))) + ' once the practice stopped. Volume went from '
-    + fmt.int(ph[0].count) + ' to ' + fmt.int(ph[ph.length - 1].count) + ' over the same window.';
+        : fmt.money(Math.abs(avg(premiumLate)))) + ' once the practice stopped. '
+    + (() => {
+        const counted = ph.map((r, i) => ({ month: r.month, n: volume[i] })).filter(x => x.n !== null);
+        return counted.length > 1
+          ? 'Volume went from ' + fmt.int(counted[0].n) + ' in ' + fmt.monthLabel(counted[0].month)
+            + ' to ' + fmt.int(counted[counted.length - 1].n) + ' in '
+            + fmt.monthLabel(counted[counted.length - 1].month) + ' over the same window.'
+          : '';
+      })();
 
   $('price-volume-note').innerHTML =
     '<strong>The point where these lines cross means nothing.</strong> Two scales can be slid '
@@ -6714,11 +6750,15 @@ function renderSignups() {
     + 'fact about the business, and it is not a price to aim at. The chart below asks that '
     + 'question properly, by grouping customers by what they paid and following each group '
     + 'forward. Read the shapes here, not the intersection. '
-    + 'Price is new_mrr, the subscription booked when a customer joins, which is the only '
-    + 'price measure that exists for all ' + ph.length + ' months. The richer starting_mrr, '
-    + 'what a customer was actually sold, is only populated from 2026-01 and is what charts 15 '
-    + 'and 16 use. The two differ because new_mrr excludes fees and waived amounts, so the '
-    + 'level here is low and the shape is the part to read.';
+    + 'The price line is what each new customer paid in their second month, averaged over the '
+    + 'ones still paying then, because the booked new_mrr carried the joining charge until '
+    + 'mid-2025. A customer present in month 2 at $0, a free month, is left out of the '
+    + 'average rather than counted at zero, which lifts the 2026 months where free starts are '
+    + 'commonest. The booked new_mrr is drawn faintly behind it and is in the tooltip. The '
+    + 'richer starting_mrr, what a customer was actually sold, is only populated from 2026-01 '
+    + 'and is what chart 16 uses. New logos are the customers whose first revenue fell in the '
+    + 'month, the count the cohort charts use; the first month of the window has no count, '
+    + 'because only customers with a Stripe start date can be dated to it.';
 
   // 14. Attach rate and fee are two different movements.
   if ($('chart-onboarding')) multiLineChart($('chart-onboarding'), {
@@ -6760,8 +6800,11 @@ function renderSignups() {
         + `${fmt.int(m.billedNew)} (${fmt.pct(m.coverage, 0)})`).join(', ')
       + '. Those months are drawn from that share rather than from everyone who started, so '
       + 'read them as provisional. It also means the count here is not a demand measure: the '
-      + 'billed count of new customers has held near its two year average while this tab has '
-      + 'thinned.'
+      + 'tab has thinned faster than the billed count of new customers, which itself ran '
+      + fmt.int(thin.reduce((s, m) => s + m.billedNew, 0) / thin.length) + ' a month over those '
+      + 'months against ' + fmt.int(sx.billedWindowMean) + ' across the window. Coverage can read '
+      + 'above 100%, because some signups carry no new event in the billing file and some carry '
+      + 'it in a different month.'
     : '';
 
   if ($('onboarding-note')) $('onboarding-note').textContent =
@@ -6770,7 +6813,7 @@ function renderSignups() {
     + 'charged would '
     + 'blend the two movements back together.' + coverageNote;
 
-  // 15. How much of a month is not a standard start.
+  // 16. How much of a month is not a standard start.
   const types = sx.typeTotals.map(x => x.type);
   const palette = [INK.tertiary, INK.primary, INK.secondary, INK.negative, INK.positive];
   multiLineChart($('chart-start-type'), {
@@ -6794,8 +6837,9 @@ function renderSignups() {
     '<strong>Not every month starts the same way, and three of these break a different '
     + 'number.</strong> '
     + (shifted ? shifted.customers + ' customers are shifted forward, '
-        + fmt.money(shifted.startingMrr) + ', which is the left censoring problem already '
-        + 'classified by hand rather than inferred. ' : '')
+        + fmt.money(shifted.startingMrr) + ': the workbook has moved their start date, so the '
+        + 'month they are filed under is not the month they began, and the cohort charts leave '
+        + 'them out rather than date them to it. ' : '')
     + (waived ? waived.customers + ' were waived, ' + fmt.money(waived.startingMrr)
         + ', counting as MRR while contributing no cash. ' : '')
     + (annual ? annual.customers + ' are annual, ' + fmt.money(annual.startingMrr)

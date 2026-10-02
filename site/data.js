@@ -1258,9 +1258,21 @@ export function signupPriceHistory(data) {
 // means nothing, but the underlying question is real and this is where it
 // can be asked. Each band is followed the same number of months, so the
 // comparison is age-matched.
+//
+// Banded on what a customer pays from their second month, not on the booked
+// new_mrr. Until mid-2025 the booked figure carried the joining charge (see
+// signupPriceHistory), so it put fee-era customers two bands above what they
+// went on paying: 63% of starts changed band and the top two bands were mostly
+// 2024. A customer with no paid second month (gone, or a free
+// month) is banded on the booked price, which is the only one they have.
+//
+// Survival is presence at the last month of the window, start + horizon - 1,
+// which is month horizon - 1 in chart 8's terms where the signup month is 0.
+export const FEE_ERA_ENDS = '2025-07';
 export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500, Infinity] } = {}) {
   const live = new Map();
   const cash = new Map();
+  const mrr = new Map();
   for (const row of data.customers) {
     if (row.active) {
       if (!live.has(row.month)) live.set(row.month, new Set());
@@ -1268,6 +1280,10 @@ export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500
     }
     if (!cash.has(row.id)) cash.set(row.id, new Map());
     cash.get(row.id).set(row.month, row.netCash || 0);
+    if (row.active) {
+      if (!mrr.has(row.id)) mrr.set(row.id, new Map());
+      mrr.get(row.id).set(row.month, row.eopMrr || 0);
+    }
   }
   const last = data.lastMonth;
 
@@ -1275,8 +1291,14 @@ export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500
   for (const row of data.customers) {
     if (row.eventType !== 'new' || !row.newMrr || row.newMrr <= 0) continue;
     if (monthAdd(row.month, horizon - 1) > last) continue;
-    starts.push({ id: row.id, month: row.month, price: row.newMrr });
+    const second = mrr.get(row.id)?.get(monthAdd(row.month, 1));
+    const paid = second !== undefined && second > 0 ? second : null;
+    starts.push({ id: row.id, month: row.month, booked: row.newMrr,
+                  price: paid ?? row.newMrr, onBooked: paid === null,
+                  feeEra: row.month < FEE_ERA_ENDS });
   }
+  const bandOf = price => edges.findIndex((lo, i) => i < edges.length - 1 && price >= lo && price < edges[i + 1]);
+  const bookedBandChanged = starts.filter(s => bandOf(s.price) !== bandOf(s.booked)).length;
 
   const bands = [];
   for (let i = 0; i < edges.length - 1; i += 1) {
@@ -1298,13 +1320,17 @@ export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500
       survival: alive / group.length,
       price,
       cashPerCustomer: total / group.length,
-      // Six months of cash per dollar of monthly price. Flat would mean price
-      // buys exactly proportional revenue; falling means diminishing returns.
+      // Cash over the window per dollar of what the band pays a month. Flat
+      // would mean price buys exactly proportional revenue; falling means
+      // diminishing returns. The first month's cash still carries the old
+      // joining charge, which is real money and is not taken out.
       perDollar: total / group.length / price,
+      feeEraShare: group.filter(s => s.feeEra).length / group.length,
+      onBooked: group.filter(s => s.onBooked).length,
       total,
     });
   }
-  return { horizon, bands, n: starts.length };
+  return { horizon, bands, n: starts.length, bookedBandChanged, feeEraEnds: FEE_ERA_ENDS };
 }
 
 
@@ -6355,12 +6381,12 @@ export function signupEconomics(data, { dropTrailing = true } = {}) {
   //
   // The signups tab is filled in by hand and it runs behind. Every customer
   // who starts paying produces a `new` event in the customer file, so that is
-  // the count to measure it against. Coverage was complete in January and is
-  // near half by June, which means the recent months of any chart drawn from
-  // this tab rest on a part of their intake rather than all of it. Falling
-  // coverage also looks exactly like falling sales if nobody checks, and it is
-  // the reason the tab reads about 25 a month while the billed count holds
-  // near 46.
+  // the count to measure it against. Coverage ran above complete early in
+  // 2026 and falls through the year, which means the recent months of any
+  // chart drawn from this tab rest on a part of their intake rather than all
+  // of it. Falling coverage also looks exactly like falling sales if nobody
+  // checks. It can read above 100%, because some signup ids carry no new event
+  // and some carry it in a different month from the tab's cohort month.
   const billed = new Map();
   for (const row of data.customers) {
     if (row.eventType !== 'new') continue;
@@ -6405,8 +6431,11 @@ export function signupEconomics(data, { dropTrailing = true } = {}) {
   }).sort((a, b) => b.customers - a.customers);
 
   const below = rows.filter(r => r.firstPayment < r.startingMrr);
+  const billedMonths = [...billed.values()];
 
   return {
+    billedWindowMean: billedMonths.length
+      ? billedMonths.reduce((s, v) => s + v, 0) / billedMonths.length : null,
     months: series,
     startTypes,
     typeTotals,
