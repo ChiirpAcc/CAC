@@ -1166,7 +1166,7 @@ function showView(which) {
     }
   }
 
-  $('view-story').hidden = which !== 'story';
+  if ($('view-story')) $('view-story').hidden = which !== 'story';
   $('view-all').hidden = which !== 'all';
   if ($('view-list')) $('view-list').hidden = which !== 'list';
   if ($('view-events')) $('view-events').hidden = which !== 'events';
@@ -1182,7 +1182,7 @@ function showView(which) {
 
 function wireTabs() {
   rememberHomes();
-  $('tab-story').addEventListener('click', () => showView('story'));
+  if ($('tab-story')) $('tab-story').addEventListener('click', () => showView('story'));
   $('tab-all').addEventListener('click', () => showView('all'));
   if ($('tab-list')) $('tab-list').addEventListener('click', () => showView('list'));
   if ($('tab-events')) $('tab-events').addEventListener('click', () => showView('events'));
@@ -4026,6 +4026,12 @@ function renderEvents() {
   // than the chosen age is set aside, not ranked low.
   const costed = e.events.filter(x => x.spend !== null);
   const t = e.totals;
+  const paybackBy = new Map(r.payback.map(p => [p.label, p]));
+  const paybackWords = p => (!p ? 'no projection'
+    : p.status === 'paid' ? `paid for itself in month ${p.paidAt}`
+    : p.status === 'projected' ? `projected to pay for itself by month ${p.projectedAt}`
+    : p.status === 'none' ? 'no customer to project from'
+    : `not expected to pay for itself within ${r.paybackHorizon} months`);
   const recBy = new Map(r.recovery.map(x => [x.label, x]));
   const ageInput = $('events-age');
   if (ageInput && !ageInput.dataset.ready) {
@@ -4056,7 +4062,8 @@ function renderEvents() {
         })),
         ...young.map(x => ({
           label: x.label,
-          sub: `${fmt.monthLabel(x.month)} · ${x.age} month${x.age === 1 ? '' : 's'} old, not yet ${k}`,
+          sub: `${fmt.monthLabel(x.month)} · ${x.age} month${x.age === 1 ? '' : 's'} old, not yet ${k}`
+            + ` · ${paybackWords(paybackBy.get(x.label))}`,
           value: null,
           muted: true,
         })),
@@ -4165,6 +4172,45 @@ function renderEvents() {
         : '')
     + 'Two QuickBooks sponsorship lines could not be tied to an event and are in no row: $10,000 '
     + 'to LSP HoldCo in Oct 2025 and $3,660 of event costs in Australia in Oct and Nov 2025.';
+
+  // ---------------------------------------------------------------- payback, actual or projected
+  const order = { paid: 0, projected: 1, 'not expected': 2, none: 3 };
+  const pb = [...r.payback].sort((x, y) => (order[x.status] - order[y.status])
+    || ((x.paidAt ?? x.projectedAt ?? 999) - (y.paidAt ?? y.projectedAt ?? 999))
+    || x.label.localeCompare(y.label));
+  const count = st => pb.filter(p => p.status === st).length;
+  const within = n => pb.filter(p => p.status === 'projected' && p.projectedAt <= n).length;
+  $('event-payback-finding').innerHTML =
+    `<strong>${fmt.int(count('paid'))} events have paid for themselves, ${fmt.int(count('projected'))} more `
+    + `are projected to, and ${fmt.int(count('not expected'))} are not expected to within `
+    + `${r.paybackHorizon} months of the event.</strong> `
+    + `${fmt.int(within(12))} of the projected ones get there inside their first year and `
+    + `${fmt.int(within(24))} inside two. A further ${fmt.int(count('none'))} have no customer to project `
+    + `from. A new event always starts below the line; this is how long each one is likely to stay there.`;
+  $('event-payback-table').innerHTML =
+    '<thead><tr><th>Event</th><th>When</th><th class="n">Cost</th><th class="n">Recovered so far</th>'
+    + '<th class="n">Live customers</th><th class="n">Contribution a month now</th>'
+    + '<th>Pays for itself</th></tr></thead><tbody>'
+    + pb.map(p => `<tr><td>${p.label}</td><td>${fmt.monthLabel(p.month)}<br>`
+      + `<span class="muted">${p.age} month${p.age === 1 ? '' : 's'} old</span></td>`
+      + `<td class="n">${money(p.spend)}</td><td class="n">${pct(p.recovered)}</td>`
+      + `<td class="n">${fmt.int(p.liveCustomers)}</td><td class="n">${money(p.monthlyNow)}</td>`
+      + `<td><span class="${p.status === 'paid' ? 'held' : p.status === 'projected' ? '' : 'notviable'}">`
+      + `${p.status === 'paid' ? `Paid, month ${p.paidAt}`
+        : p.status === 'projected' ? `Projected, month ${p.projectedAt}`
+        : p.status === 'none' ? 'No customer'
+        : 'Not expected'}</span></td></tr>`).join('')
+    + '</tbody>';
+  $('event-payback-note').textContent =
+    'Paid is the first month, counting the event month as month 1, in which contribution from the '
+    + 'customers the event brought covered its cost. Projected carries every one of those customers '
+    + 'still live forward at their own contribution, the median of their last three months with an '
+    + 'unclosed latest month taken at the usual variable rate, and keeps them on at the survival curve the '
+    + 'projection in charts 34 to 36 uses for a customer of their age, so the line slows as customers '
+    + 'leave. Not expected means the running total has not reached the cost '
+    + `${r.paybackHorizon} months after the event. No new customers are assumed, and an event whose `
+    + 'customers have all left cannot recover any more. Tagged customers only, so an event whose '
+    + 'customers were not tagged reads later than it really is.';
 
   // ---------------------------------------------------------------- recovery by age
   const rec = r.recovery;

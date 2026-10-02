@@ -37,79 +37,10 @@
 <div id="dashboard" hidden>
 
   <nav class="wrap tabs" role="tablist" aria-label="Views">
-    <button id="tab-story" role="tab" aria-selected="false" aria-controls="view-story">The argument</button>
     <button id="tab-all" role="tab" aria-selected="true" aria-controls="view-all">Every chart</button>
     <button id="tab-list" role="tab" aria-selected="false" aria-controls="view-list">Upgrade list</button>
     <button id="tab-events" role="tab" aria-selected="false" aria-controls="view-events">Events</button>
   </nav>
-
-  <!-- The story view holds no charts of its own. The two it presents are
-       moved here from the full page and moved back on the way out, so there
-       is one of each and they cannot drift apart. -->
-  <section id="view-story" class="wrap story" hidden>
-    <header class="story-head">
-      <h2>What changed, in two charts</h2>
-      <p>The first rules out the explanation everyone reaches for. The second
-        says what the intakes actually did.</p>
-    </header>
-
-    <div class="story-step" data-figure="fig-arrivals-horizons">
-      <p class="story-lead"><span class="story-num">1</span>
-        <strong>A thin month of arrivals does not cost you customers.</strong>
-        Each point is one starting month: how many signed up, against the share
-        of the book gone by the end of the window. Give churn one month to
-        happen or six and the cloud lifts without tilting.
-        <span id="story-arrivals-sign"></span></p>
-    </div>
-    <div class="story-means">
-      <h3>What this means</h3>
-      <p>The fear that a quiet pipeline distracts the team into losing accounts
-        is not supported anywhere in the window. Acquisition and retention
-        can be run as separate problems by separate owners, and neither one is
-        hostage to the other. It also means the churn we are about to look at
-        has to be explained by something other than how many customers came in
-        that month.</p>
-      <p>One caveat, because it will come up and it cuts against us. The intake
-        was not thin for most of this period, but it is now:
-        <span id="story-intake"></span> That is worth watching on its own
-        terms. It is just not what is driving the churn, which is the point of
-        the chart above.</p>
-    </div>
-
-    <div class="story-step" data-figure="fig-era">
-      <p class="story-lead"><span class="story-num">2</span>
-        <strong id="story-era-lead">What the intakes did in their first
-        month.</strong>
-        Line every intake up against its own signup month.
-        <span id="story-era"></span></p>
-    </div>
-    <div class="story-means">
-      <h3>What this means</h3>
-      <p>An intake that loses a large part of itself before the second invoice
-        is a problem with what was sold that month, or who it was sold to,
-        rather than with how we looked after them nine months later. Those are
-        different teams and different fixes, and the month the loss happens is
-        what tells you which.</p>
-      <p>Two things stop this being stronger than it is.
-        <span id="story-era-sample"></span> And read the count carefully: it
-        cannot tell a customer who is paying from one who is merely still
-        listed, and going into 2026 both the cancellation rule and the coupons
-        added to the second group. The money version of this same chart is one
-        tab away and reads worse again.</p>
-    </div>
-
-    <footer class="story-foot">
-      <p>Both sliders are worth moving before you decide anything here. The
-        first chart steps churn from one month to six on fixed axes, which is
-        how you check that the cloud lifts without tilting rather than taking
-        one horizon on trust. The second draws the era curves out a point at a
-        time, so you can watch where the years actually separate. Every figure
-        here is drawn from the same push as the rest of the page, over the
-        window that push carries: from the first month of the QuickBooks
-        ledger, <span id="story-window-start"></span>, to the last complete
-        month, <span id="story-window-end"></span>.</p>
-    </footer>
-  </section>
 
   <div id="view-all">
 
@@ -851,6 +782,11 @@
       <figcaption><h3>What each event cost, against what its customers returned by the same age</h3></figcaption>
       <div class="plot" id="chart-event-scatter"></div>
       <p class="finding" id="event-scatter-finding"></p>
+      <p class="finding" id="event-payback-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="event-payback-table"></table>
+      </div>
+      <p class="note" id="event-payback-note"></p>
     </figure>
 
     <figure class="card wide" id="fig-event-recovery">

@@ -3731,6 +3731,79 @@ export function eventReports(data) {
       age: monthDiff(e.month, lastMonth) + 1, at, curve };
   });
 
+  // ---- when each event pays for itself, actual or projected
+  //
+  // Actual where it has happened: the first month the contribution from the
+  // customers it brought covered its cost. Projected where it has not: every
+  // brought customer still live is carried forward at their own recent
+  // contribution, the median of their last three months, and kept on at
+  // projectBase's survival for a
+  // customer of their age, the curve charts 34 to 36 use. The event pays for
+  // itself in the first month the running total covers its cost; if that has
+  // not happened three years after the event, it is not expected to.
+  const base = projectBase(data);
+  const outlierMonths = new Set(serve ? serve.outliers : []);
+  const firstLive = new Map();
+  const liveIn = new Map();
+  for (const r of data.customers) {
+    if (!r.active) continue;
+    if (!firstLive.has(r.id) || r.month < firstLive.get(r.id)) firstLive.set(r.id, r.month);
+    if (!liveIn.has(r.id)) liveIn.set(r.id, new Set());
+    liveIn.get(r.id).add(r.month);
+  }
+  const HORIZON = 36;
+  const latestAtMedian = new Map((serve ? serve.latest : []).map(x => [x.id, x.contributionAtMedianRate]));
+  const payback = new Map();
+  for (const e of roi.events) {
+    if (!e.spend || !e.month) continue;
+    const age = monthDiff(e.month, lastMonth) + 1;
+    let running = 0;
+    let paidAt = null;
+    for (let k = 1; k <= age; k += 1) {
+      const m = monthAdd(e.month, k - 1);
+      for (const id of e.broughtIds) {
+        const months = byIdMonth.get(id);
+        if (months && months.has(m)) running += months.get(m);
+      }
+      if (paidAt === null && running >= e.spend) paidAt = k;
+    }
+    const live = e.broughtIds.filter(id => liveIn.get(id) && liveIn.get(id).has(lastMonth));
+    // The median of each customer's last three months, so one large invoice
+    // cannot set the pace for two years. The latest month, if the ledger had
+    // not closed it, is taken at the window's usual variable rate rather than
+    // dropped, because it carries the customer's current price.
+    const rates = live.map(id => {
+      const months = byIdMonth.get(id);
+      const keys = [...(months ? months.keys() : [])]
+        .filter(m => m === lastMonth || !outlierMonths.has(m)).sort().slice(-3);
+      const vals = keys.map(m => (m === lastMonth && outlierMonths.has(m) && latestAtMedian.has(id)
+        ? latestAtMedian.get(id) : months.get(m))).sort((x, y) => x - y);
+      const mid = vals.length >> 1;
+      const rate = !vals.length ? 0 : vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+      return { id, rate, age: monthDiff(firstLive.get(id), lastMonth) };
+    });
+    const monthlyNow = rates.reduce((t, x) => t + x.rate, 0);
+    let projectedAt = null;
+    if (paidAt === null && base && monthlyNow > 0) {
+      const alive = rates.map(x => ({ ...x, p: 1 }));
+      let total = running;
+      for (let t = 1; age + t <= HORIZON; t += 1) {
+        for (const x of alive) {
+          x.p *= base.survival(x.age + t - 1);
+          total += x.rate * x.p;
+        }
+        if (total >= e.spend) { projectedAt = age + t; break; }
+      }
+    }
+    payback.set(e.label, {
+      label: e.label, month: e.month, spend: e.spend, age, soFar: running,
+      recovered: running / e.spend, liveCustomers: live.length, monthlyNow,
+      paidAt, projectedAt,
+      status: paidAt !== null ? 'paid' : projectedAt !== null ? 'projected'
+        : !e.paid ? 'none' : 'not expected',
+    });
+  }
+
   // ---- spend with nothing to show
   const nothing = roi.events.filter(e => e.spend && !e.paid);
 
@@ -3849,7 +3922,8 @@ export function eventReports(data) {
   const coverage = [...coverageByMonth.values()].sort((a, b) => a.month.localeCompare(b.month))
     .map(c => ({ ...c, share: c.starters ? c.tagged / c.starters : null }));
 
-  return { roi, recovery, nothing, organisers, types, channels, coverage };
+  return { roi, recovery, nothing, organisers, types, channels, coverage,
+           payback: [...payback.values()], paybackHorizon: HORIZON };
 }
 
 
