@@ -4446,8 +4446,11 @@ export function windowRetentionCurve(cohorts, { from = null, span = 3, maxAge = 
     return Number.isFinite(sd) ? sd : null;
   };
 
-  const oldest = Math.max(...chosen.map(c => c.maxOffset));
-  const anchorAge = Math.min(oldest, shape.length - 1);
+  // Measured only as far as every cohort in the window has lived. This was the
+  // oldest cohort's age, so solid "measured" points past the youngest rested
+  // on one or two of the window's cohorts while being labelled as all of them.
+  const youngest = Math.min(...chosen.map(c => c.maxOffset));
+  const anchorAge = Math.min(youngest, shape.length - 1);
   const anchor = blend(chosen, anchorAge);
 
   const curve = [];
@@ -4819,9 +4822,10 @@ export const SCENARIO_CARDS = [
 ];
 
 // Revenue forward, under one churn assumption and one point on the demand
-// curve. The book decays along chart 44's curve, each month of new business
-// along chart 46's recent-intake curve, and the carry is corrected by the
-// drift chart 45 backtested.
+// curve. The book decays along the capped revenue retention of every cohort
+// blended together, each month of new business along the curve of
+// the six newest cohorts with a year behind them, and the carry is corrected
+// by a drift measured the way chart 45 measures its own.
 export const MWTP_CEILING = 2500;
 
 // New customers a month: the deseasonalised level of the last six months with
@@ -4946,10 +4950,10 @@ export function leverProjection(data, cohorts, {
   })();
 
   // Costs, read off the page's own cost work rather than assumed. Acquisition
-  // spend is held at its trailing six months, because it is mostly salaries
-  // and does not move with the number closed; that is exactly why cost per
-  // logo jumps in a month when closes fall. Cost to serve is per active logo,
-  // which is chart 39's basis.
+  // spend is held at its last three months, because it is mostly salaries and
+  // does not move with the number closed; that is exactly why cost per logo
+  // jumps in a month when closes fall. Cost to serve is chart 48's rollup over
+  // every active logo, not chart 39's paying ones.
   // The same rules chart 48 rolls up, so the after-costs view here and the
   // table there agree to the dollar.
   const rules = costRunRates(data, { basis: costBasis });

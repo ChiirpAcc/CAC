@@ -2093,7 +2093,18 @@ function renderWindowCurve() {
     range.type = 'range';
     range.id = 'window-start';
     range.min = '0';
-    range.value = '0';
+    // Opens on the newest three-month window that has a full measured year,
+    // rather than on the oldest window in the book. The oldest is the best
+    // intake on the page and the furthest from what is being signed now, which
+    // is the opposite of the window the finding tells a reader to build on.
+    const ageOf = new Map(cohorts.map(c => [c.month, c.maxOffset]));
+    let opening = 0;
+    for (let i = 0; i + 3 <= probe.months.length; i += 1) {
+      const youngest = Math.min(...probe.months.slice(i, i + 3).map(m => ageOf.get(m) ?? -1));
+      if (youngest >= 12) opening = i;
+    }
+    range.max = String(Math.max(0, probe.months.length - 3));
+    range.value = String(opening);
     const read = document.createElement('output');
     read.id = 'window-start-label';
     slide.append(range, read);
@@ -2200,10 +2211,10 @@ function renderWindowCurve() {
                 + `${Math.abs(gap).toFixed(0)} points ${gap < 0 ? 'worse' : 'better'}. `
               : '. ')
         : '')
-    + `Measured out to month ${r.anchorAge}`
+    + `Measured out to month ${r.anchorAge}, as far as every intake in the window has lived`
     + (carriedCount
-        ? `, then carried along the average shape for ${carriedCount} more, with the `
-          + `correction and the range chart 45 backtested. `
+        ? `, then carried along the average shape for ${carriedCount} more, with a per-month `
+          + `correction and a range measured the way chart 45 measures its own. `
         : `. `)
     + `Move the slider to walk the window through the book. What the forecast should be built `
     + `on is whichever window you think looks like the customers you are signing now, not the `
@@ -2218,8 +2229,10 @@ function renderWindowCurve() {
     + 'arriving at each age. Each customer is capped at what they started on, so expansion '
     + 'cannot lift the line above its own base, and the loss counts both a customer leaving '
     + 'and a customer staying on less. A window is measured only as far as its own youngest '
-    + 'cohort has lived; past that the line is dashed and carried along the reference shape, '
-    + 'with the per-month correction and the 95% range that chart 45 backtested. A narrow '
+    + 'cohort has lived, so every solid point rests on every intake in it; past that the line '
+    + 'is dashed and carried along the reference shape, with a per-month correction and a 95% '
+    + 'range measured across every cohort the way chart 45 measures its own. The slider opens '
+    + 'on the newest window with a full measured year. A narrow '
     + 'window near the right-hand end of the slider is carried a long way on very little, so '
     + 'read the range rather than the point. Customers already present in the first month of '
     + 'the window have no knowable start date and are in no cohort.';
@@ -2231,8 +2244,10 @@ const MEASURES = [
     blurb: 'What the book bills a month. The line at a million is the target.',
     yTitle: 'Monthly recurring revenue', format: v => fmt.money(v) },
   { key: 'contribution', label: 'After costs', headline: 'Revenue less cost to serve and acquisition',
-    blurb: 'Cost to serve is per active customer at the trailing six-month rate; acquisition '
-      + 'spend is held at its trailing six months because it is mostly salaries.',
+    blurb: 'Cost to serve is chart 48’s rollup: platform per active customer and revenue '
+      + 'share on revenue at their six-month rates, support, G&A and R&D payroll held at the '
+      + 'last three months. Acquisition spend is held at its last three months because it '
+      + 'is mostly salaries.',
     yTitle: 'Monthly contribution', format: v => fmt.money(v) },
   { key: 'logos', label: 'Customers', headline: 'Active customers on the book',
     blurb: 'Head count, on the same churn and arrival assumptions as the revenue.',
@@ -2480,14 +2495,20 @@ function renderLevers() {
     + 'The year’s own prices cannot answer either, because they are a price list rather '
     + 'than a market: forty customers at exactly $1,000 and a hundred and seventy-nine of two '
     + 'hundred and twenty-six on one of fifteen round numbers. Customers follow the same '
-    + 'cohorts in head count, by survival. Cost to serve is the trailing six months per '
-    + 'active customer, chart 39’s basis; acquisition is the trailing six months of '
-    + 'spend held flat, because it is mostly salaries. After costs is on recurring revenue '
+    + 'cohorts in head count, by survival. Cost to serve is the same rollup chart 48 draws, '
+    + 'platform per active customer at its six-month rate, revenue share at the median of '
+    + 'its six-month rate on revenue, and support, G&A and R&D payroll held at the last three '
+    + 'months, so it includes overhead and divides by every active customer rather than '
+    + 'chart 39’s paying ones. Acquisition is the last three months of spend held flat, '
+    + 'because it is mostly salaries and the last quarter is the staffing there is now. '
+    + 'After costs is on recurring revenue '
     + 'only: usage, one-off and pass-through revenue are not in it, and they run at about a '
     + 'tenth on top, so a month that reads just below break-even here is about level in cash. '
     + 'The book already on the shelf decays '
-    + 'along chart 44’s curve and new business along chart 46’s, with the '
-    + 'carry-forward correction chart 45 backtested at about six points of error a year out.';
+    + 'along the capped revenue retention of every cohort blended together, '
+    + 'and new business along the curve of the six newest cohorts with a full year behind '
+    + 'them, each carried forward with a per-month correction measured across every cohort '
+    + 'the way chart 45 measures its own.';
 
   renderCostForecast({ ...lead.paths[churnModes[0].key], book: lead.book });
 }
@@ -2579,7 +2600,7 @@ function renderCostForecast(projection) {
         : '')
     + `${largest.label} is the largest line at ${fmt.money(largest.total)}. `
     + (grows.length
-        ? `${grows.map(g => g.label.toLowerCase()).join(' and ')} `
+        ? `${grows.map((g, i) => (i ? g.label.toLowerCase() : g.label)).join(' and ')} `
           + `${grows.length > 1 ? 'grow' : 'grows'} with the book, from `
           + `${grows.map(g => fmt.money(g.runRate)).join(' and ')} a month now to `
           + `${grows.map(g => fmt.money(g.path[11])).join(' and ')} in month twelve; `
@@ -2606,7 +2627,7 @@ function renderCostForecast(projection) {
     + 'is a rate per '
     + 'active logo over the last six months, applied to the customers chart 47 projects. '
     + 'Revenue share follows the bill and is a rate on recurring revenue; the rate is the '
-    + 'median of the measured months rather than the mean, because this push pulled August '
+    + 'median of the last six months rather than the mean, because this push pulled August '
     + 'before its revenue-share credit was posted, so August carries the invoice without the '
     + 'credit and the mean would carry it for a year. Depreciation is shown and left out of every total, because it is not '
     + 'cash. Revenue here is recurring only; usage, one-off and pass-through run at about a '
