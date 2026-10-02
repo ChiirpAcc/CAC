@@ -402,7 +402,7 @@ function renderPriceBands() {
     },
     describe: i => {
       const b = pb.bands[i];
-      return `<strong>${b.label} a month from month 2</strong>
+      return `<strong>${b.label} a month from their second month</strong>
         <span>${fmt.int(b.n)} customers, average ${fmt.money(b.price)}</span>
         <span>${fmt.money(b.cashPerCustomer)} of cash over ${horizon} months</span>
         <span>${b.perDollar.toFixed(1)}x the monthly price</span>
@@ -741,11 +741,11 @@ function renderPricing(data) {
 // who stays and stops paying. Reading only the logo line would close a
 // question the money line reopens.
 //
-// Chart 8 runs from month 1 and chart 9 from month 2, which is where its own
+// Chart 8 runs from month 0 and chart 9 from month 1, the second month, which is where its own
 // base is set: until mid-2025 the first month carried a joining charge booked
 // as MRR and reversed the month after, and a part-billed first month leaves a
 // customer under the rate they arrive on. The logo figures quoted next to the
-// money ones are reindexed to month 2 to match.
+// money ones are reindexed to month 1 to match.
 // The callout's comparison of the head count with the money, read at the
 // deepest month every year has reached rather than typed: the typed version
 // called 2026 the best year on the count when it had become the worst.
@@ -839,7 +839,7 @@ function renderEra() {
     pick(era).filter(v => v !== null && Number.isFinite(v))[depth - 1];
 
   const draw = (node, pick, { money }) => {
-    // The money chart starts at month 2, where its own base is set. See the
+    // The money chart starts at month 1, the second month, where its own base is set. See the
     // note in retentionByYear: month 1 is not a clean 100% once each customer
     // is capped at the rate they arrive on, because a part-billed first month
     // leaves them under it.
@@ -856,7 +856,7 @@ function renderEra() {
         values: shift(cutFor(i, pick(era))),
       })),
       yFormat: v => fmt.pct(v),
-      yTitle: money ? 'Share of revenue kept, indexed to month 1'
+      yTitle: money ? 'Share of revenue kept, indexed to month 1, the second month'
         : 'Share of the cohort still there',
       yMin: Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20),
       yMax: Math.max(1, Math.ceil(Math.max(...real) * 20) / 20),
@@ -926,7 +926,7 @@ function renderEra() {
         + `${moneyReady.map(e => `${e.year} ${fmt.pct(at(e, 'grossRevenue'), 1)}`).join(', ')}.`
       : '');
 
-  // Both read at the slider's month off the month 2 base, so the gap between
+  // Both read at the slider's month off the month 1 base, so the gap between
   // them is downgrades and departures rather than a difference in indexing.
   const gAt = e => at(e, 'grossRevenue');
   const lAt = e => at(e, 'logosFromMonth2');
@@ -942,7 +942,7 @@ function renderEra() {
 
   $('era-revenue-finding').innerHTML = !paired.length
     ? `<strong>Nothing to compare yet at month ${depth}.</strong> This line is indexed to `
-      + `month 2, so pull the slider past it.`
+      + `month 1, the second month, so pull the slider past it.`
     : `<strong>${(() => {
         // Do not assert the direction. A year keeps more revenue than customers
         // whenever the accounts it lost were smaller than the ones it kept, and
@@ -962,14 +962,14 @@ function renderEra() {
           + `${behind.length === 1 ? 'loses' : 'lose'} more revenue than customers; `
           + `${paired.filter(e => gap(e) >= 0).map(e => e.year).join(' and ')} `
           + `${paired.filter(e => gap(e) >= 0).length === 1 ? 'does' : 'do'} the opposite`;
-      })()}.</strong> Measured from month 2, at month ${depth} the `
+      })()}.</strong> Measured from month 1, the second month, at month ${depth} the `
     + `${paired.length === 1 ? 'one year so far keeps' : `${paired.length} years keep`} `
     + `${paired.map(e => `${e.year} ${fmt.pct(gAt(e), 1)}`).join(', ')} of their revenue, `
     + `against ${paired.map(e => `${fmt.pct(lAt(e), 1)}`).join(', ')} of their customers. `
     + `That is ${paired.map(e => `${pts(e)} points ${gap(e) < 0 ? 'short' : 'ahead'} in ${e.year}`).join(', ')}. `
     + (paired.length > 1
       ? `${worst.year} is the worst of them: it keeps ${fmt.pct(lAt(worst), 1)} of the `
-        + `customers it had at month 2 and ${fmt.pct(gAt(worst), 1)} of the money, `
+        + `customers it had at month 1 and ${fmt.pct(gAt(worst), 1)} of the money, `
         + `${pts(worst)} points apart, against ${pts(mildest)} in ${mildest.year}. ` : '')
     + (paired.some(e => gap(e) < 0)
         ? `Where the money line sits below the count, the head count is the flattering `
@@ -1092,8 +1092,8 @@ function renderEra() {
     + 'month is the base rather than the first because until mid-2025 the first carried a '
     + 'joining charge booked as MRR that came off again the next month, and because a '
     + 'part-billed first month leaves a customer under the rate they arrive on. The line is '
-    + 'drawn from month 2 for the same reason, and the logo figures quoted beside it are '
-    + 'reindexed to month 2 so the gap is not an artefact of where each line starts. It is not '
+    + 'drawn from month 1 for the same reason, and the logo figures quoted beside it are '
+    + 'reindexed to month 1 so the gap is not an artefact of where each line starts. It is not '
     + 'strictly monotonic: a customer who downgrades and later returns to their original rate '
     + 'adds that money back. Much of the fall is customers still recorded as present with MRR '
     // Recomputed rather than quoted: these drifted 2.7 points in a day.
@@ -6841,7 +6841,7 @@ function renderAnnotations() {
       : eras.some(e => gapAt6(e) < 0)
         ? `Revenue falls faster than the count in ${eras.filter(e => gapAt6(e) < 0).map(e => e.year).join(' and ')}`
         : 'Revenue holds better than the count in every year'}</strong>: at month 6, measured `
-      + `from month 2, the money line sits `
+      + `from month 1, the second month, the money line sits `
       + `${eras.map(e => `${Math.abs(gapAt6(e)).toFixed(1)} points ${gapAt6(e) < 0 ? 'below' : 'above'} in ${e.year}`).join(', ')}.`,
     `${byGap[0].year} keeps ${fmt.pct(byGap[0].logosMonth6FromMonth2, 1)} of its customers and `
       + `${fmt.pct(byGap[0].grossMonth6, 1)} of its revenue. Counting heads there overstates what `
@@ -6851,9 +6851,9 @@ function renderAnnotations() {
   ], [
     'Gross revenue retention: each customer capped at what they were paying in their second '
       + 'month, so departures and downgrades both pull it down and expansion cannot lift it.',
-    'Indexed and drawn from month 2, where the cap is set, because a part-billed first month '
+    'Indexed and drawn from month 1, the second month, where the cap is set, because a part-billed first month '
       + 'leaves a customer under the rate they arrive on. The logo figures quoted here are '
-      + 'reindexed to month 2 to match.',
+      + 'reindexed to month 1 to match.',
     'Not strictly monotonic, and not forced to be: a customer who downgrades and later returns '
       + 'to their original rate adds that money back.',
   ]);
@@ -7124,7 +7124,7 @@ function renderSignups() {
     },
     describe: i => '<strong>' + fmt.monthLabel(ph[i].month) + '</strong>'
       + '<span>' + (volume[i] === null ? 'No count at the window boundary' : fmt.int(volume[i]) + ' new logos') + '</span>'
-      + '<span>Paying ' + fmt.money(ph[i].recurringMean) + ' a month from month 2, on '
+      + '<span>Paying ' + fmt.money(ph[i].recurringMean) + ' a month from their second month, on '
       + fmt.int(ph[i].recurringN) + ' still paying</span>'
       + '<span class="muted">Booked at an average ' + fmt.money(ph[i].mean) + ', median '
       + fmt.money(ph[i].median) + '</span>',
@@ -7180,7 +7180,7 @@ function renderSignups() {
     + 'forward. Read the shapes here, not the intersection. '
     + 'The price line is what each new customer paid in their second month, averaged over the '
     + 'ones still paying then, because the booked new_mrr carried the joining charge until '
-    + 'mid-2025. A customer present in month 2 at $0, a free month, is left out of the '
+    + 'mid-2025. A customer present in their second month at $0, a free month, is left out of the '
     + 'average rather than counted at zero, which lifts the 2026 months where free starts are '
     + 'commonest. The booked new_mrr is drawn faintly behind it and is in the tooltip. The '
     + 'richer starting_mrr, what a customer was actually sold, is only populated from 2026-01 '
