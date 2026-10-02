@@ -924,17 +924,6 @@ export function isAcquisition(expense) {
   return expense.bucket === 'SPLIT' && /Partnerships/i.test(expense.account || '');
 }
 
-// Departures counted from the file rather than taken from the summary.
-//
-// churned_logos books a departure when the pipeline sees the transition. A
-// customer whose subscription simply drops out of the Stripe export never
-// produces one: they are present one month, absent the next, and no churn is
-// recorded. In 2026 that is 182 customers, 179 of whom carried cash in their
-// last six months and 156 of whom the subscription export itself marks
-// churned with an end date. They are real departures, not test accounts.
-//
-// Over the last six months the summary books 240 and the file loses 399, so
-// the reported figure understates departures by about two thirds. The
 // Two operational changes the business made going into 2026 leave the same
 // fingerprint in this file, and it is the fingerprint that separates the logo
 // curve from the revenue curve.
@@ -946,8 +935,9 @@ export function isAcquisition(expense) {
 // MRR drops to zero while they stay on the books.
 //
 // The second is offering coupons more freely. These are not discounts off the
-// rate: the median rate a customer starts on has held. They are free periods,
-// so they show up as new customers whose second month books no MRR at all.
+// rate: the median rate a customer starts on has risen, not fallen. They are
+// free periods, so they show up as new customers whose second month books no
+// MRR at all.
 //
 // Both keep a customer in the head count and take their revenue out of it,
 // which is exactly the gap between charts 8 and 9. Computed rather than
@@ -1013,9 +1003,16 @@ export function policySignals(data, { split = '2026-01', from = '2025-01' } = {}
   };
 }
 
-
-// difference decides whether the base is growing or shrinking, so both are
-// carried and the charts say which they are using.
+// Departures counted from the file rather than taken from the summary.
+//
+// churned_logos books a departure when the pipeline sees the transition. A
+// customer whose subscription simply drops out of the Stripe export never
+// produces one: they are present one month, absent the next, and no churn is
+// recorded. Until the September 2026 push that was a third of departures, and
+// they were real departures rather than test accounts. On the current push the
+// two counts agree in every month (chart 5 checks this on every load),
+// but the difference decides whether the base is growing or shrinking, so both
+// are carried and the charts say which they are using.
 export function departures(data) {
   const live = new Map();
   for (const row of data.customers) {

@@ -198,6 +198,20 @@ const ticked = id => new Set(
 // "what it means" paragraph read the same two numbers: the paragraph used to
 // say "about four times as fast" while the finding beside it said 3.3.
 let ltvPace = null;
+// Read by the "what it means" paragraphs of charts 5 and 6, which are written
+// at module load and filled in from the figures renderAnnotations computes.
+let churnPicture = null;
+let ageLosses = null;
+// Survival lost between months 0, 3, 6 and 12, pooled over the cohorts that
+// have had a full year, in points of the starting count.
+function ageLossIntervals(group) {
+  const year = group.filter(c => c.maxOffset >= 12 && c.survivors[0] > 0);
+  if (!year.length) return null;
+  const base = year.reduce((s, c) => s + c.survivors[0], 0);
+  const at = k => year.reduce((s, c) => s + c.survivors[k], 0) / base;
+  return { cohorts: year.length, early: (1 - at(3)) * 100,
+           middle: (at(3) - at(6)) * 100, late: (at(6) - at(12)) * 100 };
+}
 const risenBy = v => (v >= 0 ? `risen ${fmt.pct(v, 0)}` : `fallen ${fmt.pct(-v, 0)}`);
 function ltvPaceSentence(p) {
   if (!p) return '';
@@ -5196,6 +5210,48 @@ function renderStory() {
     + '. Treat the right hand end as provisional.');
 }
 
+// What revenue per surviving customer does between month 11 and month 12,
+// cohort by cohort, and when those cohorts reached that age. The note used to
+// say it fell a fifth "for cohorts of every vintage" and called that an age
+// effect, while six 2024 cohorts were flat or up and the falls sat in the
+// cohorts that reached month 12 during 2026, which is the calendar reading.
+function yearStepSentence() {
+  const steps = cohorts
+    .filter(c => c.maxOffset >= 12 && c.survivors[11] > 0 && c.survivors[12] > 0)
+    .map(c => {
+      const before = c.survivorRevenue[11] / c.survivors[11];
+      const after = c.survivorRevenue[12] / c.survivors[12];
+      return { month: c.month, reached: monthAdd(c.month, 12),
+               change: before > 0 ? after / before - 1 : null };
+    })
+    .filter(s => s.change !== null);
+  if (steps.length < 4) return '';
+  const falls = steps.filter(s => s.change <= -0.1);
+  if (!falls.length) {
+    return `Revenue per surviving customer does not step down a year in: none of the `
+      + `${steps.length} cohorts that have reached month 12 loses a tenth of it there.`;
+  }
+  // By the calendar year each cohort reached month 12 in. An age effect hits
+  // every year alike; a calendar one is concentrated in the year it happened.
+  const years = [...new Set(steps.map(s => s.reached.slice(0, 4)))].sort();
+  const byYear = years.map(y => {
+    const inYear = steps.filter(s => s.reached.startsWith(y));
+    return { y, n: inYear.length, falls: inYear.filter(s => s.change <= -0.1).length };
+  }).filter(r => r.n >= 3);
+  const rates = byYear.map(r => r.falls / r.n);
+  const concentrated = rates.length > 1 && Math.max(...rates) - Math.min(...rates) >= 0.3;
+  return `Revenue per surviving customer falls by a tenth or more between month 11 and month 12 `
+    + `in ${falls.length} of the ${steps.length} cohorts that have reached that age: `
+    + byYear.map(r => `${r.falls} of the ${r.n} that got there in ${r.y}`).join(' and ') + '. '
+    + (concentrated
+      ? 'That is concentrated in one calendar year rather than spread evenly across them, so it '
+        + 'reads as something that happened then rather than as an effect of age. '
+      : 'The share is similar whichever year a cohort got there in, so it reads as an effect of '
+        + 'age rather than of the calendar. ')
+    + 'What the rows show at that age is customers booked as a contraction to zero MRR and '
+    + 'still counted as present.';
+}
+
 // Everything on the page, drawn once. Nothing here is adjustable any more.
 function renderStatic() {
   const w = data.waterfall;
@@ -5242,7 +5298,8 @@ function renderStatic() {
           + `${fmt.pct(Math.abs(rc.residualShare), 1)} of it.`;
       })();
 
-  // 4. Blended retention curve, indexed to month 2.
+  // 4. Blended retention curve, indexed to month 1, the second month a cohort
+  // carries revenue (month 0 is the first, as on charts 3 and 8).
   const blended = blendedRetention(cohorts);
   multiLineChart($('chart-retention'), {
     yTitle: 'Share kept, indexed to month 1',
@@ -5280,23 +5337,16 @@ function renderStatic() {
             + `${fmt.int(r.lostFromSample)} customers age out of the count`).join(', ')
           + `. `
         : '')
-      + `The step a year in is an age effect and not a calendar one. Revenue per surviving `
-      + `customer falls about a fifth twelve months after signup for cohorts of every vintage, `
-      + `from the 2024-09 intake reaching that age in September 2025 to the 2025-08 intake `
-      + `reaching it in August 2026, while the head count those months behaves normally. Read `
-      + `by calendar month instead, no month since mid-2025 moves more than a few points, so `
-      + `there is no shared shock to find. What the rows show at that age is customers booked `
-      + `as a contraction to zero MRR and still counted as present.`
+      + yearStepSentence()
     : 'Not enough cohort history yet.';
 
   // 5. Monthly logo churn, both ways of counting it.
   //
   // The summary books a churn when the pipeline sees the transition. A
   // customer whose subscription drops out of the Stripe export never produces
-  // one: present one month, absent the next, nothing recorded. Counting who
-  // actually left the file finds about two thirds again as many, and they are
-  // not test accounts. Drawing only the reported line would understate the
-  // rate that decides whether the base grows or shrinks.
+  // one: present one month, absent the next, nothing recorded. Until the
+  // September 2026 push that gap was a third of departures; the two counts now
+  // agree, and both lines stay so that a gap reopening is visible.
   const churnSeries = recent.map((r, i) => {
     const previous = i === 0 ? null : recent[i - 1];
     const base = previous ? previous.activeLogos : null;
@@ -5354,7 +5404,7 @@ function renderStatic() {
           + 'churn event, which is a booking gap rather than a measurement disagreement. Read '
           + 'the solid line as the rate and the dashed one as a floor.');
 
-  // 6. Retention at month 3 and month 6, one point per cohort.
+  // 6. Retention at months 3, 6 and 12, one line per age across the cohorts.
   const windowed = cohorts.slice(-COHORT_WINDOW);
   const m3 = retentionAtAge(windowed, 3);
   const m6 = retentionAtAge(windowed, 6);
@@ -5380,7 +5430,7 @@ function renderStatic() {
       { label: 'At month 12', colour: 'var(--series-3)' },
     ],
     describe: i => `<strong>${windowed[i].month} cohort</strong>
-      <span>${fmt.int(windowed[i].size)} logos at month 1</span>
+      <span>${fmt.int(windowed[i].size)} logos at month 0</span>
       <span>Month 3 ${m3[i].value === null ? 'not yet' : fmt.pct(m3[i].value, 1)}</span>
       <span>Month 6 ${m6[i].value === null ? 'not yet' : fmt.pct(m6[i].value, 1)}</span>
       <span>Month 12 ${m12[i].value === null ? 'not yet' : fmt.pct(m12[i].value, 1)}</span>`,
@@ -6467,19 +6517,34 @@ const MEANS = {
     + 'business from expansion failing to, and it decides whether retention work or upsell '
     + 'work is the better use of the same headcount.',
 
-  'chart-churn':
+  'chart-churn': () =>
     'Sustained churn above the threshold sets a floor on how much acquisition is needed just '
     + 'to stand still, and the gap between that floor and what arrives is stated above. '
-    + 'Acquisition has been running flat while the rate has roughly doubled, so no plausible '
-    + 'improvement in conversion closes the gap on its own; it has to come from the churn side. '
-    + 'Note also which line to plan against. The booked figure is the one most reports quote '
-    + 'and it is the one that understates the problem.',
+    + (churnPicture && churnPicture.arrivalsFalling
+      ? 'Arrivals have been falling over the last six months, '
+      : 'Arrivals have not been rising, ')
+    + 'so no plausible improvement in conversion closes the gap on its own; it has to come from '
+    + 'the churn side too. '
+    + (churnPicture && churnPicture.booksSame
+      ? 'The two lines agree on this push, so either can be planned against; the pair is kept '
+        + 'so that a gap reopening is visible.'
+      : 'Note also which line to plan against. The booked figure is the one most reports quote '
+        + 'and it is the one that understates the problem.'),
 
-  'chart-age-retention':
-    'Most of what a cohort loses, it loses between months three and six. That is a narrow and '
-    + 'specific window, which makes it actionable: onboarding and the first ninety days are '
-    + 'where retention effort has something to save. Effort spent on customers past that point '
-    + 'is spent on the ones who were largely going to stay anyway.',
+  'chart-age-retention': () => {
+    const a = ageLosses;
+    if (!a) return '';
+    const parts = [['months 0 to 3', a.early], ['months 3 to 6', a.middle], ['months 6 to 12', a.late]];
+    const top = parts.reduce((x, y) => (y[1] > x[1] ? y : x));
+    const perMonth = [a.early / 3, a.middle / 3, a.late / 6];
+    return `Of what a cohort loses in its first year, the largest share goes in ${top[0]}, `
+      + `${top[1].toFixed(1)} points of ${(a.early + a.middle + a.late).toFixed(1)}. `
+      + (perMonth[0] >= perMonth[1] && perMonth[0] >= perMonth[2]
+        ? 'Per month, the first three are the steepest, which makes onboarding and the first '
+          + 'ninety days where retention effort has most to save.'
+        : 'Per month the loss is spread across the year rather than concentrated early, so '
+          + 'effort confined to the first ninety days would miss most of it.');
+  },
 
   'chart-unit':
     'Winning a customer costs far more than it did, and what that customer pays on arrival has '
@@ -6629,10 +6694,10 @@ function renderAnnotations() {
   annotate('chart-retention', [
     lastPoint && `By month ${lastPoint.offset}, <strong>${fmt.pct(lastPoint.logos, 1)} of logos and ${fmt.pct(lastPoint.revenue, 1)} of revenue</strong> remain.`,
     gap !== null && `The two lines sit ${Math.abs(gap).toFixed(1)} points apart. Logos above revenue means the survivors pay less than they used to; revenue above logos means expansion is offsetting churn.`,
-    'This pools every era, so it is an average that conceals the deterioration visible in the era chart below.',
+    'This pools every era, so it is an average: chart 8 splits it by starting year, and chart 9 does the same in money.',
   ], [
-    'Indexed to <strong>month 2</strong>, not month 1. Month 1 carries setup and onboarding fees, and indexing there turns a one-off charge ending into an apparent churn cliff.',
-    `Drawn while at least ${lastPoint ? lastPoint.cohorts : 12} cohorts remain in sample, and held to a two year horizon. The logo line is survival rather than presence, so a customer who leaves and returns is counted once.`,
+    'Indexed to <strong>month 1</strong>, the second month a cohort carries revenue, not month 0. Month 0 carries setup and onboarding fees, and indexing there turns a one-off charge ending into an apparent churn cliff.',
+    `Drawn while at least four cohorts and 150 customers remain in the sample, and held to a two year horizon; the last point, month ${lastPoint ? lastPoint.offset : '--'}, rests on ${lastPoint ? lastPoint.cohorts : '--'} cohorts. The logo line is survival rather than presence, so a customer who leaves and returns is counted once.`,
   ]);
 
   const recent = w.slice(-36);
@@ -6653,32 +6718,55 @@ function renderAnnotations() {
   const lastChurn = churnSeries[churnSeries.length - 1];
   const lastBooked = bookedSeries[bookedSeries.length - 1];
   const holdFlat = lastChurn * (recent[recent.length - 1].activeLogos || 0);
-  const arrivals = recent.slice(-6).map(r => r.newLogos).filter(Boolean);
+  // Arrivals on the cohort count, the page's one count of a logo, and the
+  // churn rate averaged over the same six months rather than one month's.
+  const startedNow = logosStarted(data, cohorts);
+  const arrivals = recent.slice(-6).map(r => startedNow.get(r.month)).filter(v => v != null);
   const arrivalMean = arrivals.length
     ? arrivals.reduce((s, v) => s + v, 0) / arrivals.length : null;
+  const sixRate = churnSeries.slice(-6).reduce((s, v) => s + v, 0) / Math.min(6, churnSeries.length);
+  const holdSix = sixRate * (recent[recent.length - 1].activeLogos || 0);
+  const half = Math.floor(churnSeries.length / 2);
+  const churnEarly = churnSeries.slice(0, half);
+  const churnLate = churnSeries.slice(half);
+  const meanOf = xs => xs.reduce((s, v) => s + v, 0) / xs.length;
+  const booksSame = lastBooked !== undefined && Math.abs(lastChurn - lastBooked) < 0.0005;
+  churnPicture = { booksSame, firstHalf: meanOf(churnEarly), secondHalf: meanOf(churnLate),
+    arrivalsFalling: arrivals.length > 2 && arrivals[arrivals.length - 1] < arrivals[0] };
   annotate('chart-churn', [
     `<strong>${overThreshold} of the last ${churnSeries.length} months sit above the 5% threshold.</strong> The latest reads ${fmt.pct(lastChurn, 2)}.`,
     `That is the solid line, every customer present one month and absent the next. The dashed `
       + `line, the part booked as a churn event, reads ${fmt.pct(lastBooked, 2)} for the same `
-      + `month, so reading the booked figure alone understates the rate by about `
-      + `${lastBooked ? (lastChurn / lastBooked).toFixed(1) : '--'} times.`,
-    `Monthly churn has risen about ${(Math.max(...churnSeries) / Math.min(...churnSeries)).toFixed(1)}x across the window, from ${fmt.pct(Math.min(...churnSeries), 1)} at its lowest to ${fmt.pct(Math.max(...churnSeries), 1)} at its worst.`,
-    arrivalMean ? `At that rate the base needs about ${fmt.int(holdFlat)} new logos a month to `
-      + `hold flat. Arrivals have averaged ${fmt.int(arrivalMean)} over the last six months, so `
-      + `the base is short by roughly ${fmt.int(holdFlat - arrivalMean)} a month.` : null,
+      + (booksSame
+        ? 'month, the same figure: on this push every departure is booked.'
+        : `month, so reading the booked figure alone understates the rate by about `
+          + `${lastBooked ? (lastChurn / lastBooked).toFixed(1) : '--'} times.`),
+    `Across the window the rate averaged ${fmt.pct(meanOf(churnEarly), 2)} a month in the first `
+      + `${churnEarly.length} months and ${fmt.pct(meanOf(churnLate), 2)} in the last `
+      + `${churnLate.length}, running from ${fmt.pct(Math.min(...churnSeries), 1)} at its lowest `
+      + `to ${fmt.pct(Math.max(...churnSeries), 1)} at its worst.`,
+    arrivalMean ? `At the last six months' average rate, ${fmt.pct(sixRate, 2)}, the base needs `
+      + `about ${fmt.int(holdSix)} new logos a month to hold flat. Arrivals have averaged `
+      + `${fmt.int(arrivalMean)} over the same months, so the base is short by roughly `
+      + `${fmt.int(holdSix - arrivalMean)} a month.` : null,
   ], [
     'The denominator is the prior month closing base, so a month of rapid growth flatters the rate slightly.',
     'This counts logos, not revenue, and <strong>cannot tell a lapse from a cancellation</strong>. Some of what reads as churn is a billing gap.',
   ]);
 
   const windowed = cohorts.slice(-COHORT_WINDOW);
-  const m3 = mean(retentionAtAge(windowed, 3).map(p => p.value));
-  const m6 = mean(retentionAtAge(windowed, 6).map(p => p.value));
+  // On one set of cohorts, the ones that have reached month 6, so the gap is a
+  // loss within cohorts rather than two averages over different samples.
+  const both = windowed.filter(c => c.maxOffset >= 6 && c.survivors[0] > 0);
+  const m3 = mean(both.map(c => c.survivors[3] / c.survivors[0]));
+  const m6 = mean(both.map(c => c.survivors[6] / c.survivors[0]));
+  ageLosses = ageLossIntervals(windowed);
   annotate('chart-age-retention', [
-    `<strong>Month 3 averages ${fmt.pct(m3, 1)} and month 6 averages ${fmt.pct(m6, 1)}</strong>, so about ${((m3 - m6) * 100).toFixed(0)} points of a cohort is lost between those two ages.`,
+    `<strong>Across the ${both.length} cohorts that have reached month 6, month 3 averages ${fmt.pct(m3, 1)} and month 6 ${fmt.pct(m6, 1)}</strong>, so about ${((m3 - m6) * 100).toFixed(0)} points of a cohort is lost between those two ages.`,
+    ageLosses && `Pooled over the ${ageLosses.cohorts} cohorts that have had a year, months 0 to 3 lose ${ageLosses.early.toFixed(1)} points, 3 to 6 lose ${ageLosses.middle.toFixed(1)} and 6 to 12 lose ${ageLosses.late.toFixed(1)}.`,
     'The spread between cohorts at the same age is wide, which means cohort quality varies more than the blended curve suggests.',
   ], [
-    'Indexed to month 2 like the blended curve, so month 1 fees do not distort it.',
+    'Indexed to the signup month, month 0, which is 100% by construction. Survival only falls, so there is no first-month charge to distort a head count.',
     'A cohort appears only once that age is behind it. Recent cohorts are genuinely absent rather than sitting at 100%.',
   ]);
 
