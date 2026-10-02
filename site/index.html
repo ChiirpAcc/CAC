@@ -510,9 +510,12 @@
       <p class="note">
         Each month is split at its own median subscription rather than at a fixed
         price, so a month is compared against itself and the steady rise in price
-        across the window does not leak into the split. Same starting months and
-        same axes as the chart above, so the only thing changing between the two
-        is the split.
+        across the window does not leak into the split. The starting months are
+        the ones the chart above uses, read from the same window; the axes are the
+        animation's own, fixed across its frames, so compare shapes between the
+        two rather than positions. Every customer paying nothing that month falls
+        in the lower half, about one in seven of the base, so part of what
+        separates the halves is customers who pay nothing churning more.
       </p>
     </figure>
 
@@ -527,9 +530,7 @@
         built: one frame per starting month, each point being that month's
         arrivals against the share of its customers gone one month later.
         Chart 22 draws every month at once, so nothing on it says which came
-        first and a relationship that had changed would be invisible. Adding
-        them one at a time shows that none of the last two years' starting
-        months sits apart from the rest.
+        first and a relationship that had changed would be invisible.
       </p>
       <p class="note">
         One frame per starting month, each new point marked and the ones before

@@ -1605,8 +1605,7 @@ function renderTenureChurn() {
 }
 
 
-// 32. Customers present in every count who are paying nothing.
-// 43. Billed and not paying.
+// 25. The same question, month by month.
 // 24 and 25 are pre-rendered animations, so their findings cannot come from
 // the drawing the way every other chart's does. They were written by hand and
 // left as assertions: "the recent months land inside the same cloud as the
@@ -1633,13 +1632,22 @@ function renderArrivalAnimations() {
   const outside = recent.filter(p => p.y < lo || p.y > hi);
 
   const inside = recent.length - outside.length;
+  const better = outside.filter(p => p.y < lo);
+  const worse = outside.filter(p => p.y > hi);
+  // Which side of the band they sit on is the operator's point: "sit apart"
+  // reads as worse, and three of the four were better.
+  const sides = [
+    better.length && `${better.length} below it, losing fewer customers than the earlier months did`,
+    worse.length && `${worse.length} above it, losing more`,
+  ].filter(Boolean).join(', and ');
   box.innerHTML = outside.length
     ? `<strong>${outside.length} of the last ${recent.length} starting months sit outside `
-      + `the range the earlier ones occupied.</strong> `
+      + `the range the earlier ones occupied: ${sides}.</strong> `
       + outside.map(p => `${fmt.monthLabel(p.month)} at ${fmt.pct(p.y, 1)}`).join(', ')
       + `, against a 10th-to-90th percentile band of ${fmt.pct(lo, 1)} to ${fmt.pct(hi, 1)} `
-      + `across the ${earlier.length} months before them. That is the thing this animation `
-      + `exists to make visible, and it is currently visible.`
+      + `across the ${earlier.length} months before them. By chance about one in five of them `
+      + `would land outside a band that wide, so ${outside.length} of ${recent.length} is worth `
+      + `reading, and the direction is what to read.`
     : `<strong>The recent months land inside the same cloud as the early ones.</strong> `
       + `All ${inside} of the last ${recent.length} starting months fall within the `
       + `${fmt.pct(lo, 1)} to ${fmt.pct(hi, 1)} band that the previous ${earlier.length} `
@@ -6911,7 +6919,6 @@ function renderSignups() {
     + 'gap between what is billed and what arrives.' + coverageNote;
 }
 
-// 25. Arrivals against forward churn, at whatever horizon is chosen.
 // 23. The same scatter at every horizon, stepped rather than animated.
 //
 // This replaced a GIF. The point of the sequence is that the cloud lifts as
@@ -6975,14 +6982,22 @@ function renderHorizons() {
     + (clears.length === 0
       ? `None of them clears zero, so however long churn is given to happen, months with fewer `
         + `arrivals do not churn more.`
-      : `${clears.length} of ${withPoints.length} clears zero, at `
-        + `${clears.map(a => `${a.hz} month${a.hz === 1 ? '' : 's'}`).join(' and ')}, and it `
-        + `points the wrong way for the theory: the sign there says months with more arrivals `
-        + `churn more, not fewer. Six horizons are tested, so one marginal result is about what `
-        + `chance produces, and the correlation changes sign across the range rather than `
-        + `holding a direction, which is the signature of noise rather than an effect. The `
-        + `reading stays that no relationship has been measured, but it is one marginal result `
-        + `short of clean.`);
+      : `${clears.length} of ${withPoints.length} clear${clears.length === 1 ? 's' : ''} zero, at `
+        + `${clears.map(a => `${a.hz} month${a.hz === 1 ? '' : 's'}`).join(' and ')}, and `
+        // Read off the sign that actually cleared, not assumed: a negative r
+        // here would be the theory holding, and the text has to say so.
+        + (clears.every(a => a.r > 0)
+          ? `it points the wrong way for the theory: the sign there says months with more `
+            + `arrivals churn more, not fewer. `
+          : clears.every(a => a.r < 0)
+            ? `it points the way the theory says: months with fewer arrivals churn more there. `
+            : `the horizons that clear disagree on the sign. `)
+        + `Six horizons are tested, so one marginal result is about what chance produces`
+        + (withPoints.some(a => a.r < 0) && withPoints.some(a => a.r > 0)
+          ? `, and the correlation changes sign across the range rather than holding a direction`
+          : '')
+        + `. The reading stays that no relationship has been measured, but it is one marginal `
+        + `result short of clean.`);
 
   $('horizons-note').textContent =
     `Both axes are fixed across all six settings, computed once from every point at every `
@@ -6990,8 +7005,10 @@ function renderHorizons() {
     + `cloud in the same place every time and hide the one thing the sequence shows, which is `
     + `that churn accumulates roughly equally across the whole range of intake volumes. `
     + `Each point is one starting month: how many customers arrived, against the share of the `
-    + `base that had gone by the end of the window. A month is only drawn once its full `
-    + `window has elapsed, which is why the longer horizons have fewer points.`;
+    + `base that had gone by the end of the window. The same ${here.points.length} starting `
+    + `months are drawn at every horizon: they are the months a six-month window has fully `
+    + `elapsed for, so the longest setting decides the set and a shorter one does not reach `
+    + `further forward.`;
 }
 
 // niceCeil lives in charts.js and is not exported, so the pinned bounds need
@@ -7005,6 +7022,7 @@ function niceCeilLocal(value) {
   return step * magnitude;
 }
 
+// 22. Arrivals against forward churn, at whatever horizon is chosen.
 function renderArrivals() {
   const horizon = Number($('arrival-horizon').value);
   $('arrival-horizon-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');
@@ -7040,7 +7058,8 @@ function renderArrivals() {
   $('arrival-estimate').innerHTML =
     '<strong>' + (a.significant
         ? 'At ' + horizon + ' month' + (horizon === 1 ? '' : 's') + ' there is a measurable effect: '
-          + 'ten fewer arrivals goes with ' + a.slope.toFixed(2) + ' points more churn.'
+          + 'ten fewer arrivals goes with ' + Math.abs(a.slope).toFixed(2) + ' points '
+          + (a.slope >= 0 ? 'more' : 'less') + ' churn.'
         : 'At ' + horizon + ' month' + (horizon === 1 ? '' : 's') + ' this is indistinguishable from nothing.')
     + '</strong> '
     + 'Estimate ' + (a.slope >= 0 ? '+' : '') + a.slope.toFixed(2) + ' points per ten fewer '
@@ -7052,10 +7071,13 @@ function renderArrivals() {
     + ' Across every horizon the correlation runs '
     + across.map(x => x.hz + 'mo ' + sign(x.r)).join(', ')
     + (detectable.length
-        ? '. Only the ' + detectable.map(h2 => h2 + ' month').join(' and ') + ' window clears zero, '
-          + 'which is the shape of something immediate rather than something lasting: a thin '
-          + 'month and a bad month tend to be the same month, and the association does not '
-          + 'survive being asked over a longer window.'
+        ? '. Only the ' + detectable.map(h2 => h2 + ' month').join(' and ') + ' window'
+          + (detectable.length === 1 ? ' clears' : 's clear') + ' zero'
+          + (Math.max(...detectable) <= 2
+            ? ', which is the shape of something immediate rather than something lasting: a thin '
+              + 'month and a bad month tend to be the same month, and the association does not '
+              + 'survive being asked over a longer window.'
+            : ', so whatever is there takes months to show rather than arriving at once.')
         : '. None of them clears zero.');
 
   $('newchurn-note').textContent =

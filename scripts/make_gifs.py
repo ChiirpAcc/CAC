@@ -53,26 +53,48 @@ BG = (255, 255, 255)
 W, H = 900, 660
 PAD = {"l": 96, "r": 40, "t": 110, "b": 132}
 HORIZONS = range(1, 7)
-WINDOWS = 24          # the same two year limit the site applies
+MONTHS_OF_HISTORY = 32   # the site's ceiling, MONTHS_OF_HISTORY in site/data.js
 
 
-def history_starts(reference=None):
-    """The month the site's window opens, derived the same way it derives it.
+def site_window():
+    """The months the site's window spans, derived the way load() derives them.
 
-    Taking the last 24 eligible starting months instead reached six months
-    further back than the site allows, because eligibility shrinks with the
-    horizon: at six months the newest eligible start is 2026-02, so the last
-    24 of them began in 2024-03. The animation and the chart it animates then
-    reported different correlations for the same question, +0.11 against
-    -0.18 at four months, with nothing on either to say why.
+    Both ends come from the push, not from the day this runs. The window ends
+    at the last complete month: the earlier of the last month whose QB
+    Expenses ledger is at least half the median of the six before it, and the
+    last month the Waterfall Summary carries. It opens at the first month the
+    ledger carries, and never more than 32 months before the end. This copy
+    used to open the window 24 months before today, so the animations drew 17
+    starting months under a chart that drew 25, and moved with the calendar
+    day the deploy ran on.
     """
     from datetime import date
-    today = reference or date.today()
-    total = today.year * 12 + (today.month - 1) - WINDOWS
-    return f"{total // 12}-{total % 12 + 1:02d}"
-
-
-HISTORY_STARTS = history_starts()
+    current = date.today().strftime("%Y-%m")
+    is_month = lambda m: isinstance(m, str) and len(m) == 7 and m[4] == "-"
+    totals = defaultdict(float)
+    for row in load("qb_expenses.json")["rows"]:
+        value = number(row.get("amount"))
+        if is_month(row.get("month")) and value is not None:
+            totals[row["month"]] += value
+    ledger = sorted(m for m in totals if m < current)
+    through = None
+    for i, m in enumerate(ledger):
+        prior = sorted(totals[k] for k in ledger[max(0, i - 6):i])
+        if not prior:
+            through = m
+            continue
+        mid = len(prior) // 2
+        median = prior[mid] if len(prior) % 2 else (prior[mid - 1] + prior[mid]) / 2
+        if totals[m] >= median * 0.5:
+            through = m
+    summary = sorted(r["month"] for r in load("waterfall_summary.json")["rows"]
+                     if is_month(r.get("month")) and r["month"] < current)
+    ends = [m for m in (through or (ledger[-1] if ledger else None),
+                        summary[-1] if summary else None) if m]
+    last = min(ends) if ends else None
+    starts = [m for m in (min(totals) if totals else None,
+                          month_add(last, -(MONTHS_OF_HISTORY - 1)) if last else None) if m]
+    return (max(starts) if starts else None), last
 
 
 # The push can send rows either way.
@@ -126,6 +148,9 @@ def month_add(month, offset):
     return f"{total // 12}-{total % 12 + 1:02d}"
 
 
+HISTORY_STARTS, LAST_COMPLETE = site_window()
+
+
 def font(size, bold=False):
     names = ("segoeuib.ttf", "arialbd.ttf") if bold else ("segoeui.ttf", "arial.ttf")
     for name in names:
@@ -155,7 +180,9 @@ def read_months():
         mrr[row["month"]][row["customer_id"]] = number(row.get("eop_mrr")) or 0.0
 
     waterfall = {r["month"]: r for r in load("waterfall_summary.json")["rows"]}
-    last = max(mrr)
+    # The same last month the site stops at, so a push carrying a partial
+    # month is not charted here and dropped there.
+    last = min(max(mrr), LAST_COMPLETE) if LAST_COMPLETE else max(mrr)
 
     def eligible(horizon):
         return [m for m in sorted(mrr)
