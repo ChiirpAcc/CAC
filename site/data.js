@@ -1731,7 +1731,7 @@ export const REVENUE_GROUPS = [
   // because 2024 charged the fee and 2026 does not.
   { key: 'setup', label: 'Setup, onboarding and the old joining charge', defaultOn: true,
     hint: 'Charged once, in the first month. 2024 cohorts carry a large joining fee here '
-        + 'that was phased out during 2025 — switch this off to compare eras fairly.',
+        + 'that was phased out during 2025. Switch this off to compare eras fairly.',
     pick: (c, k) => ((c.oneTimeRevenue && c.oneTimeRevenue[k]) || 0)
       + ((c.joiningFee && c.joiningFee[k]) || 0) },
 
@@ -2286,7 +2286,7 @@ export const ENGAGEMENT = {
       key: 'light', label: 'Light users', accounts: 30, mrr: 11682,
       underThreeHundred: 4, overThreeHundred: 26,
       usageMultiple: 0.6,
-      definition: 'Uses it, but not on both counts — logs in without sending, '
+      definition: 'Uses it, but not on both counts: logs in without sending, '
         + 'or sends without logging in.',
       meaning: 'Real but shallow engagement. The size of the ask decides the answer.',
     },
@@ -2730,7 +2730,7 @@ export const CALC_PRESETS = [
     label: 'All ongoing, no acquisition',
     blurb: 'Everything it costs to run the business as it stands, including the '
          + 'overhead and the product team, but nothing spent winning new '
-         + 'customers. The right basis for a price floor.',
+         + 'customers. Wider than chart 37’s allocated floor, which leaves R&D out.',
     costs: ['platform', 'people', 'variable', 'ga', 'rd'] },
   { key: 'everything',
     label: 'Everything, acquisition included',
@@ -2757,7 +2757,8 @@ export const LOGO_TYPES = [
   { key: 'paying', label: 'Paying', defaultOn: true,
     hint: 'Carried a subscription in the month.' },
   { key: 'lapsed', label: 'Lapsed to zero', defaultOn: true,
-    hint: 'No subscription this month but paid something earlier. Still served, still costs.' },
+    hint: 'No subscription this month but carried one in some month of the window, '
+        + 'earlier or later. Still served, still costs.' },
   { key: 'never', label: 'Never paid', defaultOn: false,
     hint: 'No subscription in any month of the window. Test and agency monitoring accounts.' },
 ];
@@ -2771,9 +2772,10 @@ export function costCalculator(data, { costKeys = null, logoKeys = null } = {}) 
   const types = logoKeys || LOGO_TYPES.filter(t => t.defaultOn).map(t => t.key);
   const never = neverPaidIds(data);
 
-  // Peak subscription before this month decides lapsed from never, so a
-  // customer who paid once and stopped counts as lapsed for every later month
-  // rather than flipping back and forth.
+  // The peak subscription over the whole window decides lapsed from never, so
+  // a customer who paid once counts as lapsed in every month they sit at zero,
+  // including months before their first payment, rather than flipping back
+  // and forth.
   const countFor = month => {
     const live = data.customers.filter(r => r.active && r.month === month);
     let n = 0;
@@ -2938,7 +2940,8 @@ export function costLedger(data, { months = 3 } = {}) {
         + (r.oneTime || 0) + (r.passThrough || 0), 0),
       // What actually arrived, as a check on the four components above.
       netCash: live.reduce((s, r) => s + (r.netCash || 0), 0),
-      newLogos: (data.waterfall.find(w => w.month === month) || {}).newLogos || 0,
+      // The cohort count, the page's one count of a logo, not the summary's.
+      newLogos: logosStarted(data).get(month) ?? 0,
     };
   });
 
@@ -4317,9 +4320,12 @@ export function revenueRetentionAtAges(cohorts, { ages = [3, 6, 9, 12, 18] } = {
   // average shape is fit on every cohort including the old ones and the newer
   // ones fall away faster. This is that bias, measured: the average log gap per
   // month carried between what the shape predicts and what actually happened.
-  // Backtested against every cohort and every anchor age, adding it takes the
-  // error at a year out from 7.9 points of retention to 6.4 and the bias from
-  // +5.4 to +2.1. It is a correction on the carry, not a forecast of decline.
+  // When it was written, a backtest against every cohort and every anchor age
+  // had it cutting the year-out error from 7.9 points to 6.4. Rerun on the
+  // October 2026 push it no longer cuts the error (7.8 points either way) and
+  // moves the bias from +0.4 to -0.5, so it is a correction on the bias of the
+  // carry and not an accuracy gain, and the backtest is not rerun on load. It
+  // is not a forecast of decline.
   const drift = (() => {
     let num = 0;
     let den = 0;
@@ -4834,8 +4840,8 @@ export const SCENARIO_CARDS = [
     detail: 'The band September tested. Turn away anything under $1,500.' },
   { key: 'wider', label: 'Open the floor', floor: 1000, ceiling: 2500,
     headline: '$2,500 down to $1,000',
-    detail: 'Take business down to $1,000, the tier that keeps the most of its revenue at '
-      + 'a year on this book.' },
+    detail: 'Take business down to $1,000 as well, so the demand curve has a wider band '
+      + 'to close in.' },
 ];
 
 // Revenue forward, under one churn assumption and one point on the demand
