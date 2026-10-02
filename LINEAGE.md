@@ -244,6 +244,11 @@ judgement for a person.
 | Report | Source | Transformation |
 |---|---|---|
 | What each event cost, and what its customers have paid since | `data.eventCosts` (Event Costs tab), `data.customers` (`lead_source`, `lead_medium`, v120), `accountServeCost` | `eventRoi`. Cost is the tab's sponsor plus travel, with the sponsor replaced by `EVENT_FEES_QB` where QuickBooks booked something different, and a fee in `EVENT_PACKAGES` split equally across the events it paid for. Customers are those whose lead source names the event, matched by name and year or through `EVENT_ALIASES`; events with a cost and no tagged customer stay on the list at zero. Collected is net cash; contribution is chart 49's, summed per customer. Sourcing, not attribution: the partnerships 60-day rule will disagree. |
+| Share of cost recovered by month from the event | `eventReports` | Contribution from the customers each event brought, summed from the event's month and divided by its cost; null past the last month of data, so events are compared at equal age. Median drawn where five or more events reach a month. |
+| By organiser, by kind of event | `eventReports`, `EVENT_META`, `ORGANISER_PARTNER_SOURCES` | Events summed by who runs them and by kind. Organiser, kind and 2027 status are editorial, set in `EVENT_META`. Customers tagged with the standing partnership (no year) are counted beside the organiser and never added to its events. |
+| Spend with no customer | `eventReports` | Costed events where no tagged customer started paying after the event. |
+| Events against other channels | `eventReports` | Customers who started inside the window, by lead medium, against untagged: median first MRR, paid per paying month, share live 6 and 12 months after first payment (blank under ten). No cost. |
+| Tagging coverage | `eventReports` | New customers by first-payment month, share carrying any lead source and an event source. |
 
 ### Projection and pricing decisions
 

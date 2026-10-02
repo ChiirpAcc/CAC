@@ -669,4 +669,117 @@ export function scatterXY(container, { points, xLabel, yLabel,
   });
 }
 
+// A ranked list of named values, one horizontal bar each, diverging from zero.
+//
+// Built for the case a column chart cannot carry: thirty or more items whose
+// names are the point. Names sit on the left at full length, the bar in the
+// middle on one shared scale, the value on the right. HTML rather than SVG so
+// the names wrap and the list stays readable at phone width.
+export function barList(container, { items, format = fmt.money, legendItems = null }) {
+  container.innerHTML = '';
+  const real = items.filter(i => i.value !== null && Number.isFinite(i.value));
+  if (!real.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
+  const negMax = Math.max(0, ...real.map(i => -i.value));
+  const posMax = Math.max(0, ...real.map(i => i.value));
+  const span = negMax + posMax || 1;
+  const zero = (negMax / span) * 100;
+
+  const list = document.createElement('div');
+  list.className = 'bar-list';
+  for (const item of items) {
+    const row = document.createElement('div');
+    row.className = 'bar-row' + (item.muted ? ' bar-row-muted' : '');
+    if (item.title) row.title = item.title;
+    const label = document.createElement('div');
+    label.className = 'bar-label';
+    label.innerHTML = `<span class="bar-name">${item.label}</span>`
+      + (item.sub ? `<span class="bar-sub">${item.sub}</span>` : '');
+    const track = document.createElement('div');
+    track.className = 'bar-track';
+    track.innerHTML = `<span class="bar-zero" style="left:${zero.toFixed(2)}%"></span>`;
+    if (item.value !== null && Number.isFinite(item.value)) {
+      const width = (Math.abs(item.value) / span) * 100;
+      const left = item.value >= 0 ? zero : zero - width;
+      const fill = document.createElement('span');
+      fill.className = 'bar-fill';
+      fill.style.left = `${left.toFixed(2)}%`;
+      fill.style.width = `${Math.max(width, 0.4).toFixed(2)}%`;
+      fill.style.background = item.colour || INK.primary;
+      track.appendChild(fill);
+    }
+    const value = document.createElement('div');
+    value.className = 'bar-value';
+    value.textContent = item.value === null || !Number.isFinite(item.value) ? '–' : format(item.value);
+    row.append(label, track, value);
+    list.appendChild(row);
+  }
+  container.appendChild(list);
+  if (legendItems) legend(container, legendItems);
+}
+
+// What something cost against what came back, with the break-even diagonal.
+//
+// A point above the line has returned more than it cost; below it, less. One
+// colour per category, so a reader can see whether a kind of spend sits on
+// one side of the line. The few largest points are named on the chart; the
+// rest are named on hover.
+export function scatterBreakEven(container, { points, xLabel, yLabel, xFormat = fmt.money,
+                                              yFormat = fmt.money, describe,
+                                              legendItems = null, labelTop = 5 }) {
+  const svg = makeSvg(container);
+  if (!points.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
+  const xHi = niceCeil(Math.max(...points.map(p => p.x)));
+  const yMaxRaw = Math.max(...points.map(p => p.y), 0);
+  const yMinRaw = Math.min(...points.map(p => p.y), 0);
+  const yHi = niceCeil(Math.max(yMaxRaw, 1));
+  const yLo = yMinRaw < 0 ? -niceCeil(-yMinRaw) : 0;
+  const y = frame(svg, { yMin: yLo, yMax: yHi, yFormat, yTitle: yLabel, zeroLine: yLo < 0 });
+  const x = v => plot.x0 + (v / (xHi || 1)) * plot.width;
+
+  for (let i = 0; i <= 5; i += 1) {
+    const value = (xHi * i) / 5;
+    el('text', { x: x(value), y: plot.y1 + 20, class: 'tick tick-x' }, svg)
+      .textContent = xFormat(value);
+  }
+  el('text', { x: plot.x0 + plot.width / 2, y: H - 2, class: 'axis-title' }, svg)
+    .textContent = xLabel;
+
+  // The diagonal, from the origin to wherever it leaves the frame.
+  const end = Math.min(xHi, yHi);
+  el('line', { x1: x(0), y1: y(0), x2: x(end), y2: y(end), class: 'ref ref-goal' }, svg);
+  el('text', { x: x(end) - 4, y: y(end) + 14, class: 'ref-label ref-goal', 'text-anchor': 'end' }, svg)
+    .textContent = 'Paid for itself';
+
+  const tip = document.createElement('div');
+  tip.className = 'tooltip';
+  tip.hidden = true;
+  container.appendChild(tip);
+
+  const named = new Set([...points].map((p, i) => ({ p, i }))
+    .sort((a, b) => Math.max(b.p.x, Math.abs(b.p.y)) - Math.max(a.p.x, Math.abs(a.p.y)))
+    .slice(0, labelTop).map(o => o.i));
+  points.forEach((point, i) => {
+    const cx = x(point.x);
+    const cy = y(point.y);
+    const dot = el('circle', { cx, cy, r: 5, class: 'dot dot-hit', fill: point.colour || INK.primary }, svg);
+    if (named.has(i) && point.label) {
+      const right = cx > plot.x0 + plot.width * 0.7;
+      el('text', { x: cx + (right ? -8 : 8), y: cy + 4, class: 'point-label',
+                   'text-anchor': right ? 'end' : 'start' }, svg).textContent = point.label;
+    }
+    const show = () => {
+      tip.innerHTML = describe(i);
+      tip.hidden = false;
+      const ratio = cx / W;
+      tip.style.left = `${ratio * 100}%`;
+      tip.style.top = `${(cy / H) * 100}%`;
+      tip.style.transform = `translate(${ratio > 0.6 ? '-100%' : '0'}, -110%)`;
+    };
+    dot.addEventListener('mouseenter', show);
+    dot.addEventListener('touchstart', show, { passive: true });
+    dot.addEventListener('mouseleave', () => { tip.hidden = true; });
+  });
+  if (legendItems) legend(container, legendItems);
+}
+
 export { INK };

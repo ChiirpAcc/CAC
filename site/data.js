@@ -3176,6 +3176,80 @@ export const EVENT_ALIASES = {
   '2026 - EGIA Epic Tradeshow': 'EGIA Epic 2026',
 };
 
+// What kind of event each one is, who runs it, and where it stands in the
+// 2027 plan. The classification is editorial, the way COST_LAYERS is: which
+// bucket an event sits in is a judgement, its cost and customers are not.
+//
+// Types. A conference sponsorship is a booth or sponsorship at an open
+// industry event. A partner network event is run by a manufacturer,
+// distributor or membership network for its own members. A small room is a
+// mastermind or offsite of a few dozen owners. Training is a course or boot
+// camp attended for the room rather than sponsored.
+//
+// Plan status comes from the 2027 Partnerships budget (Sep 30 2026): on the
+// calendar, dropped, or not on the list.
+export const EVENT_TYPES = ['Conference sponsorship', 'Partner network event',
+  'Small room', 'Training'];
+const ON = 'On the 2027 calendar';
+const OFF = 'Not on the 2027 list';
+export const EVENT_META = {
+  'HSF 2025': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
+  'Pantheon 2025': { type: 'Conference sponsorship', organiser: 'ServiceTitan', plan2027: ON },
+  'CertainPath Fall Expo 2025': { type: 'Partner network event', organiser: 'CertainPath', plan2027: ON },
+  'Lennox Premier Dealer Appreciation Day': { type: 'Partner network event', organiser: 'Lennox', plan2027: OFF },
+  'Nexstar Super Meeting 2025': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
+  'The Huge Convention 2025': { type: 'Conference sponsorship', organiser: 'The Huge Convention', plan2027: OFF },
+  'Blue Sky Mastermind (Tradesformation) 2025': { type: 'Small room', organiser: 'Tradesformation', plan2027: OFF },
+  'System Forward Pro Boot Camp': { type: 'Training', organiser: 'System Forward', plan2027: OFF },
+  'Legacy Annual Offsite': { type: 'Small room', organiser: 'Legacy', plan2027: OFF },
+  'Wealthy Plumber Hoorah 2025': { type: 'Partner network event', organiser: 'The Wealthy Plumber', plan2027: ON },
+  'GDF Vertical Track 2025': { type: 'Partner network event', organiser: 'Garage Door Freedom', plan2027: ON },
+  'Network ST Event': { type: 'Partner network event', organiser: 'Network ST', plan2027: OFF },
+  'Zoom Drain Expo - Vortex': { type: 'Conference sponsorship', organiser: 'Zoom Drain', plan2027: OFF },
+  'Service World': { type: 'Conference sponsorship', organiser: 'Service World', plan2027: OFF },
+  'Nuve Networks Tour': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
+  'Lennox Live Roadshow': { type: 'Partner network event', organiser: 'Lennox', plan2027: ON },
+  'Clover Mastermind 2025': { type: 'Small room', organiser: 'Clover', plan2027: OFF },
+  'Home and Commercial Svcs Marketing Summit': { type: 'Conference sponsorship', organiser: 'Home and Commercial Services Marketing Summit', plan2027: OFF },
+  'Blue Collar Success Group 2025': { type: 'Partner network event', organiser: 'Blue Collar Success Group', plan2027: OFF },
+  'WinSupply AOR Summit 2025': { type: 'Partner network event', organiser: 'WinSupply', plan2027: OFF },
+  'We Mean Business Conference': { type: 'Conference sponsorship', organiser: 'We Mean Business', plan2027: OFF },
+  'Goettl Training': { type: 'Training', organiser: 'Goettl', plan2027: OFF },
+  'LB Roofing Process Conference': { type: 'Conference sponsorship', organiser: 'LB Roofing', plan2027: OFF },
+  'Hardi Annual Conference': { type: 'Conference sponsorship', organiser: 'HARDI', plan2027: OFF },
+  'BDR Spark 2026': { type: 'Partner network event', organiser: 'BDR', plan2027: ON },
+  'Generac 2026': { type: 'Partner network event', organiser: 'Generac', plan2027: ON },
+  'EGIA Epic 2026': { type: 'Conference sponsorship', organiser: 'EGIA', plan2027: ON },
+  'RynoX 2026': { type: 'Conference sponsorship', organiser: 'RYNO', plan2027: 'Dropped for 2027' },
+  'Lennox Live Anaheim 2026': { type: 'Partner network event', organiser: 'Lennox', plan2027: ON },
+  'Lennox Live New Orleans 2026': { type: 'Partner network event', organiser: 'Lennox', plan2027: ON },
+  'Raising GOATS 2026': { type: 'Conference sponsorship', organiser: 'EGIA', plan2027: ON },
+  'CertainPath Spring Expo 2026': { type: 'Partner network event', organiser: 'CertainPath', plan2027: ON },
+  'BCSG Acceleration Days 2026': { type: 'Partner network event', organiser: 'Blue Collar Success Group', plan2027: ON },
+  'Redwood Leadership Summit': { type: 'Partner network event', organiser: 'Redwood', plan2027: ON },
+  'GDF Vertical Track 2026': { type: 'Partner network event', organiser: 'Garage Door Freedom', plan2027: ON },
+  'Nuve 2026': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
+};
+
+// The standing relationship behind an organiser, as HubSpot spells it. A
+// customer tagged with the partner rather than a dated event came through the
+// partnership; those are shown beside the organiser's events and never added
+// to them.
+export const ORGANISER_PARTNER_SOURCES = {
+  'CertainPath': ['Certain Path'],
+  'BDR': ['BDR Co - Business Development Resources'],
+  'The Wealthy Plumber': ['The Wealthy Plumber'],
+  'Nexstar': ['Nexstar'],
+  'Garage Door Freedom': ['Garage Door Freedom'],
+  'Blue Collar Success Group': ['Blue Collar Success'],
+  'Lennox': ['Lennox', 'Lennox Pilot 2026'],
+  'Tradesformation': ['Blue Sky Mastermind (Tradesformation) (contact)'],
+  'Redwood': ['Redwood Services'],
+  'EGIA': ['EGIA - Electric & Gas Industries Association'],
+  'Nuve': ['Nuve Home Contractor Trades Event'],
+  'RYNO': ['Ryno'],
+};
+
 const eventWords = text => String(text || '').toLowerCase()
   .replace(/\b20\d\d\b/g, ' ')
   .replace(/&/g, ' and ')
@@ -3293,6 +3367,7 @@ export function eventRoi(data) {
       if (contributionBy.has(id)) { contribution += contributionBy.get(id); measured = true; }
     }
     return {
+      broughtIds: [...ids],
       tagged: allIds.size,
       alreadyPaying: prior.size,
       alreadyPayingMrrNow: priorMrrNow,
@@ -3334,7 +3409,7 @@ export function eventRoi(data) {
   // expensive kind.
   for (const c of costRows) {
     if (used.has(c.event)) continue;
-    events.push({ source: null, year: c.year, cost: c, tagged: 0, alreadyPaying: 0,
+    events.push({ source: null, year: c.year, cost: c, broughtIds: [], tagged: 0, alreadyPaying: 0,
       alreadyPayingMrrNow: 0, customers: 0, paid: 0, neverPaid: 0,
       liveNow: 0, mrrNow: 0, collected: 0, revenue: 0, contribution: 0,
       firstRevenueMonths: [] });
@@ -3349,6 +3424,10 @@ export function eventRoi(data) {
     e.net = cost !== null && e.contribution !== null ? e.contribution - cost : null;
     e.costPerCustomer = cost !== null && e.paid ? cost / e.paid : null;
     e.matched = Boolean(e.cost && e.source);
+    const meta = e.cost ? EVENT_META[e.cost.event] : null;
+    e.type = meta ? meta.type : null;
+    e.organiser = meta ? meta.organiser : null;
+    e.plan2027 = meta ? meta.plan2027 : null;
   }
   events.sort((a, b) => String(a.month || a.year || '').localeCompare(String(b.month || b.year || ''))
     || String(a.label).localeCompare(String(b.label)));
@@ -3397,6 +3476,191 @@ export function eventRoi(data) {
       alreadyPaying: events.reduce((s, e) => s + (e.alreadyPaying || 0), 0),
     },
   };
+}
+
+
+// The reports on the Events tab beyond the main table, all built on eventRoi.
+//
+// Age-matched recovery. Contribution from the customers an event brought,
+// summed over the first 3, 6 and 12 months from the event's month and set
+// against its cost. An event that has not yet had that long is blank, not
+// low, so a six-month-old event is never ranked against a year-old one.
+//
+// Organisers. Events grouped by who runs them, because the renewal decision
+// is made per organiser and year, not per stop.
+//
+// Channels. Every lead medium against untagged customers, on what a customer
+// pays and how long they stay. No cost: webinar and digital spend is not tied
+// to a source in the push.
+//
+// Tagging coverage. The share of each month's new customers carrying any lead
+// source, because every figure on the tab is a floor by that much.
+export const EVENT_AGES = [3, 6, 12];
+
+export function eventReports(data) {
+  const roi = eventRoi(data);
+  if (!roi) return null;
+  const lastMonth = roi.lastMonth;
+  const serve = accountServeCost(data);
+  const byIdMonth = new Map();
+  if (serve) {
+    for (const r of serve.rows) {
+      if (!byIdMonth.has(r.id)) byIdMonth.set(r.id, new Map());
+      byIdMonth.get(r.id).set(r.month, r.contribution);
+    }
+  }
+
+  // ---- age-matched recovery
+  const recovery = roi.events.filter(e => e.spend && e.month).map(e => {
+    // Cumulative contribution as a share of cost, month by month from the
+    // event, null once the month is past the last month of data.
+    const curve = [];
+    let running = 0;
+    for (let k = 1; k <= 12; k += 1) {
+      const m = monthAdd(e.month, k - 1);
+      if (m > lastMonth) { curve.push(null); continue; }
+      for (const id of e.broughtIds) {
+        const months = byIdMonth.get(id);
+        if (months && months.has(m)) running += months.get(m);
+      }
+      curve.push(running / e.spend);
+    }
+    const at = {};
+    for (const age of EVENT_AGES) {
+      const end = monthAdd(e.month, age - 1);
+      if (end > lastMonth) { at[age] = null; continue; }
+      let sum = 0;
+      for (const id of e.broughtIds) {
+        const months = byIdMonth.get(id);
+        if (!months) continue;
+        for (const [m, v] of months) if (m >= e.month && m <= end) sum += v;
+      }
+      at[age] = { contribution: sum, recovered: sum / e.spend, net: sum - e.spend };
+    }
+    return { label: e.label, month: e.month, spend: e.spend, type: e.type,
+      organiser: e.organiser, plan2027: e.plan2027, customers: e.paid,
+      age: monthDiff(e.month, lastMonth) + 1, at, curve };
+  });
+
+  // ---- spend with nothing to show
+  const nothing = roi.events.filter(e => e.spend && !e.paid);
+
+  // ---- organisers
+  const sourceOf = new Map();
+  for (const r of data.customers) if (r.leadSource) sourceOf.set(r.id, r.leadSource);
+  const liveNow = new Set(data.customers.filter(r => r.month === lastMonth && r.active).map(r => r.id));
+  const orgMap = new Map();
+  for (const e of roi.events) {
+    if (!e.organiser) continue;
+    if (!orgMap.has(e.organiser)) orgMap.set(e.organiser, { organiser: e.organiser, events: [] });
+    orgMap.get(e.organiser).events.push(e);
+  }
+  const organisers = [...orgMap.values()].map(o => {
+    const sum = k => o.events.reduce((s, e) => s + (e[k] || 0), 0);
+    const spend = o.events.reduce((s, e) => s + (e.spend || 0), 0);
+    const contribution = sum('contribution');
+    const partnerValues = ORGANISER_PARTNER_SOURCES[o.organiser] || [];
+    const partnerIds = [...sourceOf].filter(([, v]) => partnerValues.includes(v)).map(([id]) => id);
+    const years = [...new Set(o.events.map(e => String(e.month || e.year || '').slice(0, 4)))].sort();
+    const plans = [...new Set(o.events.map(e => e.plan2027).filter(Boolean))];
+    return {
+      organiser: o.organiser,
+      events: o.events.sort((a, b) => String(a.month).localeCompare(String(b.month))),
+      years,
+      types: [...new Set(o.events.map(e => e.type).filter(Boolean))],
+      plan2027: plans.includes(ON) ? ON : plans.includes('Dropped for 2027') ? 'Dropped for 2027' : OFF,
+      spend,
+      customers: sum('paid'),
+      alreadyPaying: sum('alreadyPaying'),
+      collected: sum('collected'),
+      contribution,
+      net: contribution - spend,
+      partnerCustomers: partnerIds.length,
+      partnerLive: partnerIds.filter(id => liveNow.has(id)).length,
+      partnerValues,
+    };
+  }).sort((a, b) => b.spend - a.spend);
+
+  // ---- by type
+  const types = EVENT_TYPES.map(type => {
+    const list = roi.events.filter(e => e.type === type && e.spend);
+    const spend = list.reduce((s, e) => s + e.spend, 0);
+    const contribution = list.reduce((s, e) => s + (e.contribution || 0), 0);
+    return { type, events: list.length, spend, customers: list.reduce((s, e) => s + e.paid, 0),
+      contribution, net: contribution - spend,
+      nothing: list.filter(e => !e.paid).length };
+  }).filter(t => t.events);
+
+  // ---- channels
+  const firstRevenue = new Map();
+  const live = new Map();
+  for (const r of data.customers) {
+    const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
+    if (rev > 0 && (!firstRevenue.has(r.id) || r.month < firstRevenue.get(r.id))) {
+      firstRevenue.set(r.id, r.month);
+    }
+    if (r.active) {
+      if (!live.has(r.id)) live.set(r.id, new Set());
+      live.get(r.id).add(r.month);
+    }
+  }
+  const mediumOf = new Map();
+  for (const r of data.customers) if (r.leadMedium) mediumOf.set(r.id, r.leadMedium);
+  const revenueRows = new Map();
+  for (const r of data.customers) {
+    if (!r.active) continue;
+    const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
+    if (!(rev > 0)) continue;
+    if (!revenueRows.has(r.id)) revenueRows.set(r.id, { months: 0, revenue: 0 });
+    const x = revenueRows.get(r.id);
+    x.months += 1;
+    x.revenue += rev;
+  }
+  // Customers who started inside the window, so the untagged comparison is
+  // like for like: left-censored customers have no start month at all.
+  const starters = [...firstRevenue].filter(([, m]) => m > data.historyStarts);
+  const channelOf = id => mediumOf.get(id) || 'untagged';
+  const channelKeys = ['event', 'webinar', 'digital', 'partner or referral', 'untagged'];
+  const keptAt = (ids, k) => {
+    const eligible = ids.filter(id => monthAdd(firstRevenue.get(id), k) <= lastMonth);
+    if (eligible.length < 10) return { rate: null, n: eligible.length };
+    const kept = eligible.filter(id => live.get(id) && live.get(id).has(monthAdd(firstRevenue.get(id), k)));
+    return { rate: kept.length / eligible.length, n: eligible.length };
+  };
+  const channels = channelKeys.map(key => {
+    const ids = starters.filter(([id]) => channelOf(id) === key).map(([id]) => id);
+    const paid = ids.filter(id => revenueRows.has(id));
+    const rev = paid.reduce((s, id) => s + revenueRows.get(id).revenue, 0);
+    const months = paid.reduce((s, id) => s + revenueRows.get(id).months, 0);
+    const firstMrr = ids.map(id => {
+      const row = data.customers.find(r => r.id === id && r.month === firstRevenue.get(id));
+      return row ? row.eopMrr || 0 : null;
+    }).filter(v => v !== null).sort((a, b) => a - b);
+    const mid = firstMrr.length >> 1;
+    return {
+      key, customers: ids.length,
+      liveNow: ids.filter(id => liveNow.has(id)).length,
+      revenuePerMonth: months ? rev / months : null,
+      medianFirstMrr: firstMrr.length
+        ? (firstMrr.length % 2 ? firstMrr[mid] : (firstMrr[mid - 1] + firstMrr[mid]) / 2) : null,
+      kept6: keptAt(ids, 6),
+      kept12: keptAt(ids, 12),
+    };
+  });
+
+  // ---- tagging coverage by month of first revenue
+  const coverageByMonth = new Map();
+  for (const [id, m] of starters) {
+    if (!coverageByMonth.has(m)) coverageByMonth.set(m, { month: m, starters: 0, tagged: 0, event: 0 });
+    const c = coverageByMonth.get(m);
+    c.starters += 1;
+    if (mediumOf.has(id)) c.tagged += 1;
+    if (mediumOf.get(id) === 'event') c.event += 1;
+  }
+  const coverage = [...coverageByMonth.values()].sort((a, b) => a.month.localeCompare(b.month))
+    .map(c => ({ ...c, share: c.starters ? c.tagged / c.starters : null }));
+
+  return { roi, recovery, nothing, organisers, types, channels, coverage };
 }
 
 

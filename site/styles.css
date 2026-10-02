@@ -552,8 +552,11 @@ figcaption { margin-bottom: .9rem; }
    per step, full width, with the argument in front of each chart instead of
    underneath it. */
 .tabs {
-  display: flex; gap: 4px; padding-block: 18px 0;
+  display: flex; flex-wrap: wrap; gap: 4px; padding-block: 18px 0;
   border-bottom: 1px solid var(--rule);
+}
+@media (max-width: 480px) {
+  .tabs button { padding: 8px 9px; font-size: 0.88rem; }
 }
 .tabs button {
   appearance: none; background: none; border: 0;
@@ -1019,4 +1022,45 @@ figcaption { margin-bottom: .9rem; }
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+
+/* Ranked bar list. Names at full length on the left, one shared scale in the
+   middle, the value on the right. */
+.bar-list { display: grid; gap: 2px; margin: 0.25rem 0 0.75rem; }
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 17rem) 1fr 6.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3px 0;
+  font-size: 0.84rem;
+}
+.bar-row:hover { background: var(--surface-sunk); }
+.bar-row-muted { opacity: 0.55; }
+.bar-label { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.bar-name { color: var(--ink); overflow-wrap: anywhere; }
+.bar-sub { color: var(--ink-soft); font-size: 0.74rem; }
+.bar-track { position: relative; height: 14px; }
+.bar-zero { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--rule-strong); }
+.bar-fill { position: absolute; top: 0; height: 100%; border-radius: 2px; }
+.bar-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.point-label { font-size: 11px; fill: var(--ink-mid); }
+.event-chip {
+  display: inline-block;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  border: 1px solid var(--rule-strong);
+  color: var(--ink-mid);
+  white-space: nowrap;
+}
+.event-chip.on { border-color: var(--series-pos); color: var(--series-pos); }
+.event-chip.dropped { border-color: var(--series-neg); color: var(--series-neg); }
+@media (max-width: 640px) {
+  .bar-row { grid-template-columns: 1fr 4.8rem; grid-template-areas: "label value" "track track"; row-gap: 2px; }
+  .bar-label { grid-area: label; }
+  .bar-track { grid-area: track; }
+  .bar-value { grid-area: value; }
 }

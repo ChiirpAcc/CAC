@@ -828,15 +828,17 @@
       <p>One row per event. Cost is the sponsorship QuickBooks booked plus the
         travel, with a fee that paid for several events split across them. The
         customers are the ones HubSpot tags with that event as their lead source,
-        matched to Stripe. Tagged customers only: most of the book carries no tag.</p>
+        matched to Stripe, counted only if they started paying after the event.
+        Tagged customers only: most of the book carries no tag.</p>
     </header>
     <p class="finding" id="events-coverage"></p>
+
     <figure class="card wide" id="fig-events">
-      <figcaption><h3>Contribution from tagged customers, less what the event cost</h3></figcaption>
+      <figcaption><h3>Which events have paid for themselves so far</h3></figcaption>
       <div class="plot" id="chart-events"></div>
       <p class="finding" id="events-finding"></p>
       <div class="chart-control">
-        <button type="button" id="events-download">Download events and their customers as CSV</button>
+        <button type="button" id="events-download">Download events and their figures as CSV</button>
         <output id="events-status"></output>
       </div>
       <div class="table-scroll">
@@ -844,6 +846,50 @@
       </div>
       <p class="note" id="events-note"></p>
     </figure>
+
+    <figure class="card wide" id="fig-event-scatter">
+      <figcaption><h3>What each event cost, against what its customers have returned</h3></figcaption>
+      <div class="plot" id="chart-event-scatter"></div>
+      <p class="finding" id="event-scatter-finding"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-event-recovery">
+      <figcaption><h3>Share of cost recovered, month by month from the event</h3></figcaption>
+      <div class="plot" id="chart-event-recovery"></div>
+      <p class="finding" id="event-recovery-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="event-recovery-table"></table>
+      </div>
+      <p class="note" id="event-recovery-note"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-event-organisers">
+      <figcaption><h3>By organiser, every year together</h3></figcaption>
+      <div class="plot" id="chart-event-organisers"></div>
+      <p class="finding" id="event-organisers-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="event-organisers-table"></table>
+      </div>
+      <p class="note" id="event-organisers-note"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-event-types">
+      <figcaption><h3>By kind of event</h3></figcaption>
+      <div class="plot" id="chart-event-types"></div>
+      <div class="table-scroll">
+        <table class="data-table" id="event-types-table"></table>
+      </div>
+      <p class="note" id="event-types-note"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-event-nothing">
+      <figcaption><h3>Spend with no customer to show for it</h3></figcaption>
+      <p class="finding" id="event-nothing-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="event-nothing-table"></table>
+      </div>
+    </figure>
+
     <figure class="card wide" id="fig-event-packages">
       <figcaption><h3>Fees that paid for more than one event</h3></figcaption>
       <div class="table-scroll">
@@ -851,12 +897,21 @@
       </div>
       <p class="note" id="event-packages-note"></p>
     </figure>
-    <figure class="card wide" id="fig-event-sources">
-      <figcaption><h3>Where tagged customers came from, by medium</h3></figcaption>
+
+    <figure class="card wide" id="fig-event-channels">
+      <figcaption><h3>Events against the other ways customers arrive</h3></figcaption>
+      <p class="finding" id="event-channels-finding"></p>
       <div class="table-scroll">
-        <table class="data-table" id="event-sources-table"></table>
+        <table class="data-table" id="event-channels-table"></table>
       </div>
-      <p class="note" id="event-sources-note"></p>
+      <p class="note" id="event-channels-note"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-event-coverage">
+      <figcaption><h3>How many new customers carry a lead source at all</h3></figcaption>
+      <div class="plot" id="chart-event-coverage"></div>
+      <p class="finding" id="event-coverage-finding"></p>
+      <p class="note" id="event-coverage-note"></p>
     </figure>
   </section>
 
