@@ -834,7 +834,12 @@
     <p class="finding" id="events-coverage"></p>
 
     <figure class="card wide" id="fig-events">
-      <figcaption><h3>Which events have paid for themselves so far</h3></figcaption>
+      <figcaption><h3>Which events had paid for themselves, the same number of months on</h3></figcaption>
+      <div class="chart-control">
+        <label for="events-age">Read every event this long after it happened</label>
+        <input type="range" id="events-age" min="1" max="12" step="1" value="6">
+        <output id="events-age-value">6 months</output>
+      </div>
       <div class="plot" id="chart-events"></div>
       <p class="finding" id="events-finding"></p>
       <div class="chart-control">
@@ -848,7 +853,7 @@
     </figure>
 
     <figure class="card wide" id="fig-event-scatter">
-      <figcaption><h3>What each event cost, against what its customers have returned</h3></figcaption>
+      <figcaption><h3>What each event cost, against what its customers returned by the same age</h3></figcaption>
       <div class="plot" id="chart-event-scatter"></div>
       <p class="finding" id="event-scatter-finding"></p>
     </figure>
@@ -888,6 +893,14 @@
       <div class="table-scroll">
         <table class="data-table" id="event-nothing-table"></table>
       </div>
+    </figure>
+
+    <figure class="card wide" id="fig-event-checks">
+      <figcaption><h3>Costs to confirm before they drive a 2027 decision</h3></figcaption>
+      <div class="table-scroll">
+        <table class="data-table" id="event-checks-table"></table>
+      </div>
+      <p class="note" id="event-checks-note"></p>
     </figure>
 
     <figure class="card wide" id="fig-event-packages">

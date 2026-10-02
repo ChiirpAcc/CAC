@@ -12,7 +12,7 @@ import {
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
-  ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports,
+  ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_COST_CHECKS,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
@@ -3669,50 +3669,105 @@ function renderEvents() {
         + 'The customer figures read zero for that reason, not because the events brought no one.'
       : '<strong>This push carries no lead sources yet.</strong> The costs below are complete.';
 
-  // ---------------------------------------------------------------- ranking
+  // ---------------------------------------------------------------- ranking, at a chosen age
+  // Every event is read the same number of months after it happened, so a
+  // year-old event and a two-month-old one are never ranked on time one of
+  // them has not had. The event month counts as month one. An event younger
+  // than the chosen age is set aside, not ranked low.
   const costed = e.events.filter(x => x.spend !== null);
-  const ranked = [...costed].sort((a, b) => (b.net ?? -Infinity) - (a.net ?? -Infinity));
-  barList($('chart-events'), {
-    items: ranked.map(x => {
-      const age = ageOf(x);
-      return {
-        label: x.label,
-        sub: `${x.month ? fmt.monthLabel(x.month) : ''} · ${fmt.int(x.paid)} customer${x.paid === 1 ? '' : 's'}`
-          + ` · cost ${money(x.spend)}${age !== null && age < 6 ? ' · under six months old' : ''}`,
-        value: x.net,
-        colour: x.net >= 0 ? INK.positive : INK.negative,
-        muted: age !== null && age < 6,
-        title: `${x.label}: cost ${money(x.spend)}, contribution ${money(x.contribution)}, `
-          + `collected ${money(x.collected)}`,
-      };
-    }),
-    format: signed,
-    legendItems: [
-      { label: 'Contribution has covered the cost', colour: INK.positive },
-      { label: 'Not yet', colour: INK.negative },
-      { label: 'Faded: under six months old', colour: 'var(--ink-soft)', faint: true },
-    ],
-  });
-
-  const winners = costed.filter(x => x.net !== null && x.net >= 0);
-  const best = ranked[0];
-  const worst = ranked[ranked.length - 1];
   const t = e.totals;
-  $('events-finding').innerHTML = tagged
-    ? `<strong>${fmt.int(costed.length)} events cost ${money(t.spend)}; the ${fmt.int(t.customers)} `
-      + `tagged customers who started paying after their event have paid ${money(t.collected)} and `
-      + `contributed ${money(t.contribution)} after the cost of serving them.</strong> `
-      + `${fmt.int(winners.length)} of the ${fmt.int(costed.length)} have paid for themselves so far. `
-      + (best ? `${best.label} leads at ${signed(best.net)}. ` : '')
-      + (worst && worst !== best ? `${worst.label} is furthest behind at ${signed(worst.net)}. ` : '')
-      + (t.alreadyPaying
-          ? `${fmt.int(t.alreadyPaying)} more customers carry an event tag but were already paying `
-            + `before that event, so they are shown in the table and kept out of its return. `
-          : '')
-      + `An event under six months old is faded: it has had little time to earn anything back, `
-      + `so the recovery chart below compares events at the same age instead.`
-    : `<strong>${fmt.int(costed.length)} events cost ${money(t.spend)}.</strong> `
-      + `Customer results appear once lead sources arrive.`;
+  const recBy = new Map(r.recovery.map(x => [x.label, x]));
+  const ageInput = $('events-age');
+  if (ageInput && !ageInput.dataset.ready) {
+    ageInput.max = String(Math.min(12, Math.max(...r.recovery.map(x => x.age), 1)));
+    ageInput.value = String(Math.min(6, Number(ageInput.max)));
+  }
+  const drawAt = k => {
+    $('events-age-value').textContent = `${k} month${k === 1 ? '' : 's'}`;
+    const atK = costed.map(x => {
+      const rc = recBy.get(x.label);
+      const age = rc ? rc.age : null;
+      const reached = rc && rc.curve[k - 1] !== null && rc.curve[k - 1] !== undefined;
+      const contribution = reached ? rc.curve[k - 1] * x.spend : null;
+      return { ...x, age, reached, contributionAtK: contribution,
+        netAtK: reached ? contribution - x.spend : null };
+    });
+    const judged = atK.filter(x => x.reached).sort((a, b) => b.netAtK - a.netAtK);
+    const young = atK.filter(x => !x.reached).sort((a, b) => (b.age || 0) - (a.age || 0));
+    barList($('chart-events'), {
+      items: [
+        ...judged.map(x => ({
+          label: x.label,
+          sub: `${fmt.monthLabel(x.month)} · ${fmt.int(x.paid)} customer${x.paid === 1 ? '' : 's'} · cost ${money(x.spend)}`,
+          value: x.netAtK,
+          colour: x.netAtK >= 0 ? INK.positive : INK.negative,
+          title: `${x.label}: cost ${money(x.spend)}, contribution in its first ${k} months `
+            + `${money(x.contributionAtK)}, contribution to date ${money(x.contribution)}`,
+        })),
+        ...young.map(x => ({
+          label: x.label,
+          sub: `${fmt.monthLabel(x.month)} · ${x.age} month${x.age === 1 ? '' : 's'} old, not yet ${k}`,
+          value: null,
+          muted: true,
+        })),
+      ],
+      format: signed,
+      legendItems: [
+        { label: `Contribution in the first ${k} months has covered the cost`, colour: INK.positive },
+        { label: 'Not yet', colour: INK.negative },
+        { label: `Faded: under ${k} months old, not ranked`, colour: 'var(--ink-soft)', faint: true },
+      ],
+    });
+    const winners = judged.filter(x => x.netAtK >= 0);
+    const best = judged[0];
+    const worst = judged[judged.length - 1];
+    const spendJ = judged.reduce((s, x) => s + x.spend, 0);
+    const contribJ = judged.reduce((s, x) => s + x.contributionAtK, 0);
+    $('events-finding').innerHTML = tagged
+      ? `<strong>${k} month${k === 1 ? '' : 's'} after each event, ${fmt.int(winners.length)} of the ${fmt.int(judged.length)} `
+        + `events old enough to compare had paid for themselves: ${money(spendJ)} of cost against `
+        + `${money(contribJ)} of contribution from the customers they brought.</strong> `
+        + (best ? `${best.label} leads at ${signed(best.netAtK)}. ` : '')
+        + (worst && worst !== best ? `${worst.label} is furthest behind at ${signed(worst.netAtK)}. ` : '')
+        + (young.length ? `${fmt.int(young.length)} events are younger than ${k} month${k === 1 ? '' : 's'} and are listed `
+          + `faded at the bottom rather than ranked. ` : '')
+        + (t.alreadyPaying
+            ? `${fmt.int(t.alreadyPaying)} more customers carry an event tag but were already paying `
+              + `before that event, and are kept out of every figure here. `
+            : '')
+        + `Move the slider to read every event at the same age: short ages favour events whose `
+        + `customers start on a large first invoice, long ages favour the ones that keep them.`
+      : `<strong>${fmt.int(costed.length)} events cost ${money(t.spend)}.</strong> `
+        + `Customer results appear once lead sources arrive.`;
+
+    // The scatter follows the same age.
+    const dots = judged;
+    scatterBreakEven($('chart-event-scatter'), {
+      points: dots.map(x => ({ x: x.spend, y: x.contributionAtK,
+        colour: EVENT_TYPE_INK[x.type] || INK.tertiary, label: x.label })),
+      xLabel: 'What the event cost',
+      yLabel: `Contribution in its first ${k} months`,
+      describe: i => {
+        const x = dots[i];
+        return `<strong>${x.label}</strong><span>${x.type || ''} · ${fmt.monthLabel(x.month)}</span>`
+          + `<span>Cost ${money(x.spend)}, first ${k} months ${money(x.contributionAtK)}</span>`
+          + `<span>${fmt.int(x.paid)} customers, net ${signed(x.netAtK)}</span>`;
+      },
+      legendItems: typeLegend,
+    });
+    const above = dots.filter(x => x.contributionAtK >= x.spend);
+    const zeros = dots.filter(x => !x.paid);
+    $('event-scatter-finding').innerHTML =
+      `<strong>At ${k} months, ${fmt.int(above.length)} of ${fmt.int(dots.length)} events sit above the line.</strong> `
+      + `${fmt.int(zeros.length)} sit on the floor at zero because nobody tagged to them started paying. `
+      + `Distance above the line is money made back beyond the cost; a dot far to the right and low `
+      + `is an expensive event that has not produced its customers. The slider above sets the age.`;
+  };
+  if (ageInput && !ageInput.dataset.ready) {
+    ageInput.addEventListener('input', () => drawAt(Number(ageInput.value)));
+    ageInput.dataset.ready = '1';
+  }
+  drawAt(Number(ageInput ? ageInput.value : 6));
 
   const row = x => {
     const c = x.cost;
@@ -3760,29 +3815,6 @@ function renderEvents() {
         : '')
     + 'Two QuickBooks sponsorship lines could not be tied to an event and are in no row: $10,000 '
     + 'to LSP HoldCo in Oct 2025 and $3,660 of event costs in Australia in Oct and Nov 2025.';
-
-  // ---------------------------------------------------------------- scatter
-  const dots = costed.filter(x => x.contribution !== null);
-  scatterBreakEven($('chart-event-scatter'), {
-    points: dots.map(x => ({ x: x.spend, y: x.contribution, colour: EVENT_TYPE_INK[x.type] || INK.tertiary,
-      label: x.label })),
-    xLabel: 'What the event cost',
-    yLabel: 'Contribution from its customers so far',
-    describe: i => {
-      const x = dots[i];
-      return `<strong>${x.label}</strong><span>${x.type || ''}${x.month ? ' · ' + fmt.monthLabel(x.month) : ''}</span>`
-        + `<span>Cost ${money(x.spend)}, contribution ${money(x.contribution)}</span>`
-        + `<span>${fmt.int(x.paid)} customers, net ${signed(x.net)}</span>`;
-    },
-    legendItems: typeLegend,
-  });
-  const above = dots.filter(x => x.contribution >= x.spend);
-  const zeros = dots.filter(x => !x.paid);
-  $('event-scatter-finding').innerHTML =
-    `<strong>${fmt.int(above.length)} of ${fmt.int(dots.length)} events sit above the line.</strong> `
-    + `${fmt.int(zeros.length)} sit on the floor at zero because nobody tagged to them started paying. `
-    + `Distance above the line is money made back beyond the cost; a dot far to the right and low `
-    + `is an expensive event that has not yet produced its customers.`;
 
   // ---------------------------------------------------------------- recovery by age
   const rec = r.recovery;
@@ -3934,6 +3966,24 @@ function renderEvents() {
       + `<td class="n">${x.alreadyPaying ? fmt.int(x.alreadyPaying) : '–'}</td>`
       + `<td>${chip(x.plan2027)}</td></tr>`).join('')
     + '</tbody>';
+
+  // ---------------------------------------------------------------- costs to confirm
+  const byLabel = new Map(e.events.map(x => [x.label, x]));
+  $('event-checks-table').innerHTML =
+    '<thead><tr><th>Event</th><th class="n">Fee used</th><th>What QuickBooks shows</th>'
+    + '<th>What to confirm</th><th class="n">Net of cost</th></tr></thead><tbody>'
+    + EVENT_COST_CHECKS.map(c => {
+      const x = byLabel.get(c.event);
+      return `<tr><td>${c.event}${x ? ' ' + chip(x.plan2027) : ''}</td><td class="n">${fmt.money(c.amount)}</td>`
+        + `<td>${c.found}</td><td>${c.ask}</td>`
+        + `<td class="n">${x && x.net !== null ? `<span class="${x.net < 0 ? 'notviable' : 'held'}">${signed(x.net)}</span>` : '–'}</td></tr>`;
+    }).join('')
+    + '</tbody>';
+  $('event-checks-note').textContent =
+    'Each fee was traced from the QuickBooks Transaction Detail export, Sep 2025 to Sep 2026, back '
+    + 'to its bill or card charge. These are the ones where the books, the planning sheet and the event '
+    + 'do not agree, or where the books do not say what was bought. The fee used is what the page '
+    + 'charges the event today; change it on the Event Costs tab once confirmed.';
 
   // ---------------------------------------------------------------- packages
   const packRow = p => `<tr><td>${p.label}</td>`

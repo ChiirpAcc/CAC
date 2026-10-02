@@ -3162,6 +3162,46 @@ export const EVENT_PACKAGES = [
       + '$50,258, so the CHIIRP share is a quarter. The event is in October 2026, after this window.' },
 ];
 
+// Fees to confirm with whoever holds the vendor relationship. Each was traced
+// from the QuickBooks Transaction Detail export (Sep 2025 to Sep 2026) back
+// to its bill or card charge; these are the ones where the books, the plan
+// and the event do not agree, or where the books do not say what was bought.
+export const EVENT_COST_CHECKS = [
+  { event: 'RynoX 2026', amount: 40000,
+    found: 'One Chase card charge of $41,500 on Nov 24 2025 ($40,000 plus a $1,500 podcast payment), '
+      + 'booked to Feb 2026. No invoice in payables. RYNO was also paid $1,500 a month for a podcast '
+      + 'sponsorship, Sep 2025 to Mar 2026, $10,500 under advertising, plus $1,063 of RynoX swag.',
+    ask: 'What the $40,000 bought. RynoX 2026 attendee tickets were $7,500 standard and $10,000 VIP, '
+      + 'so it is the price of four VIP seats; was it a sponsorship, seats, or both years?' },
+  { event: 'HSF 2025', amount: 64000,
+    found: 'Titanium sponsorship $52,500, co-op postcard $10,000, website listing $1,500, Sep 2025. '
+      + 'The planning sheet had $35,000.',
+    ask: 'Whether the contract is $52,500 or $35,000 plus extras, and whether the postcard belongs to the event.' },
+  { event: 'Raising GOATS 2026', amount: 12500,
+    found: 'An EGIA bill for the Raising Goats conference, Mar 2026. The planning sheet had $4,000.',
+    ask: 'Whether the bill covers anything beyond the Raising GOATS session, such as EGIA membership.' },
+  { event: 'EGIA Epic 2026', amount: 16445,
+    found: 'Trade show $10,945 plus a separate $5,500 from EGIA booked as "activity for Feb 2026".',
+    ask: 'What the $5,500 is. If it is not Epic, Epic is $10,945.' },
+  { event: 'BDR Spark 2026', amount: 17500,
+    found: 'QuickBooks spreads $1,492 a month to BDR, already running in Oct 2025 under advertising '
+      + 'before it moved to tradeshows in Jan 2026.',
+    ask: 'Whether that is the Spark fee or a twelve-month BDR programme; no separate Spark bill was found.' },
+  { event: 'Redwood Leadership Summit', amount: 10000,
+    found: 'Redwood Services sponsorship, Apr 2026. The planning sheet had $3,000.',
+    ask: 'Which figure the agreement says.' },
+  { event: 'Wealthy Plumber Hoorah 2025', amount: 4997,
+    found: 'The $4,997 was paid to Standard Plumbing Industry Show for a Hoorah booth, billed Feb 2026 '
+      + 'and booked Mar 2026. The only Hoorah charge near the Oct 2025 event is $1,000 in Dec 2025.',
+    ask: 'Whether the $4,997 belongs to a 2026 Hoorah, in which case the 2025 event cost $1,000.' },
+  { event: 'Pantheon 2025', amount: 30000,
+    found: 'QuickBooks books $30,000 to ServiceTitan in Sep 2025. The planning sheet had $40,000.',
+    ask: 'Whether a $10,000 deposit was paid before Sep 2025, outside the export.' },
+  { event: 'Clover Mastermind 2025', amount: 12500,
+    found: 'Confirmed: Clover Marketing, Fall Mastermind sponsor. Nobody tagged to it has started paying.',
+    ask: 'Whether attendees were tagged in HubSpot; same question for Zoom Drain ($10,000) and We Mean Business ($10,000).' },
+];
+
 // Lead source values that do not match an Event Costs row by name. Filled
 // from the first push that carried lead_source; anything not listed and not
 // matched by name is reported as unmatched rather than guessed.
