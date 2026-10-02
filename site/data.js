@@ -10,7 +10,9 @@ export const DATA_DIR = 'data';
 
 // Anything at or after the current month is still accruing. The clearest
 // case in the data is a month carrying negative acquisition cost, which is
-// a credit posted before the month's spend has landed.
+// a credit posted before the month's spend has landed. This only ever caps
+// the window from above; the months a push holds in full are decided from the
+// push itself in load().
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
 
 // How far back anything on this page is allowed to reach. A hard limit rather
@@ -19,21 +21,21 @@ const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
 // that, where a longer reach pulled in an era that behaved differently and the
 // extra months did the work.
 //
-// Set to land on 2024-01, which is not a preference but a floor. The finance
-// tabs — QB Expenses, Serve Monthly and CAC Monthly — all begin there, so a
-// cohort older than that has revenue and no denominator. The customer file
-// itself runs back to 2018-12 and is clean well before 2024 (its live counts
+// The window opens at the first month the QB Expenses tab carries, which is
+// 2024-01 on the current push. That is not a preference but a floor: before it
+// a cohort has revenue and no acquisition cost to set against it. The customer
+// file runs back to 2018-12 and is clean well before 2024 (its live counts
 // match the summary exactly in every month checked), so the day the ledger
-// reaches further back, this number is the only thing that has to move.
+// reaches further back, the window follows it without a change here.
+//
+// Both ends are read from the push, never from the reader's clock. The start
+// used to be today less 32 months, so it slid forward a month on the first of
+// every month with nothing pushed, and on 1 October it dropped 2024-01 and
+// turned the full 2024-02 intake into a censored boundary. The 32 months
+// survive only as a ceiling: the window never runs more than 32 months back
+// from the last complete month, so a ledger extended back to 2020 does not
+// silently put six years on every chart.
 const MONTHS_OF_HISTORY = 32;
-
-function earliestMonth(reference = CURRENT_MONTH) {
-  const [year, month] = reference.split('-').map(Number);
-  const total = year * 12 + (month - 1) - MONTHS_OF_HISTORY;
-  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
-}
-
-export const HISTORY_STARTS = earliestMonth();
 
 // The event types that mean a customer was in the base that month. 'churn' is
 // the month they left and 'inactive' is a row carried for a customer who was
@@ -148,6 +150,11 @@ function checkVocabulary(doc, customers) {
     ok: !unknown.length && !disagreements.length && !rowCountOff,
   };
 }
+
+// A month as the page compares it. Anything else, 2025-1 or 1/1/2025, is what
+// Sheets hands back for an unprotected month and would sort into the wrong
+// place, so it is kept out of the window rather than compared.
+const isMonth = value => /^\d{4}-\d{2}$/.test(String(value || ''));
 
 export function monthAdd(month, offset) {
   const [year, m] = month.split('-').map(Number);
@@ -294,8 +301,19 @@ export async function load() {
       : prior.length % 2 ? prior[mid] : (prior[mid - 1] + prior[mid]) / 2;
     if (median === null || ledgerTotals.get(m) >= median * 0.5) ledgerThrough = m;
   });
-  const inWindow = month => month && month >= HISTORY_STARTS && month < CURRENT_MONTH
-    && (ledgerThrough === null || month <= ledgerThrough);
+  // The last complete month is the earlier of the ledger's last full month and
+  // the last month the Waterfall Summary carries, and the window runs back from
+  // it to the first month of the ledger, at most MONTHS_OF_HISTORY months.
+  const summaryMonths = byTab['Waterfall Summary'].rows.map(r => r.month)
+    .filter(m => isMonth(m) && m < CURRENT_MONTH).sort();
+  const lastComplete = [ledgerThrough ?? ledgerMonths[ledgerMonths.length - 1],
+    summaryMonths[summaryMonths.length - 1]].filter(Boolean).sort()[0] || null;
+  const ledgerStarts = [...ledgerTotals.keys()].filter(isMonth).sort()[0] || null;
+  const ceiling = lastComplete ? monthAdd(lastComplete, -(MONTHS_OF_HISTORY - 1)) : null;
+  const historyStarts = [ledgerStarts, ceiling].filter(Boolean).sort().pop() || null;
+  const inWindow = month => isMonth(month) && month < CURRENT_MONTH
+    && (historyStarts === null || month >= historyStarts)
+    && (lastComplete === null || month <= lastComplete);
   const complete = rows => rows.filter(r => inWindow(r.month));
 
   // What it costs to keep a logo, as opposed to winning one. The revenue side
@@ -533,7 +551,7 @@ export async function load() {
     ledgerThrough,
     hasLeadSource: (byTab['Customer Waterfall'].columns || []).includes('lead_source'),
     pipelineVersion: byTab['Customer Waterfall'].pipeline_version || null,
-    historyStarts: HISTORY_STARTS,
+    historyStarts,
     waterfall,
     cacMonthly,
     expenses,
