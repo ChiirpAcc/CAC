@@ -5395,7 +5395,22 @@ export const COST_CATEGORIES = [
   { key: 'travel',      label: 'Travel',               match: /6100-4[1-5]/ },
 ];
 
-export function acquisitionCosts(data, { months = 12 } = {}) {
+// How many logos started in each month, on the one count the page keeps:
+// customers dated by their first revenue, the cohort size charts 1, 2 and 17
+// divide by. The month that opens the window is null rather than its cohort
+// size, because only customers with a Stripe start date can be dated there and
+// a month of spend over that partial count is about the count. Cached per
+// load, because several charts ask and buildCohorts is the expensive part.
+const startedCache = new WeakMap();
+export function logosStarted(data, cohorts = null) {
+  if (!cohorts && startedCache.has(data)) return startedCache.get(data);
+  const built = cohorts || buildCohorts(data);
+  const started = new Map(built.map(c => [c.month, c.month === built.windowStart ? null : c.size]));
+  if (!cohorts) startedCache.set(data, started);
+  return started;
+}
+
+export function acquisitionCosts(data, { months = 12, cohorts = null } = {}) {
   const rows = data.expenses.filter(isAcquisition);
 
   const all = [...new Set(rows.map(e => e.month))].sort();
@@ -5413,7 +5428,9 @@ export function acquisitionCosts(data, { months = 12 } = {}) {
     target.set(e.month, (target.get(e.month) || 0) + (e.amount || 0));
   }
 
-  const logos = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+  // The cohort count, not the summary's new_logos, which the loader does not
+  // read: in the first month of the window the two parted by 67 against 23.
+  const logos = logosStarted(data, cohorts);
   const reported = new Map(data.cacMonthly.map(r => [r.month, r.reported]));
 
   const categories = COST_CATEGORIES.map(c => ({

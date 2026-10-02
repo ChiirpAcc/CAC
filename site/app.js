@@ -481,7 +481,7 @@ function renderCostTable(data) {
   const span = data.lastMonth && FROM
     ? monthDiff(FROM, data.lastMonth) + 1
     : 12;
-  const c = acquisitionCosts(data, { months: Math.max(span, 12) });
+  const c = acquisitionCosts(data, { months: Math.max(span, 12), cohorts });
   if (!c.months.length) {
     $('cost-table').innerHTML = '<tbody><tr><td>No acquisition spend in the window.</td></tr></tbody>';
     return;
@@ -505,14 +505,22 @@ function renderCostTable(data) {
     + c.totals.map(v => `<td class="n"><strong>${money(v)}</strong></td>`).join('')
     + `<td class="n total-col"><strong>${money(sum(c.totals))}</strong></td></tr>`;
 
-  const logoRow = `<tr><td>New logos</td>`
+  const logoRow = `<tr><td>Logos started</td>`
     + c.logos.map(v => `<td class="n">${v === null ? '–' : fmt.int(v)}</td>`).join('')
     + `<td class="n total-col">${fmt.int(c.logos.reduce((s, v) => s + (v || 0), 0))}</td></tr>`;
 
-  const totalLogos = c.logos.reduce((s, v) => s + (v || 0), 0);
+  // Per logo only over months that have a count, so the boundary month's spend
+  // is not divided by logos it never had.
+  const counted = c.months.map((m, i) => i).filter(i => c.logos[i] !== null);
+  const totalLogos = counted.reduce((s, i) => s + c.logos[i], 0);
+  const countedSpend = counted.reduce((s, i) => s + c.totals[i], 0);
+  const perLogoOver = idx => {
+    const n = idx.reduce((s, i) => s + c.logos[i], 0);
+    return n ? idx.reduce((s, i) => s + c.totals[i], 0) / n : null;
+  };
   const cplRow = `<tr class="rule-above emphasis"><td><strong>Cost per logo</strong></td>`
     + c.costPerLogo.map(v => `<td class="n"><strong>${v === null ? '–' : money(v)}</strong></td>`).join('')
-    + `<td class="n total-col"><strong>${totalLogos ? money(sum(c.totals) / totalLogos) : '–'}</strong></td></tr>`;
+    + `<td class="n total-col"><strong>${totalLogos ? money(countedSpend / totalLogos) : '–'}</strong></td></tr>`;
 
   $('cost-table').innerHTML = head + '<tbody>' + body + totalRow + logoRow + cplRow + '</tbody>';
 
@@ -526,17 +534,32 @@ function renderCostTable(data) {
   const headcountTotal = sum(headcount.map(x => sum(x.values)));
   const grand = sum(c.totals);
 
+  // First and last six months that carry a count. The last six used to be
+  // slice(6), every month after the first six, which put a 25 month average
+  // under the words "the last six".
+  const firstSix = counted.slice(0, 6);
+  const lastSix = counted.slice(-6);
   $('cost-finding').innerHTML =
-    `<strong>${money(grand)} bought ${fmt.int(totalLogos)} logos, ${money(grand / totalLogos)} each.</strong> `
+    `<strong>${money(countedSpend)} bought ${fmt.int(totalLogos)} logos, ${money(countedSpend / totalLogos)} each.</strong> `
     + `People you employ to sell are ${fmt.pct(headcountTotal / grand, 0)} of it. `
-    + `Cost per logo averaged ${money(sum(c.totals.slice(0, 6)) / Math.max(c.logos.slice(0, 6).reduce((s, v) => s + (v || 0), 0), 1))} `
-    + `over the first six months of the window and `
-    + `${money(sum(c.totals.slice(6)) / Math.max(c.logos.slice(6).reduce((s, v) => s + (v || 0), 0), 1))} `
-    + `over the last six. Month by month it swings from ${money(Math.min(...c.costPerLogo.filter(v => v !== null)))} `
+    + `Cost per logo averaged ${money(perLogoOver(firstSix))} `
+    + `over the first six months with a count, ${fmt.monthLabel(c.months[firstSix[0]])} to `
+    + `${fmt.monthLabel(c.months[firstSix[firstSix.length - 1]])}, and `
+    + `${money(perLogoOver(lastSix))} `
+    + `over the last six, to ${fmt.monthLabel(c.months[lastSix[lastSix.length - 1]])}. `
+    + `Month by month it swings from ${money(Math.min(...c.costPerLogo.filter(v => v !== null)))} `
     + `to ${money(Math.max(...c.costPerLogo.filter(v => v !== null)))}, so a single month is a `
     + `poor summary of it.`;
 
   const drift12 = drift.reduce((s, v) => s + (v || 0), 0);
+  const above = drift.filter(v => v !== null && v > 0);
+  const below = drift.filter(v => v !== null && v < 0);
+  const worstMonth = c.months[drift.indexOf(worst)];
+  const boundaryNote = c.logos[0] === null
+    ? ` ${fmt.monthLabel(c.months[0])} has spend and no count: it opens the window, so only `
+      + 'customers with a Stripe start date can be dated to it, and its spend is left out of '
+      + 'the per logo figures rather than divided by a partial count.'
+    : '';
   $('cost-note').innerHTML =
     'Categories are matched from the account name, so a renamed account falls into Other '
     + 'rather than disappearing, and they sum to the total underneath them. '
@@ -545,12 +568,15 @@ function renderCostTable(data) {
     + 'categories here account for the whole of it and nothing on the page is dividing by a '
     + 'number you cannot see broken out. '
     + 'The pipeline publishes its own figure in CAC Monthly, and the two do not agree: it is '
-    + money(Math.abs(drift12)) + ' ' + (drift12 < 0 ? 'higher' : 'lower') + ' over these twelve '
-    + 'months, and ' + money(Math.abs(worst)) + ' apart in the worst single month. Almost all '
-    + 'of that sits in two months where Customer Success appears to reach acquisition despite '
-    + 'being settled at zero. The lines win here because each one is an account that can be '
-    + 'checked; the published figure is carried alongside so the gap stays visible. '
-    + 'New logos are the monthly summary count, the same one the cohort charts use.';
+    + money(Math.abs(drift12)) + ' ' + (drift12 < 0 ? 'higher' : 'lower') + ' over these '
+    + c.months.length + ' months, the net of ' + money(sum(above)) + ' by which the lines run '
+    + 'above it in ' + above.length + ' months and ' + money(Math.abs(sum(below))) + ' below '
+    + 'it in ' + below.length + ', and ' + money(Math.abs(worst)) + ' apart in the worst single '
+    + 'month, ' + fmt.monthLabel(worstMonth) + '. The gap is spread across the window rather '
+    + 'than sitting in one or two months. The lines win here because each one is an account '
+    + 'that can be checked; the published figure is carried alongside so the gap stays visible. '
+    + 'Logos are the customers whose first revenue fell in that month, the same count the '
+    + 'cohort charts divide by, not the monthly summary\'s new logos.' + boundaryNote;
 }
 
 // A cohort this young cannot have returned its acquisition cost whatever its
@@ -1103,7 +1129,7 @@ function renderCostDrivers() {
   const span = data.lastMonth && data.historyStarts
     ? monthDiff(data.historyStarts, data.lastMonth) + 1
     : 12;
-  const c = acquisitionCosts(data, { months: Math.max(span, 12) });
+  const c = acquisitionCosts(data, { months: Math.max(span, 12), cohorts });
   if (!c.months.length) return;
 
   const sum = vals => vals.reduce((s, v) => s + v, 0);
@@ -1114,7 +1140,10 @@ function renderCostDrivers() {
 
   // Five lines is the most a reader can follow. Everything else is summed into
   // one so the total still reconciles rather than quietly losing money.
-  const ranked = [...c.categories].sort((a, b) => sum(b.values) - sum(a.values));
+  // A category with no money in the window is not a line, and counting it in
+  // "Everything else" named six categories where five carried a dollar.
+  const ranked = c.categories.filter(cat => sum(cat.values) > 0)
+    .sort((a, b) => sum(b.values) - sum(a.values));
   const shown = ranked.slice(0, 5);
   const rest = ranked.slice(5);
   const palette = [INK.primary, INK.secondary, INK.tertiary, INK.accent, INK.negative];
@@ -1142,7 +1171,7 @@ function renderCostDrivers() {
     yTitle: 'Cost per logo, per month',
     labels, series, yFormat: fmt.money,
     describe: i => labels[i] + ': ' + fmt.money(c.costPerLogo[i]) + ' per logo on '
-      + fmt.int(c.logos[i]) + ' new logos. '
+      + fmt.int(c.logos[i]) + ' logos started. '
       + series.slice(0, -1).map(s => s.label + ' ' + fmt.money(s.values[i])).join(', '),
   });
 
@@ -1174,23 +1203,24 @@ function renderCostDrivers() {
     + (moves[1] && moves[1].delta > 0
         ? moves[1].label + ' added ' + fmt.money(moves[1].delta) + ' on top of it. '
         : '')
-    + 'Read this against the new logo counts in the table above rather than on its '
+    + 'Read this against the logo counts in the table above rather than on its '
     + 'own: a category can rise here without anybody spending an extra dollar, '
-    + 'because the denominator is new logos and that is the number that fell.';
+    + 'because the denominator is logos started and that is the number that fell.';
 
   $('cost-drivers-note').textContent =
-    'Each category from the table above, divided by the new logos booked in the '
+    'Each category from the table above, divided by the logos that started in the '
     + 'same month, so this is the cost table read per customer rather than per month. '
     + 'A category with no spend in a month sits at zero rather than leaving a gap, '
     + 'because zero is the true value there. The dashed line is the total and equals '
     + 'the bottom row of the table. Months with no new logos have no cost per logo '
     + 'and break the lines rather than dropping them to the axis. '
     + 'One category break to know about before reading a trend into it: marketing '
-    + 'salaries ran about $12,000 a month to 2025-08, then sat at zero for five '
-    + 'months and returned at around $3,500, while the same work moved into '
-    + 'professional services. Both are acquisition so no total moves, but the two '
-    + 'category lines are not comparable across that break — a fall in one and a '
-    + 'rise in the other there is a reclassification rather than a decision.';
+    + 'salaries, which sit in Other acquisition and so in the Everything else line here, '
+    + 'ran about $12,000 a month to 2025-07, sat at zero from 2025-09 to 2025-12 and came '
+    + 'back at around $3,500 from 2026-02, while the same work moved into agencies and '
+    + 'services. Both are acquisition so no total moves, but the two are not comparable '
+    + 'across that break: a fall in one and a rise in the other there is a reclassification '
+    + 'rather than a decision.';
 }
 
 
@@ -5243,66 +5273,106 @@ function renderAssumptionDependent() {
     + 'the 2024 cohorts the revenue side wins. Neither is wrong: this is payback on '
     + 'acquisition, that is payback on everything.';
 
-  // 7. Cost per logo against revenue per logo, indexed to 100.
-  // The pipeline's own acquisition cost, the same figure charts 1, 2 and 17
-  // divide by. Re-deriving it here from the expense lines produced a second
-  // implementation of one number, which is how the page ended up with three
-  // answers to what a logo costs.
-  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
-  const months = data.waterfall.filter(r => cac.has(r.month) && cac.get(r.month) !== null);
-  // A month whose new logo count has collapsed produces a cost per logo that
-  // is about the denominator rather than about the cost. August 2026 divides
-  // a normal month of spend by nine logos and lands three times higher than
-  // anything before it, which is the second Stripe environment not reaching
-  // the count rather than a real move. Those months are blanked rather than
-  // drawn, because a spike that large is read before any caveat under it.
-  const counts = months.map(r => r.newLogos).filter(Boolean).sort((a, b) => a - b);
-  const typical = counts.length ? counts[Math.floor(counts.length / 2)] : 0;
-  // A third of a typical month, not a half. July sits at 47% of typical and is
-  // a thin month rather than a broken one; August at 18% is the count failing.
-  const perLogo = months.map(r => (r.newLogos ? r.newMrr / r.newLogos : 0)).filter(Boolean).sort((a, b) => a - b);
-  const typicalPerLogo = perLogo.length ? perLogo[Math.floor(perLogo.length / 2)] : 0;
-  const reliable = r => r.newLogos
-    && r.newLogos >= typical * 0.35
-    && r.newMrr / r.newLogos >= typicalPerLogo * 0.35;
-  const suppressed = months.filter(r => !reliable(r));
-
-  const costPerLogo = months.map(r => (reliable(r) ? cac.get(r.month) / r.newLogos : null));
-  const revenuePerLogo = months.map(r => (reliable(r) ? r.newMrr / r.newLogos : null));
-  const baseCost = costPerLogo.find(v => v !== null);
-  const baseRevenue = revenuePerLogo.find(v => v !== null);
+  // 7. Cost per logo against revenue per logo, indexed to the first year.
+  //
+  const { months, intake, boundary, suppressed, costPerLogo, revenuePerLogo,
+    baseYear, baseCost, baseRevenue, index } = unitCostSeries();
+  const last = months.length - 1;
 
   multiLineChart($('chart-unit'), {
-    yTitle: 'Dollars per logo, per month',
-    labels: months.map(r => fmt.monthLabel(r.month)),
+    yTitle: `Index, ${baseYear} median month = 100`,
+    labels: months.map(m => fmt.monthLabel(m)),
     series: [
       { label: 'Cost per logo', colour: INK.negative,
-        values: costPerLogo.map(v => (v === null ? null : (v / baseCost) * 100)) },
+        values: costPerLogo.map(v => index(v, baseCost)) },
       { label: 'New-logo revenue per logo', colour: INK.primary,
-        values: revenuePerLogo.map(v => (v === null ? null : (v / baseRevenue) * 100)) },
+        values: revenuePerLogo.map(v => index(v, baseRevenue)) },
     ],
     yFormat: v => Math.round(v),
-    refs: [{ value: 100, label: `${months[0]?.month} = 100`, variant: 'ref-floor' }],
-    describe: i => `<strong>${fmt.monthLabel(months[i].month)}</strong>
-      <span>Cost per logo ${fmt.money(costPerLogo[i])}</span>
-      <span>Revenue per logo ${fmt.money(revenuePerLogo[i])}</span>
-      <span class="muted">${fmt.int(months[i].newLogos)} new logos</span>`,
+    refs: [{ value: 100, label: `${baseYear} median = 100`, variant: 'ref-floor' }],
+    describe: i => `<strong>${fmt.monthLabel(months[i])}</strong>
+      <span>Cost per logo ${fmt.money(costPerLogo[i])}, index ${fmt.int(index(costPerLogo[i], baseCost))}</span>
+      <span>Revenue per logo ${fmt.money(revenuePerLogo[i])}, index ${fmt.int(index(revenuePerLogo[i], baseRevenue))}</span>
+      <span class="muted">${fmt.int(intake.get(months[i]).size)} logos started</span>`,
   });
   $('unit-note').textContent =
-    'Both indexed to 100 at the first month with acquisition cost recorded, so the '
-    + 'divergence reads without either absolute number needing to be right. Cost per '
-    + 'logo divides the month acquisition cost by the new logos in the monthly '
-    + 'summary, one basis for the whole line. '
+    `Both indexed to 100 at the median month of ${baseYear}, ${fmt.money(baseCost)} of `
+    + `acquisition cost and ${fmt.money(baseRevenue)} of first-month MRR per logo, so the `
+    + 'divergence reads without either absolute number needing to be right. Cost per logo '
+    + 'divides the month acquisition cost by the customers whose first revenue fell in that '
+    + 'month, the count charts 1, 2 and 17 use, and revenue per logo is what those same '
+    + 'customers were booked at in that month, the old joining charge included. '
+    + (costPerLogo[last] !== null
+        ? `${fmt.monthLabel(months[last])} reads ${fmt.int(index(costPerLogo[last], baseCost))} `
+          + `on cost and ${fmt.int(index(revenuePerLogo[last], baseRevenue))} on revenue. `
+        : '')
     + (suppressed.length
-        ? suppressed.map(r => fmt.monthLabel(r.month)).join(' and ')
-          + ' ' + (suppressed.length === 1 ? 'is' : 'are') + ' left blank. A month is drawn '
-          + 'only once both halves hold: enough new logos for the ratio to be measuring cost '
-          + 'rather than its own denominator, and enough recognised MRR against them for the '
-          + 'revenue side to mean anything. The trailing month fails the second because most '
-          + 'of its arrivals are in the second Stripe environment, whose revenue does not '
-          + 'reach the MRR column at all. That is a recognition gap rather than a lag: the '
-          + 'earliest of those customers are five months in and still register nothing.'
+        ? suppressed.map(m => fmt.monthLabel(m)).join(' and ')
+          + ' ' + (suppressed.length === 1 ? 'is' : 'are') + ' left blank. '
+          + (suppressed.includes(boundary)
+              ? `${fmt.monthLabel(boundary)} opens the window, so its count holds only the `
+                + 'customers with a Stripe start date in it and is not that month\'s intake. '
+              : '')
+          + (suppressed.some(m => m !== boundary)
+              ? 'A month is otherwise drawn only once enough logos started for the ratio to be '
+                + 'measuring cost rather than its own denominator, and enough MRR came with them '
+                + 'for the revenue side to mean anything.'
+              : '')
         : '');
+}
+
+// Chart 7's two series, computed once. The chart and its annotation both
+// read this: the annotation used to rebuild the series on its own rules and
+// quote a different base month and a different count from the line above it.
+function unitCostSeries() {
+  // The acquisition cost charts 1, 2 and 17 divide by, over the same count
+  // they use: the cohort that started that month. The summary's new-logo
+  // count was a second definition of a logo, and in the first month of the
+  // window the two parted most (67 booked against 23 dated).
+  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const intake = new Map(cohorts.map(c => [c.month, c]));
+  const months = data.cacMonthly
+    .filter(r => r.cacTotalActual !== null && intake.has(r.month))
+    .map(r => r.month);
+  // The boundary month holds only the customers with a Stripe start date in
+  // it; everyone else present then is censored. Its count is not that month's
+  // intake, so a cost per logo on it is about the denominator and is blanked.
+  const boundary = cohorts.windowStart;
+  // A month whose count or revenue has collapsed against a typical month is
+  // also about the denominator rather than the cost. A third of typical, not
+  // a half: a thin month is real, a count that fails is not.
+  const sizes = months.map(m => intake.get(m).size).filter(Boolean).sort((a, b) => a - b);
+  const typical = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 0;
+  const paysOf = m => intake.get(m).revenue[0] / intake.get(m).size;
+  const pays = months.map(paysOf).filter(v => v > 0).sort((a, b) => a - b);
+  const typicalPays = pays.length ? pays[Math.floor(pays.length / 2)] : 0;
+  const reliable = m => m !== boundary
+    && intake.get(m).size >= typical * 0.35
+    && paysOf(m) >= typicalPays * 0.35;
+  const suppressed = months.filter(m => !reliable(m));
+
+  // Revenue per logo is what the cohort was booked at in its first month, the
+  // same month and the same customers as the cost beside it.
+  const costPerLogo = months.map(m => (reliable(m) ? cac.get(m) / intake.get(m).size : null));
+  const revenuePerLogo = months.map(m => (reliable(m) ? paysOf(m) : null));
+
+  // Indexed to the median month of the first calendar year rather than to the
+  // first month, which on this push was the cheapest month in the series and
+  // made every later cost reading about a quarter higher than a typical 2024
+  // month would.
+  const baseYear = months.find(m => reliable(m))?.slice(0, 4);
+  const medianOf = values => {
+    const v = values.filter(x => x !== null).sort((a, b) => a - b);
+    if (!v.length) return null;
+    const mid = v.length >> 1;
+    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+  };
+  const inBase = (values) => values.filter((_, i) => months[i].startsWith(baseYear));
+  const baseCost = medianOf(inBase(costPerLogo));
+  const baseRevenue = medianOf(inBase(revenuePerLogo));
+  const index = (v, base) => (v === null || !base ? null : (v / base) * 100);
+  return { months, intake, boundary, suppressed, costPerLogo, revenuePerLogo,
+    baseYear, baseCost, baseRevenue, index };
 }
 
 // Forward survival. Independent of the split and the margin, so drawn once.
@@ -6005,13 +6075,13 @@ const MEANS = {
     + 'is spent on the ones who were largely going to stay anyway.',
 
   'chart-unit':
-    'Treat the rise as an upper bound rather than a measurement. The denominator is a new '
-    + 'logo count drawn almost entirely from the first Stripe environment, and new business '
-    + 'has been moving to the second, so some of this curve is customers being won and not '
-    + 'counted rather than cost genuinely doubling. What can be said is that cost per logo has '
-    + 'not fallen. What cannot yet be said is by how much it rose, and no decision that '
-    + 'depends on the magnitude should be taken from this chart until the signup source is '
-    + 'joined in.',
+    'Winning a customer costs far more than it did, and what that customer pays on arrival has '
+    + 'not risen to match, so the gap is an acquisition problem rather than a pricing one. The '
+    + 'count now includes customers who start in the second Stripe environment, which is most '
+    + 'of the newest months, so the rise is not customers being won and missed. What would make '
+    + 'it wrong is timing: a month of spend is set against the customers who started that '
+    + 'month, and a sales cycle that lengthened would push cost into the wrong month and '
+    + 'overstate the recent readings.',
 
   'chart-era':
     'On a head count there is no recent break to go and find. An intake won in 2026 decays '
@@ -6205,38 +6275,31 @@ function renderAnnotations() {
     'A cohort appears only once that age is behind it. Recent cohorts are genuinely absent rather than sitting at 100%.',
   ]);
 
-  const cacMap = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
-  // Same reliability rule the chart itself applies. Reading the endpoint off
-  // an unfiltered list quoted 2026-08 at $33,627, a month the chart blanks
-  // precisely because its denominator has failed.
-  const unitAll = w.filter(r => cacMap.has(r.month) && r.newLogos);
-  const unitCounts = unitAll.map(r => r.newLogos).sort((a, b) => a - b);
-  const unitTypical = unitCounts.length ? unitCounts[Math.floor(unitCounts.length / 2)] : 0;
-  const unitPerLogo = unitAll.map(r => r.newMrr / r.newLogos).filter(Boolean).sort((a, b) => a - b);
-  const unitTypicalPerLogo = unitPerLogo.length ? unitPerLogo[Math.floor(unitPerLogo.length / 2)] : 0;
-  const unitMonths = unitAll.filter(r => r.newLogos >= unitTypical * 0.35
-    && r.newMrr / r.newLogos >= unitTypicalPerLogo * 0.35);
-  const firstU = unitMonths[0], lastU = unitMonths[unitMonths.length - 1];
-  const costFirst = cacMap.get(firstU.month) / firstU.newLogos;
-  const costLast = cacMap.get(lastU.month) / lastU.newLogos;
-  const arpuFirst = firstU.newMrr / firstU.newLogos;
-  const arpuLast = lastU.newMrr / lastU.newLogos;
-  const spendChange = (cacMap.get(lastU.month) / cacMap.get(firstU.month) - 1) * 100;
-  const logoChange = (lastU.newLogos / firstU.newLogos - 1) * 100;
-  annotate('chart-unit', [
-    `<strong>Cost per logo has risen about ${(costLast / costFirst).toFixed(1)}x</strong> since ${firstU.month}, from ${fmt.money(costFirst)} to ${fmt.money(costLast)}.`,
-    `New-logo revenue per logo has moved from ${fmt.money(arpuFirst)} to ${fmt.money(arpuLast)}, so the gap between the lines is cost opening up rather than revenue falling away.`,
-    `Both halves moved the wrong way: spend ${spendChange >= 0 ? 'rose' : 'fell'} ${Math.abs(spendChange).toFixed(0)}% while countable logos fell ${Math.abs(logoChange).toFixed(0)}%. It is not a volume story with flat spend behind it.`,
-  ], [
-    'Both series are indexed to 100 at the same month, so the absolute levels do not need to be right for the divergence to read. The base month is stated on the chart.',
-    'Where the pipeline reports a cost per logo it is used directly; earlier months derive it from total cost over the waterfall new logos.',
-    'That denominator is the monthly summary’s new logo count, not the cohort count used by '
-      + 'the per cohort table in chart 17. The two agree within about a tenth in every month but '
-      + 'the first, where the summary counts arrivals that predate the window and the cohort '
-      + 'does not, so this chart reads 2024-09 far cheaper than that table does. Consistency '
-      + 'along this line matters more than agreement with the other, because the chart is a '
-      + 'shape rather than a level.',
-  ]);
+  // Read off the series chart 7 draws, so the card and the line cannot part.
+  const unit = unitCostSeries();
+  const unitDrawn = unit.months.map((m, i) => i).filter(i => unit.costPerLogo[i] !== null);
+  const uLast = unitDrawn[unitDrawn.length - 1];
+  const uSpend = month => data.cacMonthly.find(r => r.month === month)?.cacTotalActual ?? null;
+  const baseMonths = unitDrawn.filter(i => unit.months[i].startsWith(unit.baseYear));
+  const baseSpend = baseMonths.length
+    ? baseMonths.map(i => uSpend(unit.months[i])).sort((a, b) => a - b)[baseMonths.length >> 1] : null;
+  const baseLogos = baseMonths.length
+    ? baseMonths.map(i => unit.intake.get(unit.months[i]).size).sort((a, b) => a - b)[baseMonths.length >> 1] : null;
+  if (uLast !== undefined) {
+    const lastMonthU = unit.months[uLast];
+    const spendChange = baseSpend ? (uSpend(lastMonthU) / baseSpend - 1) * 100 : null;
+    const logoChange = baseLogos ? (unit.intake.get(lastMonthU).size / baseLogos - 1) * 100 : null;
+    annotate('chart-unit', [
+      `<strong>Cost per logo in ${fmt.monthLabel(lastMonthU)} is ${(unit.costPerLogo[uLast] / unit.baseCost).toFixed(1)}x the ${unit.baseYear} median month</strong>, ${fmt.money(unit.costPerLogo[uLast])} against ${fmt.money(unit.baseCost)}.`,
+      `New-logo revenue per logo has moved from ${fmt.money(unit.baseRevenue)} to ${fmt.money(unit.revenuePerLogo[uLast])} over the same span, so the gap between the lines is cost opening up rather than revenue falling away.`,
+      spendChange !== null && logoChange !== null
+        && `Against a typical ${unit.baseYear} month, spend is ${spendChange >= 0 ? 'up' : 'down'} ${Math.abs(spendChange).toFixed(0)}% and logos started are ${logoChange >= 0 ? 'up' : 'down'} ${Math.abs(logoChange).toFixed(0)}%.`,
+    ], [
+      `Both series are indexed to 100 at the median month of ${unit.baseYear}, so the absolute levels do not need to be right for the divergence to read, and one cheap or dear base month cannot set the scale.`,
+      'Cost is the acquisition total built from the expense lines, the same figure charts 1, 2 and 17 divide. The denominator is the cohort count those charts use, customers dated by their first revenue, so a logo costs the same here as in the chart 17 table.',
+      `${fmt.monthLabel(unit.boundary)} opens the window and is left blank: only customers with a Stripe start date in it can be dated there, so its count is not that month's intake.`,
+    ]);
+  }
 
   const eras = retentionByYear(cohorts, { maxMonths: 12 });
   const newestEra = eras[eras.length - 1];
