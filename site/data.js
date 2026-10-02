@@ -461,7 +461,7 @@ export async function load() {
       annualGross: num(r.annual_line_gross) || 0,
       // Billed and not collected. A customer being invoiced and not paying is
       // still a customer, which is why they stay in the base, but the share of
-      // them is a leading indicator rather than a footnote. See pastDueTrend.
+      // them is a leading indicator rather than a footnote. See pastDueNow.
       subscriptionStatus: r.subscription_status || '',
       unpaidDue: num(r.unpaid_due) || 0,
       unpaidInvoices: num(r.unpaid_invoice_count) || 0,
@@ -924,17 +924,6 @@ export function isAcquisition(expense) {
   return expense.bucket === 'SPLIT' && /Partnerships/i.test(expense.account || '');
 }
 
-// Departures counted from the file rather than taken from the summary.
-//
-// churned_logos books a departure when the pipeline sees the transition. A
-// customer whose subscription simply drops out of the Stripe export never
-// produces one: they are present one month, absent the next, and no churn is
-// recorded. In 2026 that is 182 customers, 179 of whom carried cash in their
-// last six months and 156 of whom the subscription export itself marks
-// churned with an end date. They are real departures, not test accounts.
-//
-// Over the last six months the summary books 240 and the file loses 399, so
-// the reported figure understates departures by about two thirds. The
 // Two operational changes the business made going into 2026 leave the same
 // fingerprint in this file, and it is the fingerprint that separates the logo
 // curve from the revenue curve.
@@ -946,8 +935,9 @@ export function isAcquisition(expense) {
 // MRR drops to zero while they stay on the books.
 //
 // The second is offering coupons more freely. These are not discounts off the
-// rate: the median rate a customer starts on has held. They are free periods,
-// so they show up as new customers whose second month books no MRR at all.
+// rate: the median rate a customer starts on has risen, not fallen. They are
+// free periods, so they show up as new customers whose second month books no
+// MRR at all.
 //
 // Both keep a customer in the head count and take their revenue out of it,
 // which is exactly the gap between charts 8 and 9. Computed rather than
@@ -1013,9 +1003,16 @@ export function policySignals(data, { split = '2026-01', from = '2025-01' } = {}
   };
 }
 
-
-// difference decides whether the base is growing or shrinking, so both are
-// carried and the charts say which they are using.
+// Departures counted from the file rather than taken from the summary.
+//
+// churned_logos books a departure when the pipeline sees the transition. A
+// customer whose subscription simply drops out of the Stripe export never
+// produces one: they are present one month, absent the next, and no churn is
+// recorded. Until the September 2026 push that was a third of departures, and
+// they were real departures rather than test accounts. On the current push the
+// two counts agree in every month (chart 5 checks this on every load),
+// but the difference decides whether the base is growing or shrinking, so both
+// are carried and the charts say which they are using.
 export function departures(data) {
   const live = new Map();
   for (const row of data.customers) {
@@ -1103,6 +1100,8 @@ export function projectionBasis(cohorts) {
     donorToSix: toSix(donors),
     recentToSix: toSix(rest),
     recentCohorts: rest.length,
+    firstDonor: donors.length ? donors[0].month : null,
+    lastDonor: donors.length ? donors[donors.length - 1].month : null,
   };
 }
 
@@ -1149,7 +1148,7 @@ export function ltvAtAge(data, cohorts, { age = 6, margin = LEGACY_PLATFORM_MARG
         observedGp += monthly ? monthly[k] : cohort.revenue[k] * margin;
       } else {
         const step = path.has(k) ? path.get(k) : terminal;
-        carried = (carried === null ? cohort.revenue[cohort.maxOffset] : carried) * step;
+        carried = (carried === null ? projectedRevenue(cohort)[cohort.maxOffset] : carried) * step;
         projectedGp += carried * effective;
       }
     }
@@ -1170,7 +1169,9 @@ export function ltvAtAge(data, cohorts, { age = 6, margin = LEGACY_PLATFORM_MARG
       // logo count would put a made-up number in the tooltip beside two
       // real ones.
       survival: cohort.survivors[0] ? cohort.survivors[lastSeen] / cohort.survivors[0] : null,
-      survivalAt: lastSeen + 1,
+      // The offset, which charts 4, 6 and 8 label month N. Chart 1's age 6 is
+      // offsets 0 to 5, so its last observed survival is at month 5.
+      survivalAt: lastSeen,
     };
   });
 }
@@ -1254,9 +1255,21 @@ export function signupPriceHistory(data) {
 // means nothing, but the underlying question is real and this is where it
 // can be asked. Each band is followed the same number of months, so the
 // comparison is age-matched.
+//
+// Banded on what a customer pays from their second month, not on the booked
+// new_mrr. Until mid-2025 the booked figure carried the joining charge (see
+// signupPriceHistory), so it put fee-era customers two bands above what they
+// went on paying: 63% of starts changed band and the top two bands were mostly
+// 2024. A customer with no paid second month (gone, or a free
+// month) is banded on the booked price, which is the only one they have.
+//
+// Survival is presence at the last month of the window, start + horizon - 1,
+// which is month horizon - 1 in chart 8's terms where the signup month is 0.
+export const FEE_ERA_ENDS = '2025-07';
 export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500, Infinity] } = {}) {
   const live = new Map();
   const cash = new Map();
+  const mrr = new Map();
   for (const row of data.customers) {
     if (row.active) {
       if (!live.has(row.month)) live.set(row.month, new Set());
@@ -1264,6 +1277,10 @@ export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500
     }
     if (!cash.has(row.id)) cash.set(row.id, new Map());
     cash.get(row.id).set(row.month, row.netCash || 0);
+    if (row.active) {
+      if (!mrr.has(row.id)) mrr.set(row.id, new Map());
+      mrr.get(row.id).set(row.month, row.eopMrr || 0);
+    }
   }
   const last = data.lastMonth;
 
@@ -1271,8 +1288,14 @@ export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500
   for (const row of data.customers) {
     if (row.eventType !== 'new' || !row.newMrr || row.newMrr <= 0) continue;
     if (monthAdd(row.month, horizon - 1) > last) continue;
-    starts.push({ id: row.id, month: row.month, price: row.newMrr });
+    const second = mrr.get(row.id)?.get(monthAdd(row.month, 1));
+    const paid = second !== undefined && second > 0 ? second : null;
+    starts.push({ id: row.id, month: row.month, booked: row.newMrr,
+                  price: paid ?? row.newMrr, onBooked: paid === null,
+                  feeEra: row.month < FEE_ERA_ENDS });
   }
+  const bandOf = price => edges.findIndex((lo, i) => i < edges.length - 1 && price >= lo && price < edges[i + 1]);
+  const bookedBandChanged = starts.filter(s => bandOf(s.price) !== bandOf(s.booked)).length;
 
   const bands = [];
   for (let i = 0; i < edges.length - 1; i += 1) {
@@ -1294,13 +1317,17 @@ export function priceBands(data, { horizon = 6, edges = [0, 500, 750, 1000, 1500
       survival: alive / group.length,
       price,
       cashPerCustomer: total / group.length,
-      // Six months of cash per dollar of monthly price. Flat would mean price
-      // buys exactly proportional revenue; falling means diminishing returns.
+      // Cash over the window per dollar of what the band pays a month. Flat
+      // would mean price buys exactly proportional revenue; falling means
+      // diminishing returns. The first month's cash still carries the old
+      // joining charge, which is real money and is not taken out.
       perDollar: total / group.length / price,
+      feeEraShare: group.filter(s => s.feeEra).length / group.length,
+      onBooked: group.filter(s => s.onBooked).length,
       total,
     });
   }
-  return { horizon, bands, n: starts.length };
+  return { horizon, bands, n: starts.length, bookedBandChanged, feeEraEnds: FEE_ERA_ENDS };
 }
 
 
@@ -1704,7 +1731,7 @@ export const REVENUE_GROUPS = [
   // because 2024 charged the fee and 2026 does not.
   { key: 'setup', label: 'Setup, onboarding and the old joining charge', defaultOn: true,
     hint: 'Charged once, in the first month. 2024 cohorts carry a large joining fee here '
-        + 'that was phased out during 2025 — switch this off to compare eras fairly.',
+        + 'that was phased out during 2025. Switch this off to compare eras fairly.',
     pick: (c, k) => ((c.oneTimeRevenue && c.oneTimeRevenue[k]) || 0)
       + ((c.joiningFee && c.joiningFee[k]) || 0) },
 
@@ -1721,10 +1748,16 @@ export const REVENUE_GROUPS = [
 // divides by the size of the cohort that arrived. The two are different
 // questions and the numbers are not interchangeable, which is why the
 // acquisition group is flagged `once` and handled apart from the rest.
+//
+// The denominator leaves out the accounts that never carried a subscription,
+// the same rule costToServe and every serve-cost chart applies. Counting them
+// here divided chart 28's costs by one count and its revenue by another, 767
+// against 718 in the first month of the window.
 export function costRates(data) {
+  const never = neverPaidIds(data);
   const liveByMonth = new Map();
   for (const row of data.customers) {
-    if (!row.active) continue;
+    if (!row.active || never.has(row.id)) continue;
     liveByMonth.set(row.month, (liveByMonth.get(row.month) || 0) + 1);
   }
 
@@ -1792,7 +1825,7 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null,
   // cohort that arrived last month will live in this year's conditions and not
   // in 2024's. Chart 1 and the projected break-even chart still use the flat
   // pool, so this one reads slightly harder on recent cohorts than they do.
-  const { path, terminal } = donorTrajectory(cohorts, { halfLife });
+  const { path, terminal } = donorTrajectory(cohorts, { halfLife, recurring: false });
   const logoPath = donorLogoPath(cohorts, { halfLife });
 
   const ongoingOn = COST_GROUPS.filter(g => !g.once && on.has(g.key)).map(g => g.key);
@@ -2072,6 +2105,22 @@ export function projectBase(data, { months = 12 } = {}) {
     return v.map(x => x || 0);
   };
 
+  // The age curve is an average over six months, so applied to one month's
+  // base it does not reproduce that month's MRR: on the push this was written
+  // against it priced the August book 8% below what it actually billed, and
+  // every path then fell 6 to 10% in its first month before anybody had left.
+  // The curve is scaled so that, applied to the latest base, it reproduces the
+  // MRR that base actually bills, and only the movement from there is the
+  // model's. The backtest walks with the same scale, so it tests the model as
+  // drawn; scaling it at its own start instead would price a year-old base on
+  // today's curve twice over.
+  const observedMrr = month => [...live.get(month).values()].reduce((s, v) => s + v, 0);
+  const calibrationAt = month => {
+    const modelled = stateAt(month).reduce((s, v, age) => s + v * pays(age), 0);
+    return modelled > 0 ? observedMrr(month) / modelled : 1;
+  };
+  const scale = calibrationAt(last);
+
   const run = (from, steps, arrivals) => {
     let state = stateAt(from);
     const out = [];
@@ -2085,7 +2134,7 @@ export function projectBase(data, { months = 12 } = {}) {
       out.push({
         month: monthAdd(from, k),
         logos: state.reduce((s, v) => s + v, 0),
-        mrr: state.reduce((s, v, age) => s + v * pays(age), 0),
+        mrr: scale * state.reduce((s, v, age) => s + v * pays(age), 0),
       });
     }
     return out;
@@ -2113,6 +2162,7 @@ export function projectBase(data, { months = 12 } = {}) {
     run: arrivals => run(last, months, arrivals),
     survival,
     pays,
+    calibration: scale,
     blended,
     backtest: {
       from: backFrom,
@@ -2236,7 +2286,7 @@ export const ENGAGEMENT = {
       key: 'light', label: 'Light users', accounts: 30, mrr: 11682,
       underThreeHundred: 4, overThreeHundred: 26,
       usageMultiple: 0.6,
-      definition: 'Uses it, but not on both counts — logs in without sending, '
+      definition: 'Uses it, but not on both counts: logs in without sending, '
         + 'or sends without logging in.',
       meaning: 'Real but shallow engagement. The size of the ask decides the answer.',
     },
@@ -2263,10 +2313,12 @@ export function bandEconomics(data) {
     const pays = b.mrr / b.accounts;
     // Per-seat licence is the same for everyone; hosting scales with use;
     // the merchant fee is a share of whatever they pay.
-    const cost = c.software + c.hosting * b.usageMultiple + pays * merchantShare;
+    const fixedCost = c.software + c.hosting * b.usageMultiple;
+    const cost = fixedCost + pays * merchantShare;
     return {
       ...b,
       pays,
+      fixedCost,
       cost,
       keeps: pays - cost,
       keepsTotal: (pays - cost) * b.accounts,
@@ -2332,14 +2384,17 @@ export function bandCampaign(data, { ask = ['users'], rule = 'tiered', churn = n
       kept += survivors;
       lost += t.n * p;
     }
-    const contribution = revenue - kept * b.cost - revenue * f.variablePct;
+    // The merchant fee is in variablePct, which follows the new price. b.cost
+    // carries it too, on the old price, so subtracting both charged it twice;
+    // only the per-account part of the cost is taken per survivor here.
+    const contribution = revenue - kept * b.fixedCost - revenue * f.variablePct;
     return { key: b.key, label: b.label, asked, revenue, kept, lost, contribution };
   });
 
   const doNothing = econ.bands.reduce((s, b) => {
     const p = background[b.key];
     const rev = b.mrr * (1 - p);
-    return s + rev - b.accounts * (1 - p) * b.cost - rev * f.variablePct;
+    return s + rev - b.accounts * (1 - p) * b.fixedCost - rev * f.variablePct;
   }, 0);
 
   const contribution = rows.reduce((s, r) => s + r.contribution, 0);
@@ -2373,7 +2428,7 @@ export const PRICING_PRESETS = [
     blurb: 'One number for all of them. Simplest to run and to explain, and it '
          + 'clears the cost floor by a margin at every churn level.' },
   { key: 'tiered', label: 'Tiered by what they pay now',
-    blurb: 'Under $300 to $500, $300 to $499 to $750. Asks less of the cheapest '
+    blurb: '$300 or less to $500, over $300 to $750. Asks less of the cheapest '
          + 'accounts, more of the ones already close to covering themselves.' },
 ];
 
@@ -2381,8 +2436,9 @@ export const PRICING_PRESETS = [
 //
 // Peak MRR is not it. Until mid-2025 a joining charge was booked into eop_mrr
 // in a customer's first month, so a raw peak can be a one-off dressed as a
-// subscription: 33 of the accounts on this list carry an inflated peak, median
-// $200 too high, and one reads $1,200 against a settled price of $200. Asking
+// subscription: about thirty of the accounts on this list carry an inflated
+// peak, typically $200 too high, and renderUpgradeList counts them live rather
+// than this comment carrying a figure that moves with every push. Asking
 // a customer to "return" to a number they were only ever charged once is a
 // conversation that ends badly and deserves to.
 //
@@ -2419,24 +2475,33 @@ function outcome(account, rule, churnRate, floor, cap) {
   } else {
     const mult = target / Math.max(cur, 1);
     churn = Math.min(0.8, Math.max(0.10, 0.333 * (mult - 1)));
-    if (target <= account.peakEver) churn *= 0.5;
+    // The settled peak, the same test the list's "held it before" uses. The
+    // raw peak counts a one-off joining charge as a price once held, which
+    // halved the churn on accounts the list does not mark as having held it.
+    if (target <= (account.settledPeak || 0)) churn *= 0.5;
   }
   return { target, churn, asked: true };
 }
 
 // The spread of targets each rule produces, so a button can state its own
 // numbers rather than describe them.
+// Each rule on its own pool: whether an account is viable depends on what it
+// would be asked for, so the tiered button used to price the floor rule's 108
+// accounts while the calculator ran the tiered rule's 114.
 export function ruleSpread(data, { floor = 600, cap = 3 } = {}) {
-  const list = upgradeList(data, { lowBand: 500, floor });
-  if (!list) return {};
-  const pool = list.low.filter(r => r.viable);
+  const pools = {};
+  for (const rule of ['floor', 'tiered']) {
+    const list = upgradeList(data, { lowBand: 500, floor, rule });
+    if (!list) return {};
+    pools[rule] = list.low.filter(r => r.viable);
+  }
   const median = a => {
     const s = a.slice().sort((x, y) => x - y);
     if (!s.length) return null;
     const i = s.length >> 1;
     return s.length % 2 ? s[i] : (s[i - 1] + s[i]) / 2;
   };
-  const targets = rule => pool.map(r => {
+  const targets = rule => pools[rule].map(r => {
     if (rule === 'tiered') return r.mrr <= 300 ? 500 : 750;
     return floor;
   });
@@ -2462,11 +2527,14 @@ export function campaign(data, {
   let asked = 0;
   let lost = 0;
   let after = others.reduce((s, v) => s + v, 0);
-  // Accounts under the band that are not in the pool keep paying what they pay.
+  // Accounts under the band that are not in the pool keep paying what they pay,
+  // and so do the ones the eligibility rules exclude. Those were in `before`
+  // and never added back, which put every outcome $4,127 a month too low.
   for (const r of list.low) {
     if (pool.includes(r)) continue;
     after += r.mrr;
   }
+  for (const r of list.excludedRows) after += r.mrr;
   let before = floors.totalMrr;
 
   for (const r of pool) {
@@ -2495,6 +2563,7 @@ export function campaign(data, {
   const untouchedBelow = [
     ...others,
     ...list.low.filter(r => !pool.includes(r)).map(r => r.mrr),
+    ...list.excludedRows.map(r => r.mrr),
   ];
 
   return {
@@ -2617,6 +2686,7 @@ export function upgradeList(data, {
   return {
     month: last, window, lowBand, minMrr, minTenure,
     zeros, low,
+    excludedRows: lowAll.filter(r => !low.includes(r)),
     totals: {
       accounts: zeros.length + low.length,
       zeroCount: zeros.length,
@@ -2660,7 +2730,7 @@ export const CALC_PRESETS = [
     label: 'All ongoing, no acquisition',
     blurb: 'Everything it costs to run the business as it stands, including the '
          + 'overhead and the product team, but nothing spent winning new '
-         + 'customers. The right basis for a price floor.',
+         + 'customers. Wider than chart 37’s allocated floor, which leaves R&D out.',
     costs: ['platform', 'people', 'variable', 'ga', 'rd'] },
   { key: 'everything',
     label: 'Everything, acquisition included',
@@ -2687,7 +2757,8 @@ export const LOGO_TYPES = [
   { key: 'paying', label: 'Paying', defaultOn: true,
     hint: 'Carried a subscription in the month.' },
   { key: 'lapsed', label: 'Lapsed to zero', defaultOn: true,
-    hint: 'No subscription this month but paid something earlier. Still served, still costs.' },
+    hint: 'No subscription this month but carried one in some month of the window, '
+        + 'earlier or later. Still served, still costs.' },
   { key: 'never', label: 'Never paid', defaultOn: false,
     hint: 'No subscription in any month of the window. Test and agency monitoring accounts.' },
 ];
@@ -2701,9 +2772,10 @@ export function costCalculator(data, { costKeys = null, logoKeys = null } = {}) 
   const types = logoKeys || LOGO_TYPES.filter(t => t.defaultOn).map(t => t.key);
   const never = neverPaidIds(data);
 
-  // Peak subscription before this month decides lapsed from never, so a
-  // customer who paid once and stopped counts as lapsed for every later month
-  // rather than flipping back and forth.
+  // The peak subscription over the whole window decides lapsed from never, so
+  // a customer who paid once counts as lapsed in every month they sit at zero,
+  // including months before their first payment, rather than flipping back
+  // and forth.
   const countFor = month => {
     const live = data.customers.filter(r => r.active && r.month === month);
     let n = 0;
@@ -2868,7 +2940,8 @@ export function costLedger(data, { months = 3 } = {}) {
         + (r.oneTime || 0) + (r.passThrough || 0), 0),
       // What actually arrived, as a check on the four components above.
       netCash: live.reduce((s, r) => s + (r.netCash || 0), 0),
-      newLogos: (data.waterfall.find(w => w.month === month) || {}).newLogos || 0,
+      // The cohort count, the page's one count of a logo, not the summary's.
+      newLogos: logosStarted(data).get(month) ?? 0,
     };
   });
 
@@ -3080,9 +3153,10 @@ export function accountServeCost(data) {
   }
   if (!byMonth.length) return null;
 
-  // A variable rate far from the run of recent months is an invoice booked in
-  // one month and credited in another, which chart 39 and the price floors
-  // both report rather than smooth. The same rule, so the same months.
+  // A variable rate far from the run of recent months is an invoice in the
+  // push without the credit that reverses it, because the month was pulled
+  // before the credit was posted. Chart 39 and the price floors both report it
+  // rather than smooth it. The same rule, so the same months.
   const recent = byMonth.slice(-6);
   const rates = recent.map(m => m.variableRate).sort((a, b) => a - b);
   const mid = rates.length >> 1;
@@ -3732,8 +3806,9 @@ export function eventReports(data) {
 // it cannot cover the company. It is the wrong number for deciding whether to
 // keep an individual customer, because none of that cost leaves with them.
 //
-// The gap between the two is the whole argument: on current numbers it is
-// $120 against $665.
+// The gap between the two is the whole argument: on the push of October 2026
+// it is $117 against $475. Chart 37 reads both from here, never from this
+// comment.
 export function priceFloors(data, { window = 6 } = {}) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
@@ -3759,12 +3834,13 @@ export function priceFloors(data, { window = 6 } = {}) {
   // Per month rather than pooled, so the summary can be a median.
   //
   // A pooled mean over the window is the obvious choice and it is wrong here.
-  // The ledger books an invoice and its credit note in different months, and
-  // the window closes between them: in 2026-08 a $69,847 revenue-share bill
-  // was raised and credited in full, the credit landed in 2026-09, and the
-  // window ends at 2026-08. So the charge is counted and the reversal never
-  // is. That single month reads 18.9% of revenue against a usual 9.7% and
-  // drags the pooled rate to 11.1%.
+  // A push taken before a month closes can carry an invoice without the credit
+  // that reverses it: in 2026-08 a $69,848 revenue-share bill was raised on the
+  // 12th and credited in full on the 31st, inside August, and this push pulled
+  // August before the credit was posted (RECONCILIATION.md). So the charge is
+  // counted and the reversal is not. That single month reads 19.0% of revenue
+  // against a usual 9.7% and drags the pooled rate to 11.1%. The next push
+  // carries the closed August.
   //
   // A median across the months ignores it without anyone having to hand-code
   // which month to drop, and it will ignore the next one too.
@@ -3786,12 +3862,13 @@ export function priceFloors(data, { window = 6 } = {}) {
       else if (/^5000-03/.test(a)) key = 'hosting';
       else if (/^5050-/.test(a)) key = 'support';
       else if (row.bucket === 'SPLIT' && !/Partnerships/i.test(a)) key = 'success';
-      // 6100-0x other than the revenue share above is acquisition spend —
-      // professional services, advertising, tradeshows, content — and sits in
+      // 6100-0x other than the revenue share above is acquisition spend:
+      // professional services, advertising, tradeshows, content. It sits in
       // the CAC bucket. It was being counted here as a cost of serving, which
-      // put $78 a logo a month of acquisition into the price floor and pushed
-      // it about $86 too high. Acquisition belongs to the cohort that caused
-      // it, which is chart 33's job, not to the standing base.
+      // put about $60 a logo a month of acquisition into the price floor and
+      // pushed it about $66 too high on the October 2026 push. Acquisition
+      // belongs to the cohort that caused it, which is chart 33's job, not to
+      // the standing base.
       else if (/^6200-/.test(a)) key = 'ga';
       else if (/^6300-/.test(a)) key = 'rd';
       else if (/^8000-/.test(a)) key = 'da';
@@ -3861,7 +3938,7 @@ export function priceFloors(data, { window = 6 } = {}) {
       ['merchant', 'revshare', 'software', 'hosting', 'support', 'success', 'ga', 'rd', 'da']
         .map(k => [k, per(k)])),
     // Months whose variable rate sits far from the median, which on this
-    // ledger means an invoice booked in one month and credited in another.
+    // ledger means an invoice pulled before its credit was posted.
     // Reported rather than silently smoothed.
     outliers: byMonth
       .map(r => ({ month: r.month,
@@ -4279,9 +4356,12 @@ export function revenueRetentionAtAges(cohorts, { ages = [3, 6, 9, 12, 18] } = {
   // average shape is fit on every cohort including the old ones and the newer
   // ones fall away faster. This is that bias, measured: the average log gap per
   // month carried between what the shape predicts and what actually happened.
-  // Backtested against every cohort and every anchor age, adding it takes the
-  // error at a year out from 7.9 points of retention to 6.4 and the bias from
-  // +5.4 to +2.1. It is a correction on the carry, not a forecast of decline.
+  // When it was written, a backtest against every cohort and every anchor age
+  // had it cutting the year-out error from 7.9 points to 6.4. Rerun on the
+  // October 2026 push it no longer cuts the error (7.8 points either way) and
+  // moves the bias from +0.4 to -0.5, so it is a correction on the bias of the
+  // carry and not an accuracy gain, and the backtest is not rerun on load. It
+  // is not a forecast of decline.
   const drift = (() => {
     let num = 0;
     let den = 0;
@@ -4425,8 +4505,11 @@ export function windowRetentionCurve(cohorts, { from = null, span = 3, maxAge = 
     return Number.isFinite(sd) ? sd : null;
   };
 
-  const oldest = Math.max(...chosen.map(c => c.maxOffset));
-  const anchorAge = Math.min(oldest, shape.length - 1);
+  // Measured only as far as every cohort in the window has lived. This was the
+  // oldest cohort's age, so solid "measured" points past the youngest rested
+  // on one or two of the window's cohorts while being labelled as all of them.
+  const youngest = Math.min(...chosen.map(c => c.maxOffset));
+  const anchorAge = Math.min(youngest, shape.length - 1);
   const anchor = blend(chosen, anchorAge);
 
   const curve = [];
@@ -4793,14 +4876,15 @@ export const SCENARIO_CARDS = [
     detail: 'The band September tested. Turn away anything under $1,500.' },
   { key: 'wider', label: 'Open the floor', floor: 1000, ceiling: 2500,
     headline: '$2,500 down to $1,000',
-    detail: 'Take business down to $1,000, the tier that keeps the most of its revenue at '
-      + 'a year on this book.' },
+    detail: 'Take business down to $1,000 as well, so the demand curve has a wider band '
+      + 'to close in.' },
 ];
 
 // Revenue forward, under one churn assumption and one point on the demand
-// curve. The book decays along chart 44's curve, each month of new business
-// along chart 46's recent-intake curve, and the carry is corrected by the
-// drift chart 45 backtested.
+// curve. The book decays along the capped revenue retention of every cohort
+// blended together, each month of new business along the curve of
+// the six newest cohorts with a year behind them, and the carry is corrected
+// by a drift measured the way chart 45 measures its own.
 export const MWTP_CEILING = 2500;
 
 // New customers a month: the deseasonalised level of the last six months with
@@ -4925,10 +5009,10 @@ export function leverProjection(data, cohorts, {
   })();
 
   // Costs, read off the page's own cost work rather than assumed. Acquisition
-  // spend is held at its trailing six months, because it is mostly salaries
-  // and does not move with the number closed; that is exactly why cost per
-  // logo jumps in a month when closes fall. Cost to serve is per active logo,
-  // which is chart 39's basis.
+  // spend is held at its last three months, because it is mostly salaries and
+  // does not move with the number closed; that is exactly why cost per logo
+  // jumps in a month when closes fall. Cost to serve is chart 48's rollup over
+  // every active logo, not chart 39's paying ones.
   // The same rules chart 48 rolls up, so the after-costs view here and the
   // table there agree to the dollar.
   const rules = costRunRates(data, { basis: costBasis });
@@ -5060,9 +5144,10 @@ export function leverProjection(data, cohorts, {
 // staffing that has already gone, and support has fallen a third in that time.
 // Platform cost of sales follows the customer and is a rate per active logo.
 // Revenue share follows the bill and is a rate on revenue; its rate is the
-// median of the trailing six rather than the mean, because August carries a
-// revenue-share invoice that was raised and credited in full and the mean
-// would carry that forward for a year. Depreciation is shown and left out of
+// median of the trailing six rather than the mean, because this push pulled
+// August before its revenue-share credit was posted, so August carries the
+// invoice without the reversal and the mean would carry that forward for a
+// year. Depreciation is shown and left out of
 // the total, because it is not cash.
 export const COST_DRIVERS = {
   acquisition: { driver: 'fixed', window: 3,
@@ -5427,7 +5512,22 @@ export const COST_CATEGORIES = [
   { key: 'travel',      label: 'Travel',               match: /6100-4[1-5]/ },
 ];
 
-export function acquisitionCosts(data, { months = 12 } = {}) {
+// How many logos started in each month, on the one count the page keeps:
+// customers dated by their first revenue, the cohort size charts 1, 2 and 17
+// divide by. The month that opens the window is null rather than its cohort
+// size, because only customers with a Stripe start date can be dated there and
+// a month of spend over that partial count is about the count. Cached per
+// load, because several charts ask and buildCohorts is the expensive part.
+const startedCache = new WeakMap();
+export function logosStarted(data, cohorts = null) {
+  if (!cohorts && startedCache.has(data)) return startedCache.get(data);
+  const built = cohorts || buildCohorts(data);
+  const started = new Map(built.map(c => [c.month, c.month === built.windowStart ? null : c.size]));
+  if (!cohorts) startedCache.set(data, started);
+  return started;
+}
+
+export function acquisitionCosts(data, { months = 12, cohorts = null } = {}) {
   const rows = data.expenses.filter(isAcquisition);
 
   const all = [...new Set(rows.map(e => e.month))].sort();
@@ -5445,7 +5545,9 @@ export function acquisitionCosts(data, { months = 12 } = {}) {
     target.set(e.month, (target.get(e.month) || 0) + (e.amount || 0));
   }
 
-  const logos = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
+  // The cohort count, not the summary's new_logos, which the loader does not
+  // read: in the first month of the window the two parted by 67 against 23.
+  const logos = logosStarted(data, cohorts);
   const reported = new Map(data.cacMonthly.map(r => [r.month, r.reported]));
 
   const categories = COST_CATEGORIES.map(c => ({
@@ -5795,7 +5897,7 @@ export function retentionByYear(cohorts, { maxMonths = 12, minAtRisk = 20 } = {}
       cohorts: group.length,
       cohortsInYear: group.length,
       reach: deepest,
-      reachedMonth6: reached(5).length,
+      reachedMonth6: reached(6).length,
       month3: points[3],
       month6: points[6],
       grossRevenue,
@@ -5839,10 +5941,19 @@ function seededRandom(seed) {
   };
 }
 
+// The revenue a projection walks along: recurring, with the old joining
+// charge taken out of month 0. A donor from the fee era otherwise lends a
+// young fee-free cohort a month-1 step of about a half, which is the charge
+// coming off rather than anybody leaving, and that one step put the newest
+// cohort's payback at 14 months with a 6 to 22 range where its own month 0
+// and the post-fee donors say about 7.
+const projectedRevenue = cohort => cohort.recurringRevenue || cohort.revenue;
+
 function ratioPath(cohort) {
   const path = new Map();
-  for (let k = 1; k < cohort.revenue.length; k += 1) {
-    if (cohort.revenue[k - 1] > 0) path.set(k, cohort.revenue[k] / cohort.revenue[k - 1]);
+  const revenue = projectedRevenue(cohort);
+  for (let k = 1; k < revenue.length; k += 1) {
+    if (revenue[k - 1] > 0) path.set(k, revenue[k] / revenue[k - 1]);
   }
   return path;
 }
@@ -5874,7 +5985,12 @@ function terminalRate(path, depth = 6, counts = null, minDonors = 1) {
 // the same young cohort is worth, which is the defect that produced three
 // cost-per-logo figures: one number, two implementations, and the quiet one
 // stays wrong.
-export function donorTrajectory(cohorts, { halfLife = null } = {}) {
+//
+// The path is built on recurring revenue (see projectedRevenue) unless the
+// caller asks for the booked figure. Chart 33 still does, because it carries
+// every revenue stream forward from a cohort's last month and has its own
+// switch for the joining charge.
+export function donorTrajectory(cohorts, { halfLife = null, recurring = true } = {}) {
   // Donors need enough history to be worth pooling, but requiring a full year
   // of it excluded every recent cohort by construction: nothing from 2026 can
   // be twelve months old, so the path projecting 2026 cohorts was built
@@ -5889,10 +6005,11 @@ export function donorTrajectory(cohorts, { halfLife = null } = {}) {
   const counts = new Map();
   for (const cohort of donors) {
     const w = weigh(cohort);
-    for (let k = 1; k < cohort.revenue.length; k += 1) {
-      if (cohort.revenue[k - 1] <= 0) continue;
-      numerator.set(k, (numerator.get(k) || 0) + w * cohort.revenue[k]);
-      denominator.set(k, (denominator.get(k) || 0) + w * cohort.revenue[k - 1]);
+    const revenue = recurring ? projectedRevenue(cohort) : cohort.revenue;
+    for (let k = 1; k < revenue.length; k += 1) {
+      if (revenue[k - 1] <= 0) continue;
+      numerator.set(k, (numerator.get(k) || 0) + w * revenue[k]);
+      denominator.set(k, (denominator.get(k) || 0) + w * revenue[k - 1]);
       counts.set(k, (counts.get(k) || 0) + w);
     }
   }
@@ -5947,7 +6064,7 @@ export function projectedBreakEven(data, cohorts, options) {
         gp = cohort.profit ? cohort.profit[k] : cohort.revenue[k] * margin;
       } else {
         const step = path.has(k) ? path.get(k) : terminal;
-        projected = (projected === null ? cohort.revenue[cohort.maxOffset] : projected) * step;
+        projected = (projected === null ? projectedRevenue(cohort)[cohort.maxOffset] : projected) * step;
         gp = projected * effective;
       }
       cumulative += gp / cohort.size;
@@ -6008,9 +6125,9 @@ export function projectedBreakEven(data, cohorts, options) {
 // because bonuses and commissions move with outcomes rather than with staff,
 // so both are carried.
 //
-// Nothing in this function is touched by the Customer Success slider. That
-// slider decides how much of the spend counts as acquisition cost, which
-// changes CAC. The spend itself is what it is.
+// Nothing in this function depends on the Customer Success split, which is
+// settled and has no control. The split decides how much of the spend counts
+// as acquisition cost; the spend itself is what it is.
 export function capacityAnalysis(data, { horizon = 4, windows = null } = {}) {
   const activeByMonth = new Map();
   for (const row of data.customers) {
@@ -6161,7 +6278,14 @@ export function capacityAnalysis(data, { horizon = 4, windows = null } = {}) {
 // positions keeps seasonality out of the answer: a trade business does not
 // churn evenly through the year, so March against March says more than March
 // against the average of everything.
-export function seasonalSurvival(data, { horizon = 4 } = {}) {
+//
+// Revenue is valued at the start the way buildCohorts values a cohort: the
+// customers whose first revenue fell in the starting month are taken at their
+// second month. Until mid-2025 that first month carried a joining charge as
+// MRR that came off the month after, and leaving it in put 24% of the April
+// 2024 base in a one-off, so the two older lines read a fall the latest line,
+// which has no charge, does not. Everyone else is taken at the starting month.
+export function seasonalSurvival(data, { horizon = 4, cohorts = null } = {}) {
   const mrrByMonth = new Map();
   for (const row of data.customers) {
     if (!row.active) continue;
@@ -6178,13 +6302,21 @@ export function seasonalSurvival(data, { horizon = 4 } = {}) {
   if (!complete.length) return { horizon, anchor: null, series: [] };
 
   const anchor = complete[complete.length - 1];
+  const intakeOf = new Map((cohorts || buildCohorts(data)).map(c => [c.month, new Set(c.ids)]));
 
   const series = [24, 12, 0].map(back => {
     const start = monthAdd(anchor, -back);
     const base = mrrByMonth.get(start);
     if (!base || !base.size) return null;
 
-    const startMrr = [...base.values()].reduce((s, v) => s + v, 0);
+    const intake = intakeOf.get(start) || new Set();
+    const next = mrrByMonth.get(monthAdd(start, 1)) || new Map();
+    const startValue = id => ((intake.has(id) && next.has(id) ? next.get(id) : base.get(id)) || 0);
+    const startMrr = [...base.keys()].reduce((s, id) => s + startValue(id), 0);
+    const intakeShare = startMrr
+      ? [...base.keys()].filter(id => intake.has(id)).reduce((s, id) => s + (base.get(id) || 0), 0)
+        / [...base.values()].reduce((s, v) => s + (v || 0), 0)
+      : null;
     const curve = [1];
     const revenueCurve = [1];
 
@@ -6209,6 +6341,9 @@ export function seasonalSurvival(data, { horizon = 4 } = {}) {
       monthsBack: back,
       n: base.size,
       startMrr,
+      intake: intake.size,
+      intakeShare,
+      zeroAtStart: [...base.values()].filter(v => !(v > 0)).length,
       curve,
       revenueCurve,
       survival: curve[horizon],
@@ -6337,12 +6472,12 @@ export function signupEconomics(data, { dropTrailing = true } = {}) {
   //
   // The signups tab is filled in by hand and it runs behind. Every customer
   // who starts paying produces a `new` event in the customer file, so that is
-  // the count to measure it against. Coverage was complete in January and is
-  // near half by June, which means the recent months of any chart drawn from
-  // this tab rest on a part of their intake rather than all of it. Falling
-  // coverage also looks exactly like falling sales if nobody checks, and it is
-  // the reason the tab reads about 25 a month while the billed count holds
-  // near 46.
+  // the count to measure it against. Coverage ran above complete early in
+  // 2026 and falls through the year, which means the recent months of any
+  // chart drawn from this tab rest on a part of their intake rather than all
+  // of it. Falling coverage also looks exactly like falling sales if nobody
+  // checks. It can read above 100%, because some signup ids carry no new event
+  // and some carry it in a different month from the tab's cohort month.
   const billed = new Map();
   for (const row of data.customers) {
     if (row.eventType !== 'new') continue;
@@ -6387,8 +6522,11 @@ export function signupEconomics(data, { dropTrailing = true } = {}) {
   }).sort((a, b) => b.customers - a.customers);
 
   const below = rows.filter(r => r.firstPayment < r.startingMrr);
+  const billedMonths = [...billed.values()];
 
   return {
+    billedWindowMean: billedMonths.length
+      ? billedMonths.reduce((s, v) => s + v, 0) / billedMonths.length : null,
     months: series,
     startTypes,
     typeTotals,
@@ -6830,55 +6968,49 @@ export function revenueCheck(data) {
   };
 }
 
-export function pastDueTrend(data, { months = 18 } = {}) {
-  const byMonth = new Map();
-
+// Billed and not paying, in the latest month.
+//
+// subscription_status is the customer's status today, stamped onto every
+// month the customer appears in, not a status as of each month end. Across
+// the push no customer carries more than one value, every customer flagged
+// past due is flagged in every month they are present, and accounts that are
+// canceled today read canceled back to 2024. Drawn as a series it rose by
+// construction: today's flags projected back over a smaller base. So this
+// reports the one month it describes, and counts how many customers carry
+// more than one status, which is what would change if the pipeline started
+// dating it.
+export function pastDueNow(data) {
+  const statuses = new Map();
   for (const row of data.customers) {
-    if (!row.active) continue;
-    const bucket = byMonth.get(row.month)
-      || { month: row.month, live: 0, atRisk: 0, mrrAtRisk: 0, due: 0, mrr: 0 };
-    bucket.live += 1;
-    bucket.mrr += row.eopMrr || 0;
-    if (row.subscriptionStatus === 'past_due' || row.subscriptionStatus === 'unpaid') {
-      bucket.atRisk += 1;
-      bucket.mrrAtRisk += row.eopMrr || 0;
-      bucket.due += row.unpaidDue || 0;
-    }
-    byMonth.set(row.month, bucket);
+    if (!row.subscriptionStatus) continue;
+    if (!statuses.has(row.id)) statuses.set(row.id, new Set());
+    statuses.get(row.id).add(row.subscriptionStatus);
   }
+  if (!statuses.size) return null;
+  const changing = [...statuses.values()].filter(v => v.size > 1).length;
 
-  const all = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
-  // The status columns only start once subscriptions were joined, so months
-  // before that read as a flat zero and would draw a fictional improvement.
-  const carrying = all.filter(m => m.atRisk > 0);
-  if (!carrying.length) return null;
-  const from = carrying[0].month;
-
-  const rows = all
-    .filter(m => m.month >= from)
-    .slice(-months)
-    .map(m => ({ ...m, share: m.live ? m.atRisk / m.live : 0 }));
-
-  const first = rows[0];
-  const last = rows[rows.length - 1];
+  const month = data.lastMonth;
+  const live = data.customers.filter(r => r.active && r.month === month);
+  const atRiskRows = live.filter(r => r.subscriptionStatus === 'past_due'
+    || r.subscriptionStatus === 'unpaid');
+  const byStatus = new Map();
+  for (const r of live) {
+    const key = r.subscriptionStatus || 'no status';
+    byStatus.set(key, (byStatus.get(key) || 0) + 1);
+  }
   return {
-    rows,
-    first,
-    last,
-    rising: last.share > first.share,
-    change: last.share - first.share,
-    // Straight-line through the shares, so a single bad month does not read
-    // as a trend on its own.
-    slope: (() => {
-      const n = rows.length;
-      if (n < 3) return null;
-      const mx = (n - 1) / 2;
-      const my = rows.reduce((s, r) => s + r.share, 0) / n;
-      let num2 = 0;
-      let den = 0;
-      rows.forEach((r, i) => { num2 += (i - mx) * (r.share - my); den += (i - mx) ** 2; });
-      return den ? num2 / den : null;
-    })(),
+    month,
+    live: live.length,
+    atRisk: atRiskRows.length,
+    pastDue: atRiskRows.filter(r => r.subscriptionStatus === 'past_due').length,
+    unpaid: atRiskRows.filter(r => r.subscriptionStatus === 'unpaid').length,
+    share: live.length ? atRiskRows.length / live.length : null,
+    mrrAtRisk: atRiskRows.reduce((s, r) => s + (r.eopMrr || 0), 0),
+    due: atRiskRows.reduce((s, r) => s + (r.unpaidDue || 0), 0),
+    byStatus: [...byStatus.entries()].map(([status, n]) => ({ status, n }))
+      .sort((a, b) => b.n - a.n),
+    customersWithStatus: statuses.size,
+    changing,
   };
 }
 

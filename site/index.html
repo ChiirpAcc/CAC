@@ -43,7 +43,7 @@
     <button id="tab-events" role="tab" aria-selected="false" aria-controls="view-events">Events</button>
   </nav>
 
-  <!-- The story view holds no charts of its own. The four it presents are
+  <!-- The story view holds no charts of its own. The two it presents are
        moved here from the full page and moved back on the way out, so there
        is one of each and they cannot drift apart. -->
   <section id="view-story" class="wrap story" hidden>
@@ -58,49 +58,40 @@
         <strong>A thin month of arrivals does not cost you customers.</strong>
         Each point is one starting month: how many signed up, against the share
         of the book gone by the end of the window. Give churn one month to
-        happen or six and the cloud lifts without tilting. At every horizon the
-        correlation fails to clear zero, and the sign flips across the range
-        rather than holding a direction, which is what noise looks like.</p>
+        happen or six and the cloud lifts without tilting.
+        <span id="story-arrivals-sign"></span></p>
     </div>
     <div class="story-means">
       <h3>What this means</h3>
       <p>The fear that a quiet pipeline distracts the team into losing accounts
-        is not supported at any point in two years. Acquisition and retention
+        is not supported anywhere in the window. Acquisition and retention
         can be run as separate problems by separate owners, and neither one is
         hostage to the other. It also means the churn we are about to look at
         has to be explained by something other than how many customers came in
         that month.</p>
       <p>One caveat, because it will come up and it cuts against us. The intake
-        was not thin for most of this period, but the latest month is: new
-        customers ran 43, 51, 40 and 29 over the last four full months against
-        an average of 51 across the whole window. August is the thinnest month
-        in nearly three years. That is worth watching on its own terms — it is
-        just not what is driving the churn, which is the point of the chart
-        above.</p>
+        was not thin for most of this period, but it is now:
+        <span id="story-intake"></span> That is worth watching on its own
+        terms. It is just not what is driving the churn, which is the point of
+        the chart above.</p>
     </div>
 
     <div class="story-step" data-figure="fig-era">
       <p class="story-lead"><span class="story-num">2</span>
-        <strong>What changed is the first month, not the whole curve.</strong>
-        Line every intake up against its own signup month. At month 6 the three
-        years run 75.7%, 79.9% and 70.6% — 2026 is the worst, but it sits five
-        points under 2024 rather than in a different world, and 2024 itself is
-        four points under 2025. Month 6 is a muddle. The first month is not:
-        2026 loses 9.6% of an intake before the second invoice where 2024 lost
-        1.4% and 2025 lost 2.6%. That is not a drift, it is a step change, and
-        it is the one part of this chart that is unambiguous.</p>
+        <strong id="story-era-lead">What the intakes did in their first
+        month.</strong>
+        Line every intake up against its own signup month.
+        <span id="story-era"></span></p>
     </div>
     <div class="story-means">
       <h3>What this means</h3>
-      <p>A cohort that loses a tenth of itself before the second invoice is a
-        problem with what we sold, or who we sold it to, rather than with how
-        we looked after them nine months later. Those are different teams and
-        different fixes, and the month the loss happens is what tells you
-        which.</p>
-      <p>Two things stop this being stronger than it is. The 2026 line at
-        month 6 rests on two cohorts and 85 customers, because nothing later
-        has had six months to run — treat the right hand end as provisional
-        and the first month as the finding. And read the count carefully: it
+      <p>An intake that loses a large part of itself before the second invoice
+        is a problem with what was sold that month, or who it was sold to,
+        rather than with how we looked after them nine months later. Those are
+        different teams and different fixes, and the month the loss happens is
+        what tells you which.</p>
+      <p>Two things stop this being stronger than it is.
+        <span id="story-era-sample"></span> And read the count carefully: it
         cannot tell a customer who is paying from one who is merely still
         listed, and going into 2026 both the cancellation rule and the coupons
         added to the second group. The money version of this same chart is one
@@ -161,7 +152,7 @@
         <h3>31. Monthly churn, by how long a customer has been here</h3>
       </figcaption>
       <fieldset class="cost-toggles" id="tenure-bands">
-        <legend>Intakes to draw</legend>
+        <legend>Tenure bands to draw</legend>
       </fieldset>
       <div class="plot" id="chart-tenure-churn"></div>
       <p class="finding" id="tenure-churn-finding"></p>
@@ -371,7 +362,7 @@
       </figcaption>
       <div class="chart-control">
         <label for="forward-horizon-2">Follow each month forward for</label>
-        <input type="range" id="forward-horizon-2" min="1" max="12" step="1" value="4">
+        <input type="range" id="forward-horizon-2" min="1" max="9" step="1" value="4">
         <output id="forward-horizon-2-value">4 months</output>
       </div>
       <div class="plot" id="chart-forward-trend"></div>
@@ -510,9 +501,12 @@
       <p class="note">
         Each month is split at its own median subscription rather than at a fixed
         price, so a month is compared against itself and the steady rise in price
-        across the window does not leak into the split. Same starting months and
-        same axes as the chart above, so the only thing changing between the two
-        is the split.
+        across the window does not leak into the split. The starting months are
+        the ones the chart above uses, read from the same window; the axes are the
+        animation's own, fixed across its frames, so compare shapes between the
+        two rather than positions. Every customer paying nothing that month falls
+        in the lower half, about one in seven of the base, so part of what
+        separates the halves is customers who pay nothing churning more.
       </p>
     </figure>
 
@@ -527,9 +521,7 @@
         built: one frame per starting month, each point being that month's
         arrivals against the share of its customers gone one month later.
         Chart 22 draws every month at once, so nothing on it says which came
-        first and a relationship that had changed would be invisible. Adding
-        them one at a time shows that none of the last two years' starting
-        months sits apart from the rest.
+        first and a relationship that had changed would be invisible.
       </p>
       <p class="note">
         One frame per starting month, each new point marked and the ones before
@@ -609,7 +601,7 @@
       which is a different kind of claim and is labelled as one. The model is a
       cohort roll-forward on measured survival and measured pricing, and the
       only thing it does not derive from the file is how many customers arrive
-      each month — that is a decision, so it is drawn three ways.
+      each month. That is a decision, so it is drawn three ways.
     </p>
   </div>
 
@@ -635,7 +627,7 @@
 
     <figure class="card wide" id="fig-projection-cash">
       <figcaption>
-        <h3>36. What each path costs to run</h3>
+        <h3>36. What each path leaves after serving and winning customers</h3>
       </figcaption>
       <div class="plot" id="chart-projection-cash"></div>
       <p class="finding negative" id="projection-cash-finding"></p>
@@ -932,9 +924,10 @@
   <section id="view-list" class="wrap" hidden>
     <header class="story-head">
       <h2>Accounts worth a conversation</h2>
-      <p>Every active account paying less than it costs to serve, named, with
-        the Stripe identifier to look them up. Two groups, because they need
-        two different conversations.</p>
+      <p>Every active account paying something under $500 a month, named, with
+        the Stripe identifier to look them up. The accounts paying nothing are
+        a different conversation, starting to pay at all rather than paying
+        more, so they are in the download and not in the table.</p>
     </header>
     <div class="chart-control" id="list-actions">
       <button type="button" id="list-download">Download both lists as CSV</button>

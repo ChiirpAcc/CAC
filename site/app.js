@@ -15,10 +15,10 @@ import {
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_COST_CHECKS,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
-  bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueTrend, revenueCheck,
+  bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
-  silentLogos,
+  silentLogos, logosStarted,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -96,19 +96,64 @@ function projectionNote(b) {
         ? `. Monthly survival across those donors is ${fmt.pct(b.donorSurvival, 1)}, so ${how} `
           + `customers leaving rather than survivors paying less: revenue per surviving customer `
           + `is roughly flat once the first month is past.`
-        : '.');
+        : '.')
+    + ' The path is walked on recurring revenue, with the old joining charge taken out of '
+    + 'each donor\'s month 0, so a cohort that never paid the charge is not handed the month-1 '
+    + 'drop of one that did.';
 }
+
+// The margin chart 3 actually applies to the cohorts it draws, read from the
+// same monthly figure buildCohorts uses rather than the flat assumption.
+function recoveryMarginSentence(drawn) {
+  if (!MARGIN || !MARGIN.measured) {
+    return `Platform revenue is carried at the flat ${fmt.pct(SETTLED.margin, 1)} margin because `
+      + 'no cost ledger was pushed to measure it from.';
+  }
+  const months = new Set();
+  for (const c of drawn) {
+    for (let k = 0; k <= c.maxOffset; k += 1) months.add(monthAdd(c.month, k));
+  }
+  const values = [...months].map(m => MARGIN.byMonth.get(m)).filter(v => v !== undefined);
+  if (!values.length) return null;
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  return `Platform revenue carries the margin measured in the month it was earned, `
+    + `${fmt.pct(lo, 0)} to ${fmt.pct(hi, 0)} over the months these cohorts have lived, not a `
+    + `flat figure. Usage is carried at ${fmt.pct(CLASS_MARGINS.usage, 0)}, one-time at `
+    + `${fmt.pct(CLASS_MARGINS.oneTime, 0)}, and pass-through and recognised-elsewhere at zero.`;
+}
+
+// The donors behind every projection, read from the data rather than typed.
+function donorSpan() {
+  const b = projectionBasis(cohorts);
+  return b && b.firstDonor
+    ? `the ${b.donors} cohorts from ${fmt.monthLabel(b.firstDonor)} to ${fmt.monthLabel(b.lastDonor)}`
+    : 'every cohort with six months behind it';
+}
+
+// The decision on the joining charge, said once and used by every chart that
+// reads gross profit as it was booked.
+const JOINING_CHARGE_NOTE = 'The old joining charge was real cash, so it stays in gross profit '
+  + 'here: a 2024 cohort\'s first month carries it and a 2026 cohort\'s does not, which is part '
+  + 'of why the earlier cohorts recover sooner.';
 
 // The failure this projection could have, tested rather than asserted.
 function projectionCheck(b) {
   if (!b || b.recentSurvival === null || b.donorSurvival === null) return null;
   const gap = Math.abs(b.donorToSix - b.recentToSix) * 100;
   return `Those donors are the older cohorts by construction, so if the newer ones churned `
-    + `faster the projection would flatter them. They do not: monthly survival runs `
+    + `faster the projection would flatter them. `
+    + (b.recentSurvival < b.donorSurvival && gap >= 2 ? 'On this push they do: ' : 'On this push they do not: ')
+    + `monthly survival runs `
     + `${fmt.pct(b.donorSurvival, 1)} for the donors against ${fmt.pct(b.recentSurvival, 1)} `
-    + `for the ${b.recentCohorts} newer cohorts, and survival to month six `
+    + `for ${b.recentCohorts === 1 ? 'the one newer cohort' : `the ${b.recentCohorts} newer cohorts`} `
+    + `with six months behind them, and survival to month six `
     + `${fmt.pct(b.donorToSix, 1)} against ${fmt.pct(b.recentToSix, 1)}, `
     + `${gap < 2 ? 'which is the same within noise' : `a gap of ${gap.toFixed(1)} points`}. `
+    + (b.recentCohorts < 3
+        ? `That comparison rests on ${b.recentCohorts === 1 ? 'one cohort' : `${b.recentCohorts} cohorts`}, `
+          + 'so it can rule out a large difference and not a small one. '
+        : '')
     + `What it does not assume is that churn worsens: it carries today's rate forward `
     + `unchanged, so a bar far past its last observed month is an extrapolation, not a forecast.`;
 }
@@ -147,6 +192,35 @@ function wireCostToggles() {
 const ticked = id => new Set(
   [...$(id).querySelectorAll('input:checked')].map(i => i.value));
 
+
+// How fast cost per logo has moved against what a logo returns, between the
+// halves of chart 1 at the slider's age. Kept here so the finding and the
+// "what it means" paragraph read the same two numbers: the paragraph used to
+// say "about four times as fast" while the finding beside it said 3.3.
+let ltvPace = null;
+// Read by the "what it means" paragraphs of charts 5 and 6, which are written
+// at module load and filled in from the figures renderAnnotations computes.
+let churnPicture = null;
+let ageLosses = null;
+// Survival lost between months 0, 3, 6 and 12, pooled over the cohorts that
+// have had a full year, in points of the starting count.
+function ageLossIntervals(group) {
+  const year = group.filter(c => c.maxOffset >= 12 && c.survivors[0] > 0);
+  if (!year.length) return null;
+  const base = year.reduce((s, c) => s + c.survivors[0], 0);
+  const at = k => year.reduce((s, c) => s + c.survivors[k], 0) / base;
+  return { cohorts: year.length, early: (1 - at(3)) * 100,
+           middle: (at(3) - at(6)) * 100, late: (at(6) - at(12)) * 100 };
+}
+const risenBy = v => (v >= 0 ? `risen ${fmt.pct(v, 0)}` : `fallen ${fmt.pct(-v, 0)}`);
+function ltvPaceSentence(p) {
+  if (!p) return '';
+  if (p.cost <= 0) return 'What one costs has not risen between the halves.';
+  if (p.worth <= 0) return 'What a customer returns has not risen at all. What one costs has.';
+  if (p.cost <= p.worth) return 'What a customer returns has kept pace with what one costs.';
+  return `What one costs has risen ${(p.cost / p.worth).toFixed(1)} times as fast as what a `
+    + 'customer returns.';
+}
 
 // 1. LTV:CAC at a chosen age, redrawn whenever the age changes.
 //
@@ -208,8 +282,8 @@ function renderLtvAtAge() {
       return head + split + `
         <span>Cost per logo ${fmt.money(r.costPerLogo)}</span>
         <span>Gross profit per logo ${fmt.money(r.gpPerLogo)}</span>
-        <span class="muted">${fmt.int(r.size)} logos, ${fmt.pct(r.survival, 0)} still there at `
-        + `month ${r.survivalAt}</span>`;
+        <span class="muted">${fmt.int(r.size)} logos, ${fmt.pct(r.survival, 0)} still there `
+        + `${r.survivalAt} month${r.survivalAt === 1 ? '' : 's'} after the first</span>`;
     },
   });
 
@@ -225,6 +299,11 @@ function renderLtvAtAge() {
   const move = (a, b) => {
     const pct = (b / a - 1) * 100;
     return `${Math.abs(pct).toFixed(0)}% ${pct >= 0 ? 'higher' : 'lower'}`;
+  };
+  ltvPace = {
+    age,
+    cost: avg(late, 'costPerLogo') / avg(early, 'costPerLogo') - 1,
+    worth: avg(late, 'gpPerLogo') / avg(early, 'gpPerLogo') - 1,
   };
   $('ltv-finding').innerHTML =
     ''
@@ -244,7 +323,7 @@ function renderLtvAtAge() {
     + `while gross profit per logo is `
     + `${move(avg(early, 'gpPerLogo'), avg(late, 'gpPerLogo'))}, `
     + `${fmt.money(avg(early, 'gpPerLogo'))} against ${fmt.money(avg(late, 'gpPerLogo'))}. `
-    + `What a customer is worth has barely moved. What one costs has.`
+    + ltvPaceSentence(ltvPace)
     + (partial.length
         ? ` ${partial.length} of these columns are part projection, so the later half is `
           + `the half carrying most of that assumption.`
@@ -279,14 +358,14 @@ function renderLtvAtAge() {
           + `realised margin rather than the flat assumption. `
         : `Every cohort has actually reached month ${age}, so nothing here is projected. `)
     + 'Cost per logo is the month acquisition cost over the cohort count, the same denominator '
-    + 'on both halves of the ratio. A projection is worth least exactly where it is longest, '
-    + 'so read the newest columns as a question rather than an answer.';
+    + 'on both halves of the ratio. ' + JOINING_CHARGE_NOTE + ' A projection is worth least '
+    + 'exactly where it is longest, so read the newest columns as a question rather than an answer.';
 }
 
 
-// 13. What each price band actually returns.
+// 14. What each price band actually returns.
 //
-// This exists because chart 12 invites a conclusion it cannot support. Two
+// This exists because chart 13 invites a conclusion it cannot support. Two
 // lines on two scales appear to cross somewhere, and a crossing looks like an
 // optimum: price here, capture the most revenue. It is not one. The scales can
 // be slid until the lines meet anywhere on the chart, so the meeting point
@@ -323,11 +402,12 @@ function renderPriceBands() {
     },
     describe: i => {
       const b = pb.bands[i];
-      return `<strong>${b.label} at signup</strong>
+      return `<strong>${b.label} a month from their second month</strong>
         <span>${fmt.int(b.n)} customers, average ${fmt.money(b.price)}</span>
         <span>${fmt.money(b.cashPerCustomer)} of cash over ${horizon} months</span>
         <span>${b.perDollar.toFixed(1)}x the monthly price</span>
-        <span class="muted">${fmt.pct(b.survival, 0)} still there at month ${horizon}</span>`;
+        <span>${fmt.pct(b.feeEraShare, 0)} started before ${fmt.monthLabel(pb.feeEraEnds)}</span>
+        <span class="muted">${fmt.pct(b.survival, 0)} still there at month ${horizon - 1}</span>`;
     },
   });
 
@@ -340,34 +420,55 @@ function renderPriceBands() {
       <td class="n">${b.perDollar.toFixed(1)}x</td>
     </tr>`).join('');
   $('price-bands-table').innerHTML =
-    '<thead><tr><th>Price at signup</th><th class="n">Customers</th><th class="n">Average price</th>'
-    + `<th class="n">Alive at month ${horizon}</th><th class="n">Cash each</th>`
+    '<thead><tr><th>Pays a month</th><th class="n">Customers</th><th class="n">Average price</th>'
+    + `<th class="n">Alive at month ${horizon - 1}</th><th class="n">Cash each</th>`
     + '<th class="n">Per $1 of price</th></tr></thead><tbody>' + rows + '</tbody>';
 
   const best = pb.bands.reduce((a, b) => (b.cashPerCustomer > a.cashPerCustomer ? b : a));
-  const bestPer = pb.bands.reduce((a, b) => (b.perDollar > a.perDollar ? b : a));
   const top = pb.bands[pb.bands.length - 1];
-  const rising = top.cashPerCustomer >= best.cashPerCustomer - 1;
+  // Every adjacent pair, not the top band against the best: the old test
+  // printed "keeps rising" over a band that returned less than the one below.
+  const steps = pb.bands.slice(1).map((b, i) => b.cashPerCustomer - pb.bands[i].cashPerCustomer);
+  const cashRises = steps.every(d => d > 0);
+  const perSteps = pb.bands.slice(1).map((b, i) => b.perDollar - pb.bands[i].perDollar);
+  const perDirection = perSteps.every(d => d > 0) ? 'rises'
+    : perSteps.every(d => d < 0) ? 'falls' : 'moves without a direction';
+  const dips = pb.bands.slice(1).filter((b, i) => steps[i] <= 0);
+  const first = pb.bands[0];
 
-  $('price-bands-finding').innerHTML = rising
-    ? `<strong>No ceiling is visible inside the range we charge.</strong> Cash per customer keeps `
-      + `rising with price, ${fmt.money(pb.bands[0].cashPerCustomer)} in the ${pb.bands[0].label} `
-      + `band against ${fmt.money(top.cashPerCustomer)} in ${top.label}. What falls is the return `
-      + `per dollar charged: ${bestPer.perDollar.toFixed(1)}x at ${bestPer.label} down to `
-      + `${top.perDollar.toFixed(1)}x at the top. Higher prices bring in more, just less than `
-      + `proportionally more, and nothing here marks a price to stop at.`
-    : `<strong>Cash per customer peaks in the ${best.label} band</strong> at `
-      + `${fmt.money(best.cashPerCustomer)}, above both the cheaper and the dearer bands. `
-      + `That is the shape an optimum would make, on ${fmt.int(best.n)} customers.`;
+  $('price-bands-finding').innerHTML = (cashRises
+    ? `<strong>No ceiling is visible inside the range we charge.</strong> Cash per customer rises `
+      + `with every band, ${fmt.money(first.cashPerCustomer)} in ${first.label} against `
+      + `${fmt.money(top.cashPerCustomer)} in ${top.label}. `
+    : best === top
+      ? `<strong>The dearest band returns the most cash</strong>, ${fmt.money(top.cashPerCustomer)} `
+        + `against ${fmt.money(first.cashPerCustomer)} in ${first.label}, but not at every step: `
+        + `${dips.map(b => b.label).join(' and ')} ${dips.length === 1 ? 'returns' : 'return'} less than the band below. `
+      : `<strong>Cash per customer peaks in the ${best.label} band</strong> at `
+        + `${fmt.money(best.cashPerCustomer)}, on ${fmt.int(best.n)} customers. `)
+    + `The return per dollar of monthly price ${perDirection} with price, `
+    + `${first.perDollar.toFixed(1)}x at ${first.label} and ${top.perDollar.toFixed(1)}x at ${top.label}`
+    + (perDirection === 'rises'
+      ? ', so a dearer customer does not just pay more, they pay it for longer.'
+      : perDirection === 'falls'
+        ? ', so higher prices bring in more, just less than proportionally more.'
+        : '.');
 
   $('price-bands-note').textContent =
     'Every customer who signed in the window and has had ' + horizon + ' full months since, '
-    + fmt.int(pb.n) + ' of them, grouped by the subscription booked at signup. Bands with fewer '
-    + 'than ten customers are dropped. Read this as what each kind of customer did, not as a '
-    + 'demand curve: we never offered a price outside this range, so it cannot say how many '
-    + 'customers a price we have not charged would win. It is also selection rather than '
-    + 'causation, because a customer who pays more is usually a larger business, not the same '
-    + 'business charged more.';
+    + fmt.int(pb.n) + ' of them, grouped by what they paid a month from their second month. '
+    + 'The booked signup price is not used, because until mid-2025 it carried a joining charge '
+    + 'that came off the month after: banded on it, ' + fmt.int(pb.bookedBandChanged)
+    + ' of these customers sit in a different band, and the fee era fills the dearest bands. '
+    + 'A customer with no paid second month is '
+    + 'banded on the booked price. The cash is everything they paid, so the first month still '
+    + 'carries the charge, and the tooltip gives each band\'s share of starts from before '
+    + fmt.monthLabel(pb.feeEraEnds) + '. Alive at month ' + (horizon - 1) + ' counts the signup '
+    + 'month as month 0, as chart 8 does. Bands with fewer than ten customers are dropped. Read '
+    + 'this as what each kind of customer did, not as a demand curve: we never offered a price '
+    + 'outside this range, so it cannot say how many customers a price we have not charged '
+    + 'would win. It is also selection rather than causation, because a customer who pays more '
+    + 'is usually a larger business, not the same business charged more.';
 }
 
 
@@ -398,7 +499,7 @@ function renderSettledTotals(data) {
   set('tam-total', money(tam));
 }
 
-// 24. What acquisition costs, by category and month.
+// 26. What acquisition costs, by category and month.
 //
 // Every other chart on this page reads the acquisition total as one number.
 // This is the number opened up, because the question the total cannot answer
@@ -416,7 +517,7 @@ function renderCostTable(data) {
   const span = data.lastMonth && FROM
     ? monthDiff(FROM, data.lastMonth) + 1
     : 12;
-  const c = acquisitionCosts(data, { months: Math.max(span, 12) });
+  const c = acquisitionCosts(data, { months: Math.max(span, 12), cohorts });
   if (!c.months.length) {
     $('cost-table').innerHTML = '<tbody><tr><td>No acquisition spend in the window.</td></tr></tbody>';
     return;
@@ -440,14 +541,22 @@ function renderCostTable(data) {
     + c.totals.map(v => `<td class="n"><strong>${money(v)}</strong></td>`).join('')
     + `<td class="n total-col"><strong>${money(sum(c.totals))}</strong></td></tr>`;
 
-  const logoRow = `<tr><td>New logos</td>`
+  const logoRow = `<tr><td>Logos started</td>`
     + c.logos.map(v => `<td class="n">${v === null ? '–' : fmt.int(v)}</td>`).join('')
     + `<td class="n total-col">${fmt.int(c.logos.reduce((s, v) => s + (v || 0), 0))}</td></tr>`;
 
-  const totalLogos = c.logos.reduce((s, v) => s + (v || 0), 0);
+  // Per logo only over months that have a count, so the boundary month's spend
+  // is not divided by logos it never had.
+  const counted = c.months.map((m, i) => i).filter(i => c.logos[i] !== null);
+  const totalLogos = counted.reduce((s, i) => s + c.logos[i], 0);
+  const countedSpend = counted.reduce((s, i) => s + c.totals[i], 0);
+  const perLogoOver = idx => {
+    const n = idx.reduce((s, i) => s + c.logos[i], 0);
+    return n ? idx.reduce((s, i) => s + c.totals[i], 0) / n : null;
+  };
   const cplRow = `<tr class="rule-above emphasis"><td><strong>Cost per logo</strong></td>`
     + c.costPerLogo.map(v => `<td class="n"><strong>${v === null ? '–' : money(v)}</strong></td>`).join('')
-    + `<td class="n total-col"><strong>${totalLogos ? money(sum(c.totals) / totalLogos) : '–'}</strong></td></tr>`;
+    + `<td class="n total-col"><strong>${totalLogos ? money(countedSpend / totalLogos) : '–'}</strong></td></tr>`;
 
   $('cost-table').innerHTML = head + '<tbody>' + body + totalRow + logoRow + cplRow + '</tbody>';
 
@@ -461,17 +570,32 @@ function renderCostTable(data) {
   const headcountTotal = sum(headcount.map(x => sum(x.values)));
   const grand = sum(c.totals);
 
+  // First and last six months that carry a count. The last six used to be
+  // slice(6), every month after the first six, which put a 25 month average
+  // under the words "the last six".
+  const firstSix = counted.slice(0, 6);
+  const lastSix = counted.slice(-6);
   $('cost-finding').innerHTML =
-    `<strong>${money(grand)} bought ${fmt.int(totalLogos)} logos, ${money(grand / totalLogos)} each.</strong> `
+    `<strong>${money(countedSpend)} bought ${fmt.int(totalLogos)} logos, ${money(countedSpend / totalLogos)} each.</strong> `
     + `People you employ to sell are ${fmt.pct(headcountTotal / grand, 0)} of it. `
-    + `Cost per logo averaged ${money(sum(c.totals.slice(0, 6)) / Math.max(c.logos.slice(0, 6).reduce((s, v) => s + (v || 0), 0), 1))} `
-    + `over the first six months of the window and `
-    + `${money(sum(c.totals.slice(6)) / Math.max(c.logos.slice(6).reduce((s, v) => s + (v || 0), 0), 1))} `
-    + `over the last six. Month by month it swings from ${money(Math.min(...c.costPerLogo.filter(v => v !== null)))} `
+    + `Cost per logo averaged ${money(perLogoOver(firstSix))} `
+    + `over the first six months with a count, ${fmt.monthLabel(c.months[firstSix[0]])} to `
+    + `${fmt.monthLabel(c.months[firstSix[firstSix.length - 1]])}, and `
+    + `${money(perLogoOver(lastSix))} `
+    + `over the last six, to ${fmt.monthLabel(c.months[lastSix[lastSix.length - 1]])}. `
+    + `Month by month it swings from ${money(Math.min(...c.costPerLogo.filter(v => v !== null)))} `
     + `to ${money(Math.max(...c.costPerLogo.filter(v => v !== null)))}, so a single month is a `
     + `poor summary of it.`;
 
   const drift12 = drift.reduce((s, v) => s + (v || 0), 0);
+  const above = drift.filter(v => v !== null && v > 0);
+  const below = drift.filter(v => v !== null && v < 0);
+  const worstMonth = c.months[drift.indexOf(worst)];
+  const boundaryNote = c.logos[0] === null
+    ? ` ${fmt.monthLabel(c.months[0])} has spend and no count: it opens the window, so only `
+      + 'customers with a Stripe start date can be dated to it, and its spend is left out of '
+      + 'the per logo figures rather than divided by a partial count.'
+    : '';
   $('cost-note').innerHTML =
     'Categories are matched from the account name, so a renamed account falls into Other '
     + 'rather than disappearing, and they sum to the total underneath them. '
@@ -480,12 +604,15 @@ function renderCostTable(data) {
     + 'categories here account for the whole of it and nothing on the page is dividing by a '
     + 'number you cannot see broken out. '
     + 'The pipeline publishes its own figure in CAC Monthly, and the two do not agree: it is '
-    + money(Math.abs(drift12)) + ' ' + (drift12 < 0 ? 'higher' : 'lower') + ' over these twelve '
-    + 'months, and ' + money(Math.abs(worst)) + ' apart in the worst single month. Almost all '
-    + 'of that sits in two months where Customer Success appears to reach acquisition despite '
-    + 'being settled at zero. The lines win here because each one is an account that can be '
-    + 'checked; the published figure is carried alongside so the gap stays visible. '
-    + 'New logos are the monthly summary count, the same one the cohort charts use.';
+    + money(Math.abs(drift12)) + ' ' + (drift12 < 0 ? 'higher' : 'lower') + ' over these '
+    + c.months.length + ' months, the net of ' + money(sum(above)) + ' by which the lines run '
+    + 'above it in ' + above.length + ' months and ' + money(Math.abs(sum(below))) + ' below '
+    + 'it in ' + below.length + ', and ' + money(Math.abs(worst)) + ' apart in the worst single '
+    + 'month, ' + fmt.monthLabel(worstMonth) + '. The gap is spread across the window rather '
+    + 'than sitting in one or two months. The lines win here because each one is an account '
+    + 'that can be checked; the published figure is carried alongside so the gap stays visible. '
+    + 'Logos are the customers whose first revenue fell in that month, the same count the '
+    + 'cohort charts divide by, not the monthly summary\'s new logos.' + boundaryNote;
 }
 
 // A cohort this young cannot have returned its acquisition cost whatever its
@@ -540,7 +667,7 @@ function renderPricing(data) {
       + `<td class="n">${row.logos.toFixed(0)}</td>`
       + `<td class="n${won ? ' emphasis' : ''}">${money(row.mrr)}`
       + (won ? ' <span class="best">most</span>' : '') + '</td>'
-      + `<td class="n">${won ? '—' : money(row.left)}</td>`
+      + `<td class="n">${won ? '–' : money(row.left)}</td>`
       + '</tr>';
   }).join('');
 
@@ -614,11 +741,35 @@ function renderPricing(data) {
 // who stays and stops paying. Reading only the logo line would close a
 // question the money line reopens.
 //
-// Chart 8 runs from month 1 and chart 9 from month 2, which is where its own
+// Chart 8 runs from month 0 and chart 9 from month 1, the second month, which is where its own
 // base is set: until mid-2025 the first month carried a joining charge booked
 // as MRR and reversed the month after, and a part-billed first month leaves a
 // customer under the rate they arrive on. The logo figures quoted next to the
-// money ones are reindexed to month 2 to match.
+// money ones are reindexed to month 1 to match.
+// The callout's comparison of the head count with the money, read at the
+// deepest month every year has reached rather than typed: the typed version
+// called 2026 the best year on the count when it had become the worst.
+function eraCalloutGap(eras) {
+  const age = Math.min(6, ...eras.map(e => e.points.reduce((last, v, i) => (v === null ? last : i), 0)));
+  const ready = eras.filter(e => e.points[age] != null && e.grossRevenue[age] != null);
+  if (ready.length < 2) return 'Too few years have reached the same age to set the two side by side yet.';
+  const newest = ready[ready.length - 1];
+  const earlier = ready.slice(0, -1);
+  const rankOf = key => [...ready].sort((a, b) => b[key][age] - a[key][age]).indexOf(newest);
+  const place = rank => (rank === 0 ? 'the best' : rank === ready.length - 1 ? 'the worst' : 'in the middle');
+  const onCount = place(rankOf('points'));
+  const onMoney = place(rankOf('grossRevenue'));
+  return `At month ${age} ${newest.year} is ${onCount} of the ${ready.length} years on the head `
+    + `count, ${fmt.pct(newest.points[age], 1)} kept against `
+    + `${earlier.map(e => `${fmt.pct(e.points[age], 1)} in ${e.year}`).join(' and ')}, and `
+    + `${onMoney} on the money, ${fmt.pct(newest.grossRevenue[age], 1)} against `
+    + `${earlier.map(e => `${fmt.pct(e.grossRevenue[age], 1)}`).join(' and ')}. `
+    + (onCount === onMoney
+      ? 'The two agree on the order; what the policy changes is how far apart the years sit '
+        + 'on each.'
+      : 'The order changes between them, and the difference is the policy.');
+}
+
 function renderEra() {
   // The same cohorts drawn twice, because logos and money do not say the same
   // thing about them. On logos the three years sit within a few points of each
@@ -688,7 +839,7 @@ function renderEra() {
     pick(era).filter(v => v !== null && Number.isFinite(v))[depth - 1];
 
   const draw = (node, pick, { money }) => {
-    // The money chart starts at month 2, where its own base is set. See the
+    // The money chart starts at month 1, the second month, where its own base is set. See the
     // note in retentionByYear: month 1 is not a clean 100% once each customer
     // is capped at the rate they arrive on, because a part-billed first month
     // leaves them under it.
@@ -705,7 +856,7 @@ function renderEra() {
         values: shift(cutFor(i, pick(era))),
       })),
       yFormat: v => fmt.pct(v),
-      yTitle: money ? 'Share of revenue kept, indexed to month 1'
+      yTitle: money ? 'Share of revenue kept, indexed to month 1, the second month'
         : 'Share of the cohort still there',
       yMin: Math.min(0.5, Math.floor(Math.min(...real) * 20) / 20),
       yMax: Math.max(1, Math.ceil(Math.max(...real) * 20) / 20),
@@ -751,7 +902,11 @@ function renderEra() {
         + `so far.</strong> `
       : `<strong>On logos the ${ready.length} years sit within `
         + `${(logoSpread * 100).toFixed(1)} points of each other at month ${depth}.</strong> `)
-    + ready.map(e => `${e.year} ${fmt.pct(at(e, 'points'), 1)} on ${e.cohorts} cohorts`).join(', ')
+    // The sample behind the point, not the year's total: at the far end of the
+    // newest line the point can rest on one cohort while the year holds eight.
+    + ready.map(e => `${e.year} ${fmt.pct(at(e, 'points'), 1)} on `
+      + `${e.cohortsAt[depth] === 1 ? 'one cohort' : `${e.cohortsAt[depth]} cohorts`} and `
+      + `${fmt.int(e.atRisk[depth])} customers`).join(', ')
     + (waiting.length ? `. ${waiting.map(e => e.year).join(' and ')} `
       + `${waiting.length === 1 ? 'has' : 'have'} not reached month ${depth} yet` : '')
     + (logoSpread === null
@@ -759,14 +914,19 @@ function renderEra() {
       : logoSpread < 0.05
         ? `. That is a narrow spread on thin samples, so at this age there is no clear `
           + `difference between the eras.`
-        : `. The years have separated by this age.`)
+        : ready.some(e => e.cohortsAt[depth] < 3)
+          ? `. The years have parted by this age, but `
+            + `${ready.filter(e => e.cohortsAt[depth] < 3).map(e => e.year).join(' and ')} `
+            + `rests on fewer than three cohorts here, so the gap is one or two intakes rather `
+            + `than a year.`
+          : `. The years have separated by this age.`)
     + (moneyReady.length
       ? ` Chart 9 asks the same question in money, weighting each customer by what they `
         + `arrived on: at month ${depth} it reads `
         + `${moneyReady.map(e => `${e.year} ${fmt.pct(at(e, 'grossRevenue'), 1)}`).join(', ')}.`
       : '');
 
-  // Both read at the slider's month off the month 2 base, so the gap between
+  // Both read at the slider's month off the month 1 base, so the gap between
   // them is downgrades and departures rather than a difference in indexing.
   const gAt = e => at(e, 'grossRevenue');
   const lAt = e => at(e, 'logosFromMonth2');
@@ -782,7 +942,7 @@ function renderEra() {
 
   $('era-revenue-finding').innerHTML = !paired.length
     ? `<strong>Nothing to compare yet at month ${depth}.</strong> This line is indexed to `
-      + `month 2, so pull the slider past it.`
+      + `month 1, the second month, so pull the slider past it.`
     : `<strong>${(() => {
         // Do not assert the direction. A year keeps more revenue than customers
         // whenever the accounts it lost were smaller than the ones it kept, and
@@ -802,29 +962,30 @@ function renderEra() {
           + `${behind.length === 1 ? 'loses' : 'lose'} more revenue than customers; `
           + `${paired.filter(e => gap(e) >= 0).map(e => e.year).join(' and ')} `
           + `${paired.filter(e => gap(e) >= 0).length === 1 ? 'does' : 'do'} the opposite`;
-      })()}.</strong> Measured from month 2, at month ${depth} the `
+      })()}.</strong> Measured from month 1, the second month, at month ${depth} the `
     + `${paired.length === 1 ? 'one year so far keeps' : `${paired.length} years keep`} `
     + `${paired.map(e => `${e.year} ${fmt.pct(gAt(e), 1)}`).join(', ')} of their revenue, `
     + `against ${paired.map(e => `${fmt.pct(lAt(e), 1)}`).join(', ')} of their customers. `
     + `That is ${paired.map(e => `${pts(e)} points ${gap(e) < 0 ? 'short' : 'ahead'} in ${e.year}`).join(', ')}. `
     + (paired.length > 1
       ? `${worst.year} is the worst of them: it keeps ${fmt.pct(lAt(worst), 1)} of the `
-        + `customers it had at month 2 and ${fmt.pct(gAt(worst), 1)} of the money, `
+        + `customers it had at month 1 and ${fmt.pct(gAt(worst), 1)} of the money, `
         + `${pts(worst)} points apart, against ${pts(mildest)} in ${mildest.year}. ` : '')
     + (paired.some(e => gap(e) < 0)
         ? `Where the money line sits below the count, the head count is the flattering `
           + `number: a customer who stays and stops paying still counts as kept.`
-        : `The count is not flattering the picture here — the money line is at or above `
+        : `The count is not flattering the picture here: the money line is at or above `
           + `it, which means the accounts leaving are smaller than the ones staying.`);
 
+  const lastPoint = e => e.points.reduce((last, v, i) => (v === null ? last : i), 0);
   const shared =
-    'Every cohort lined up by age rather than by calendar date, so month 1 is each cohort '
-    + 'first month whenever that happened, then averaged into one line per starting year. '
+    'Every cohort lined up by age rather than by calendar date, so month 0 is each cohort\'s '
+    + 'first month whenever that happened, then pooled into one line per starting year. '
     + eras.map(e => `${e.year}: ${e.cohorts} cohorts`).join(', ')
-    + `. Each year is drawn on a sample fixed to the cohorts that reach its far end, so a line `
-    + `moves when retention moves rather than when its membership does. The ${newest.year} line `
-    + `rests on ${newest.cohorts} of its ${newest.cohortsInYear} cohorts and will move as more `
-    + `months land.`
+    + `. At each age a year is pooled over the cohorts that have reached it, so the sample is `
+    + `recomputed at every point and thins as the line runs right. The ${newest.year} line `
+    + `holds ${newest.cohorts} cohorts at month 0 and ${newest.cohortsAt[lastPoint(newest)]} at `
+    + `its last point, month ${lastPoint(newest)}, and will move as more months land.`
     + (drawn.length < eras.length
       ? ` The slider is part way through: `
         + `${eras.slice(drawn.length).map(e => e.year).join(' and ')} `
@@ -873,18 +1034,18 @@ function renderEra() {
     + ' At each age the count behind the point is every customer of that year whose cohort has'
     + ' had that long to run. Cohorts too young are in neither the numerator nor the'
     + ' denominator, which is why a line stops where it does and why the count beneath it'
-    + ' falls as it runs right. The count is on the chart at every point and a line is dropped'
-    + ' once fewer than twenty customers are left in it.'
+    + ' falls as it runs right. The count at the slider\'s month is in the finding above, and a'
+    + ' point is dropped once fewer than twenty customers are left behind it, which is the only'
+    + ' rule that decides where a line stops.'
     + ' First month figures are medians rather than means, because a single bad intake moves a'
     + ' mean by several points and a year holds only a handful of cohorts. The earliest year'
     + ' covers only the months inside the data window, so it is a part year rather than a full'
     + ' one.'
-    + ' One caveat about the newest year. A complete year is measured on a fixed set of'
-    + ' cohorts at every age, but the current year loses cohorts as the line runs right,'
-    + ' because only those old enough to have reached an age can be in it. Its deep points'
-    + ' therefore rest on its earliest intakes rather than on all of them, which is why the'
-    + ' line can rise, and why it can disagree with the calendar-position charts further'
-    + ' down about which year looks worst.';
+    + ' One caveat about the newest year. Every year loses cohorts as its line runs right, but'
+    + ' the current year loses them fastest, because only those old enough to have reached an'
+    + ' age can be in it. Its deep points therefore rest on its earliest intakes rather than on'
+    + ' all of them, which is why the line can rise, and why it can disagree with the'
+    + ' calendar-position charts further down about which year looks worst.';
 
   // Why the 2026 line is flat, from the business rather than from the file,
   // with the file checked against it. Both changes keep a customer in this
@@ -910,7 +1071,7 @@ function renderEra() {
     + `<p>Going into 2026 the business began <strong>requiring customers to serve out their `
     + `next billing period before a cancellation takes effect</strong>, and began `
     + `<strong>offering coupons more freely</strong>. Both keep a customer in this chart `
-    + `after their revenue has stopped, so some of the flatness in the 2026 line is a change `
+    + `after their revenue has stopped, so some of what the 2026 line keeps is a change `
     + `in what counts as leaving rather than a change in who leaves.</p>`
     + `<p>The file agrees on both. Among customers who were present and paying the month `
     + `before, the share whose revenue drops to nothing while they stay on the books runs at `
@@ -920,9 +1081,8 @@ function renderEra() {
     + `has gone from ${fmt.pct(free.before, 0)} to ${fmt.pct(free.after, 0)}. Those are free `
     + `periods, not cheaper subscriptions.</p>`
     + `<p>This is the reconciliation between the head count here and the revenue in chart 9. `
-    + `Read the head count alone and 2026 looks like the best year here; read the money and it `
-    + `is the worst, 60.4% kept at month 6 against about 78% for both earlier years. Both are `
-    + `true, and the difference between them is the policy.</p>`;
+    + eraCalloutGap(eras)
+    + `</p>`;
   $('era-revenue-note').textContent = shared
     + ' Gross revenue retention: every customer is capped at what they were paying in their '
     + 'second month, so this falls both when a customer leaves and when one stays on less than '
@@ -932,8 +1092,8 @@ function renderEra() {
     + 'month is the base rather than the first because until mid-2025 the first carried a '
     + 'joining charge booked as MRR that came off again the next month, and because a '
     + 'part-billed first month leaves a customer under the rate they arrive on. The line is '
-    + 'drawn from month 2 for the same reason, and the logo figures quoted beside it are '
-    + 'reindexed to month 2 so the gap is not an artefact of where each line starts. It is not '
+    + 'drawn from month 1 for the same reason, and the logo figures quoted beside it are '
+    + 'reindexed to month 1 so the gap is not an artefact of where each line starts. It is not '
     + 'strictly monotonic: a customer who downgrades and later returns to their original rate '
     + 'adds that money back. Much of the fall is customers still recorded as present with MRR '
     // Recomputed rather than quoted: these drifted 2.7 points in a day.
@@ -968,7 +1128,7 @@ function renderEra() {
       })() + '.';
 }
 
-// The two views, and the four figures that appear in both.
+// The two views, and the two figures that appear in both.
 //
 // A chart can only live in one place in the document, so the story view does
 // not hold copies: it borrows the real figures and gives them back. Copying
@@ -1038,7 +1198,7 @@ function renderCostDrivers() {
   const span = data.lastMonth && data.historyStarts
     ? monthDiff(data.historyStarts, data.lastMonth) + 1
     : 12;
-  const c = acquisitionCosts(data, { months: Math.max(span, 12) });
+  const c = acquisitionCosts(data, { months: Math.max(span, 12), cohorts });
   if (!c.months.length) return;
 
   const sum = vals => vals.reduce((s, v) => s + v, 0);
@@ -1049,7 +1209,10 @@ function renderCostDrivers() {
 
   // Five lines is the most a reader can follow. Everything else is summed into
   // one so the total still reconciles rather than quietly losing money.
-  const ranked = [...c.categories].sort((a, b) => sum(b.values) - sum(a.values));
+  // A category with no money in the window is not a line, and counting it in
+  // "Everything else" named six categories where five carried a dollar.
+  const ranked = c.categories.filter(cat => sum(cat.values) > 0)
+    .sort((a, b) => sum(b.values) - sum(a.values));
   const shown = ranked.slice(0, 5);
   const rest = ranked.slice(5);
   const palette = [INK.primary, INK.secondary, INK.tertiary, INK.accent, INK.negative];
@@ -1077,7 +1240,7 @@ function renderCostDrivers() {
     yTitle: 'Cost per logo, per month',
     labels, series, yFormat: fmt.money,
     describe: i => labels[i] + ': ' + fmt.money(c.costPerLogo[i]) + ' per logo on '
-      + fmt.int(c.logos[i]) + ' new logos. '
+      + fmt.int(c.logos[i]) + ' logos started. '
       + series.slice(0, -1).map(s => s.label + ' ' + fmt.money(s.values[i])).join(', '),
   });
 
@@ -1109,23 +1272,24 @@ function renderCostDrivers() {
     + (moves[1] && moves[1].delta > 0
         ? moves[1].label + ' added ' + fmt.money(moves[1].delta) + ' on top of it. '
         : '')
-    + 'Read this against the new logo counts in the table above rather than on its '
+    + 'Read this against the logo counts in the table above rather than on its '
     + 'own: a category can rise here without anybody spending an extra dollar, '
-    + 'because the denominator is new logos and that is the number that fell.';
+    + 'because the denominator is logos started and that is the number that fell.';
 
   $('cost-drivers-note').textContent =
-    'Each category from the table above, divided by the new logos booked in the '
+    'Each category from the table above, divided by the logos that started in the '
     + 'same month, so this is the cost table read per customer rather than per month. '
     + 'A category with no spend in a month sits at zero rather than leaving a gap, '
     + 'because zero is the true value there. The dashed line is the total and equals '
     + 'the bottom row of the table. Months with no new logos have no cost per logo '
     + 'and break the lines rather than dropping them to the axis. '
     + 'One category break to know about before reading a trend into it: marketing '
-    + 'salaries ran about $12,000 a month to 2025-08, then sat at zero for five '
-    + 'months and returned at around $3,500, while the same work moved into '
-    + 'professional services. Both are acquisition so no total moves, but the two '
-    + 'category lines are not comparable across that break — a fall in one and a '
-    + 'rise in the other there is a reclassification rather than a decision.';
+    + 'salaries, which sit in Other acquisition and so in the Everything else line here, '
+    + 'ran about $12,000 a month to 2025-07, sat at zero from 2025-09 to 2025-12 and came '
+    + 'back at around $3,500 from 2026-02, while the same work moved into agencies and '
+    + 'services. Both are acquisition so no total moves, but the two are not comparable '
+    + 'across that break: a fall in one and a rise in the other there is a reclassification '
+    + 'rather than a decision.';
 }
 
 
@@ -1137,23 +1301,21 @@ function renderContribution() {
   const c = costToServe(data);
   if (!c) return;
 
-  // The same switches as the chart at the top, minus acquisition. Acquisition
-  // divides by NEW logos and everything here divides by ACTIVE ones, so
-  // putting it on this chart would invite subtracting one from the other.
   // Acquisition was left off this chart on the grounds that it divides by NEW
   // logos where everything else divides by ACTIVE ones. That is a real
   // objection to netting them per logo, and a bad reason to leave the question
   // unanswerable: "are we making money overall" is the first thing anyone
-  // asks. It is offered as a last switch, off by default, spreading the
-  // month's whole acquisition bill across the active base. That is a
-  // different basis from the rest of the chart and the hint says so.
+  // asks. It is the last switch, on by default with every other cost, spreading
+  // the month's whole acquisition bill across the active base. That is a
+  // different basis from the rest of the chart, and the hint, the tooltip and
+  // the note all read the switch rather than assuming its state.
   const acqByMonth = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
   const ACQ_SPREAD = {
     key: 'acqspread',
     label: 'Acquisition, spread over the active base',
     defaultOn: true,
     hint: 'The whole month’s acquisition bill divided by every active logo, not just '
-        + 'the new ones. A different basis from the rows above — it answers whether '
+        + 'the new ones. A different basis from the rows above: it answers whether '
         + 'the business as a whole washes its face.',
   };
   // Chart 28 opens with every cost ticked, because what is left after
@@ -1206,7 +1368,9 @@ function renderContribution() {
           }).join('')
         + `<span>Leaves ${fmt.money(m.arpa - charge)}, `
         + `${fmt.pct(m.arpa ? (m.arpa - charge) / m.arpa : 0, 1)} of what they pay</span>`
-        + `<span class="muted">Acquisition is not in this figure</span>`;
+        + `<span class="muted">${on.has('acqspread')
+          ? 'Acquisition spread over the active base is in this figure'
+          : 'Acquisition is not in this figure'}</span>`;
     },
   });
 
@@ -1228,12 +1392,12 @@ function renderContribution() {
           + `whole picture on one line: ${fmt.money(meanArpa - meanLeft)} of cost against `
           + `${fmt.money(meanArpa)} of revenue, or about `
           + `$${(perDollar === null ? 0 : perDollar * 5).toFixed(2)} kept for every $5 spent. `
-          + 'What a customer pays here is everything they pay — subscription, usage and '
+          + 'What a customer pays here is everything they pay: subscription, usage and '
           + 'message credits, setup, and 10DLC pass-through. An earlier version of this '
           + 'chart counted subscription alone, which understated revenue by about a tenth '
           + 'and made the same months read as break-even when they are not. '
         : cogsOnly
-          ? 'That is cost of sales only, so it is gross contribution — the figure to use '
+          ? 'That is cost of sales only, so it is gross contribution: the figure to use '
             + 'for ratios and for any outside comparison, and not a profit. '
           : 'Tick every box for what a customer contributes to the whole company; tick '
             + 'only the cost-of-sales rows for the gross figure outside comparisons use. ')
@@ -1253,24 +1417,29 @@ function renderContribution() {
           + 'sides together over a cohort’s life.');
 
   $('contribution-note').textContent =
-    'What a customer pays is everything they pay — subscription MRR plus usage and '
-    + 'message credits, setup and one-time charges, and 10DLC and carrier pass-through — '
+    'What a customer pays is everything they pay, subscription MRR plus usage and '
+    + 'message credits, setup and one-time charges, and 10DLC and carrier pass-through, '
     + 'across every active logo, divided by that logo count. Accounts that have never once '
     + 'carried a subscription are excluded from the count: a test account or an agency '
     + 'monitoring seat is not a customer whose cost anybody should be spreading. '
-    + 'The costs are the real monthly figures '
-    + 'from the finance tab over the same active count'
+    + 'The costs are the real monthly figures from the finance tab over the same count, '
+    + 'never-paid accounts left out of both sides'
     + (c.logosAgree
-        ? ' — and the two sources agree on that count in every month, which is the '
-          + 'main thing making this chart trustworthy'
-        : ', and the two sources disagree on that count in at least one month')
+        ? ', and the pipeline\'s own active count agrees with it in every month'
+        : '; the pipeline\'s own active count, which keeps them, differs from it')
     + '. G&A and R&D are spread evenly across active logos, because nothing ties a '
-    + 'landlord or a developer to a particular customer. Acquisition is deliberately '
-    + 'absent: it divides by NEW logos where everything here divides by ACTIVE ones, and '
-    + 'putting the two on one chart invites subtracting one from the other. Cost of sales '
-    + 'alone gives gross contribution, which is what ratios and outside benchmarks use; '
-    + 'everything ticked gives what a customer contributes toward the whole business. '
-    + 'Neither is the other and neither is profit.';
+    + 'landlord or a developer to a particular customer. '
+    + (on.has('acqspread')
+      ? 'Acquisition is ticked, spread over the active base: it divides by NEW logos where '
+        + 'everything else here divides by ACTIVE ones, so it says whether the business as '
+        + 'a whole covers its costs, not whether a customer pays back. '
+      : 'Acquisition is unticked: it divides by NEW logos where everything here divides by '
+        + 'ACTIVE ones, and spreading it is a choice the last switch leaves to you. ')
+    + 'The August revenue share in this push is the figure QuickBooks held before the '
+    + 'month closed, well over twice a usual month, so the six-month mean in the finding '
+    + 'carries it. Cost of sales alone gives gross contribution, which is what ratios and '
+    + 'outside benchmarks use; everything ticked gives what a customer contributes toward '
+    + 'the whole business. Neither is the other and neither is profit.';
 }
 
 
@@ -1281,24 +1450,33 @@ function renderServeTeams() {
 
   const labels = c.months.map(m => fmt.monthLabel(m.month));
   const palette = [INK.primary, INK.secondary, INK.tertiary, INK.accent, INK.negative];
+  // Five lines is the most a reader can follow; the rest are summed into one
+  // so the lines still add up to the dashed total. The tab carries seven teams
+  // now, and drawing five while the note said five summed to the total left
+  // Customer Support and Hosting out of a chart that claimed to hide nothing.
   const top = c.teamTotals.slice(0, 5);
-
-  // The general "Cost of Sales" account is a sibling of the named teams rather
-  // than their parent — the five sum exactly to the total — but the bare name
-  // reads like a total and makes the finding sound circular.
-  const name = label => (label === 'Cost of Sales' ? 'Cost of sales, unsplit' : label);
+  const rest = c.teamTotals.slice(5);
+  const perLogo = (m, amount) => (m.activeLogos ? amount / m.activeLogos : null);
+  const teamAt = (m, label) => (m.teams.find(t => t.label === label)?.amount || 0);
 
   const series = top.map((team, i) => ({
-    label: name(team.label),
+    label: team.label,
     colour: palette[i],
-    values: c.months.map(m => {
-      const row = m.teams.find(t => t.label === team.label);
-      return row && m.activeLogos ? row.amount / m.activeLogos : null;
-    }),
+    values: c.months.map(m => perLogo(m, teamAt(m, team.label))),
   }));
+  if (rest.length) {
+    series.push({
+      label: rest.length === 1 ? rest[0].label : `${rest.map(t => t.label).join(' and ')}`,
+      colour: 'var(--ink-soft)', thin: true,
+      values: c.months.map(m => perLogo(m, rest.reduce((s, t) => s + teamAt(m, t.label), 0))),
+    });
+  }
+  // The total over the same count as the lines, so the lines sum to it. The
+  // tab's own cogs_per_logo divides by its own active count, which keeps the
+  // never-paid accounts, and drawing it here put two denominators on one chart.
   series.push({
     label: 'All cost of sales', colour: 'var(--ink)', dashed: true,
-    values: c.months.map(m => m.cogsPerLogo),
+    values: c.months.map(m => perLogo(m, m.teams.reduce((s, t) => s + (t.amount || 0), 0))),
   });
 
   multiLineChart($('chart-serve-teams'), {
@@ -1311,29 +1489,39 @@ function renderServeTeams() {
 
   const grand = c.teamTotals.reduce((s, t) => s + t.amount, 0);
   const biggest = c.teamTotals[0];
+  // Which kind of cost is larger, read from the team names rather than
+  // asserted: the finding used to say "people, not infrastructure" while
+  // software and hosting were the larger of the two.
+  const sumOf = test => c.teamTotals.filter(t => test.test(t.label)).reduce((s, t) => s + t.amount, 0);
+  const infra = sumOf(/Software|Hosting/i);
+  const people = sumOf(/Customer Success|Technical Account|Support/i);
   $('serve-teams-finding').innerHTML =
-    '<strong>' + name(biggest.label) + ' is ' + fmt.pct(biggest.amount / grand)
+    '<strong>' + biggest.label + ' is ' + fmt.pct(biggest.amount / grand)
     + ' of what it costs to serve the base.</strong> ' + fmt.money(biggest.amount)
     + ' of ' + fmt.money(grand) + ' across ' + c.months.length + ' months. '
-    + c.teamTotals.slice(1, 4).map(t => name(t.label) + ' ' + fmt.pct(t.amount / grand)).join(', ')
+    + c.teamTotals.slice(1, 4).map(t => t.label + ' ' + fmt.pct(t.amount / grand)).join(', ')
     + '. This is the chart to argue over if the answer to thin margins is to serve '
     + 'customers more cheaply rather than to charge more, because it names where the '
-    + 'money actually goes — people, not infrastructure. A headcount answer and a '
-    + 'pricing answer are the only two on the table, and this says which one is big '
-    + 'enough to matter.';
+    + 'money actually goes. Software and hosting together are ' + fmt.money(infra) + ', '
+    + fmt.pct(infra / grand) + ' of it; the three teams of people who look after customers '
+    + 'are ' + fmt.money(people) + ', ' + fmt.pct(people / grand) + '. '
+    + (infra > people
+      ? 'So the larger lever is what the platform costs to run, not headcount, '
+      : 'So the larger lever is headcount, not what the platform costs to run, ')
+    + 'and a pricing answer is the other one on the table.';
 
   $('serve-teams-note').textContent =
     'Every account booked to cost of sales, divided by active logos in the same '
-    + 'month. There are five and they sum exactly to the total, which the dashed line '
-    + 'draws, so nothing is hidden and nothing is counted twice. The largest is the '
-    + 'general cost of sales account rather than a named team, which is a reporting '
-    + 'limit rather than a finding: half the cost of serving customers is not '
-    + 'attributed to anybody in the source. One line here '
-    + 'has a spike in the latest month that is not a cost increase: a $69,847 revenue '
-    + 'share invoice was raised in 2026-08 and credited in full on the 31st, and the '
-    + 'credit lands in 2026-09 which is outside this window. The charge is in and the '
-    + 'reversal is not, so August reads about $70,000 high. Underlying August is close '
-    + 'to July. One more line '
+    + 'month, never-paid accounts left out. The pushed tab carries ' + c.teamTotals.length
+    + ' teams; the five largest are drawn and '
+    + (rest.length ? 'the other ' + rest.length + ' are summed into the faint line, so ' : 'so ')
+    + 'the lines add up to the dashed total over the same count, and nothing is hidden or '
+    + 'counted twice. One line here '
+    + 'has a spike in the latest month that is not a cost increase. QuickBooks dates a '
+    + '$69,848 vendor credit against the August revenue share invoice on the 31st, inside '
+    + 'August, but this push pulled August before that credit was posted, so the charge is '
+    + 'in and the reversal is not and August reads about $70,000 high. The next push carries '
+    + 'the closed month, and underlying August is close to July. One more line '
     + 'is worth explaining, because it looks wrong and is not: the Sales & Marketing '
     + 'line inside cost of sales. That is the Service Titan revenue share and partner '
     + 'rebates, both paid on what customers who have already been won go on to bill. '
@@ -1352,9 +1540,13 @@ function renderServeTeams() {
 // customer problem. This is the measurement behind that claim.
 function renderTenureChurn() {
   const CUTS = [3, 6, 12];
+  // A band with no members yet is blank, not a reason to drop the month: the
+  // 6 to 12 month band cannot fill until seven months into the window, and
+  // dropping every row with a blank silently started the chart eight months in.
   const rows = churnByTenure(data, { cuts: CUTS })
-    .filter(r => r.bands.every(b => b.rate !== null));
+    .filter(r => r.bands.some(b => b.rate !== null));
   if (!rows.length) return;
+  const firstFull = rows.find(r => r.bands.every(b => b.rate !== null));
 
   const bands = rows.bands || rows[0].bands;
   const palette = [INK.negative, INK.secondary, INK.primary, INK.tertiary];
@@ -1416,7 +1608,7 @@ function renderTenureChurn() {
     },
   });
 
-  const recent = rows.slice(-6);
+  const recent = rows.slice(-6).filter(r => r.bands.every(b => b.rate !== null));
   const meanRate = i => recent.reduce((s, r) => s + r.bands[i].rate, 0) / recent.length;
   const meanShare = i => recent.reduce((s, r) => s + r.bands[i].shareOfLosses, 0) / recent.length;
   const rates = bands.map((_, i) => meanRate(i));
@@ -1436,7 +1628,7 @@ function renderTenureChurn() {
         ? `The first three months churn harder than the three after them, so the damage `
           + `is at the very front.`
         : `The first three months are not the worst of it, which rules out the simplest `
-          + `story — that customers arrive, take one look and go. The worst band sits `
+          + `story, that customers arrive, take one look and go. The worst band sits `
           + `after onboarding has ended.`);
 
   $('tenure-churn-note').textContent =
@@ -1446,8 +1638,14 @@ function renderTenureChurn() {
     + 'month rather than a single intake followed forward, so a customer moves from one '
     + 'band to the next as they age. Customers already present when the data window '
     + 'opens have no knowable signup date and go in the oldest band, which is the '
-    + 'conservative choice — it puts them in the band this chart is trying not to '
-    + 'blame, and it is also why that band is the largest. A customer booked down to '
+    + 'conservative choice: it puts them in the band this chart is trying not to '
+    + 'blame, and it is also why that band is the largest. '
+    + (firstFull && firstFull !== rows[0]
+      ? 'A band with no members yet is left blank rather than drawn at zero, which is why the '
+        + 'longer bands only start at ' + fmt.monthLabel(firstFull.month) + '. '
+      : '')
+    + 'Tenure runs from the first month a customer is present, which can be before they '
+    + 'first pay. A customer booked down to '
     + 'zero MRR is still present here, because presence on this page is an event type '
     + 'and not an amount. Share of losses is each band against everyone who left that '
     + 'month, so the four shares sum to one and the rates do not; the switches change '
@@ -1455,8 +1653,7 @@ function renderTenureChurn() {
 }
 
 
-// 32. Customers present in every count who are paying nothing.
-// 43. Billed and not paying.
+// 25. The same question, month by month.
 // 24 and 25 are pre-rendered animations, so their findings cannot come from
 // the drawing the way every other chart's does. They were written by hand and
 // left as assertions: "the recent months land inside the same cloud as the
@@ -1483,13 +1680,22 @@ function renderArrivalAnimations() {
   const outside = recent.filter(p => p.y < lo || p.y > hi);
 
   const inside = recent.length - outside.length;
+  const better = outside.filter(p => p.y < lo);
+  const worse = outside.filter(p => p.y > hi);
+  // Which side of the band they sit on is the operator's point: "sit apart"
+  // reads as worse, and three of the four were better.
+  const sides = [
+    better.length && `${better.length} below it, losing fewer customers than the earlier months did`,
+    worse.length && `${worse.length} above it, losing more`,
+  ].filter(Boolean).join(', and ');
   box.innerHTML = outside.length
     ? `<strong>${outside.length} of the last ${recent.length} starting months sit outside `
-      + `the range the earlier ones occupied.</strong> `
+      + `the range the earlier ones occupied: ${sides}.</strong> `
       + outside.map(p => `${fmt.monthLabel(p.month)} at ${fmt.pct(p.y, 1)}`).join(', ')
       + `, against a 10th-to-90th percentile band of ${fmt.pct(lo, 1)} to ${fmt.pct(hi, 1)} `
-      + `across the ${earlier.length} months before them. That is the thing this animation `
-      + `exists to make visible, and it is currently visible.`
+      + `across the ${earlier.length} months before them. By chance about one in five of them `
+      + `would land outside a band that wide, so ${outside.length} of ${recent.length} is worth `
+      + `reading, and the direction is what to read.`
     : `<strong>The recent months land inside the same cloud as the early ones.</strong> `
       + `All ${inside} of the last ${recent.length} starting months fall within the `
       + `${fmt.pct(lo, 1)} to ${fmt.pct(hi, 1)} band that the previous ${earlier.length} `
@@ -1645,8 +1851,13 @@ function renderRevTenure() {
           + `the oldest age every intake has reached, ${newest.label} has lost `
           + `${fmt.pct(newest.value, 0)} against ${fmt.pct(olderMean, 0)} for `
           + `${older.map(x => x.label).join(' and ')}. On the sample so far the newest money is `
-          + `leaving ${newest.value > olderMean ? 'faster' : 'slower'} than any intake before `
-          + `it. `
+          + (older.every(x => newest.value > x.value)
+            ? 'leaving faster than any intake before it. '
+            : older.every(x => newest.value < x.value)
+              ? 'leaving slower than any intake before it. '
+              : `leaving ${newest.value > olderMean ? 'faster' : 'slower'} than the earlier `
+                + `intakes on average, but not ${newest.value > olderMean ? 'faster' : 'slower'} `
+                + 'than every one of them. ')
         : '')
     + `Because departures are weighted by what each customer was worth rather than counted, `
     + `this line and the logo curve on chart 4 sit within a few points of each other the whole `
@@ -1911,7 +2122,18 @@ function renderWindowCurve() {
     range.type = 'range';
     range.id = 'window-start';
     range.min = '0';
-    range.value = '0';
+    // Opens on the newest three-month window that has a full measured year,
+    // rather than on the oldest window in the book. The oldest is the best
+    // intake on the page and the furthest from what is being signed now, which
+    // is the opposite of the window the finding tells a reader to build on.
+    const ageOf = new Map(cohorts.map(c => [c.month, c.maxOffset]));
+    let opening = 0;
+    for (let i = 0; i + 3 <= probe.months.length; i += 1) {
+      const youngest = Math.min(...probe.months.slice(i, i + 3).map(m => ageOf.get(m) ?? -1));
+      if (youngest >= 12) opening = i;
+    }
+    range.max = String(Math.max(0, probe.months.length - 3));
+    range.value = String(opening);
     const read = document.createElement('output');
     read.id = 'window-start-label';
     slide.append(range, read);
@@ -2018,10 +2240,10 @@ function renderWindowCurve() {
                 + `${Math.abs(gap).toFixed(0)} points ${gap < 0 ? 'worse' : 'better'}. `
               : '. ')
         : '')
-    + `Measured out to month ${r.anchorAge}`
+    + `Measured out to month ${r.anchorAge}, as far as every intake in the window has lived`
     + (carriedCount
-        ? `, then carried along the average shape for ${carriedCount} more, with the `
-          + `correction and the range chart 45 backtested. `
+        ? `, then carried along the average shape for ${carriedCount} more, with a per-month `
+          + `correction and a range measured the way chart 45 measures its own. `
         : `. `)
     + `Move the slider to walk the window through the book. What the forecast should be built `
     + `on is whichever window you think looks like the customers you are signing now, not the `
@@ -2036,8 +2258,10 @@ function renderWindowCurve() {
     + 'arriving at each age. Each customer is capped at what they started on, so expansion '
     + 'cannot lift the line above its own base, and the loss counts both a customer leaving '
     + 'and a customer staying on less. A window is measured only as far as its own youngest '
-    + 'cohort has lived; past that the line is dashed and carried along the reference shape, '
-    + 'with the per-month correction and the 95% range that chart 45 backtested. A narrow '
+    + 'cohort has lived, so every solid point rests on every intake in it; past that the line '
+    + 'is dashed and carried along the reference shape, with a per-month correction and a 95% '
+    + 'range measured across every cohort the way chart 45 measures its own. The slider opens '
+    + 'on the newest window with a full measured year. A narrow '
     + 'window near the right-hand end of the slider is carried a long way on very little, so '
     + 'read the range rather than the point. Customers already present in the first month of '
     + 'the window have no knowable start date and are in no cohort.';
@@ -2049,8 +2273,10 @@ const MEASURES = [
     blurb: 'What the book bills a month. The line at a million is the target.',
     yTitle: 'Monthly recurring revenue', format: v => fmt.money(v) },
   { key: 'contribution', label: 'After costs', headline: 'Revenue less cost to serve and acquisition',
-    blurb: 'Cost to serve is per active customer at the trailing six-month rate; acquisition '
-      + 'spend is held at its trailing six months because it is mostly salaries.',
+    blurb: 'Cost to serve is chart 48’s rollup: platform per active customer and revenue '
+      + 'share on revenue at their six-month rates, support, G&A and R&D payroll held at the '
+      + 'last three months. Acquisition spend is held at its last three months because it '
+      + 'is mostly salaries.',
     yTitle: 'Monthly contribution', format: v => fmt.money(v) },
   { key: 'logos', label: 'Customers', headline: 'Active customers on the book',
     blurb: 'Head count, on the same churn and arrival assumptions as the revenue.',
@@ -2298,14 +2524,20 @@ function renderLevers() {
     + 'The year’s own prices cannot answer either, because they are a price list rather '
     + 'than a market: forty customers at exactly $1,000 and a hundred and seventy-nine of two '
     + 'hundred and twenty-six on one of fifteen round numbers. Customers follow the same '
-    + 'cohorts in head count, by survival. Cost to serve is the trailing six months per '
-    + 'active customer, chart 39’s basis; acquisition is the trailing six months of '
-    + 'spend held flat, because it is mostly salaries. After costs is on recurring revenue '
+    + 'cohorts in head count, by survival. Cost to serve is the same rollup chart 48 draws, '
+    + 'platform per active customer at its six-month rate, revenue share at the median of '
+    + 'its six-month rate on revenue, and support, G&A and R&D payroll held at the last three '
+    + 'months, so it includes overhead and divides by every active customer rather than '
+    + 'chart 39’s paying ones. Acquisition is the last three months of spend held flat, '
+    + 'because it is mostly salaries and the last quarter is the staffing there is now. '
+    + 'After costs is on recurring revenue '
     + 'only: usage, one-off and pass-through revenue are not in it, and they run at about a '
     + 'tenth on top, so a month that reads just below break-even here is about level in cash. '
     + 'The book already on the shelf decays '
-    + 'along chart 44’s curve and new business along chart 46’s, with the '
-    + 'carry-forward correction chart 45 backtested at about six points of error a year out.';
+    + 'along the capped revenue retention of every cohort blended together, '
+    + 'and new business along the curve of the six newest cohorts with a full year behind '
+    + 'them, each carried forward with a per-month correction measured across every cohort '
+    + 'the way chart 45 measures its own.';
 
   renderCostForecast({ ...lead.paths[churnModes[0].key], book: lead.book });
 }
@@ -2397,7 +2629,7 @@ function renderCostForecast(projection) {
         : '')
     + `${largest.label} is the largest line at ${fmt.money(largest.total)}. `
     + (grows.length
-        ? `${grows.map(g => g.label.toLowerCase()).join(' and ')} `
+        ? `${grows.map((g, i) => (i ? g.label.toLowerCase() : g.label)).join(' and ')} `
           + `${grows.length > 1 ? 'grow' : 'grows'} with the book, from `
           + `${grows.map(g => fmt.money(g.runRate)).join(' and ')} a month now to `
           + `${grows.map(g => fmt.money(g.path[11])).join(' and ')} in month twelve; `
@@ -2424,9 +2656,9 @@ function renderCostForecast(projection) {
     + 'is a rate per '
     + 'active logo over the last six months, applied to the customers chart 47 projects. '
     + 'Revenue share follows the bill and is a rate on recurring revenue; the rate is the '
-    + 'median of the last six months rather than the mean, because August carries a '
-    + 'revenue-share invoice that was raised and credited in full and the mean would carry '
-    + 'it for a year. Depreciation is shown and left out of every total, because it is not '
+    + 'median of the last six months rather than the mean, because this push pulled August '
+    + 'before its revenue-share credit was posted, so August carries the invoice without the '
+    + 'credit and the mean would carry it for a year. Depreciation is shown and left out of every total, because it is not '
     + 'cash. Revenue here is recurring only; usage, one-off and pass-through run at about a '
     + 'tenth on top and are not in the contribution line. Chart 47’s after-costs view '
     + 'uses exactly this rollup, so the two agree to the dollar.';
@@ -2476,58 +2708,68 @@ function watchTables() {
   window.addEventListener('resize', markScrollable);
 }
 
+// 43. Billed and not paying.
+//
+// One month, not a series. The status in the push is each customer's status
+// today, stamped onto every month they appear in, so a line of it rose by
+// construction: today's flags projected back over a smaller base. See
+// pastDueNow. The latest month is the only one it describes.
 function renderPastDue() {
   if (!$('chart-pastdue')) return;
-  const t = pastDueTrend(data);
+  const t = pastDueNow(data);
   if (!t) {
     $('chart-pastdue').innerHTML =
       '<p class="empty">No subscription status in this push.</p>';
     return;
   }
 
-  const labels = t.rows.map(r => fmt.monthLabel(r.month));
-  multiLineChart($('chart-pastdue'), {
-    yTitle: 'Share of live logos billed and not paying',
-    labels,
-    yFormat: v => fmt.pct(v, 1),
-    series: [
-      { label: 'Past due or unpaid, share of live logos', colour: INK.negative,
-        values: t.rows.map(r => r.share) },
+  const bad = s => s === 'past_due' || s === 'unpaid';
+  columnChart($('chart-pastdue'), {
+    yTitle: `Live logos in ${fmt.monthLabel(t.month)}, by subscription status`,
+    labels: t.byStatus.map(b => b.status.replace('_', ' ')),
+    values: t.byStatus.map(b => b.n),
+    yFormat: fmt.int,
+    colourFor: (v, i) => (bad(t.byStatus[i].status) ? INK.negative : INK.tertiary),
+    refs: [],
+    legendItems: [
+      { label: 'Billed and not paying', colour: 'var(--series-neg)' },
+      { label: 'Every other status', colour: 'var(--series-3)' },
     ],
     describe: i => {
-      const r = t.rows[i];
-      return labels[i] + ': ' + fmt.int(r.atRisk) + ' of ' + fmt.int(r.live)
-        + ' live logos (' + fmt.pct(r.share, 1) + ') are past due or unpaid, carrying '
-        + fmt.money(r.mrrAtRisk) + ' of MRR'
-        + (r.due ? ' and ' + fmt.money(r.due) + ' of balance outstanding' : '')
-        + '.';
+      const b = t.byStatus[i];
+      return `<strong>${b.status.replace('_', ' ')}</strong>`
+        + `<span>${fmt.int(b.n)} of ${fmt.int(t.live)} live logos, ${fmt.pct(b.n / t.live, 1)}</span>`;
     },
   });
 
-  const dir = t.rising ? 'risen' : 'fallen';
   $('pastdue-finding').innerHTML =
-    '<strong>' + fmt.pct(t.last.share, 1) + ' of live logos are being billed and not '
-    + 'paying, ' + dir + ' from ' + fmt.pct(t.first.share, 1) + ' in '
-    + fmt.monthLabel(t.first.month) + '.</strong> That is ' + fmt.int(t.last.atRisk)
-    + ' accounts carrying ' + fmt.money(t.last.mrrAtRisk) + ' of MRR that is counted in '
-    + 'every revenue figure on this page and is not arriving as cash. '
-    + (t.slope !== null && t.rising
-        ? 'The trend is worth more than the level: a customer stops paying before they '
-          + 'cancel, so this is churn that has already happened and has not been booked yet. '
-        : 'The level matters less than the direction, and the direction is not currently '
-          + 'worsening. ')
-    + 'They stay in the base because an invoice going unpaid is a customer with a problem '
-    + 'rather than a departure, and treating them as gone would book the loss twice.';
+    '<strong>' + fmt.int(t.atRisk) + ' of ' + fmt.int(t.live) + ' live logos, '
+    + fmt.pct(t.share, 1) + ', are being billed and not paying in '
+    + fmt.monthLabel(t.month) + '.</strong> ' + fmt.int(t.pastDue) + ' are past due and '
+    + fmt.int(t.unpaid) + ' unpaid, carrying ' + fmt.money(t.mrrAtRisk) + ' of MRR that is '
+    + 'counted in every revenue figure on this page and is not arriving as cash'
+    + (t.due ? ', with ' + fmt.money(t.due) + ' of balance outstanding' : '') + '. '
+    + 'A customer stops paying before they cancel, so some of this is churn that has '
+    + 'already happened and has not been booked yet. They stay in the base because an '
+    + 'invoice going unpaid is a customer with a problem rather than a departure, and '
+    + 'treating them as gone would book the loss twice.';
 
   $('pastdue-note').textContent =
-    'Share of live logos whose subscription reads past_due or unpaid, against all logos '
-    + 'counted present that month. The series starts at the first month the pushed data '
-    + 'carries a subscription status at all; before that the columns are empty and a zero '
-    + 'here would be an absence of measurement rather than an absence of the problem. '
-    + 'Departed accounts with an unpaid balance are excluded, because that is a '
-    + 'collections question rather than a warning about the standing base.';
+    'This is a snapshot, not a trend. The subscription status in the push is each '
+    + 'customer\'s status today, stamped onto every month they appear in: of '
+    + fmt.int(t.customersWithStatus) + ' customers carrying a status, '
+    + (t.changing
+      ? fmt.int(t.changing) + ' carry more than one, so some months may be dated, but most are not. '
+      : 'none carries more than one value across their months. ')
+    + 'A line through the months would therefore be today\'s flags projected back over a '
+    + 'smaller base, and would rise by construction, which is why only the latest month is '
+    + 'drawn. Whether the level is rising needs a status as of each month end, which the '
+    + 'pipeline does not yet push. The share is against every logo counted present in '
+    + fmt.monthLabel(t.month) + '. Departed accounts with an unpaid balance are excluded, '
+    + 'because that is a collections question rather than a warning about the standing base.';
 }
 
+// 32. Customers present in every count who are paying nothing.
 function renderZeroMrr() {
   const rows = zeroMrrShare(data).filter(r => r.base >= 50);
   if (!rows.length) return;
@@ -2578,9 +2820,14 @@ function renderZeroMrr() {
     + 'Some of this population is here because the pipeline cannot name what they '
     + 'bought rather than because they stopped paying. A customer whose product the '
     + 'revenue classifier does not recognise carries real cash and no MRR, and reads '
-    + 'here as paying nothing. Roughly forty customers are in that state, so a rise '
-    + 'in this line is not automatically customers going quiet — it can equally be '
-    + 'the product catalogue moving ahead of the classifier. '
+    + 'here as paying nothing. In ' + fmt.monthLabel(last.month) + ' '
+    + fmt.int(last.zero - last.noMoneyAtAll) + ' customers carry money of some kind and '
+    + 'no MRR, the gap between the two lines, so a rise in the upper line is not '
+    + 'automatically customers going quiet: it can equally be the product catalogue '
+    + 'moving ahead of the classifier. The ' + fmt.int(neverPaidIds(data).size)
+    + ' accounts that never carried a subscription at all are left out of both the count '
+    + 'and the base, because they are records to clean up rather than customers who '
+    + 'stopped paying. '
     // The other half of the same design limit, computed rather than asserted.
     + (() => {
         const q = silentLogos(data);
@@ -2606,8 +2853,8 @@ function renderZeroMrr() {
 // one number nobody can argue with. Here the numerator is revenue and every
 // cost is a line in the denominator that a reader can switch off and watch the
 // answer move. Ticking every box is the question "does a customer at these
-// prices pay for the whole company", and ticking the first six is the question
-// every outside benchmark actually asks.
+// prices pay for the whole company", and the default four, acquisition and the
+// cost of sales, is the question every outside benchmark actually asks.
 
 
 const horizonOf = rows => (rows.length ? rows[0].horizon : 60);
@@ -2718,8 +2965,8 @@ function renderFullCost() {
     + (observedAbove < above
         ? `, ${observedAbove} of them on revenue already observed.</strong> `
         : `.</strong> `)
-    + `The average cohort has cost ${fmt.money(meanCost)} a logo by then — `
-    + `${fmt.money(meanAcq)} to win and ${fmt.money(meanOngoing)} to keep — against `
+    + `The average cohort has cost ${fmt.money(meanCost)} a logo by then, `
+    + `${fmt.money(meanAcq)} to win and ${fmt.money(meanOngoing)} to keep, against `
     + `${fmt.money(avg(shown, 'revenuePerLogo'))} of revenue. The earlier half sits at `
     + `${fmt.ratio(early)} and the later half at ${fmt.ratio(late)}. `
     + (on.has('ga') && on.has('rd')
@@ -2753,7 +3000,7 @@ function renderFullCost() {
     'One bar per cohort, every one measured at the same age, so a young cohort is '
     + 'not penalised for being young. The numerator is revenue rather than gross '
     + 'profit: applying a margin here as well as charging the cost lines would take '
-    + 'the same cost off twice. Revenue here is everything a customer pays — '
+    + 'the same cost off twice. Revenue here is everything a customer pays: '
     + 'subscription, message and AI usage, setup and 10DLC registration, and carrier '
     + 'pass-through. One of those needs flagging where the early columns are '
     + 'concerned: until mid-2025 a joining charge was booked into MRR in a customer’s '
@@ -2761,11 +3008,11 @@ function renderFullCost() {
     + 'much of its acquisition cost immediately. That is real money and is counted, but '
     + 'it is a one-off rather than recurring revenue, so it is separated out of MRR and '
     + 'sits under the setup switch. Turning that switch off is the only way to compare a '
-    + '2024 cohort with a 2026 one on equal terms, and it adds one to two months to every '
-    + '2024 break-even. The remaining streams are '
-    + 'about a tenth more than subscription alone. Every '
-    + 'other chart on this page counts subscription only, so this one reads a little '
-    + 'better than they do on the same cohorts, and the difference is real money '
+    + '2024 cohort with a 2026 one on equal terms, and it moves every 2024 break-even later, '
+    + 'by a month or more. The remaining streams are '
+    + 'about a tenth more than subscription alone. The cohort charts above count '
+    + 'subscription only, so this one reads a little better than they do on the same '
+    + 'cohorts, as charts 28, 39, 40, 42 and 49 do on theirs, and the difference is real money '
     + 'rather than a change of method: the hosting and carrier lines in the '
     + 'denominator are largely there to serve exactly that usage. '
     + 'Ongoing costs are charged month by month against the '
@@ -2773,7 +3020,7 @@ function renderFullCost() {
     + 'that loses customers stops paying for them. Acquisition is charged once, in '
     + 'full, in the month the cohort arrived, and divides by that cohort rather than '
     + 'by the active base. Months a cohort has not lived through yet are projected on '
-    + 'the pooled donor path — both the revenue and the logos, because carrying '
+    + 'the pooled donor path, both the revenue and the logos, because carrying '
     + 'revenue forward while the cost of serving it stops would be the flattering '
     + 'version of this chart. That path is age-specific rather than one churn rate '
     + 'applied flat: each step is the pooled month-to-month ratio at that age, so '
@@ -2786,20 +3033,23 @@ function renderFullCost() {
     + 'cancellation holds a leaver in for another billing period, and about two '
     + 'points a month worse by months four to seven. Past month 15 the donor pool '
     + 'thins and a single terminal rate takes over, which is the one place a '
-    + 'constant churn assumption does any work — on current data only three of '
-    + 'the twenty-four columns reach it. Chart 1 and the projected break-even chart '
-    + 'still use an unweighted pool, so they read a little kinder on recent cohorts '
-    + 'than this one does. Months past the end of the ledger carry the mean cost '
-    + 'rate of the last three, with no age curve at all — the cost side is projected '
+    + 'constant churn assumption does any work. Chart 1 and the projected break-even chart '
+    + 'still use an unweighted pool, walked on recurring revenue with the joining charge '
+    + 'taken out, so they read a little kinder on recent cohorts than this one does. This '
+    + 'one walks the booked revenue, because the setup switch decides whether the charge '
+    + 'counts. Months past the end of the ledger carry the mean cost '
+    + 'rate of the last three, with no age curve at all: the cost side is projected '
     + 'forward just as the revenue side is, and the finding says how much of it is '
-    + 'carried rather than measured whenever that passes a sixth. The groups partition the '
+    + 'carried rather than measured whenever that passes 15%. The ongoing costs divide by '
+    + 'active logos other than the accounts that never carried a subscription, the same '
+    + 'count chart 28 uses. The groups partition the '
     + 'expense file: every cost row '
     + 'belongs to exactly one, so ticking everything counts each dollar once and '
     + 'nothing is missed. Revenue and taxes sit outside all of them. '
     + 'The numbers along the top are months to full break-even, the month cumulative '
     + 'revenue first covers cumulative cost with the signup month counted as month 1. '
     + 'They are a property of the cohort rather than of the age being shown, so they '
-    + 'do not move when the slider does — only when the cost boxes change. A cohort '
+    + 'do not move when the slider does, only when the cost boxes change. A cohort '
     + 'that never covers itself inside five years is marked 60+ rather than given a '
     + 'number, because that is a different statement from a large one.';
 }
@@ -2883,7 +3133,7 @@ function renderProjection() {
   $('projection-logos-finding').innerHTML =
     (holdRate !== null
       ? `<strong>It takes ${holdRate} new customers a month just to stand still, and the `
-        + `last three months have averaged ${paths[paths.length - 2].rate}.</strong> `
+        + `last three months have averaged ${(paths.find(s => s.key === 'recent') || paths[0]).rate}.</strong> `
       : '<strong>The base is falling on the rates the business is currently running.</strong> ')
     + `From ${fmt.int(now)} logos today, twelve months out lands between `
     + `${fmt.int(worst)} and ${fmt.int(best)} depending on how many arrive: `
@@ -2953,9 +3203,22 @@ function renderProjection() {
   const logoMoveBest = (Math.max(...ends) - now) / now;
   const mrrMoveBest = (mrrBest - mrrNow) / mrrNow;
 
+  // What a logo pays by age, read from the model rather than typed: the typed
+  // version said "well over a thousand" where the curve read $936.
+  const secondYear = Array.from({ length: 12 }, (_, k) => p.pays(12 + k));
+  const ageSentence = `a first-month logo pays ${fmt.money(p.pays(0))} a month and one in its `
+    + `second year about ${fmt.money(secondYear.reduce((s, v) => s + v, 0) / secondYear.length)}`;
+  const worseEverywhere = paths.every(s => mrrMove(s.rows[11].mrr) < move(s.rows[11].logos));
+  const betterEverywhere = paths.every(s => mrrMove(s.rows[11].mrr) >= move(s.rows[11].logos));
   $('projection-mrr-finding').innerHTML =
-    `<strong>Revenue does worse than the logo count on every path, because the base is `
-    + `ageing and an older logo pays less.</strong> `
+    (worseEverywhere
+      ? `<strong>Revenue does worse than the logo count on every path, because the base is `
+        + `ageing and an older logo pays less.</strong> `
+      : betterEverywhere
+        ? `<strong>Revenue does at least as well as the logo count on every path, because `
+          + `the customers arriving pay more than the ones they replace.</strong> `
+        : `<strong>Revenue does better than the logo count on some paths and worse on `
+          + `others.</strong> `)
     + `From ${fmt.money(mrrNow)} a month today to between ${fmt.money(mrrWorst)} and `
     + `${fmt.money(mrrBest)}: `
     + paths.map(s => `${s.label.toLowerCase()} ${fmt.money(s.rows[11].mrr)} `
@@ -2966,10 +3229,13 @@ function renderProjection() {
         ? `On the best path the base moves ${logoMoveBest >= 0 ? '+' : ''}`
           + `${fmt.pct(logoMoveBest, 1)} while revenue moves `
           + `${mrrMoveBest >= 0 ? '+' : ''}${fmt.pct(mrrMoveBest, 1)}, and the difference is `
-          + `mix rather than churn: a first-month logo pays well over a thousand a month and `
-          + `one past its first year pays around five hundred, so replacing an old customer `
+          + `mix rather than churn: ${ageSentence}, so replacing an old customer `
           + `with a new one flatters the headcount and not the revenue for long. `
-        : '')
+        : `On the best path the base moves ${logoMoveBest >= 0 ? '+' : ''}`
+          + `${fmt.pct(logoMoveBest, 1)} and revenue ${mrrMoveBest >= 0 ? '+' : ''}`
+          + `${fmt.pct(mrrMoveBest, 1)}: ${ageSentence}, so a path that keeps arriving keeps `
+          + `topping the book up with its best-paying customers, and ageing does not cost `
+          + `revenue faster than heads. `)
     + `The spread between the best and worst of these three is `
     + `${fmt.money((mrrBest - mrrWorst) * 12)} of annual revenue, which is what the `
     + `arrival rate is worth over a year.`;
@@ -2978,19 +3244,28 @@ function renderProjection() {
     'Revenue is the projected logo count at each age multiplied by what a logo of that '
     + 'age actually pays, measured across the last six months so the curve reflects '
     + 'current pricing rather than the whole window’s. That curve falls with age: '
-    + 'a first-month logo pays well over a thousand a month and one past its first year '
-    + 'pays around five hundred, so a base that is ageing loses revenue even where it '
-    + 'holds its headcount. Same model, same scenarios and same backtest as the chart '
+    + ageSentence + ', so a base that is ageing loses revenue even where it '
+    + 'holds its headcount. Applied to today\'s base the six-month curve gives '
+    + fmt.pct(1 / p.calibration, 1) + ' of what it actually bills, so every path is scaled to '
+    + 'start from the observed ' + fmt.money(mrrNow) + ' and only the movement from there is '
+    + 'the model\'s; unscaled, every path would start ' + (p.calibration > 1 ? 'below' : 'above')
+    + ' today\'s revenue before anybody had left. '
+    + 'Same model, same scenarios and same backtest as the chart '
     + 'above. No price change is modelled in either direction.';
 
   // ---------------------------------------------------------------- 36 cash
   const served = costToServe(data);
   const costPerLogo = served ? served.months.slice(-6)
     .reduce((s, m) => s + m.cogsPerLogo, 0) / 6 : 0;
-  const cac = data.cacMonthly.slice(-6);
+  // The cost to win a logo from the same function chart 47 uses, over the same
+  // six complete months on both sides of the division and the cohort count.
+  // This used to divide six months of spend ending in a partial month by six
+  // months of summary logos ending a month earlier.
+  const acq6 = acquisitionCosts(data, { months: 6, cohorts });
   const cacPerLogo = (() => {
-    const spend = cac.reduce((s, r) => s + (r.cacTotalActual || 0), 0);
-    const logos = data.waterfall.slice(-6).reduce((s, w) => s + (w.newLogos || 0), 0);
+    const counted = acq6.months.map((m, i) => i).filter(i => acq6.logos[i] !== null);
+    const spend = counted.reduce((s, i) => s + acq6.totals[i], 0);
+    const logos = counted.reduce((s, i) => s + acq6.logos[i], 0);
     return logos ? spend / logos : 0;
   })();
 
@@ -3000,7 +3275,7 @@ function renderProjection() {
   }));
 
   multiLineChart($('chart-projection-cash'), {
-    yTitle: 'Monthly cost to run',
+    yTitle: 'Monthly contribution after serving and acquiring',
     labels: futLabels,
     yFormat: fmt.money,
     series: net.map((s, i) => ({
@@ -3019,32 +3294,35 @@ function renderProjection() {
   const cheapest = net[net.length - 1];
 
   // The first draft said the high-spend path "never catches up", which the
-  // numbers contradicted almost exactly: by month twelve the monthly lines are
-  // within a rounding error of each other. The crossover is the finding.
+  // numbers contradicted. Whether the lines cross inside the year moves with
+  // every push, so the headline branches on it rather than asserting either.
   const top = net[0];
   const bottom = net[net.length - 1];
   const gapAt = k => bottom.values[k] - top.values[k];
   const closed = net[0].values.findIndex((_, k) => gapAt(k) <= 0);
   const cum = s => s.values.reduce((a, v) => a + v, 0);
 
+  const cumGap = cum(bottom) - cum(top);
   $('projection-cash-finding').innerHTML =
-    `<strong>Spending more on acquisition costs ${fmt.money(gapAt(0))} a month at the `
-    + `start and ${fmt.money(gapAt(11))} a month by the end of the year: over twelve `
-    + `months the two paths very nearly converge.</strong> `
+    (closed >= 0
+      ? `<strong>Spending more on acquisition costs ${fmt.money(gapAt(0))} a month at the `
+        + `start, and the two paths cross in month ${closed + 1}: by the end of the year the `
+        + `higher rate is ${fmt.money(-gapAt(11))} a month ahead.</strong> `
+      : `<strong>Spending more on acquisition costs ${fmt.money(gapAt(0))} a month at the `
+        + `start and ${fmt.money(gapAt(11))} a month by the end of the year.</strong> `)
     + `At ${fmt.money(cacPerLogo)} to win a logo and ${fmt.money(costPerLogo)} a month to `
     + `serve one, ${top.rate} arrivals a month starts at ${fmt.money(top.values[0])} and `
     + `ends at ${fmt.money(top.values[11])}, while ${bottom.rate} a month starts at `
-    + `${fmt.money(bottom.values[0])} and ends at ${fmt.money(bottom.values[11])} — `
-    + `the higher rate is climbing and the lower one is falling. `
-    + (closed >= 0
-        ? `They cross in month ${closed + 1}. `
-        : `They have not crossed by month twelve, but the gap has closed from `
-          + `${fmt.money(gapAt(0))} to ${fmt.money(gapAt(11))} and is still narrowing, so `
-          + `the crossover sits just outside this window. `)
-    + `Cumulatively the cheaper path is still ${fmt.money(cum(bottom) - cum(top))} ahead `
-    + `over the year, which is the price of growth rather than an argument against it: `
-    + `the spend that looks expensive here is what fills the cohorts chart 33 shows paying `
-    + `back at around nine months. <strong>The real conclusion is about retention, not `
+    + `${fmt.money(bottom.values[0])} and ends at ${fmt.money(bottom.values[11])}. `
+    + (closed >= 0 ? ''
+      : `The gap has closed from ${fmt.money(gapAt(0))} to ${fmt.money(gapAt(11))}, so `
+        + `the crossover sits outside this window. `)
+    + (cumGap >= 0
+      ? `Cumulatively the cheaper path is still ${fmt.money(cumGap)} ahead over the year, `
+        + `which is the price of growth rather than an argument against it: the spend that `
+        + `looks expensive here is what fills the cohorts chart 33 follows to break-even. `
+      : `Cumulatively the higher rate is already ${fmt.money(-cumGap)} ahead over the year. `)
+    + `<strong>The real conclusion is about retention, not `
     + `acquisition.</strong> Both paths flatten toward the same number because the base `
     + `underneath them is decaying at the same rate, and no arrival rate in this range `
     + `changes that.`;
@@ -3053,7 +3331,7 @@ function renderProjection() {
     'Projected revenue less the cost of serving the projected base less the cost of '
     + 'acquiring that month’s new logos, at '
     + fmt.money(costPerLogo) + ' per active logo a month and ' + fmt.money(cacPerLogo)
-    + ' per new logo, both the mean of the last six months. It is a monthly contribution '
+    + ' per logo started, both over the last six complete months. It is a monthly contribution '
     + 'line and not a cash-flow forecast: it excludes G&A and R&D, which are real and '
     + 'add roughly ' + (served ? fmt.money(served.months.slice(-1)[0].opexPerLogo) : '--')
     + ' per active logo a month, and it excludes everything the business does that is not '
@@ -3071,9 +3349,21 @@ function renderFloors() {
   const f = r.floors;
 
   // ------------------------------------------------------------------ 37
-  const edges = [0, 1, 120, 300, 500, 665, 900, 1200, 1600, Infinity];
-  const names = ['Pays nothing', '$1-119', '$120-299', '$300-499', '$500-664',
-                 '$665-899', '$900-1,199', '$1,200-1,599', '$1,600+'];
+  // Two of the edges are the floors themselves, read from priceFloors, so a
+  // band never straddles a verdict. They were typed as the floors of an older
+  // push, $120 and $665, and the $300 to $499 band came to straddle a $475
+  // allocated floor while being coloured as wholly below it.
+  const marginalEdge = Math.ceil(f.marginalFloor);
+  const allocatedEdge = Math.ceil(f.allocatedFloor);
+  const fixedEdges = [300, 900, 1200, 1600].filter(e => e > marginalEdge && e !== allocatedEdge);
+  const edges = [...new Set([0, 1, marginalEdge, allocatedEdge, ...fixedEdges])]
+    .sort((a, b) => a - b).concat(Infinity);
+  const names = edges.slice(0, -1).map((lo, i) => {
+    const hi = edges[i + 1];
+    if (lo === 0) return 'Pays nothing';
+    return hi === Infinity ? `$${lo.toLocaleString()}+`
+      : `$${lo.toLocaleString()}-${(hi - 1).toLocaleString()}`;
+  });
   const counts = names.map(() => 0);
   const money = names.map(() => 0);
   for (const v of f.paying) {
@@ -3129,7 +3419,7 @@ function renderFloors() {
     + `One more or one fewer customer changes ${fmt.money(f.marginalPerLogo)} of licence `
     + `and hosting plus ${fmt.pct(f.variablePct, 1)} of what they pay, so the price at `
     + `which a customer starts putting cash in the bank is `
-    + `${fmt.money(f.marginalFloor)} a month \— not `
+    + `${fmt.money(f.marginalFloor)} a month, not `
     + `${fmt.money(f.allocatedFloor)}. `
     + `${fmt.int(belowMarginal.length)} paying customers sit under that, between them `
     + `worth ${fmt.money(belowMarginal.reduce((s, v) => s + v, 0))} a month. `
@@ -3153,16 +3443,17 @@ function renderFloors() {
     + 'pricing and wrong for keep-or-cut, because none of it is saved by losing one '
     + 'customer. R&D is in neither floor: charging tomorrow’s product to today’s '
     + 'customers would conclude that a company investing in product has worse unit '
-    + 'economics than one that is not. Acquisition is in neither either — it belongs '
+    + 'economics than one that is not. Acquisition is not in either floor: it belongs '
     + 'to the cohort that caused it, which is chart 33. Of the fixed cost, roughly '
     + fmt.money(f.removablePayrollPerLogo) + ' a logo is payroll that could come out if '
-    + 'enough customers went for headcount to follow — that is a step change across '
-    + 'hundreds of accounts, not a saving available one at a time. Acquisition is not in '
-    + 'either floor. '
+    + 'enough customers went for headcount to follow. That is a step change across '
+    + 'hundreds of accounts, not a saving available one at a time. The two lowest band '
+    + 'edges above zero are the floors themselves, so every bar sits wholly on one side of '
+    + 'each. '
     + 'Every rate here is the median of the last six months rather than the pooled '
-    + 'mean, because this ledger books an invoice and its credit note in different '
-    + 'months and the window closes between them, so a reversed charge is counted '
-    + 'once and never taken back.'
+    + 'mean, because a push taken before a month closes can carry an invoice without '
+    + 'the credit that reverses it, which this one does for August, and a mean would '
+    + 'count that charge as though it stood.'
     + (f.outliers.length
         ? ' ' + f.outliers.map(o => fmt.monthLabel(o.month) + ' at '
             + fmt.pct(o.rate, 1)).join(', ')
@@ -3177,11 +3468,12 @@ function renderFloors() {
     yTitle: 'Monthly recurring revenue',
     labels,
     yFormat: fmt.money,
+    // The floor the survivors then need is a few hundred dollars on an axis
+    // that runs to about $800k, where it drew flat on the baseline. It is in
+    // the hover and the finding instead.
     series: [
       { label: 'Monthly revenue after the exercise', colour: INK.primary,
         values: r.acceptance.map(a => a.mrr) },
-      { label: 'What the survivors then have to pay', colour: INK.negative,
-        dashed: true, values: r.acceptance.map(a => a.floor) },
     ],
     refs: [{ value: f.totalMrr, label: 'revenue today', variant: 'ref-goal' }],
     describe: i => {
@@ -3195,11 +3487,21 @@ function renderFloors() {
     },
   });
 
+  // The last row is the base going into the final round, not what is left
+  // after it. When everyone in that round is below the floor the round
+  // removes them all, and the base ends at nothing.
   const end = r.spiral[r.spiral.length - 1];
+  const emptied = end.below === end.logos;
+  const finalCount = end.logos - end.below;
   $('reprice-finding').innerHTML =
-    `<strong>Cutting everyone below the allocated floor does not converge \— it `
+    `<strong>Cutting everyone below the allocated floor does not converge: it `
     + `runs the base from ${fmt.int(f.paying.length)} paying logos to `
-    + `${fmt.int(end.logos)}.</strong> The fixed cost stays when the customer goes, so `
+    + (emptied
+      ? `none, over ${r.spiral.length} rounds. The last round starts with `
+        + `${fmt.int(end.logos)} logos and every one of them is under a `
+        + `${fmt.money(end.floor)} floor.</strong> `
+      : `${fmt.int(finalCount)} after ${r.spiral.length} rounds.</strong> `)
+    + `The fixed cost stays when the customer goes, so `
     + `every round raises the floor and pushes more customers under it: `
     + r.spiral.slice(0, 4).map(s =>
         `${fmt.int(s.logos)} logos at a ${fmt.money(s.floor)} floor`).join(', then ')
@@ -3266,7 +3568,9 @@ function renderUpgradeList() {
           : r.heldBefore
             ? '<span class="held">held it before</span>'
             : '<span class="muted">new price</span>'}</td>`
-      + `<td class="n">${r.tenure === null ? '–' : fmt.int(r.tenure)}</td>`
+      // An account present in the window's first month may be older than the
+      // window, so its tenure is a floor and is shown as one.
+      + `<td class="n">${r.tenure === null ? '–' : fmt.int(r.tenure) + (r.since === data.historyStarts ? '+' : '')}</td>`
       + `<td>${r.source || '–'}</td>`
       + `<td class="trend">${spark(r.series)}</td>`
       + '</tr>').join('');
@@ -3274,7 +3578,7 @@ function renderUpgradeList() {
   };
 
   $('list-low-title').textContent =
-    `Paying something, under ${fmt.money(l.lowBand)} — ${fmt.int(l.low.length)} accounts`;
+    `Paying something, under ${fmt.money(l.lowBand)}: ${fmt.int(l.low.length)} accounts`;
   $('list-low-table').innerHTML = table(l.low, l.lowBand);
 
   const viable = l.low.filter(r => r.viable);
@@ -3283,11 +3587,12 @@ function renderUpgradeList() {
   $('list-low-finding').innerHTML =
     `<strong>${fmt.int(l.low.length)} accounts are eligible, of which `
     + `${fmt.int(viable.length)} are worth asking and ${fmt.int(held.length)} have already `
-    + `held the price.</strong> They pay ${fmt.money(l.totals.lowMrr)} a month between them `
-    + `and their targets sum to ${fmt.money(l.totals.lowTarget)}. `
+    + `held the price.</strong> They pay ${fmt.money(l.totals.lowMrr)} a month between them; `
+    + `the ${fmt.int(viable.length)} worth asking pay ${fmt.money(l.totals.lowViableMrr)} and `
+    + `their targets sum to ${fmt.money(l.totals.lowViableTarget)}. `
     + `<strong>Start with the "held it before" names.</strong> Asking a customer to return `
     + `to a price they once accepted is a different conversation from inventing one, and `
-    + `treating that as half the churn risk is the single assumption this list rests on — `
+    + `treating that as half the churn risk is the single assumption this list rests on: `
     + `the first calls will test it. `
     + (cleanup.length
         ? `${fmt.int(cleanup.length)} are marked not viable: reaching the floor would mean `
@@ -3301,45 +3606,61 @@ function renderUpgradeList() {
     + `${fmt.int(l.totals.excludedTooYoung)} are under ${l.minTenure} months old, where `
     + `re-pricing means negotiating against your own onboarding.`;
 
+  // Counted live: the note used to type "33 accounts, $1,200 against $200",
+  // which moved with every push.
+  const inflated = l.low.filter(r => r.peakEver > r.settledPeak);
+  const inflatedGaps = inflated.map(r => r.peakEver - r.settledPeak).sort((a, b) => a - b);
+  const worstInflated = inflated.reduce((a, b) =>
+    (!a || b.peakEver - b.settledPeak > a.peakEver - a.settledPeak ? b : a), null);
+  const capped = l.low.filter(r => r.since === data.historyStarts).length;
+  const canonicalHere = l.low.filter(r => r.canonicalId).length;
   $('list-note').textContent =
     'Active accounts in ' + fmt.monthLabel(l.month) + ' paying more than '
     + fmt.money(l.minMrr) + ' and less than ' + fmt.money(l.lowBand)
-    + ' a month, with at least ' + l.minTenure + ' months behind them. The target for each is max(floor, min(peak ever '
-    + 'paid after their first month, current x 3)), with the floor at $600. The first '
-    + 'month is excluded because until mid-2025 a joining charge was booked into MRR '
-    + 'there, so a raw peak can be a one-off dressed as a subscription — 33 accounts on '
-    + 'this list carried an inflated peak, median $200 too high, one reading $1,200 '
-    + 'against a settled price of $200. The floor protects solvency, the settled peak '
-    + 'anchors to a price the customer genuinely held, and the cap stops an '
-    + 'account at $50 being asked for $900 because of one odd month years ago. $600 '
-    + 'rather than the ' + (() => {
+    + ' a month, with at least ' + l.minTenure + ' months behind them. Every account is asked '
+    + 'for the same flat ' + fmt.money(600) + ' under the floor rule, or ' + fmt.money(500)
+    + ' at $300 or less and ' + fmt.money(750) + ' above it under the tiered rule; nothing is '
+    + 'scaled to the account. The settled peak, the highest month after the first, decides '
+    + 'only whether an account has held the price before and whether it is worth asking. The '
+    + 'first month is left out of that peak because until mid-2025 a joining charge was '
+    + 'booked into MRR there, so a raw peak can be a one-off dressed as a subscription: '
+    + (inflated.length
+      ? fmt.int(inflated.length) + ' accounts on this list carry an inflated peak, median '
+        + fmt.money(inflatedGaps[inflatedGaps.length >> 1]) + ' too high, the worst reading '
+        + fmt.money(worstInflated.peakEver) + ' against a settled price of '
+        + fmt.money(worstInflated.settledPeak) + '. '
+      : 'none on this list does now. ')
+    + fmt.money(600) + ' rather than the ' + (() => {
         const pf = priceFloors(data);
         if (!pf) return 'allocated floor';
-        // A third of the accounts ASKED, not a third of the whole payer base.
-        // The ask is this list; the floor is spread over everyone still paying.
-        const lost = l.low.length / 3;
+        // A third of the accounts ASKED, which is the viable ones, not the
+        // whole list. The floor is spread over everyone still paying.
+        const lost = viable.length / 3;
         const after = (pf.fixedPerMonth / (pf.paying.length - lost)) / (1 - pf.variablePct);
         return fmt.money(pf.allocatedFloor) + ' the cost base needs today, because losing a '
-          + 'third of the ' + fmt.int(l.low.length) + ' accounts asked pushes that floor to '
+          + 'third of the ' + fmt.int(viable.length) + ' accounts asked pushes that floor to '
           + 'about ' + fmt.money(after);
       })()
     + ' and a target set at the floor would '
     + 'be underwater the month it landed. Charts 37 and 38 have that arithmetic, and '
     + 'tenure and usage were tested as multipliers on top of peak and made the result '
     + 'worse, so they are not used. The Stripe identifier is '
-    + 'the one in the billing export and is present for every account; the Chiirp '
-    + 'identifier is not in the pushed data — canonical_id is populated on ' + (() => {
-        const ids = new Set(data.customers.filter(r => r.canonicalId).map(r => r.id));
-        return fmt.int(ids.size);
-      })() + ' of '
-    + 'the customers here — so it is dropped from the table and the export '
-    + 'to carry it. '
+    + 'the one in the billing export and is present for every account. The Chiirp '
+    + 'identifier is not in the pushed data for these accounts: canonical_id is populated on '
+    + fmt.int(canonicalHere) + ' of the ' + fmt.int(l.low.length) + ' here, so neither the '
+    + 'table nor the export carries it. '
     + (l.totals.namesMissing
         ? fmt.int(l.totals.namesMissing) + ' accounts have no company name in the file and '
           + 'will need looking up by Stripe ID. '
         : '')
-    + 'Peak is the highest month in the last six, so an account showing a peak above its '
-    + 'current figure has fallen rather than always been small. The last six months run '
+    + (capped
+      ? 'Months here counts from the first month the window holds, so the ' + fmt.int(capped)
+        + ' accounts already present then show their count with a plus: they are at least that '
+        + 'old. '
+      : '')
+    + 'The settled peak is over the whole window, so an account showing one above its '
+    + 'current figure has paid more at some point rather than always been small; the last six '
+    + 'months beside it say whether that was recent. They run '
     + 'oldest to newest and a dot means the account was not active that month. Nothing '
     + 'here is a churn risk score: it is what each account pays against what it costs, '
     + 'and the judgement about which are worth a call is yours.';
@@ -3378,7 +3699,8 @@ function renderUpgradeList() {
       a.remove();
       URL.revokeObjectURL(url);
       $('list-status').textContent =
-        `${fmt.int(l.low.length)} accounts exported.`;
+        `${fmt.int(l.low.length + l.zeros.length)} accounts exported: ${fmt.int(l.low.length)} `
+        + `paying under ${fmt.money(l.lowBand)} and ${fmt.int(l.zeros.length)} paying nothing.`;
     });
     button.dataset.ready = '1';
   }
@@ -3400,7 +3722,9 @@ function renderOngoing() {
   ];
 
   multiLineChart($('chart-ongoing'), {
-    yTitle: 'Cost to serve one logo, per month',
+    // Keep, not serve: the total carries G&A and R&D. Chart 49 leaves both out
+    // of what it calls serving, and the floors in chart 37 leave out R&D.
+    yTitle: 'Cost to keep one paying logo, per month',
     labels,
     yFormat: fmt.money,
     series: [
@@ -3424,9 +3748,10 @@ function renderOngoing() {
 
   const a = rows[0];
   const b = rows[rows.length - 1];
-  // The latest month carries a revenue-share invoice that was credited in the
-  // following month, so its variable layer is roughly double. Leading a
-  // finding with it would quote the one month on the chart worth distrusting.
+  // The latest month carries a revenue-share invoice whose credit, dated the
+  // 31st inside the month, was posted after this push pulled it, so its
+  // variable layer is roughly double. Leading a finding with it would quote the
+  // one month on the chart worth distrusting.
   const medianOf = pick => {
     const s = rows.slice(-6).map(pick).sort((x, y) => x - y);
     const i = s.length >> 1;
@@ -3434,30 +3759,38 @@ function renderOngoing() {
   };
   const typical = medianOf(r => r.total);
   const typicalArpa = medianOf(r => r.arpa);
-  const move = k => (a[k] ? (b[k] - a[k]) / a[k] : null);
+  // Ranked on the same six-month medians as the headline. Ranking on the raw
+  // last month named merchant and revenue share the largest rise on the very
+  // month the sentence before it said to distrust.
   const ranked = layers
-    .map(l => ({ ...l, from: a[l.key], to: b[l.key], delta: b[l.key] - a[l.key] }))
+    .map(l => {
+      const to = medianOf(r => r[l.key]);
+      return { ...l, from: a[l.key], to, delta: to - a[l.key],
+               move: a[l.key] ? (to - a[l.key]) / a[l.key] : null };
+    })
     .sort((x, y) => y.delta - x.delta);
   const worst = ranked[0];
+  const flattest = [...ranked].sort((x, y) => Math.abs(x.move ?? 0) - Math.abs(y.move ?? 0))[0];
+  const overhead = ['admin', 'people'].includes(worst.key);
 
   $('ongoing-finding').innerHTML =
     `<strong>Keeping a customer cost ${fmt.money(a.total)} a month in `
-    + `${fmt.monthLabel(a.month)} and ${fmt.money(typical)} now, while what they pay — `
-    + `subscription, usage, setup and pass-through together — went `
+    + `${fmt.monthLabel(a.month)} and ${fmt.money(typical)} now, while what they pay, `
+    + `subscription, usage, setup and pass-through together, went `
     + `from ${fmt.money(a.arpa)} to ${fmt.money(typicalArpa)}.</strong> `
     + `Both figures are the median of the last six months rather than the last one, `
-    + `because ${fmt.monthLabel(b.month)} carries a revenue-share invoice that was `
-    + `credited in the month after and reads ${fmt.money(b.total)} as a result. `
+    + `because ${fmt.monthLabel(b.month)} was pulled before its revenue-share credit was `
+    + `posted, so it carries the invoice without the credit and reads ${fmt.money(b.total)} as a result. `
     + `Cost per logo has risen `
     + `${fmt.pct((typical - a.total) / a.total, 0)} against `
     + `${fmt.pct((typicalArpa - a.arpa) / a.arpa, 0)} on price, which is `
     + `why the margin has narrowed even though the average customer pays more than they `
     + `used to. `
-    // "the whole of the increase" was asserted. The largest layer is currently
-    // 38% of the rise, with the next one close behind it, so say the share.
+    // "the whole of the increase" was asserted. Say the share instead, on the
+    // medians, so the ranking and the headline read the same months.
     + `<strong>${worst.label} is the largest part of the increase</strong>: `
-    + `${fmt.money(worst.from)} to ${fmt.money(worst.to)} a logo, `
-    + `${fmt.pct(move(worst.key), 0)}, which is `
+    + `${fmt.money(worst.from)} to ${fmt.money(worst.to)} a logo on the six-month median, `
+    + `${fmt.pct(worst.move, 0)}, which is `
     + `${(() => {
         const rise = ranked.filter(l => l.delta > 0).reduce((s, l) => s + l.delta, 0);
         return rise ? fmt.pct(worst.delta / rise, 0) : 'most';
@@ -3466,24 +3799,36 @@ function renderOngoing() {
         ? `${ranked[1].label} is close behind at ${fmt.money(ranked[1].from)} to `
           + `${fmt.money(ranked[1].to)}, so this is not a single line running away. `
         : ''}`
-    + `Platform is the one that has not moved — `
-    + `${fmt.money(a.platform)} to ${fmt.money(b.platform)} — so the product scales `
-    + `with the customer count and the company does not. That is the distinction worth `
-    + `carrying out of this chart: none of the rise is the cost of running software for `
-    + `more people. It is the cost of being a bigger company, spread over a base that has `
-    + `stopped growing.`;
+    + `${flattest.label} has moved least, ${fmt.money(flattest.from)} to `
+    + `${fmt.money(flattest.to)}. `
+    + (overhead && flattest.key === 'platform'
+      ? `So the product scales with the customer count and the company does not. That is `
+        + `the distinction worth carrying out of this chart: little of the rise is the cost `
+        + `of running software for more people. It is the cost of being a bigger company, `
+        + `spread over a base that has stopped growing.`
+      : overhead
+        ? `Most of the rise is overhead rather than the cost of running software for more `
+          + `people: the cost of being a bigger company, spread over a base that has `
+          + `stopped growing.`
+        : `The largest rise follows the customer rather than the company, so it is a cost `
+          + `of serving more usage, not of overhead.`);
 
   $('ongoing-note').textContent =
     'Every recurring cost the business carries, divided by PAYING logos rather than all of '
     + 'them, because an account at zero MRR cannot carry any of this and dividing by it '
     + 'flatters every month. Acquisition is deliberately absent: it belongs to the cohort '
-    + 'that caused it, and chart 33 charges it there. The layers are exclusive and sum to '
+    + 'that caused it, and chart 33 charges it there. G&A and R&D are in, because this '
+    + 'asks what it costs to keep the company running per customer; chart 49 and the floors '
+    + 'in chart 37, which ask what a customer costs to serve, leave R&D out, since charging tomorrow\'s product '
+    + 'to today\'s customers would make a company investing in product look worse. The '
+    + 'layers are exclusive and sum to '
     + 'the dashed line. Platform is per-seat software and hosting; support and success is '
     + 'every person who looks after customers whichever account they sit in; merchant and '
     + 'revenue share are the two costs that follow a payment rather than a customer, so '
     + 'they are the only layer that moves with price. The last month of the variable layer '
-    + 'is overstated: a revenue-share invoice was raised and credited in the same month and '
-    + 'the credit falls outside this window, which chart 37 handles by taking medians. '
+    + 'is overstated: QuickBooks dates the credit against that month\'s revenue-share invoice '
+    + 'on the 31st, inside the month, but this push pulled the month before the credit was '
+    + 'posted. Chart 37 handles it by taking medians, and the next push carries the closed month. '
     + 'Both denominators are shown in the tooltip, because the gap between paying and '
     + 'active logos is itself part of why this line rises.';
 }
@@ -4097,7 +4442,7 @@ function renderEvents() {
   }
 }
 
-// 40. The ledger behind every other cost figure on this page.
+// 41. The ledger behind every other cost figure on this page.
 function renderLedger() {
   if (!$('ledger-table')) return;
   const l = costLedger(data, { months: 6 });
@@ -4130,7 +4475,7 @@ function renderLedger() {
     }).join('');
     const sub = g.subtotal[g.subtotal.length - 1];
     return `<tr class="rule-above emphasis"><td colspan="${2 + cols.length + 1}">`
-      + `<strong>${g.label}</strong> <span class="muted">— ${g.note} `
+      + `<strong>${g.label}</strong> <span class="muted">${g.note} `
       + `Divided ${g.basis}.</span></td></tr>`
       + rows
       + `<tr class="rule-above"><td><strong>${g.label} subtotal</strong></td><td></td>`
@@ -4162,7 +4507,7 @@ function renderLedger() {
   const perPaying = latest.paying ? ongoingLast / latest.paying : 0;
   const perNew = latest.newLogos ? acqLast / latest.newLogos : 0;
   $('ledger-finding').innerHTML =
-    `<strong>${fmt.int(l.accountCount)} accounts, three months, and every other cost `
+    `<strong>${fmt.int(l.accountCount)} accounts, ${l.window.length} months, and every other cost `
     + `figure on this page is a sum of some subset of these rows.</strong> In `
     + `${cols[cols.length - 1]} the business spent ${fmt.money(ongoingLast)} keeping `
     + `${fmt.int(latest.paying)} paying customers, which is ${fmt.money(perPaying)} each, `
@@ -4170,16 +4515,17 @@ function renderLedger() {
     + `${fmt.money(perNew)} each. The two per-logo figures divide by different `
     + `denominators and must not be added. `
     + `<strong>One row needs reading with care:</strong> 6100-06 is the Service Titan `
-    + `revenue share and partner rebates, and the latest month carries a $69,847 invoice `
-    + `that was credited in full on the 31st, with the credit falling into the following `
-    + `month and therefore outside this table. Underlying it is close to the month before.`;
+    + `revenue share and partner rebates, and the latest month carries a $69,848 invoice `
+    + `whose credit QuickBooks dates the 31st, inside the month, but which was posted after `
+    + `this push pulled the month, so the table has the charge and not the reversal. `
+    + `Underlying it is close to the month before.`;
 
   $('ledger-note').textContent =
     'Every QuickBooks account carrying a non-zero amount in the window, grouped into the '
     + 'layers the price floors use. The grouping is the only editorial act here: which '
     + 'layer an account belongs to is a judgement, the amounts are not, and the account '
     + 'code is given so any of them can be checked against the ledger. Revenue, other '
-    + 'income and taxes are excluded — they are not costs of anything. The bucket column '
+    + 'income and taxes are excluded, because they are not costs of anything. The bucket column '
     + 'is the pipeline’s own classification and is shown because it does not always '
     + 'agree with the layer: 6100-06 is bucketed COGS and grouped here as variable cost, '
     + 'which is correct in both cases for different reasons, while the other 6100 accounts '
@@ -4336,13 +4682,33 @@ function renderSpend() {
         const allCost = serve + overhead
           + ((l.groups.find(g => g.key === 'acquisition') || { subtotal: [] }).subtotal[last] || 0);
         const gap = latest.revenue - allCost;
+        // The latest month's variable layer against its usual share of revenue,
+        // the median of the months before it. This push pulled August before
+        // its revenue-share credit was posted, and the finding used to quote
+        // the month as kept on that figure without saying so.
+        const variable = (l.groups.find(g => g.key === 'variable') || { subtotal: [] }).subtotal;
+        const priorRates = l.counts.slice(0, -1)
+          .map((c, i) => (c.revenue ? variable[i] / c.revenue : null)).filter(v => v !== null)
+          .sort((a, b) => a - b);
+        const usualRate = priorRates.length ? priorRates[priorRates.length >> 1] : null;
+        const excess = usualRate !== null && variable[last] !== undefined
+          ? variable[last] - usualRate * latest.revenue : 0;
+        const flagged = excess > 0.25 * (usualRate * latest.revenue);
+        const usualGap = gap + (flagged ? excess : 0);
+        const usualSub = latest.mrr - allCost + (flagged ? excess : 0);
         return `Against every cost including acquisition, ${fmt.money(allCost)}, the `
           + `business took ${fmt.money(latest.revenue)} and kept `
           + `${fmt.money(gap)} in ${fmt.monthLabel(latest.month)}. `
-          + `That figure only works on ALL revenue: subscription alone is `
-          + `${fmt.money(latest.mrr)}, which would make the same month `
-          + `${fmt.money(latest.mrr - allCost)}. Usage, setup and 10DLC are `
-          + `${fmt.money(latest.revenue - latest.mrr)} a month and they are the margin. `
+          + (flagged
+            ? `That month's merchant and revenue share layer is ${fmt.money(excess)} above its `
+              + `usual share of revenue, because this push pulled the month before the `
+              + `revenue-share credit was posted; at the usual share it keeps about `
+              + `${fmt.money(usualGap)}. `
+            : '')
+          + `Subscription alone is ${fmt.money(latest.mrr)}, which would make the same month `
+          + `${fmt.money(usualSub)}${flagged ? ' on that usual share' : ''}. Usage, setup and `
+          + `10DLC are ${fmt.money(latest.revenue - latest.mrr)} a month and `
+          + (usualSub < 0 ? 'they are the margin. ' : 'they are a large part of the margin. ')
           + `The cash that actually arrived was ${fmt.money(latest.netCash)}, within `
           + `${fmt.pct(Math.abs(latest.netCash - latest.revenue) / latest.revenue, 1)} of `
           + `the four components summed, which is the check that they are the right four.`;
@@ -4353,11 +4719,11 @@ function renderSpend() {
     + 'trailing months. Annualised is the latest month times twelve, which is a run rate '
     + 'rather than a forecast and will be wrong for anything seasonal or lumpy. Per logo '
     + 'divides by PAYING logos for every layer except acquisition, which divides by NEW '
-    + 'logos — the two are not comparable and are never added. Acquisition is off by '
+    + 'logos: the two are not comparable and are never added. Acquisition is off by '
     + 'default because it is the cost of growing rather than of running what you have; '
-    + 'switch it on for the whole cost of the business. The revenue line is subscription '
-    + 'only and excludes usage, setup and pass-through, which together add about a tenth '
-    + 'more, so the gap between it and the cost lines is slightly wider here than in cash. '
+    + 'switch it on for the whole cost of the business. Two revenue lines are drawn: the '
+    + 'dashed one is everything a customer pays and the thin one is subscription alone, '
+    + 'which leaves out usage, setup and pass-through, about a tenth more. '
     + 'The revenue rows are everything a customer pays: subscription, usage and message '
     + 'credits, setup and one-time charges, and 10DLC and carrier pass-through. An '
     + 'earlier version of this chart compared the full cost base against subscription '
@@ -4367,8 +4733,9 @@ function renderSpend() {
     + 'The cash row is what arrived and is shown as a check rather than as a fifth '
     + 'component. '
     + 'One month to read with care: the merchant and revenue share layer carries an '
-    + 'invoice in the latest month that was credited in the month after, so it reads about '
-    + '$70,000 high and the layer beneath it is closer to the months before.';
+    + 'invoice in the latest month whose credit was posted after this push pulled the month, '
+    + 'so it reads about $70,000 high and the layer beneath it is closer to the months before. '
+    + 'The next push carries the closed month.';
 }
 
 
@@ -4484,7 +4851,7 @@ function renderCalculator() {
     + 'six alone is slow to notice a change, three alone moves with any single odd month, '
     + 'and this ledger has one of those in it. Acquisition is off by default because it '
     + 'is the cost of winning a customer rather than keeping one, and because it is '
-    + 'incurred per NEW logo while everything else here is per existing one — switching '
+    + 'incurred per NEW logo while everything else here is per existing one; switching '
     + 'it on spreads it across the whole base, which answers whether the business washes '
     + 'its face rather than what a customer costs. Never-paid accounts are off by default '
     + 'as test and agency seats; lapsed accounts are on, because a customer at zero is '
@@ -4494,7 +4861,7 @@ function renderCalculator() {
     + 'the layer as a share of revenue in brackets. It is an intensity measure and not a '
     + 'return: spending another dollar on rent does not produce seven more of revenue, '
     + 'and a layer with a high figure is not therefore a good investment. It is useful '
-    + 'for the opposite reading — a layer whose figure is falling is taking a growing '
+    + 'for the opposite reading: a layer whose figure is falling is taking a growing '
     + 'share of what comes in. Remember what the headline is: an average, '
     + 'not a marginal cost. Almost none of it changes when one customer leaves.';
 }
@@ -4510,9 +4877,8 @@ function renderCampaign() {
   // not say 33% is asking the reader to trust a label instead of a number.
   const spread = ruleSpread(data);
   const figureFor = {
-    // Median and max are identical across the last two rules, because the
-    // 3x cap binds on the same accounts either way. The total asked is what
-    // actually separates them, so that is what each button carries.
+    // Every target is flat under either rule, so the total asked is what
+    // separates them, and each button carries its own pool's total.
     floor: () => {
       const s = spread.floor;
       return s ? `${fmt.money(s.median)} each, ${fmt.money(s.total)} asked` : '';
@@ -4639,15 +5005,26 @@ function renderCampaign() {
       + `<tr class="rule-above emphasis"><td><strong>All ${fmt.int(econ.totalAccounts)}</strong></td>`
       + '<td></td><td></td><td></td><td></td><td></td>'
       + `<td class="n"><strong>${fmt.money(econ.totalKeeps)}</strong></td></tr>`
+      // The gain is measured from leaving every band alone, after its background
+      // churn and after revenue share as well as the merchant fee. That row was
+      // not shown, so the after-campaign figure sat under the bigger "All" total
+      // and read as a fall labelled as a gain.
       + (bc
-          ? `<tr class="rule-above"><td><strong>After the campaign</strong></td>`
+          ? `<tr class="rule-above"><td>Left alone, after background churn and revenue share</td>`
+            + '<td></td><td></td><td></td><td></td><td></td>'
+            + `<td class="n">${fmt.money(bc.doNothing)}</td></tr>`
+            + `<tr><td><strong>After the campaign</strong>, same basis</td>`
             + `<td class="n">${fmt.int(bc.kept)} kept, ${fmt.int(bc.lost)} lost</td>`
             + '<td></td><td></td><td></td><td></td>'
             + `<td class="n"><strong>${fmt.money(bc.contribution)}</strong> `
             + `<span class="${bc.gain >= 0 ? 'held' : 'notviable'}">`
             + `${bc.gain >= 0 ? '+' : ''}${fmt.money(bc.gain)}</span></td></tr>`
           : '')
-      + '</tbody></table>';
+      + '</tbody></table>'
+      + '<p class="note">A separate scenario on the ' + fmt.int(econ.totalAccounts)
+      + ' accounts in the engagement export. The band switches drive only the last two rows; '
+      + 'the headline and the table below run on the list\'s viable accounts and do not read '
+      + 'the bands.</p>';
   }
 
   $('camp-note').textContent =
@@ -4655,19 +5032,27 @@ function renderCampaign() {
     + 'nobody has run this campaign, so the honest output is a range with the inputs '
     + 'visible. The pricing rule decides what each account is asked for; the churn '
     + 'setting decides how many refuse. "Scaled to the ask" is the most realistic and the '
-    + 'least certain — it raises churn with the size of the increase and halves it '
+    + 'least certain: it raises churn with the size of the increase and halves it '
     + 'where the customer has held that price before, on the reasoning that returning to '
     + 'a known number is an easier conversation than accepting a new one. That halving is '
     + 'the single assumption the whole case rests on and it has never been tested here. '
     + 'The floor line is the one to watch: losing accounts spreads the same fixed cost '
     + 'across fewer payers, so an aggressive campaign can raise the bar faster than it '
     + 'raises prices and leave the survivors underwater. Only accounts marked viable in '
-    + 'the list below are included; the rest are a cancellation decision rather than a '
-    + 'sale and counting them would flatter every figure here. '
+    + 'the list below are asked; the rest, and the accounts the eligibility rules leave '
+    + 'out, keep paying what they pay in the after figure, and asking them would flatter '
+    + 'every figure here. '
     + 'The band table is the part that changes the conclusion. All three bands pay about '
     + 'the same, but hosting and messaging follow usage while the per-seat licence does '
-    + 'not, so a dormant account costs a third of what a heavy user costs and keeps more '
-    + 'of what it pays. That inverts the obvious answer: the accounts that look most '
+    + 'not, so a dormant account costs '
+    + (() => {
+        const users = econ && econ.bands.find(b => b.key === 'users');
+        const dormant = econ && econ.bands.find(b => b.key === 'dormant');
+        return users && dormant && users.cost
+          ? fmt.pct(dormant.cost / users.cost, 0) + ' of what a heavy user costs'
+          : 'less than a heavy user';
+      })()
+    + ' and keeps more of what it pays. That inverts the obvious answer: the accounts that look most '
     + 'worth re-pricing are the most profitable business on the book, and sending them an '
     + 'invoice change is the fastest way to lose it. Active users are the only band whose '
     + 'price is genuinely out of line with what they consume. '
@@ -4675,8 +5060,8 @@ function renderCampaign() {
     + ENGAGEMENT.asOf + ' (' + engagementAge() + ') and joined on Stripe customer id; '
     + 'they are not in the pushed workbook, so they are exactly as stale as that date '
     + 'and nothing here will refresh them. The usage multiples behind '
-    + 'the cost column are estimates rather than measurements — 2.2x average hosting '
-    + 'for heavy senders, 0.6x for light, 0.05x for dormant — and they are the '
+    + 'the cost column are estimates rather than measurements, 2.2x average hosting '
+    + 'for heavy senders, 0.6x for light and 0.05x for dormant, and they are the '
     + 'assumption most worth replacing with real per-account message volume.';
 }
 
@@ -4817,6 +5202,150 @@ function boot() {
   });
 }
 
+// The story view's figures, read from the same series as the two charts it
+// presents. They were typed, and within a few pushes the prose said 2026 lost
+// 9.6% before the second invoice while the chart under it said the median
+// intake lost nothing.
+function renderStory() {
+  const set = (id, html) => { if ($(id)) $(id).innerHTML = html; };
+  const pct = v => fmt.pct(v, 1);
+  const list = xs => (xs.length > 1 ? xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1] : xs[0] || '');
+
+  // Step 1: arrivals against churn, at every horizon chart 23 steps through.
+  const across = [1, 2, 3, 4, 5, 6].map(h => arrivalsAgainstChurn(data, { horizon: h }))
+    .filter(a => a.r !== null);
+  if (across.length) {
+    const clears = across.filter(a => a.significant);
+    const positive = across.filter(a => a.r > 0).length;
+    set('story-arrivals-sign', clears.length
+      ? `At ${clears.length} of ${across.length} horizons the correlation clears zero, so this `
+        + 'is worth a second look before it is ruled out.'
+      : 'At every horizon the correlation fails to clear zero'
+        + (positive && positive < across.length
+          ? ', and the sign flips across the range rather than holding a direction, which is '
+            + 'what noise looks like.'
+          : positive === across.length
+            ? ', and where it leans it leans against the fear: months with more arrivals lose '
+              + 'slightly more of the book, not less.'
+            : ', though it leans the way the fear says at every horizon, which is worth watching.'));
+  }
+
+  // The intake now, on the cohort count the page keeps.
+  const started = [...logosStarted(data, cohorts).entries()]
+    .filter(([, n]) => n !== null).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  if (started.length > 4) {
+    const lastFour = started.slice(-4);
+    const meanAll = started.reduce((s, [, n]) => s + n, 0) / started.length;
+    const thinnest = started.reduce((a, b) => (b[1] < a[1] ? b : a));
+    const latest = started[started.length - 1];
+    set('story-intake', `new customers ran ${list(lastFour.map(([, n]) => fmt.int(n)))} over the `
+      + `last four full months, against an average of ${fmt.int(meanAll)} a month across the `
+      + `window${latest[0] === thinnest[0]
+        ? `, and ${fmt.monthLabel(latest[0])} is the thinnest month in it.`
+        : `. The thinnest month in the window is ${fmt.monthLabel(thinnest[0])} at `
+          + `${fmt.int(thinnest[1])}.`}`);
+  }
+
+  // Step 2: the eras, at month 6 and in the first month.
+  const eras = retentionByYear(cohorts, { maxMonths: 12 });
+  if (eras.length < 2) return;
+  const newest = eras[eras.length - 1];
+  const at6 = eras.filter(e => e.points[6] !== null && e.points[6] !== undefined);
+  const lossOf = c => 1 - c.survivors[1] / c.survivors[0];
+  const earlierMedians = eras.slice(0, -1).map(e => e.month1MedianAll).filter(v => v !== null);
+  const steady = newest.month1MedianAll !== null && earlierMedians.length
+    && newest.month1MedianAll <= Math.max(...earlierMedians) + 0.01;
+  const bar = Math.max(...eras.map(e => e.month1MedianAll || 0)) + 0.05;
+  const heavy = cohorts
+    .filter(c => c.month.startsWith(newest.year) && c.maxOffset >= 1 && c.survivors[0] > 0)
+    .filter(c => lossOf(c) >= bar)
+    .sort((a, b) => lossOf(b) - lossOf(a));
+  const word = n => ['no', 'one', 'two', 'three', 'four', 'five'][n] || String(n);
+  set('story-era-lead', steady
+    ? (heavy.length
+      ? `No year has had a step change in the first month; ${word(heavy.length)} `
+        + `${heavy.length === 1 ? 'intake has' : 'intakes have'}.`
+      : 'No year has had a step change in the first month.')
+    : `${newest.year} loses more of an intake in its first month than the years before it.`);
+
+  const rank = [...at6].sort((a, b) => b.points[6] - a.points[6]);
+  set('story-era',
+    (at6.length > 1
+      ? `At month 6 the ${at6.length} years run ${list(at6.map(e => pct(e.points[6])))}: `
+        + `${rank[rank.length - 1].year} is the worst, `
+        + `${((rank[0].points[6] - rank[rank.length - 1].points[6]) * 100).toFixed(1)} points `
+        + `under ${rank[0].year}. `
+      : '')
+    + `Before the second invoice the median intake loses `
+    + `${list(eras.filter(e => e.month1MedianAll !== null)
+        .map(e => `${pct(e.month1MedianAll)} in ${e.year}`))}`
+    + (heavy.length
+      ? `. The ${newest.year} mean reads worse, ${pct(newest.month1LossAll)}, and it is carried `
+        + `by ${list(heavy.map(c => `${fmt.monthLabel(c.month)} at ${pct(lossOf(c))}`))}.`
+      : '.')
+    + (steady && heavy.length
+      ? ` That is not a step change across the year; it is ${word(heavy.length)} `
+        + `${heavy.length === 1 ? 'intake' : 'intakes'} worth asking about.`
+      : ''));
+
+  const at6Newest = newest.cohortsAt[6];
+  const lastPoint = newest.points.reduce((last, v, i) => (v === null ? last : i), 0);
+  set('story-era-sample',
+    (at6Newest
+      ? `The ${newest.year} line at month 6 rests on ${word(at6Newest)} `
+        + `${at6Newest === 1 ? 'cohort' : 'cohorts'} and ${fmt.int(newest.atRisk[6])} customers, `
+        + 'because nothing later has had six months to run'
+      : `The ${newest.year} line has not reached month 6 yet`)
+    + (lastPoint > 6
+      ? `, and the slider opens at month ${lastPoint}, where it rests on `
+        + `${word(newest.cohortsAt[lastPoint])} `
+        + `${newest.cohortsAt[lastPoint] === 1 ? 'cohort' : 'cohorts'}`
+      : '')
+    + '. Treat the right hand end as provisional.');
+}
+
+// What revenue per surviving customer does between month 11 and month 12,
+// cohort by cohort, and when those cohorts reached that age. The note used to
+// say it fell a fifth "for cohorts of every vintage" and called that an age
+// effect, while six 2024 cohorts were flat or up and the falls sat in the
+// cohorts that reached month 12 during 2026, which is the calendar reading.
+function yearStepSentence() {
+  const steps = cohorts
+    .filter(c => c.maxOffset >= 12 && c.survivors[11] > 0 && c.survivors[12] > 0)
+    .map(c => {
+      const before = c.survivorRevenue[11] / c.survivors[11];
+      const after = c.survivorRevenue[12] / c.survivors[12];
+      return { month: c.month, reached: monthAdd(c.month, 12),
+               change: before > 0 ? after / before - 1 : null };
+    })
+    .filter(s => s.change !== null);
+  if (steps.length < 4) return '';
+  const falls = steps.filter(s => s.change <= -0.1);
+  if (!falls.length) {
+    return `Revenue per surviving customer does not step down a year in: none of the `
+      + `${steps.length} cohorts that have reached month 12 loses a tenth of it there.`;
+  }
+  // By the calendar year each cohort reached month 12 in. An age effect hits
+  // every year alike; a calendar one is concentrated in the year it happened.
+  const years = [...new Set(steps.map(s => s.reached.slice(0, 4)))].sort();
+  const byYear = years.map(y => {
+    const inYear = steps.filter(s => s.reached.startsWith(y));
+    return { y, n: inYear.length, falls: inYear.filter(s => s.change <= -0.1).length };
+  }).filter(r => r.n >= 3);
+  const rates = byYear.map(r => r.falls / r.n);
+  const concentrated = rates.length > 1 && Math.max(...rates) - Math.min(...rates) >= 0.3;
+  return `Revenue per surviving customer falls by a tenth or more between month 11 and month 12 `
+    + `in ${falls.length} of the ${steps.length} cohorts that have reached that age: `
+    + byYear.map(r => `${r.falls} of the ${r.n} that got there in ${r.y}`).join(' and ') + '. '
+    + (concentrated
+      ? 'That is concentrated in one calendar year rather than spread evenly across them, so it '
+        + 'reads as something that happened then rather than as an effect of age. '
+      : 'The share is similar whichever year a cohort got there in, so it reads as an effect of '
+        + 'age rather than of the calendar. ')
+    + 'What the rows show at that age is customers booked as a contraction to zero MRR and '
+    + 'still counted as present.';
+}
+
 // Everything on the page, drawn once. Nothing here is adjustable any more.
 function renderStatic() {
   const w = data.waterfall;
@@ -4827,6 +5356,7 @@ function renderStatic() {
   renderVocabularyWarning();
   if ($('story-window-start')) $('story-window-start').textContent = fmt.monthLabel(data.historyStarts);
   if ($('story-window-end')) $('story-window-end').textContent = fmt.monthLabel(data.lastMonth);
+  renderStory();
 
   $('stamp').textContent =
     (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
@@ -4862,7 +5392,8 @@ function renderStatic() {
           + `${fmt.pct(Math.abs(rc.residualShare), 1)} of it.`;
       })();
 
-  // 4. Blended retention curve, indexed to month 2.
+  // 4. Blended retention curve, indexed to month 1, the second month a cohort
+  // carries revenue (month 0 is the first, as on charts 3 and 8).
   const blended = blendedRetention(cohorts);
   multiLineChart($('chart-retention'), {
     yTitle: 'Share kept, indexed to month 1',
@@ -4900,23 +5431,16 @@ function renderStatic() {
             + `${fmt.int(r.lostFromSample)} customers age out of the count`).join(', ')
           + `. `
         : '')
-      + `The step a year in is an age effect and not a calendar one. Revenue per surviving `
-      + `customer falls about a fifth twelve months after signup for cohorts of every vintage, `
-      + `from the 2024-09 intake reaching that age in September 2025 to the 2025-08 intake `
-      + `reaching it in August 2026, while the head count those months behaves normally. Read `
-      + `by calendar month instead, no month since mid-2025 moves more than a few points, so `
-      + `there is no shared shock to find. What the rows show at that age is customers booked `
-      + `as a contraction to zero MRR and still counted as present.`
+      + yearStepSentence()
     : 'Not enough cohort history yet.';
 
   // 5. Monthly logo churn, both ways of counting it.
   //
   // The summary books a churn when the pipeline sees the transition. A
   // customer whose subscription drops out of the Stripe export never produces
-  // one: present one month, absent the next, nothing recorded. Counting who
-  // actually left the file finds about two thirds again as many, and they are
-  // not test accounts. Drawing only the reported line would understate the
-  // rate that decides whether the base grows or shrinks.
+  // one: present one month, absent the next, nothing recorded. Until the
+  // September 2026 push that gap was a third of departures; the two counts now
+  // agree, and both lines stay so that a gap reopening is visible.
   const churnSeries = recent.map((r, i) => {
     const previous = i === 0 ? null : recent[i - 1];
     const base = previous ? previous.activeLogos : null;
@@ -4974,7 +5498,7 @@ function renderStatic() {
           + 'churn event, which is a booking gap rather than a measurement disagreement. Read '
           + 'the solid line as the rate and the dashed one as a floor.');
 
-  // 6. Retention at month 3 and month 6, one point per cohort.
+  // 6. Retention at months 3, 6 and 12, one line per age across the cohorts.
   const windowed = cohorts.slice(-COHORT_WINDOW);
   const m3 = retentionAtAge(windowed, 3);
   const m6 = retentionAtAge(windowed, 6);
@@ -5000,7 +5524,7 @@ function renderStatic() {
       { label: 'At month 12', colour: 'var(--series-3)' },
     ],
     describe: i => `<strong>${windowed[i].month} cohort</strong>
-      <span>${fmt.int(windowed[i].size)} logos at month 1</span>
+      <span>${fmt.int(windowed[i].size)} logos at month 0</span>
       <span>Month 3 ${m3[i].value === null ? 'not yet' : fmt.pct(m3[i].value, 1)}</span>
       <span>Month 6 ${m6[i].value === null ? 'not yet' : fmt.pct(m6[i].value, 1)}</span>
       <span>Month 12 ${m12[i].value === null ? 'not yet' : fmt.pct(m12[i].value, 1)}</span>`,
@@ -5029,8 +5553,11 @@ function renderStatic() {
     + 'independent quantity. '
     + 'Counts come from the monthly summary, which the customer file now reproduces exactly: '
     + 'the live event types total active_logos in every month of the window. Churned here is '
-    + 'the summary figure, which chart 5 shows is a floor rather than the full count of '
-    + 'customers who left.';
+    + 'the summary figure, which chart 5 checks against the customers who actually left the '
+    + 'file. New is first appearance in the summary, which is not the same number as the '
+    + 'cohort count the cohort charts use: it counts customers who appear before they first '
+    + 'carry revenue, and the window\'s first month, whose customers the cohorts treat as '
+    + 'already there.';
 }
 
 // Cost and profit. Settled inputs, so this runs once like everything else.
@@ -5140,15 +5667,16 @@ function renderAssumptionDependent() {
         ? `${paybackAtRisk} ${paybackAtRisk === 1 ? 'carries' : 'carry'} better than a one in `
           + `four chance of never recovering. `
         : '')
-    + `The run starts at ${economics[0].month} because acquisition cost is not recorded `
-    + `before then.`;
+    + JOINING_CHARGE_NOTE + ' '
+    + `The run starts at ${economics[0].month}, the first month the QuickBooks ledger carries, `
+    + `because acquisition cost is not recorded before then.`;
 
   // 3. Cumulative gross profit against cost, by cohort age.
   const mature = economics.filter(c => c.recovery.length >= 6).slice(-6);
   const span = Math.max(...mature.map(c => c.recovery.length), 0);
   multiLineChart($('chart-recovery'), {
     yTitle: 'Cumulative gross profit as a share of CAC',
-    labels: Array.from({ length: span }, (_, i) => `M${i + 1}`),
+    labels: Array.from({ length: span }, (_, i) => `M${i}`),
     series: mature.map((c, i) => ({
       label: c.month,
       colour: `var(--ramp-${i + 1})`,
@@ -5157,14 +5685,18 @@ function renderAssumptionDependent() {
     yFormat: v => fmt.pct(v),
     xTitle: 'Months since first revenue',
     refs: [{ value: 1, label: 'break-even', variant: 'ref-goal' }],
-    describe: i => `<strong>Month ${i + 1}</strong>` + mature.map(c =>
+    describe: i => `<strong>Month ${i}</strong>` + mature.map(c =>
       `<span>${c.month} ${fmt.pct(c.recovery[i] ?? null, 0)}</span>`).join(''),
   });
   $('recovery-note').textContent =
-    'The six most recent cohorts with at least six months of history. Where a line crosses 100% is the month that cohort paid back. This is the one chart here that survives the split being wrong: the shape of a curve bends the same way whatever the cost baseline is.';
+    'The six most recent cohorts with at least six months of history, month 0 being the first '
+    + 'month of revenue as in charts 4 and 8. Where a line crosses 100% is the month that cohort '
+    + 'paid back. The shape of a curve survives the split or the margin being wrong, because it '
+    + 'bends the same way whatever the cost baseline is; where it crosses 100% does not, since '
+    + 'that depends on both levels. ' + JOINING_CHARGE_NOTE;
 
 
-  // 16. Break-even by cohort, actual where it happened and projected where it
+  // 17. Break-even by cohort, actual where it happened and projected where it
   // has not. Recomputed with the sliders because the cost per logo moves.
   const projection = projectedBreakEven(data, cohorts, state);
   const rows = projection.map(p => {
@@ -5211,10 +5743,11 @@ function renderAssumptionDependent() {
     done + ' of ' + projection.length + ' cohorts have already covered their cost, and those '
     + 'rows report the month it happened rather than a forecast. The rest are projected from '
     + 'their last observed month along a revenue retention path. The range comes from '
-    + 'resampling whole donor cohorts from 2023 onward, so it answers how far this cohort '
+    + 'resampling whole donor cohorts, ' + donorSpan() + ', so it answers how far this cohort '
     + 'could sit from the average rather than how well the average is known, which is the '
     + 'wider and more useful question. ' + atRisk + ' cohorts carry at least a one in four '
     + 'chance of never covering their cost. Projection stops at ten years. '
+    + JOINING_CHARGE_NOTE + ' '
     + 'This table and chart 33 both report a break-even month and they will not agree. '
     + 'This one charges acquisition only, and counts subscription gross profit against it. '
     + 'Chart 33 charges every ongoing cost as well, which is harsher, but it also counts '
@@ -5222,66 +5755,135 @@ function renderAssumptionDependent() {
     + 'the 2024 cohorts the revenue side wins. Neither is wrong: this is payback on '
     + 'acquisition, that is payback on everything.';
 
-  // 7. Cost per logo against revenue per logo, indexed to 100.
-  // The pipeline's own acquisition cost, the same figure charts 1, 2 and 17
-  // divide by. Re-deriving it here from the expense lines produced a second
-  // implementation of one number, which is how the page ended up with three
-  // answers to what a logo costs.
-  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
-  const months = data.waterfall.filter(r => cac.has(r.month) && cac.get(r.month) !== null);
-  // A month whose new logo count has collapsed produces a cost per logo that
-  // is about the denominator rather than about the cost. August 2026 divides
-  // a normal month of spend by nine logos and lands three times higher than
-  // anything before it, which is the second Stripe environment not reaching
-  // the count rather than a real move. Those months are blanked rather than
-  // drawn, because a spike that large is read before any caveat under it.
-  const counts = months.map(r => r.newLogos).filter(Boolean).sort((a, b) => a - b);
-  const typical = counts.length ? counts[Math.floor(counts.length / 2)] : 0;
-  // A third of a typical month, not a half. July sits at 47% of typical and is
-  // a thin month rather than a broken one; August at 18% is the count failing.
-  const perLogo = months.map(r => (r.newLogos ? r.newMrr / r.newLogos : 0)).filter(Boolean).sort((a, b) => a - b);
-  const typicalPerLogo = perLogo.length ? perLogo[Math.floor(perLogo.length / 2)] : 0;
-  const reliable = r => r.newLogos
-    && r.newLogos >= typical * 0.35
-    && r.newMrr / r.newLogos >= typicalPerLogo * 0.35;
-  const suppressed = months.filter(r => !reliable(r));
-
-  const costPerLogo = months.map(r => (reliable(r) ? cac.get(r.month) / r.newLogos : null));
-  const revenuePerLogo = months.map(r => (reliable(r) ? r.newMrr / r.newLogos : null));
-  const baseCost = costPerLogo.find(v => v !== null);
-  const baseRevenue = revenuePerLogo.find(v => v !== null);
+  // 7. Cost per logo against revenue per logo, indexed to the first year.
+  //
+  const { months, intake, boundary, suppressed, costPerLogo, revenuePerLogo,
+    baseYear, baseCost, baseRevenue, index } = unitCostSeries();
+  const last = months.length - 1;
 
   multiLineChart($('chart-unit'), {
-    yTitle: 'Dollars per logo, per month',
-    labels: months.map(r => fmt.monthLabel(r.month)),
+    yTitle: `Index, ${baseYear} median month = 100`,
+    labels: months.map(m => fmt.monthLabel(m)),
     series: [
       { label: 'Cost per logo', colour: INK.negative,
-        values: costPerLogo.map(v => (v === null ? null : (v / baseCost) * 100)) },
+        values: costPerLogo.map(v => index(v, baseCost)) },
       { label: 'New-logo revenue per logo', colour: INK.primary,
-        values: revenuePerLogo.map(v => (v === null ? null : (v / baseRevenue) * 100)) },
+        values: revenuePerLogo.map(v => index(v, baseRevenue)) },
     ],
     yFormat: v => Math.round(v),
-    refs: [{ value: 100, label: `${months[0]?.month} = 100`, variant: 'ref-floor' }],
-    describe: i => `<strong>${fmt.monthLabel(months[i].month)}</strong>
-      <span>Cost per logo ${fmt.money(costPerLogo[i])}</span>
-      <span>Revenue per logo ${fmt.money(revenuePerLogo[i])}</span>
-      <span class="muted">${fmt.int(months[i].newLogos)} new logos</span>`,
+    refs: [{ value: 100, label: `${baseYear} median = 100`, variant: 'ref-floor' }],
+    describe: i => `<strong>${fmt.monthLabel(months[i])}</strong>
+      <span>Cost per logo ${fmt.money(costPerLogo[i])}, index ${fmt.int(index(costPerLogo[i], baseCost))}</span>
+      <span>Revenue per logo ${fmt.money(revenuePerLogo[i])}, index ${fmt.int(index(revenuePerLogo[i], baseRevenue))}</span>
+      <span class="muted">${fmt.int(intake.get(months[i]).size)} logos started</span>`,
   });
   $('unit-note').textContent =
-    'Both indexed to 100 at the first month with acquisition cost recorded, so the '
-    + 'divergence reads without either absolute number needing to be right. Cost per '
-    + 'logo divides the month acquisition cost by the new logos in the monthly '
-    + 'summary, one basis for the whole line. '
+    `Both indexed to 100 at the median month of ${baseYear}, ${fmt.money(baseCost)} of `
+    + `acquisition cost and ${fmt.money(baseRevenue)} of first-month MRR per logo, so the `
+    + 'divergence reads without either absolute number needing to be right. Cost per logo '
+    + 'divides the month acquisition cost by the customers whose first revenue fell in that '
+    + 'month, the count charts 1, 2 and 17 use, and revenue per logo is what those same '
+    + 'customers were booked at in that month, the old joining charge included. '
+    + (costPerLogo[last] !== null
+        ? `${fmt.monthLabel(months[last])} reads ${fmt.int(index(costPerLogo[last], baseCost))} `
+          + `on cost and ${fmt.int(index(revenuePerLogo[last], baseRevenue))} on revenue. `
+        : '')
     + (suppressed.length
-        ? suppressed.map(r => fmt.monthLabel(r.month)).join(' and ')
-          + ' ' + (suppressed.length === 1 ? 'is' : 'are') + ' left blank. A month is drawn '
-          + 'only once both halves hold: enough new logos for the ratio to be measuring cost '
-          + 'rather than its own denominator, and enough recognised MRR against them for the '
-          + 'revenue side to mean anything. The trailing month fails the second because most '
-          + 'of its arrivals are in the second Stripe environment, whose revenue does not '
-          + 'reach the MRR column at all. That is a recognition gap rather than a lag: the '
-          + 'earliest of those customers are five months in and still register nothing.'
+        ? suppressed.map(m => fmt.monthLabel(m)).join(' and ')
+          + ' ' + (suppressed.length === 1 ? 'is' : 'are') + ' left blank. '
+          + (suppressed.includes(boundary)
+              ? `${fmt.monthLabel(boundary)} opens the window, so its count holds only the `
+                + 'customers with a Stripe start date in it and is not that month\'s intake. '
+              : '')
+          + (suppressed.some(m => m !== boundary)
+              ? 'A month is otherwise drawn only once enough logos started for the ratio to be '
+                + 'measuring cost rather than its own denominator, and enough MRR came with them '
+                + 'for the revenue side to mean anything.'
+              : '')
         : '');
+}
+
+// Chart 7's two series, computed once. The chart and its annotation both
+// read this: the annotation used to rebuild the series on its own rules and
+// quote a different base month and a different count from the line above it.
+function unitCostSeries() {
+  // The acquisition cost charts 1, 2 and 17 divide by, over the same count
+  // they use: the cohort that started that month. The summary's new-logo
+  // count was a second definition of a logo, and in the first month of the
+  // window the two parted most (67 booked against 23 dated).
+  const cac = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
+  const intake = new Map(cohorts.map(c => [c.month, c]));
+  const months = data.cacMonthly
+    .filter(r => r.cacTotalActual !== null && intake.has(r.month))
+    .map(r => r.month);
+  // The boundary month holds only the customers with a Stripe start date in
+  // it; everyone else present then is censored. Its count is not that month's
+  // intake, so a cost per logo on it is about the denominator and is blanked.
+  const boundary = cohorts.windowStart;
+  // A month whose count or revenue has collapsed against a typical month is
+  // also about the denominator rather than the cost. A third of typical, not
+  // a half: a thin month is real, a count that fails is not.
+  const sizes = months.map(m => intake.get(m).size).filter(Boolean).sort((a, b) => a - b);
+  const typical = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 0;
+  const paysOf = m => intake.get(m).revenue[0] / intake.get(m).size;
+  const pays = months.map(paysOf).filter(v => v > 0).sort((a, b) => a - b);
+  const typicalPays = pays.length ? pays[Math.floor(pays.length / 2)] : 0;
+  const reliable = m => m !== boundary
+    && intake.get(m).size >= typical * 0.35
+    && paysOf(m) >= typicalPays * 0.35;
+  const suppressed = months.filter(m => !reliable(m));
+
+  // Revenue per logo is what the cohort was booked at in its first month, the
+  // same month and the same customers as the cost beside it.
+  const costPerLogo = months.map(m => (reliable(m) ? cac.get(m) / intake.get(m).size : null));
+  const revenuePerLogo = months.map(m => (reliable(m) ? paysOf(m) : null));
+
+  // Indexed to the median month of the first calendar year rather than to the
+  // first month, which on this push was the cheapest month in the series and
+  // made every later cost reading about a quarter higher than a typical 2024
+  // month would.
+  const baseYear = months.find(m => reliable(m))?.slice(0, 4);
+  const medianOf = values => {
+    const v = values.filter(x => x !== null).sort((a, b) => a - b);
+    if (!v.length) return null;
+    const mid = v.length >> 1;
+    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+  };
+  const inBase = (values) => values.filter((_, i) => months[i].startsWith(baseYear));
+  const baseCost = medianOf(inBase(costPerLogo));
+  const baseRevenue = medianOf(inBase(revenuePerLogo));
+  const index = (v, base) => (v === null || !base ? null : (v / base) * 100);
+  return { months, intake, boundary, suppressed, costPerLogo, revenuePerLogo,
+    baseYear, baseCost, baseRevenue, index };
+}
+
+// Whether chart 19's gap between the two rules holds at every horizon the
+// slider offers, computed rather than asserted. Worked out once per load,
+// because the answer does not depend on where the slider sits.
+let horizonGaps = null;
+function horizonGapSentence() {
+  if (!horizonGaps) {
+    const max = Number($('forward-horizon').max) || 9;
+    horizonGaps = [];
+    for (let h = 1; h <= max; h += 1) {
+      const f = forwardSurvival(data, { horizon: h, windows: null });
+      if (f.earlier && f.recent) {
+        horizonGaps.push({ h, gap: (f.earlier.rate - f.recent.rate) * 100, z: f.z });
+      }
+    }
+  }
+  if (!horizonGaps.length) return '';
+  const below = horizonGaps.filter(g => g.gap > 0);
+  const zs = horizonGaps.map(g => g.z);
+  const range = `${Math.min(...horizonGaps.map(g => g.gap)).toFixed(1)} to `
+    + `${Math.max(...horizonGaps.map(g => g.gap)).toFixed(1)} points`;
+  return below.length === horizonGaps.length
+    ? `It does at every horizon from 1 to ${horizonGaps[horizonGaps.length - 1].h} months, `
+      + `${range} below the earlier average, with the naive z running from `
+      + `${Math.min(...zs).toFixed(1)} to ${Math.max(...zs).toFixed(1)}, so it is weakest at the `
+      + 'longest horizons, where there are fewest windows.'
+    : `It holds at ${below.length} of the ${horizonGaps.length} horizons the slider offers, `
+      + 'so it is not yet structural.';
 }
 
 // Forward survival. Independent of the split and the margin, so drawn once.
@@ -5323,10 +5925,10 @@ function renderForward() {
   const recent = starts.slice(-fw.recentCount);
   const earlier = starts.slice(0, -fw.recentCount);
 
-  // 11. The fan. Every window drawn faintly so the spread is visible, with the
+  // 18. The fan. Every window drawn faintly so the spread is visible, with the
   // two period averages over the top so the shift is readable.
   multiLineChart($('chart-forward'), {
-    yTitle: 'Share of acquisition cost recovered',
+    yTitle: 'Share of the starting month’s base still active',
     labels,
     series: [
       ...starts.map(s => ({ label: s.month, colour: INK.tertiary, thin: true, values: s.curve })),
@@ -5356,9 +5958,15 @@ function renderForward() {
   });
 
   const spread = Math.max(...starts.map(s => s.survival)) - Math.min(...starts.map(s => s.survival));
+  // "Not by a little" only where the fall is both a couple of points and large
+  // against its own noise: at twelve months the fall is about a point with a z
+  // of -1.5, and the heading used to say the same thing there.
+  const fall = (fw.earlier.rate - fw.recent.rate) * 100;
   $('forward-finding').innerHTML =
     (fw.recent.rate < fw.earlier.rate
-      ? '<strong>It is getting worse, and not by a little.</strong> '
+      ? (fall >= 2 && fw.z <= -3
+          ? '<strong>It is getting worse, and not by a little.</strong> '
+          : '<strong>It is getting worse, by a small margin at this horizon.</strong> ')
       : '<strong>It has stopped getting worse.</strong> ')
     + horizon + '-month survival ran at '
     + fmt.pct(fw.earlier.rate, 1) + ' across ' + earlier.length + ' earlier windows and '
@@ -5377,28 +5985,33 @@ function renderForward() {
     + 'independent samples. The naive two-proportion z is ' + fw.z.toFixed(1)
     + ', best read as large rather than as a p-value.';
 
-  // 12. The same thing as one number per starting month.
+  // 19. The same thing as one number per starting month.
   const monthsWord = horizon + ' month' + (horizon === 1 ? '' : 's');
+  // The worse of the two averages is drawn red and the better in the neutral
+  // rule, whichever period that is. The recent average used to be the green
+  // "goal" rule while it was the lower one, so colour read backwards.
+  const recentWorse = fw.recent.rate < fw.earlier.rate;
   lineChart($('chart-forward-trend'), {
-    yTitle: 'Share of acquisition cost recovered',
+    yTitle: 'Share of the starting month’s base still active',
     labels: starts.map(s => fmt.monthLabel(s.month)),
     values: starts.map(s => s.survival),
-    colour: INK.negative,
+    colour: INK.primary,
     yFormat: v => fmt.pct(v),
     refs: [
       { value: fw.earlier.rate,
-        label: 'average of the earlier ' + earlier.length, variant: 'ref-floor' },
+        label: 'average of the earlier ' + earlier.length, variant: recentWorse ? '' : 'ref-floor' },
       { value: fw.recent.rate,
-        label: 'average of the latest ' + recent.length, variant: 'ref-goal' },
+        label: 'average of the latest ' + recent.length, variant: recentWorse ? 'ref-floor' : '' },
     ],
     // The chart drew one unlabelled line against one unlabelled dashed rule,
     // which left the reader to guess what either was.
     legendItems: [
       { label: 'Share of that month’s base still active ' + monthsWord + ' later',
-        colour: 'var(--series-neg)' },
+        colour: 'var(--series-1)' },
       { label: 'Average of the earlier ' + earlier.length + ' starting months',
-        colour: 'var(--series-neg)' },
-      { label: 'Average of the latest ' + recent.length, colour: 'var(--series-pos)' },
+        colour: recentWorse ? 'var(--ink-soft)' : 'var(--series-neg)' },
+      { label: 'Average of the latest ' + recent.length,
+        colour: recentWorse ? 'var(--series-neg)' : 'var(--ink-soft)' },
     ],
     describe: i => '<strong>' + starts[i].month + ' start</strong>'
       + '<span>' + fmt.pct(starts[i].survival, 1) + ' still active ' + monthsWord + ' on</span>'
@@ -5418,8 +6031,8 @@ function renderForward() {
     + 'merely worse than history. '
     + (fw.recent.rate < fw.earlier.rate
         ? 'Move the slider and the whole line drops, because more time means more loss; '
-          + 'what matters is whether the gap between the two rules survives that, and it '
-          + 'does at every horizon, which makes it structural rather than a recent shock.'
+          + 'what matters is whether the gap between the two rules survives that. '
+          + horizonGapSentence()
         : 'The recent average now sits above the earlier one, so the decline this chart '
           + 'was built to show has stopped at this horizon.');
   $('forward-trend-note').textContent =
@@ -5428,9 +6041,9 @@ function renderForward() {
     + 'changes with it. A decline that is steady at every horizon is structural; one that only '
     + 'appears at short horizons would be a recent shock instead.';
 
-  // 17 and 18. Customer Success capacity, and whether either relationship is
-  // moving. Neither is touched by the sliders: the split decides how much CS
-  // spend counts as acquisition cost, not how much was spent.
+  // 20 and 21. Customer Success capacity, and whether either relationship is
+  // moving. Neither has a control: the Customer Success split is settled at
+  // zero acquisition, and it never changed how much was spent anyway.
   // Stale claim check, stated from the data rather than from memory.
   // The second Stripe environment, measured by what it is doing now rather than
   // by its share of all history. As a share of every customer month ever
@@ -5537,16 +6150,23 @@ function renderForward() {
       + fmt.int(data.customers.length) + ' customer months, ' + fmt.pct(s2Share, 2)
       + '. That is a young environment rather than a broken feed.';
 
-  const cap = capacityAnalysis(data);
+  const CAP_HORIZON = 4;
+  const cap = capacityAnalysis(data, { horizon: CAP_HORIZON });
   const cp = cap.points;
   const capLabels = cp.map(p => fmt.monthLabel(p.month));
   const rc = cap.correlations;
   const sign = v => (v >= 0 ? '+' : '') + v.toFixed(2);
+  // A 95% interval on a correlation, by Fisher's transform. On 27 overlapping
+  // months a correlation of +0.18 admits anything from about -0.2 to +0.5, and
+  // the finding has to be read with that in view.
+  const nMeasured = cap.measured.length;
+  const interval = r => {
+    if (r === null || nMeasured < 4) return '';
+    const z = Math.atanh(r);
+    const se = 1 / Math.sqrt(nMeasured - 3);
+    return ` (95% ${sign(Math.tanh(z - 1.96 * se))} to ${sign(Math.tanh(z + 1.96 * se))})`;
+  };
 
-  // Indexed so two quantities in different units can share an axis.
-  const baseChurn = cp[0].churn;
-  const baseCap = cp[0].csPerLogo;
-  const baseWhole = cp[0].retentionPerLogo;
   // Two scales, because the two quantities are dollars and a percentage and
   // indexing both to 100 threw away the levels. A reader could see that spend
   // had risen 39% without ever learning that it is about two hundred dollars
@@ -5560,7 +6180,7 @@ function renderForward() {
       format: v => '$' + Math.round(v).toLocaleString(),
     },
     right: {
-      label: 'Forward churn',
+      label: `Share of the month's base gone ${CAP_HORIZON} months later`,
       colour: INK.negative,
       values: cp.map(p => p.churn),
       format: v => (v * 100).toFixed(0) + '%',
@@ -5572,44 +6192,44 @@ function renderForward() {
       + ', Support ' + fmt.money(cp[i].teams['Support']) + '</span>'
       + '<span>Per logo ' + fmt.money(cp[i].retentionPerLogo) + ' across ' + fmt.int(cp[i].logos) + '</span>'
       + '<span>Customer Success alone ' + fmt.money(cp[i].csPerLogo) + ' per logo</span>'
-      + '<span>Forward churn ' + fmt.pct(cp[i].churn, 1) + '</span>',
+      + '<span>Share gone ' + CAP_HORIZON + ' months later ' + fmt.pct(cp[i].churn, 1) + '</span>',
   });
 
-  const firstHalf = cap.measured.slice(0, 12), secondHalf = cap.measured.slice(12);
   const avg = (rows, key) => rows.reduce((s, x) => s + x[key], 0) / rows.length;
-  const capGrowth = (avg(secondHalf, 'csPerLogo') / avg(firstHalf, 'csPerLogo') - 1) * 100;
-
   const csShare = avg(cp, 'csPerLogo') / avg(cp, 'retentionPerLogo');
   $('capacity-finding').innerHTML =
-    '<strong>Spending more on Customer Success is not associated with keeping more '
-    + 'customers, and on this page that is the useful answer rather than a '
-    + 'disappointing one.</strong> Customer Success alone correlates with forward churn '
-    + 'at ' + sign(rc.capacity) + '; adding Technical Account Manager and Support, which '
-    + 'together are the other ' + fmt.pct(1 - csShare) + ' of the spend, takes it to '
-    + sign(rc.wholeFunction) + ', and ' + sign(rc.wholeFunctionGivenTime) + ' once the '
-    + 'shared time trend is removed. None of those is a relationship. '
-    + 'Two things follow, and they point the same way. Retention is not currently '
-    + 'rate-limited by how much is spent on the team that does retention, so the churn '
-    + 'this page is about will not be fixed by adding headcount there. And the cost of '
-    + 'serving customers can be argued about on its own terms rather than treated as '
-    + 'untouchable insurance against churn — which matters, because chart 29 shows '
-    + 'that is where the money actually goes.';
+    '<strong>On this sample, spending more on Customer Success is not associated with '
+    + 'keeping more customers.</strong> Customer Success alone correlates with churn '
+    + CAP_HORIZON + ' months on at ' + sign(rc.capacity) + interval(rc.capacity)
+    + '; adding Technical Account Manager and Support, which together are the other '
+    + fmt.pct(1 - csShare) + ' of the spend, takes it to ' + sign(rc.wholeFunction)
+    + interval(rc.wholeFunction) + ', and ' + sign(rc.wholeFunctionGivenTime) + ' once the '
+    + 'shared time trend is removed. Every one of those intervals spans zero, so none is a '
+    + 'relationship, and none is wide enough to rule one out either: the data cannot say '
+    + 'whether more headcount there would move churn. What it does say is that the churn this '
+    + 'page is about has not tracked how much was spent on the team that does retention, so '
+    + 'the cost of serving customers can be argued about on its own terms rather than treated '
+    + 'as untouchable insurance against churn.';
 
   $('capacity-note').textContent =
-    'Read the direction, not the strength: this is ' + cp.length + ' monthly observations of '
-    + 'two series that both drift over the period, which is far too few for a correlation to '
-    + 'carry weight, and no trend line is drawn through them. The stronger form of this '
-    + 'question is not a correlation at all. It is whether accounts that lost their CSM '
-    + 'churned differently from accounts that kept one, and that needs CSM assignment per '
-    + 'account, which the pushed data does not carry. '
-    + 'Spend is the only measure of the team in the pushed data; headcount is not there. '
-    + 'Salaries track headcount more closely than the total, since bonuses and commissions '
-    + 'move with outcomes rather than with staff. Both indexed to '
-    + cp[0].month + ' so they can share an axis. What this does give you is a control: with '
-    + 'CS capacity held constant, the association between new arrivals and churn is '
-    + sign(rc.arrivalsGivenCapacity) + ' rather than ' + sign(rc.arrivals) + '.';
+    'Two scales in real units: on the left, Customer Success, Technical Account Manager and '
+    + 'Support spend together per live logo; on the right, the share of each month\'s base '
+    + 'gone ' + CAP_HORIZON + ' months later. The heading names Customer Success because that '
+    + 'is the question; the line is the whole function, and Customer Success alone is in the '
+    + 'tooltip. ' + cp.length + ' months are drawn and the last ' + (cp.length - nMeasured)
+    + ' have no churn yet, because their ' + CAP_HORIZON + ' months have not elapsed, so every '
+    + 'correlation is on ' + nMeasured + ' months. Read the direction, not the strength: two '
+    + 'series that both drift over the period, on that few points, cannot carry a correlation, '
+    + 'and no trend line is drawn through them. The stronger form of this question is not a '
+    + 'correlation at all. It is whether accounts that lost their CSM churned differently from '
+    + 'accounts that kept one, and that needs CSM assignment per account, which the pushed data '
+    + 'does not carry. Spend is the only measure of the team in the pushed data; headcount is '
+    + 'not there. On the same ' + nMeasured + ' months, with CS capacity held constant, the '
+    + 'association between new arrivals and churn is ' + sign(rc.arrivalsGivenCapacity)
+    + ' rather than ' + sign(rc.arrivals) + '. Chart 22 asks the arrivals question on its own, '
+    + 'on the starting months every horizon can reach, so its figure differs from this one.';
 
-  // 18. Rolling correlation, the momentum question.
+  // 21. Rolling correlation, the momentum question.
   const measuredLabels = cap.measured.map(p => fmt.monthLabel(p.month));
   multiLineChart($('chart-momentum'), {
     yTitle: 'Rolling correlation with churn',
@@ -5632,11 +6252,17 @@ function renderForward() {
       + (cap.rollingArrivals[i] === null
           ? '<span class="muted">inside the first ' + cap.rollingWidth + ' months, no window yet</span>'
           : '<span>Arrivals ' + sign(cap.rollingArrivals[i]) + '</span>'
-            + '<span>CS capacity ' + sign(cap.rollingCapacity[i]) + '</span>'),
+            + '<span>CS capacity ' + sign(cap.rollingCapacity[i]) + '</span>'
+            + (cap.rollingWholeFunction && cap.rollingWholeFunction[i] !== null
+                ? '<span>Whole retention function ' + sign(cap.rollingWholeFunction[i]) + '</span>' : '')
+            + (cap.rollingPrice && cap.rollingPrice[i] !== null
+                ? '<span>Price at signup ' + sign(cap.rollingPrice[i]) + '</span>' : '')),
   });
 
   const live = cap.rollingArrivals.filter(v => v !== null);
   const liveCap = cap.rollingCapacity.filter(v => v !== null);
+  const liveWhole = (cap.rollingWholeFunction || []).filter(v => v !== null);
+  const livePrice = (cap.rollingPrice || []).filter(v => v !== null);
   // Written off the numbers rather than around them. An earlier version of this
   // asserted that one relationship "was never there" and the other "has barely
   // moved", which was true of the sample it was written for and became false
@@ -5645,9 +6271,15 @@ function renderForward() {
   const rangeOf = xs => Math.max(...xs) - Math.min(...xs);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const signFlips = xs => xs.slice(1).filter((v, i) => (v < 0) !== (xs[i] < 0)).length;
-  const widest = rangeOf(liveCap) >= rangeOf(live)
-    ? { label: 'Customer Success', xs: liveCap }
-    : { label: 'New arrivals', xs: live };
+  // Every line drawn, not the two the text used to read: the widest swing was
+  // on a line the finding never mentioned.
+  const lines = [
+    { label: 'New arrivals', xs: live },
+    { label: 'Customer Success', xs: liveCap },
+    { label: 'The whole retention function', xs: liveWhole },
+    { label: 'Price at signup', xs: livePrice },
+  ].filter(l => l.xs.length);
+  const widest = lines.reduce((a, b) => (rangeOf(b.xs) > rangeOf(a.xs) ? b : a));
 
   // One plain sentence per line, then the conclusion. The previous version
   // reported ranges and sign counts for both series at once, which is accurate
@@ -5663,17 +6295,18 @@ function renderForward() {
   };
 
   $('momentum-finding').innerHTML =
-    '<strong>Neither line means anything, and the chart is here to show that rather '
+    '<strong>None of these lines means anything, and the chart is here to show that rather '
     + 'than to hide it in a single number.</strong> '
-    + '<span class="muted">New arrivals against churn</span> ' + read(live) + '. '
-    + '<span class="muted">Customer Success against churn</span> ' + read(liveCap) + '. '
+    + lines.map(l => '<span class="muted">' + l.label + ' against churn</span> ' + read(l.xs) + '. ').join('')
     + 'A relationship that was real and faded would walk toward zero and stay there; a '
     + 'relationship that was real and held would sit on one side of zero. Over '
-    + live.length + ' overlapping twelve-month windows these do neither, and '
-    + widest.label + ' alone covers ' + rangeOf(widest.xs).toFixed(2) + ' points end to '
-    + 'end, which is most of the range a correlation can occupy. '
-    + 'Read it as the reason not to quote any single pooled figure from these two '
-    + 'series — including the ones on the chart above.';
+    + live.length + ' overlapping twelve-month windows '
+    + (lines.every(l => Math.min(...l.xs) < 0 && Math.max(...l.xs) > 0)
+        ? 'all ' + lines.length + ' cross zero, and ' : 'these do neither, and ')
+    + widest.label.toLowerCase() + ' covers the widest range, ' + rangeOf(widest.xs).toFixed(2)
+    + ' points end to end, which is most of the range a correlation can occupy. '
+    + 'Read it as the reason not to quote any single pooled figure from these '
+    + 'series, including the ones on the chart above.';
 
   $('momentum-note').textContent =
     'Correlation against forward churn computed over a moving ' + cap.rollingWidth
@@ -5682,17 +6315,11 @@ function renderForward() {
     + 'carry no window and are blank rather than zero. With only twelve months behind each '
     + 'point these move around, so read the direction rather than the level.';
 
-  // 15. Against new arrivals.
-  const newByMonth = new Map(data.waterfall.map(r => [r.month, r.newLogos]));
-  const points = starts
-    .filter(s => newByMonth.get(s.month) != null)
-    .map(s => ({ x: newByMonth.get(s.month), y: 1 - s.survival, month: s.month }));
-
   renderArrivals();
   renderHorizons();
 }
 
-// 19. The same window, this year against one and two years ago. Driven by its
+// 11. The same window, this year against one and two years ago. Driven by its
 // own slider rather than by the assumptions, because the horizon is a way of
 // looking rather than a modelling choice.
 function renderSeasonal() {
@@ -5711,7 +6338,7 @@ function renderSeasonal() {
   const horizon = Number(slider.value);
   $('horizon-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');
 
-  const s = seasonalSurvival(data, { horizon });
+  const s = seasonalSurvival(data, { horizon, cohorts });
   if (!s.series.length) {
     $('chart-seasonal').innerHTML = '<p class="empty">Not enough history for that window.</p>';
     return;
@@ -5762,14 +6389,13 @@ function renderSeasonal() {
     + 'population from the cohort charts: chart 8 follows one year’s new intakes '
     + 'from their own signup month, where this follows everyone present in a given '
     + 'month whenever they joined. The two can disagree about which year looks worst '
-    + 'and both still be right, and they currently do — chart 8 has 2026 ahead at '
-    + 'month 4 and this has it well behind. The book is mostly tenured customers so '
-    + 'this chart is largely about them, while chart 8 at that age is built only from '
-    + 'the 2026 cohorts old enough to have run four months, which are the early ones, '
-    + 'before the worst intakes arrived. Neither is the whole answer. Base sizes: '
+    + 'and both still be right. The book is mostly tenured customers so this chart is '
+    + 'largely about them, while chart 8 at ' + horizon + ' month' + (horizon === 1 ? '' : 's')
+    + ' is built only from the cohorts of the current year old enough to have run that '
+    + 'long, which are its earliest. Neither is the whole answer. Base sizes: '
     + s.series.map(r => fmt.monthLabel(r.month) + ' ' + fmt.int(r.n)).join(', ') + '.';
 
-  // 20. The same fixed sets, followed by revenue rather than by headcount.
+  // 12. The same fixed sets, followed by revenue rather than by headcount.
   // Where this sits above the logo line, the survivors are paying more than
   // they were, and expansion is covering some of the loss.
   multiLineChart($('chart-seasonal-revenue'), {
@@ -5813,15 +6439,25 @@ function renderSeasonal() {
       // With the window reaching back to 2024 there is a third point, and it
       // changes the reading: the year-on-year comparison alone made a single
       // exceptional year look like the baseline.
+      // Only called an outlier when it is one: on the booked first month the
+      // year-ago line read as one because the two older bases carried a joining
+      // charge the latest does not.
       const twoBack = twoYears || null;
-      const context = twoBack
-        ? ' Against two years earlier the picture is not a straight decline: '
-          + fmt.monthLabel(twoBack.month) + ' kept '
-          + fmt.pct(twoBack.revenueRetention, 1) + ' of its revenue, so '
-          + fmt.monthLabel(yearAgo.month) + ' at '
-          + fmt.pct(yearAgo.revenueRetention, 1) + ' is the outlier in the series rather '
-          + 'than the standard the latest window is failing to meet.'
-        : '';
+      const yearAgoOutlier = twoBack && yearAgo.revenueRetention
+        - Math.max(twoBack.revenueRetention, latest.revenueRetention) > 0.05;
+      const context = !twoBack ? ''
+        : yearAgoOutlier
+          ? ' Against two years earlier the picture is not a straight decline: '
+            + fmt.monthLabel(twoBack.month) + ' kept '
+            + fmt.pct(twoBack.revenueRetention, 1) + ' of its revenue, so '
+            + fmt.monthLabel(yearAgo.month) + ' at '
+            + fmt.pct(yearAgo.revenueRetention, 1) + ' is the outlier in the series rather '
+            + 'than the standard the latest window is failing to meet.'
+          : ' Two years earlier ' + fmt.monthLabel(twoBack.month) + ' kept '
+            + fmt.pct(twoBack.revenueRetention, 1) + ', so the latest window is '
+            + Math.abs((latest.revenueRetention - twoBack.revenueRetention) * 100).toFixed(1)
+            + ' points ' + (latest.revenueRetention < twoBack.revenueRetention ? 'below' : 'above')
+            + ' that as well.';
       return head
         + fmt.pct(latest.revenueRetention, 1) + ' of ' + fmt.monthLabel(latest.month)
         + ' revenue survived ' + horizon + ' months, against '
@@ -5834,11 +6470,20 @@ function renderSeasonal() {
     })();
 
   $('seasonal-revenue-note').textContent =
-    'The same customers as chart 11, followed by what they pay rather than by whether they '
-    + 'are still there. No new customers enter it, so this is not net revenue retention for '
-    + 'the business; it is what one fixed set did. Above the logo line means survivors grew '
-    + 'and expansion is offsetting churn. Below it means the ones who stayed are also paying '
-    + 'less. Starting revenue: '
+    'The same customers as chart 11, followed by their recurring MRR rather than by whether '
+    + 'they are still there. Usage, setup and pass-through are not in it, so a survivor who '
+    + 'moved spend from subscription to usage reads here as revenue lost. No new customers '
+    + 'enter it, so this is not net revenue retention for the business; it is what one fixed '
+    + 'set did. Above the logo line means survivors grew and expansion is offsetting churn. '
+    + 'Below it means the ones who stayed are also paying less. The customers who started in '
+    + 'the starting month are valued at their second month, as every cohort chart values them, '
+    + 'because until mid-2025 their first month carried a joining charge as MRR that came off '
+    + 'the month after; on the booked figure that charge was '
+    + s.series.map(r => `${fmt.pct(r.intakeShare, 0)} of ${fmt.monthLabel(r.month)}`).join(', ')
+    + ' revenue, and it made the older lines fall for a reason the latest does not share. '
+    + 'Customers at zero MRR in the starting month count on the logo line and weigh nothing '
+    + 'here: ' + s.series.map(r => `${fmt.int(r.zeroAtStart)} of ${fmt.int(r.n)}`).join(', ')
+    + '. Starting revenue: '
     + s.series.map(r => fmt.monthLabel(r.month) + ' ' + fmt.money(r.startMrr)).join(', ') + '.';
 }
 
@@ -5934,15 +6579,17 @@ const MEANS = {
 
   'chart-start-type':
     'The share of a month that is not a standard start is the share of the cohort dating that '
-    + 'is approximate. Shifted forward customers are the left censoring problem, already '
-    + 'classified by hand upstream, which is a better answer than any rule that infers them. '
+    + 'is approximate. Shifted forward customers have had their start date moved upstream, and '
+    + 'the cohort charts leave them out rather than guess at when they began. '
     + 'The annual customers are worth watching separately: two of them carry enough to make '
     + 'the months holding them read high.',
 
-  'chart-ltv-cac':
-    'Read the two averages under the chart together and the diagnosis is in them. Cut at the '
-    + 'same age, what a customer returns has risen a little between the earlier cohorts and the '
-    + 'later ones. What one costs has risen about four times as fast. That is the whole of the deterioration '
+  'chart-ltv-cac': () =>
+    'Read the two averages under the chart together and the diagnosis is in them. Cut at '
+    + `month ${ltvPace ? ltvPace.age : 6}, what a customer returns has `
+    + `${ltvPace ? risenBy(ltvPace.worth) : 'moved a little'} between the earlier cohorts and the `
+    + `later ones and what one costs has ${ltvPace ? risenBy(ltvPace.cost) : 'moved more'}. `
+    + 'That is the whole of the deterioration '
     + 'here, and it points at acquisition rather than at retention or pricing: the same '
     + 'retention curve clears the bar at the older cohorts’ cost per logo and does not at '
     + 'the newer ones’. Move the slider and the gap holds at every age both halves reach, '
@@ -5967,36 +6614,51 @@ const MEANS = {
     + 'business from expansion failing to, and it decides whether retention work or upsell '
     + 'work is the better use of the same headcount.',
 
-  'chart-churn':
+  'chart-churn': () =>
     'Sustained churn above the threshold sets a floor on how much acquisition is needed just '
     + 'to stand still, and the gap between that floor and what arrives is stated above. '
-    + 'Acquisition has been running flat while the rate has roughly doubled, so no plausible '
-    + 'improvement in conversion closes the gap on its own; it has to come from the churn side. '
-    + 'Note also which line to plan against. The booked figure is the one most reports quote '
-    + 'and it is the one that understates the problem.',
+    + (churnPicture && churnPicture.arrivalsFalling
+      ? 'Arrivals have been falling over the last six months, '
+      : 'Arrivals have not been rising, ')
+    + 'so no plausible improvement in conversion closes the gap on its own; it has to come from '
+    + 'the churn side too. '
+    + (churnPicture && churnPicture.booksSame
+      ? 'The two lines agree on this push, so either can be planned against; the pair is kept '
+        + 'so that a gap reopening is visible.'
+      : 'Note also which line to plan against. The booked figure is the one most reports quote '
+        + 'and it is the one that understates the problem.'),
 
-  'chart-age-retention':
-    'Most of what a cohort loses, it loses between months three and six. That is a narrow and '
-    + 'specific window, which makes it actionable: onboarding and the first ninety days are '
-    + 'where retention effort has something to save. Effort spent on customers past that point '
-    + 'is spent on the ones who were largely going to stay anyway.',
+  'chart-age-retention': () => {
+    const a = ageLosses;
+    if (!a) return '';
+    const parts = [['months 0 to 3', a.early], ['months 3 to 6', a.middle], ['months 6 to 12', a.late]];
+    const top = parts.reduce((x, y) => (y[1] > x[1] ? y : x));
+    const perMonth = [a.early / 3, a.middle / 3, a.late / 6];
+    return `Of what a cohort loses in its first year, the largest share goes in ${top[0]}, `
+      + `${top[1].toFixed(1)} points of ${(a.early + a.middle + a.late).toFixed(1)}. `
+      + (perMonth[0] >= perMonth[1] && perMonth[0] >= perMonth[2]
+        ? 'Per month, the first three are the steepest, which makes onboarding and the first '
+          + 'ninety days where retention effort has most to save.'
+        : 'Per month the loss is spread across the year rather than concentrated early, so '
+          + 'effort confined to the first ninety days would miss most of it.');
+  },
 
   'chart-unit':
-    'Treat the rise as an upper bound rather than a measurement. The denominator is a new '
-    + 'logo count drawn almost entirely from the first Stripe environment, and new business '
-    + 'has been moving to the second, so some of this curve is customers being won and not '
-    + 'counted rather than cost genuinely doubling. What can be said is that cost per logo has '
-    + 'not fallen. What cannot yet be said is by how much it rose, and no decision that '
-    + 'depends on the magnitude should be taken from this chart until the signup source is '
-    + 'joined in.',
+    'Winning a customer costs far more than it did, and what that customer pays on arrival has '
+    + 'not risen to match, so the gap is an acquisition problem rather than a pricing one. The '
+    + 'count now includes customers who start in the second Stripe environment, which is most '
+    + 'of the newest months, so the rise is not customers being won and missed. What would make '
+    + 'it wrong is timing: a month of spend is set against the customers who started that '
+    + 'month, and a sales cycle that lengthened would push cost into the wrong month and '
+    + 'overstate the recent readings.',
 
   'chart-era':
-    'On a head count there is no recent break to go and find. An intake won in 2026 decays '
-    + 'about as one won in 2024 did, and early on it decays rather less, so money spent '
-    + 'rebuilding onboarding on the theory that new customers have got worse would be spent '
-    + 'against a problem this chart does not show. That does not close the question, because '
-    + 'a head count treats a $200 account and a $2,000 account as the same event. Chart 9 '
-    + 'weights them, and the answer changes.',
+    'On a head count the years run close for the first months, and most of what separates '
+    + 'them later rests on the newest year\'s oldest intakes, which is too thin a sample to '
+    + 'rebuild onboarding on. Read the first month as medians rather than means: one bad intake '
+    + 'moves a mean by several points. That does not close the question, because a head count '
+    + 'treats a $200 account and a $2,000 account as the same event. Chart 9 weights them, and '
+    + 'the answer changes.',
 
   'chart-era-revenue':
     'This is the version to act on, and it says the retention problem is larger than the logo '
@@ -6089,7 +6751,9 @@ function renderAnnotations() {
   const above3 = withLtv.filter(c => c.ltvCac >= 3).length;
   const belowOne = withLtv.filter(c => c.ltvCac < 1).length;
   const best = withLtv.reduce((a, b) => (b.ltvCac > a.ltvCac ? b : a));
-  const recovered = shown.filter(c => c.payback !== null);
+  // Chart 2 draws every cohort with a cost, young ones muted, so its card
+  // counts the same population its note does.
+  const recovered = ec.filter(c => c.payback !== null);
   const withinGoal = recovered.filter(c => c.payback <= 12).length;
 
   // Chart 1's annotation is written where the chart is drawn, because both
@@ -6097,15 +6761,15 @@ function renderAnnotations() {
   // measure the chart no longer uses.
 
   annotate('chart-payback', [
-    `<strong>${recovered.length} of ${shown.length} cohorts have covered their cost</strong>, `
+    `<strong>${recovered.length} of ${ec.length} cohorts have covered their cost</strong>, `
       + (withinGoal === recovered.length
         ? 'and every one of them did it inside the twelve month goal. Nothing has recovered late; cohorts either clear the bar or are still running.'
         : `and ${withinGoal} of those did it inside the twelve month goal.`),
-    `${shown.length - recovered.length} of those shown have not recovered and are drawn as projections in a separate colour, not as zeroes or gaps. A zero would read as instant payback, the opposite of what it means.`,
+    `${ec.length - recovered.length} of those shown have not recovered and are drawn as projections in a separate colour, not as zeroes or gaps. A zero would read as instant payback, the opposite of what it means.`,
     paybackByEra(recovered),
   ], [
-    `A bar is either what happened or a projection of what will, never a blank: ${recovered.length} of these are the month a cohort actually crossed its cost and ${shown.length - recovered.length} are projected. A gap would read as "never", and what it means is "not yet".`,
-    `The projection is the same one chart 1 draws hatched, so the two cannot disagree: the pooled month-on-month revenue path of the cohorts with a year of history, which is mostly churn because revenue per surviving customer is roughly flat after the first month. Measured at the month this chart predicts, chart 1 reads 1.0x for the same cohort. The difference between them is the question, not the model: this one asks when a cohort crosses its cost, that one asks where it stands at a fixed age.`,
+    `A bar is either what happened or a projection of what will, never a blank: ${recovered.length} of these are the month a cohort actually crossed its cost and ${ec.length - recovered.length} are projected. A gap would read as "never", and what it means is "not yet".`,
+    `The projection is the same one chart 1 draws hatched, so the two cannot disagree: the pooled month-on-month recurring revenue path of ${donorSpan()}, every cohort with at least seven months observed, which is mostly churn because revenue per surviving customer is roughly flat after the first month. Measured at the month this chart predicts, chart 1 reads 1.0x for the same cohort. The difference between them is the question, not the model: this one asks when a cohort crosses its cost, that one asks where it stands at a fixed age.`,
     `The range around each projection comes from resampling whole donor cohorts rather than resampling the average, so it answers how far one cohort could sit from the typical path rather than how well the typical path is known.`,
     `The run starts at ${data.historyStarts} because that is the first month the QuickBooks ledger carries, so an older cohort would have revenue and no acquisition cost to set against it. That is an absence of data rather than a verdict on earlier cohorts. The first bar holds only the customers with a Stripe start date in that month: everyone else present then may have started earlier and is left out rather than dated to the boundary.`,
   ]);
@@ -6114,10 +6778,10 @@ function renderAnnotations() {
   const crossed = mature.filter(c => c.payback !== null).length;
   annotate('chart-recovery', [
     `${crossed} of the ${mature.length} cohorts drawn have crossed the break-even line inside the window shown.`,
-    'The shape of each curve bends the same way whatever the cost baseline is, which makes this the one chart here that survives the split being wrong.',
+    'The shape of each curve bends the same way whatever the cost baseline is, so the shape survives the split or the margin being wrong. The month a line crosses 100% does not: it moves with both.',
     'Curves that flatten before 100% are cohorts whose revenue is decaying faster than it is accumulating profit.',
   ], [
-    'Margins are applied per revenue class where the push carries them, which it does from 2025-09. Platform 75.7%, usage 60%, one-time 90%, pass-through and recognised-elsewhere at zero. The classes sit alongside recognised MRR rather than dividing it. Cohorts that started before 2025-09 accrue their first months with no class data at all, so the earlier half of this window is effectively platform-only.',
+    recoveryMarginSentence(mature),
     'Only the six most recent cohorts with at least six months are drawn, so this is not the whole book.',
   ]);
 
@@ -6127,10 +6791,10 @@ function renderAnnotations() {
   annotate('chart-retention', [
     lastPoint && `By month ${lastPoint.offset}, <strong>${fmt.pct(lastPoint.logos, 1)} of logos and ${fmt.pct(lastPoint.revenue, 1)} of revenue</strong> remain.`,
     gap !== null && `The two lines sit ${Math.abs(gap).toFixed(1)} points apart. Logos above revenue means the survivors pay less than they used to; revenue above logos means expansion is offsetting churn.`,
-    'This pools every era, so it is an average that conceals the deterioration visible in the era chart below.',
+    'This pools every era, so it is an average: chart 8 splits it by starting year, and chart 9 does the same in money.',
   ], [
-    'Indexed to <strong>month 2</strong>, not month 1. Month 1 carries setup and onboarding fees, and indexing there turns a one-off charge ending into an apparent churn cliff.',
-    `Drawn while at least ${lastPoint ? lastPoint.cohorts : 12} cohorts remain in sample, and held to a two year horizon. The logo line is survival rather than presence, so a customer who leaves and returns is counted once.`,
+    'Indexed to <strong>month 1</strong>, the second month a cohort carries revenue, not month 0. Month 0 carries setup and onboarding fees, and indexing there turns a one-off charge ending into an apparent churn cliff.',
+    `Drawn while at least four cohorts and 150 customers remain in the sample, and held to a two year horizon; the last point, month ${lastPoint ? lastPoint.offset : '--'}, rests on ${lastPoint ? lastPoint.cohorts : '--'} cohorts. The logo line is survival rather than presence, so a customer who leaves and returns is counted once.`,
   ]);
 
   const recent = w.slice(-36);
@@ -6151,67 +6815,83 @@ function renderAnnotations() {
   const lastChurn = churnSeries[churnSeries.length - 1];
   const lastBooked = bookedSeries[bookedSeries.length - 1];
   const holdFlat = lastChurn * (recent[recent.length - 1].activeLogos || 0);
-  const arrivals = recent.slice(-6).map(r => r.newLogos).filter(Boolean);
+  // Arrivals on the cohort count, the page's one count of a logo, and the
+  // churn rate averaged over the same six months rather than one month's.
+  const startedNow = logosStarted(data, cohorts);
+  const arrivals = recent.slice(-6).map(r => startedNow.get(r.month)).filter(v => v != null);
   const arrivalMean = arrivals.length
     ? arrivals.reduce((s, v) => s + v, 0) / arrivals.length : null;
+  const sixRate = churnSeries.slice(-6).reduce((s, v) => s + v, 0) / Math.min(6, churnSeries.length);
+  const holdSix = sixRate * (recent[recent.length - 1].activeLogos || 0);
+  const half = Math.floor(churnSeries.length / 2);
+  const churnEarly = churnSeries.slice(0, half);
+  const churnLate = churnSeries.slice(half);
+  const meanOf = xs => xs.reduce((s, v) => s + v, 0) / xs.length;
+  const booksSame = lastBooked !== undefined && Math.abs(lastChurn - lastBooked) < 0.0005;
+  churnPicture = { booksSame, firstHalf: meanOf(churnEarly), secondHalf: meanOf(churnLate),
+    arrivalsFalling: arrivals.length > 2 && arrivals[arrivals.length - 1] < arrivals[0] };
   annotate('chart-churn', [
     `<strong>${overThreshold} of the last ${churnSeries.length} months sit above the 5% threshold.</strong> The latest reads ${fmt.pct(lastChurn, 2)}.`,
     `That is the solid line, every customer present one month and absent the next. The dashed `
       + `line, the part booked as a churn event, reads ${fmt.pct(lastBooked, 2)} for the same `
-      + `month, so reading the booked figure alone understates the rate by about `
-      + `${lastBooked ? (lastChurn / lastBooked).toFixed(1) : '--'} times.`,
-    `Monthly churn has risen about ${(Math.max(...churnSeries) / Math.min(...churnSeries)).toFixed(1)}x across the window, from ${fmt.pct(Math.min(...churnSeries), 1)} at its lowest to ${fmt.pct(Math.max(...churnSeries), 1)} at its worst.`,
-    arrivalMean ? `At that rate the base needs about ${fmt.int(holdFlat)} new logos a month to `
-      + `hold flat. Arrivals have averaged ${fmt.int(arrivalMean)} over the last six months, so `
-      + `the base is short by roughly ${fmt.int(holdFlat - arrivalMean)} a month.` : null,
+      + (booksSame
+        ? 'month, the same figure: on this push every departure is booked.'
+        : `month, so reading the booked figure alone understates the rate by about `
+          + `${lastBooked ? (lastChurn / lastBooked).toFixed(1) : '--'} times.`),
+    `Across the window the rate averaged ${fmt.pct(meanOf(churnEarly), 2)} a month in the first `
+      + `${churnEarly.length} months and ${fmt.pct(meanOf(churnLate), 2)} in the last `
+      + `${churnLate.length}, running from ${fmt.pct(Math.min(...churnSeries), 1)} at its lowest `
+      + `to ${fmt.pct(Math.max(...churnSeries), 1)} at its worst.`,
+    arrivalMean ? `At the last six months' average rate, ${fmt.pct(sixRate, 2)}, the base needs `
+      + `about ${fmt.int(holdSix)} new logos a month to hold flat. Arrivals have averaged `
+      + `${fmt.int(arrivalMean)} over the same months, so the base is short by roughly `
+      + `${fmt.int(holdSix - arrivalMean)} a month.` : null,
   ], [
     'The denominator is the prior month closing base, so a month of rapid growth flatters the rate slightly.',
     'This counts logos, not revenue, and <strong>cannot tell a lapse from a cancellation</strong>. Some of what reads as churn is a billing gap.',
   ]);
 
   const windowed = cohorts.slice(-COHORT_WINDOW);
-  const m3 = mean(retentionAtAge(windowed, 3).map(p => p.value));
-  const m6 = mean(retentionAtAge(windowed, 6).map(p => p.value));
+  // On one set of cohorts, the ones that have reached month 6, so the gap is a
+  // loss within cohorts rather than two averages over different samples.
+  const both = windowed.filter(c => c.maxOffset >= 6 && c.survivors[0] > 0);
+  const m3 = mean(both.map(c => c.survivors[3] / c.survivors[0]));
+  const m6 = mean(both.map(c => c.survivors[6] / c.survivors[0]));
+  ageLosses = ageLossIntervals(windowed);
   annotate('chart-age-retention', [
-    `<strong>Month 3 averages ${fmt.pct(m3, 1)} and month 6 averages ${fmt.pct(m6, 1)}</strong>, so about ${((m3 - m6) * 100).toFixed(0)} points of a cohort is lost between those two ages.`,
+    `<strong>Across the ${both.length} cohorts that have reached month 6, month 3 averages ${fmt.pct(m3, 1)} and month 6 ${fmt.pct(m6, 1)}</strong>, so about ${((m3 - m6) * 100).toFixed(0)} points of a cohort is lost between those two ages.`,
+    ageLosses && `Pooled over the ${ageLosses.cohorts} cohorts that have had a year, months 0 to 3 lose ${ageLosses.early.toFixed(1)} points, 3 to 6 lose ${ageLosses.middle.toFixed(1)} and 6 to 12 lose ${ageLosses.late.toFixed(1)}.`,
     'The spread between cohorts at the same age is wide, which means cohort quality varies more than the blended curve suggests.',
   ], [
-    'Indexed to month 2 like the blended curve, so month 1 fees do not distort it.',
+    'Indexed to the signup month, month 0, which is 100% by construction. Survival only falls, so there is no first-month charge to distort a head count.',
     'A cohort appears only once that age is behind it. Recent cohorts are genuinely absent rather than sitting at 100%.',
   ]);
 
-  const cacMap = new Map(data.cacMonthly.map(r => [r.month, r.cacTotalActual]));
-  // Same reliability rule the chart itself applies. Reading the endpoint off
-  // an unfiltered list quoted 2026-08 at $33,627, a month the chart blanks
-  // precisely because its denominator has failed.
-  const unitAll = w.filter(r => cacMap.has(r.month) && r.newLogos);
-  const unitCounts = unitAll.map(r => r.newLogos).sort((a, b) => a - b);
-  const unitTypical = unitCounts.length ? unitCounts[Math.floor(unitCounts.length / 2)] : 0;
-  const unitPerLogo = unitAll.map(r => r.newMrr / r.newLogos).filter(Boolean).sort((a, b) => a - b);
-  const unitTypicalPerLogo = unitPerLogo.length ? unitPerLogo[Math.floor(unitPerLogo.length / 2)] : 0;
-  const unitMonths = unitAll.filter(r => r.newLogos >= unitTypical * 0.35
-    && r.newMrr / r.newLogos >= unitTypicalPerLogo * 0.35);
-  const firstU = unitMonths[0], lastU = unitMonths[unitMonths.length - 1];
-  const costFirst = cacMap.get(firstU.month) / firstU.newLogos;
-  const costLast = cacMap.get(lastU.month) / lastU.newLogos;
-  const arpuFirst = firstU.newMrr / firstU.newLogos;
-  const arpuLast = lastU.newMrr / lastU.newLogos;
-  const spendChange = (cacMap.get(lastU.month) / cacMap.get(firstU.month) - 1) * 100;
-  const logoChange = (lastU.newLogos / firstU.newLogos - 1) * 100;
-  annotate('chart-unit', [
-    `<strong>Cost per logo has risen about ${(costLast / costFirst).toFixed(1)}x</strong> since ${firstU.month}, from ${fmt.money(costFirst)} to ${fmt.money(costLast)}.`,
-    `New-logo revenue per logo has moved from ${fmt.money(arpuFirst)} to ${fmt.money(arpuLast)}, so the gap between the lines is cost opening up rather than revenue falling away.`,
-    `Both halves moved the wrong way: spend ${spendChange >= 0 ? 'rose' : 'fell'} ${Math.abs(spendChange).toFixed(0)}% while countable logos fell ${Math.abs(logoChange).toFixed(0)}%. It is not a volume story with flat spend behind it.`,
-  ], [
-    'Both series are indexed to 100 at the same month, so the absolute levels do not need to be right for the divergence to read. The base month is stated on the chart.',
-    'Where the pipeline reports a cost per logo it is used directly; earlier months derive it from total cost over the waterfall new logos.',
-    'That denominator is the monthly summary’s new logo count, not the cohort count used by '
-      + 'the per cohort table in chart 17. The two agree within about a tenth in every month but '
-      + 'the first, where the summary counts arrivals that predate the window and the cohort '
-      + 'does not, so this chart reads 2024-09 far cheaper than that table does. Consistency '
-      + 'along this line matters more than agreement with the other, because the chart is a '
-      + 'shape rather than a level.',
-  ]);
+  // Read off the series chart 7 draws, so the card and the line cannot part.
+  const unit = unitCostSeries();
+  const unitDrawn = unit.months.map((m, i) => i).filter(i => unit.costPerLogo[i] !== null);
+  const uLast = unitDrawn[unitDrawn.length - 1];
+  const uSpend = month => data.cacMonthly.find(r => r.month === month)?.cacTotalActual ?? null;
+  const baseMonths = unitDrawn.filter(i => unit.months[i].startsWith(unit.baseYear));
+  const baseSpend = baseMonths.length
+    ? baseMonths.map(i => uSpend(unit.months[i])).sort((a, b) => a - b)[baseMonths.length >> 1] : null;
+  const baseLogos = baseMonths.length
+    ? baseMonths.map(i => unit.intake.get(unit.months[i]).size).sort((a, b) => a - b)[baseMonths.length >> 1] : null;
+  if (uLast !== undefined) {
+    const lastMonthU = unit.months[uLast];
+    const spendChange = baseSpend ? (uSpend(lastMonthU) / baseSpend - 1) * 100 : null;
+    const logoChange = baseLogos ? (unit.intake.get(lastMonthU).size / baseLogos - 1) * 100 : null;
+    annotate('chart-unit', [
+      `<strong>Cost per logo in ${fmt.monthLabel(lastMonthU)} is ${(unit.costPerLogo[uLast] / unit.baseCost).toFixed(1)}x the ${unit.baseYear} median month</strong>, ${fmt.money(unit.costPerLogo[uLast])} against ${fmt.money(unit.baseCost)}.`,
+      `New-logo revenue per logo has moved from ${fmt.money(unit.baseRevenue)} to ${fmt.money(unit.revenuePerLogo[uLast])} over the same span, so the gap between the lines is cost opening up rather than revenue falling away.`,
+      spendChange !== null && logoChange !== null
+        && `Against a typical ${unit.baseYear} month, spend is ${spendChange >= 0 ? 'up' : 'down'} ${Math.abs(spendChange).toFixed(0)}% and logos started are ${logoChange >= 0 ? 'up' : 'down'} ${Math.abs(logoChange).toFixed(0)}%.`,
+    ], [
+      `Both series are indexed to 100 at the median month of ${unit.baseYear}, so the absolute levels do not need to be right for the divergence to read, and one cheap or dear base month cannot set the scale.`,
+      'Cost is the acquisition total built from the expense lines, the same figure charts 1, 2 and 17 divide. The denominator is the cohort count those charts use, customers dated by their first revenue, so a logo costs the same here as in the chart 17 table.',
+      `${fmt.monthLabel(unit.boundary)} opens the window and is left blank: only customers with a Stripe start date in it can be dated there, so its count is not that month's intake.`,
+    ]);
+  }
 
   const eras = retentionByYear(cohorts, { maxMonths: 12 });
   const newestEra = eras[eras.length - 1];
@@ -6228,13 +6908,15 @@ function renderAnnotations() {
   const recentRates = departures(data).filter(d => d.rate !== null).slice(-6);
   const currentRate = recentRates.length
     ? recentRates.reduce((s, d) => s + d.rate, 0) / recentRates.length : null;
-  const survivalAt = k => Math.pow(1 - currentRate, k - 1);
+  // Month 0 is the signup month on this chart, so reaching month 9 is nine
+  // monthly steps and the end of the first year is twelve.
+  const survivalAt = k => Math.pow(1 - currentRate, k);
   const depthNote = currentRate
     ? `These are ${eras.map(e => e.year).slice(0, -1).join(' and ')} vintages, and they aged `
       + `through a calmer period than the one running now. At the loss rate of the last six `
       + `months, ${fmt.pct(currentRate, 2)} a month, a customer signed today would have about a `
       + `${fmt.pct(survivalAt(9), 0)} chance of reaching month 9 and `
-      + `${fmt.pct(survivalAt(13), 0)} of reaching the end of their first year. That is the `
+      + `${fmt.pct(survivalAt(12), 0)} of reaching the end of their first year. That is the `
       + `number to plan on. `
       + `This chart is the record of what already happened, not a forecast.`
     : null;
@@ -6251,9 +6933,13 @@ function renderAnnotations() {
   const gapAt6 = e => ((e.grossMonth6 || 0) - (e.logosMonth6FromMonth2 || 0)) * 100;
   const byGap = [...eras].sort((a, b) => gapAt6(a) - gapAt6(b));
   annotate('chart-era-revenue', [
-    `<strong>Revenue falls faster than the count in every year</strong>: at month 6, measured `
-      + `from month 2, the shortfall is `
-      + `${eras.map(e => `${Math.abs(gapAt6(e)).toFixed(1)} points in ${e.year}`).join(', ')}.`,
+    `<strong>${eras.every(e => gapAt6(e) < 0)
+      ? 'Revenue falls faster than the count in every year'
+      : eras.some(e => gapAt6(e) < 0)
+        ? `Revenue falls faster than the count in ${eras.filter(e => gapAt6(e) < 0).map(e => e.year).join(' and ')}`
+        : 'Revenue holds better than the count in every year'}</strong>: at month 6, measured `
+      + `from month 1, the second month, the money line sits `
+      + `${eras.map(e => `${Math.abs(gapAt6(e)).toFixed(1)} points ${gapAt6(e) < 0 ? 'below' : 'above'} in ${e.year}`).join(', ')}.`,
     `${byGap[0].year} keeps ${fmt.pct(byGap[0].logosMonth6FromMonth2, 1)} of its customers and `
       + `${fmt.pct(byGap[0].grossMonth6, 1)} of its revenue. Counting heads there overstates what `
       + `the cohort is still worth by roughly a fifth of itself.`,
@@ -6262,9 +6948,9 @@ function renderAnnotations() {
   ], [
     'Gross revenue retention: each customer capped at what they were paying in their second '
       + 'month, so departures and downgrades both pull it down and expansion cannot lift it.',
-    'Indexed and drawn from month 2, where the cap is set, because a part-billed first month '
+    'Indexed and drawn from month 1, the second month, where the cap is set, because a part-billed first month '
       + 'leaves a customer under the rate they arrive on. The logo figures quoted here are '
-      + 'reindexed to month 2 to match.',
+      + 'reindexed to month 1 to match.',
     'Not strictly monotonic, and not forced to be: a customer who downgrades and later returns '
       + 'to their original rate adds that money back.',
   ]);
@@ -6273,9 +6959,10 @@ function renderAnnotations() {
     `<strong>The three years sit within ${(((best6.month6 || 0) - (worst6.month6 || 0)) * 100).toFixed(1)} points of each other at month 6</strong>: `
       + `${eras.map(e => `${e.year} ${fmt.pct(e.month6, 1)}`).join(', ')}. `
       + `${best6.year} holds best and ${worst6.year} worst, on samples of ${best6.reachedMonth6} and ${worst6.reachedMonth6} cohorts.`,
-    `Early on the newest intakes are not the weak ones: at month 3 the order is `
-      + `${eras.map(e => `${e.year} ${fmt.pct(e.month3, 1)}`).join(', ')}, with ${best3.year} highest. `
-      + `There is no level shift here to find.`,
+    (best3.year === newestEra.year
+      ? 'Early on the newest intakes are not the weak ones: at month 3 the order is '
+      : 'At month 3 the years read ')
+      + `${eras.map(e => `${e.year} ${fmt.pct(e.month3, 1)}`).join(', ')}, with ${best3.year} highest.`,
     `The ${newestEra.year} line rests on ${newestEra.reachedMonth6} cohorts at month 6, so its right hand end is thin and will move. `
       + `Chart 9 asks it again with each customer capped at what they arrived on, and there the years do separate.`,
     // Why this chart reads higher than the churn rate suggests it should.
@@ -6284,8 +6971,8 @@ function renderAnnotations() {
     // chart should answer the one it is not otherwise asked.
     depthNote,
   ], [
-    'Indexed to <strong>month 1</strong> here, unlike charts 4 and 6, because this counts logos rather than revenue and there is no setup fee to distort the first month.',
-    'A point is dropped once fewer than three cohorts in that year have reached that age, so the newest line is never drawn by its oldest member alone.',
+    'Indexed to the signup month, <strong>month 0</strong>, as chart 6 is, because this counts logos rather than revenue and there is no setup fee to distort the first month. Chart 4 indexes to month 1.',
+    'A point is dropped once fewer than twenty customers in that year have reached that age. That is the only rule, so the far end of the newest line can rest on one or two cohorts, and the finding above says how many.',
   ]);
 
   // The booked flows do not add up to what the base did, and saying so is the
@@ -6339,7 +7026,7 @@ function renderAnnotations() {
   ]);
 
   // 11 and 12, the year on year pair.
-  const seas = seasonalSurvival(data, { horizon: Number($('horizon').value) || 4 });
+  const seas = seasonalSurvival(data, { horizon: Number($('horizon').value) || 4, cohorts });
   if (seas.series.length) {
     const now = seas.series[seas.series.length - 1];
     const yr = seas.series.find(s => s.monthsBack === 12);
@@ -6365,7 +7052,7 @@ function renderAnnotations() {
     ]);
   }
 
-  // 14, projected break-even.
+  // 17, projected break-even.
   const proj = projectedBreakEven(data, cohorts, state);
   if (proj.length) {
     const done = proj.filter(x => !x.projected);
@@ -6375,10 +7062,10 @@ function renderAnnotations() {
     annotate('breakeven-table', [
       `<strong>${done.length} of ${proj.length} cohorts have already covered their cost</strong>, and those rows are fact rather than forecast.`,
       atRisk.length && `${atRisk.length} carry at least a one in four chance of never covering it. ${atRisk[0].month} is the worst at ${fmt.pct(atRisk[0].neverRate)}.`,
-      widest.month && `Uncertainty widens sharply for young cohorts: ${widest.month} spans ${widest.low} to ${widest.high} months.`,
+      widest.month && `The widest range is ${widest.month}, ${widest.low} to ${widest.high} months.`,
     ], [
-      'The range comes from resampling <strong>whole donor cohorts</strong> from 2023 onward, not from resampling the average. It answers how far one cohort can sit from the average, which is the wider and more useful question.',
-      'No price rises or expansion revenue are modelled, and projection stops at ten years. "Not within 10 years" means the model gave up, not that the cohort is dead.',
+      `The range comes from resampling <strong>whole donor cohorts</strong>, ${donorSpan()}, not from resampling the average. It answers how far one cohort can sit from the average, which is the wider and more useful question.`,
+      'No price rises are modelled beyond what the donors themselves saw: the path is their netted MRR, so expansion among their survivors is carried in it and nothing else is. Projection stops at ten years. "Not within 10 years" means the model gave up, not that the cohort is dead.',
     ]);
   }
 
@@ -6404,7 +7091,7 @@ function renderAnnotations() {
     ]);
   }
 
-  // 19, 20, 21.
+  // 20 and 21.
   const cap = capacityAnalysis(data);
   const rc2 = cap.correlations;
   const sign2 = v => (v >= 0 ? '+' : '') + v.toFixed(2);
@@ -6496,8 +7183,7 @@ function renderSignups() {
   const first = ms[0];
   const last = ms[ms.length - 1];
 
-  // 13. Volume, price and the product of the two, indexed so three quantities
-  // in different units can share one axis.
+  // 13. Volume against price.
   // Two real scales rather than both indexed to 100. Indexing answered "how
   // far has each moved", which hid the thing being asked: what a customer
   // costs now against how many are arriving, in the units those are actually
@@ -6510,12 +7196,18 @@ function renderSignups() {
   // window could not show that.
   const ph = signupPriceHistory(data);
   const phLabels = ph.map(r => fmt.monthLabel(r.month));
+  // Volume is the page's one count of a logo, customers dated by their first
+  // revenue. The count of new events with a price was a third definition, up
+  // to nine short of it in a month. The boundary month is blank: its count is
+  // only the customers with a Stripe start date in it.
+  const started = logosStarted(data, cohorts);
+  const volume = ph.map(r => started.get(r.month) ?? null);
   dualAxisChart($('chart-price-volume'), {
     labels: phLabels,
     left: {
       label: 'New logos',
       colour: INK.negative,
-      values: ph.map(r => r.count),
+      values: volume,
       format: v => Math.round(v),
     },
     right: {
@@ -6528,9 +7220,11 @@ function renderSignups() {
       shadow: { values: ph.map(r => r.mean), label: 'As booked in new_mrr' },
     },
     describe: i => '<strong>' + fmt.monthLabel(ph[i].month) + '</strong>'
-      + '<span>' + fmt.int(ph[i].count) + ' new logos</span>'
-      + '<span>Average ' + fmt.money(ph[i].mean) + ', median ' + fmt.money(ph[i].median) + '</span>'
-      + '<span class="muted">' + fmt.money(ph[i].booked) + ' of new MRR booked</span>',
+      + '<span>' + (volume[i] === null ? 'No count at the window boundary' : fmt.int(volume[i]) + ' new logos') + '</span>'
+      + '<span>Paying ' + fmt.money(ph[i].recurringMean) + ' a month from their second month, on '
+      + fmt.int(ph[i].recurringN) + ' still paying</span>'
+      + '<span class="muted">Booked at an average ' + fmt.money(ph[i].mean) + ', median '
+      + fmt.money(ph[i].median) + '</span>',
   });
 
   const withRec = ph.filter(r => r.recurringMean !== null);
@@ -6565,8 +7259,15 @@ function renderSignups() {
     + 'mid-2025 the first month’s charge was booked as MRR and taken off again the next '
     + 'month as a contraction, worth ' + fmt.money(avg(premiumEarly)) + ' a customer on average, '
     + 'against ' + (Math.abs(avg(premiumLate)) < 25 ? 'nothing'
-        : fmt.money(Math.abs(avg(premiumLate)))) + ' once the practice stopped. Volume went from '
-    + fmt.int(ph[0].count) + ' to ' + fmt.int(ph[ph.length - 1].count) + ' over the same window.';
+        : fmt.money(Math.abs(avg(premiumLate)))) + ' once the practice stopped. '
+    + (() => {
+        const counted = ph.map((r, i) => ({ month: r.month, n: volume[i] })).filter(x => x.n !== null);
+        return counted.length > 1
+          ? 'Volume went from ' + fmt.int(counted[0].n) + ' in ' + fmt.monthLabel(counted[0].month)
+            + ' to ' + fmt.int(counted[counted.length - 1].n) + ' in '
+            + fmt.monthLabel(counted[counted.length - 1].month) + ' over the same window.'
+          : '';
+      })();
 
   $('price-volume-note').innerHTML =
     '<strong>The point where these lines cross means nothing.</strong> Two scales can be slid '
@@ -6574,13 +7275,18 @@ function renderSignups() {
     + 'fact about the business, and it is not a price to aim at. The chart below asks that '
     + 'question properly, by grouping customers by what they paid and following each group '
     + 'forward. Read the shapes here, not the intersection. '
-    + 'Price is new_mrr, the subscription booked when a customer joins, which is the only '
-    + 'price measure that exists for all ' + ph.length + ' months. The richer starting_mrr, '
-    + 'what a customer was actually sold, is only populated from 2026-01 and is what charts 15 '
-    + 'and 16 use. The two differ because new_mrr excludes fees and waived amounts, so the '
-    + 'level here is low and the shape is the part to read.';
+    + 'The price line is what each new customer paid in their second month, averaged over the '
+    + 'ones still paying then, because the booked new_mrr carried the joining charge until '
+    + 'mid-2025. A customer present in their second month at $0, a free month, is left out of the '
+    + 'average rather than counted at zero, which lifts the 2026 months where free starts are '
+    + 'commonest. The booked new_mrr is drawn faintly behind it and is in the tooltip. The '
+    + 'richer starting_mrr, what a customer was actually sold, is only populated from 2026-01 '
+    + 'and is what chart 16 uses. New logos are the customers whose first revenue fell in the '
+    + 'month, the count the cohort charts use; the first month of the window has no count, '
+    + 'because only customers with a Stripe start date can be dated to it.';
 
-  // 14. Attach rate and fee are two different movements.
+  // Attach rate and fee are two different movements. No chart on the page
+  // draws this any more; the guards below keep it inert until one does.
   if ($('chart-onboarding')) multiLineChart($('chart-onboarding'), {
     yTitle: 'Share of new customers charged a setup fee',
     labels,
@@ -6620,8 +7326,11 @@ function renderSignups() {
         + `${fmt.int(m.billedNew)} (${fmt.pct(m.coverage, 0)})`).join(', ')
       + '. Those months are drawn from that share rather than from everyone who started, so '
       + 'read them as provisional. It also means the count here is not a demand measure: the '
-      + 'billed count of new customers has held near its two year average while this tab has '
-      + 'thinned.'
+      + 'tab has thinned faster than the billed count of new customers, which itself ran '
+      + fmt.int(thin.reduce((s, m) => s + m.billedNew, 0) / thin.length) + ' a month over those '
+      + 'months against ' + fmt.int(sx.billedWindowMean) + ' across the window. Coverage can read '
+      + 'above 100%, because some signups carry no new event in the billing file and some carry '
+      + 'it in a different month.'
     : '';
 
   if ($('onboarding-note')) $('onboarding-note').textContent =
@@ -6630,7 +7339,7 @@ function renderSignups() {
     + 'charged would '
     + 'blend the two movements back together.' + coverageNote;
 
-  // 15. How much of a month is not a standard start.
+  // 16. How much of a month is not a standard start.
   const types = sx.typeTotals.map(x => x.type);
   const palette = [INK.tertiary, INK.primary, INK.secondary, INK.negative, INK.positive];
   multiLineChart($('chart-start-type'), {
@@ -6654,8 +7363,9 @@ function renderSignups() {
     '<strong>Not every month starts the same way, and three of these break a different '
     + 'number.</strong> '
     + (shifted ? shifted.customers + ' customers are shifted forward, '
-        + fmt.money(shifted.startingMrr) + ', which is the left censoring problem already '
-        + 'classified by hand rather than inferred. ' : '')
+        + fmt.money(shifted.startingMrr) + ': the workbook has moved their start date, so the '
+        + 'month they are filed under is not the month they began, and the cohort charts leave '
+        + 'them out rather than date them to it. ' : '')
     + (waived ? waived.customers + ' were waived, ' + fmt.money(waived.startingMrr)
         + ', counting as MRR while contributing no cash. ' : '')
     + (annual ? annual.customers + ' are annual, ' + fmt.money(annual.startingMrr)
@@ -6667,7 +7377,6 @@ function renderSignups() {
     + 'gap between what is billed and what arrives.' + coverageNote;
 }
 
-// 25. Arrivals against forward churn, at whatever horizon is chosen.
 // 23. The same scatter at every horizon, stepped rather than animated.
 //
 // This replaced a GIF. The point of the sequence is that the cloud lifts as
@@ -6731,14 +7440,22 @@ function renderHorizons() {
     + (clears.length === 0
       ? `None of them clears zero, so however long churn is given to happen, months with fewer `
         + `arrivals do not churn more.`
-      : `${clears.length} of ${withPoints.length} clears zero, at `
-        + `${clears.map(a => `${a.hz} month${a.hz === 1 ? '' : 's'}`).join(' and ')}, and it `
-        + `points the wrong way for the theory: the sign there says months with more arrivals `
-        + `churn more, not fewer. Six horizons are tested, so one marginal result is about what `
-        + `chance produces, and the correlation changes sign across the range rather than `
-        + `holding a direction, which is the signature of noise rather than an effect. The `
-        + `reading stays that no relationship has been measured, but it is one marginal result `
-        + `short of clean.`);
+      : `${clears.length} of ${withPoints.length} clear${clears.length === 1 ? 's' : ''} zero, at `
+        + `${clears.map(a => `${a.hz} month${a.hz === 1 ? '' : 's'}`).join(' and ')}, and `
+        // Read off the sign that actually cleared, not assumed: a negative r
+        // here would be the theory holding, and the text has to say so.
+        + (clears.every(a => a.r > 0)
+          ? `it points the wrong way for the theory: the sign there says months with more `
+            + `arrivals churn more, not fewer. `
+          : clears.every(a => a.r < 0)
+            ? `it points the way the theory says: months with fewer arrivals churn more there. `
+            : `the horizons that clear disagree on the sign. `)
+        + `Six horizons are tested, so one marginal result is about what chance produces`
+        + (withPoints.some(a => a.r < 0) && withPoints.some(a => a.r > 0)
+          ? `, and the correlation changes sign across the range rather than holding a direction`
+          : '')
+        + `. The reading stays that no relationship has been measured, but it is one marginal `
+        + `result short of clean.`);
 
   $('horizons-note').textContent =
     `Both axes are fixed across all six settings, computed once from every point at every `
@@ -6746,8 +7463,10 @@ function renderHorizons() {
     + `cloud in the same place every time and hide the one thing the sequence shows, which is `
     + `that churn accumulates roughly equally across the whole range of intake volumes. `
     + `Each point is one starting month: how many customers arrived, against the share of the `
-    + `base that had gone by the end of the window. A month is only drawn once its full `
-    + `window has elapsed, which is why the longer horizons have fewer points.`;
+    + `base that had gone by the end of the window. The same ${here.points.length} starting `
+    + `months are drawn at every horizon: they are the months a six-month window has fully `
+    + `elapsed for, so the longest setting decides the set and a shorter one does not reach `
+    + `further forward.`;
 }
 
 // niceCeil lives in charts.js and is not exported, so the pinned bounds need
@@ -6761,6 +7480,7 @@ function niceCeilLocal(value) {
   return step * magnitude;
 }
 
+// 22. Arrivals against forward churn, at whatever horizon is chosen.
 function renderArrivals() {
   const horizon = Number($('arrival-horizon').value);
   $('arrival-horizon-value').textContent = horizon + (horizon === 1 ? ' month' : ' months');
@@ -6796,7 +7516,8 @@ function renderArrivals() {
   $('arrival-estimate').innerHTML =
     '<strong>' + (a.significant
         ? 'At ' + horizon + ' month' + (horizon === 1 ? '' : 's') + ' there is a measurable effect: '
-          + 'ten fewer arrivals goes with ' + a.slope.toFixed(2) + ' points more churn.'
+          + 'ten fewer arrivals goes with ' + Math.abs(a.slope).toFixed(2) + ' points '
+          + (a.slope >= 0 ? 'more' : 'less') + ' churn.'
         : 'At ' + horizon + ' month' + (horizon === 1 ? '' : 's') + ' this is indistinguishable from nothing.')
     + '</strong> '
     + 'Estimate ' + (a.slope >= 0 ? '+' : '') + a.slope.toFixed(2) + ' points per ten fewer '
@@ -6808,10 +7529,13 @@ function renderArrivals() {
     + ' Across every horizon the correlation runs '
     + across.map(x => x.hz + 'mo ' + sign(x.r)).join(', ')
     + (detectable.length
-        ? '. Only the ' + detectable.map(h2 => h2 + ' month').join(' and ') + ' window clears zero, '
-          + 'which is the shape of something immediate rather than something lasting: a thin '
-          + 'month and a bad month tend to be the same month, and the association does not '
-          + 'survive being asked over a longer window.'
+        ? '. Only the ' + detectable.map(h2 => h2 + ' month').join(' and ') + ' window'
+          + (detectable.length === 1 ? ' clears' : 's clear') + ' zero'
+          + (Math.max(...detectable) <= 2
+            ? ', which is the shape of something immediate rather than something lasting: a thin '
+              + 'month and a bad month tend to be the same month, and the association does not '
+              + 'survive being asked over a longer window.'
+            : ', so whatever is there takes months to show rather than arriving at once.')
         : '. None of them clears zero.');
 
   $('newchurn-note').textContent =
