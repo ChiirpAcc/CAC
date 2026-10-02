@@ -1103,6 +1103,8 @@ export function projectionBasis(cohorts) {
     donorToSix: toSix(donors),
     recentToSix: toSix(rest),
     recentCohorts: rest.length,
+    firstDonor: donors.length ? donors[0].month : null,
+    lastDonor: donors.length ? donors[donors.length - 1].month : null,
   };
 }
 
@@ -1149,7 +1151,7 @@ export function ltvAtAge(data, cohorts, { age = 6, margin = LEGACY_PLATFORM_MARG
         observedGp += monthly ? monthly[k] : cohort.revenue[k] * margin;
       } else {
         const step = path.has(k) ? path.get(k) : terminal;
-        carried = (carried === null ? cohort.revenue[cohort.maxOffset] : carried) * step;
+        carried = (carried === null ? projectedRevenue(cohort)[cohort.maxOffset] : carried) * step;
         projectedGp += carried * effective;
       }
     }
@@ -1170,7 +1172,9 @@ export function ltvAtAge(data, cohorts, { age = 6, margin = LEGACY_PLATFORM_MARG
       // logo count would put a made-up number in the tooltip beside two
       // real ones.
       survival: cohort.survivors[0] ? cohort.survivors[lastSeen] / cohort.survivors[0] : null,
-      survivalAt: lastSeen + 1,
+      // The offset, which charts 4, 6 and 8 label month N. Chart 1's age 6 is
+      // offsets 0 to 5, so its last observed survival is at month 5.
+      survivalAt: lastSeen,
     };
   });
 }
@@ -1792,7 +1796,7 @@ export function fullCostRecovery(data, cohorts, { age = 6, groups = null,
   // cohort that arrived last month will live in this year's conditions and not
   // in 2024's. Chart 1 and the projected break-even chart still use the flat
   // pool, so this one reads slightly harder on recent cohorts than they do.
-  const { path, terminal } = donorTrajectory(cohorts, { halfLife });
+  const { path, terminal } = donorTrajectory(cohorts, { halfLife, recurring: false });
   const logoPath = donorLogoPath(cohorts, { halfLife });
 
   const ongoingOn = COST_GROUPS.filter(g => !g.once && on.has(g.key)).map(g => g.key);
@@ -5803,10 +5807,19 @@ function seededRandom(seed) {
   };
 }
 
+// The revenue a projection walks along: recurring, with the old joining
+// charge taken out of month 0. A donor from the fee era otherwise lends a
+// young fee-free cohort a month-1 step of about a half, which is the charge
+// coming off rather than anybody leaving, and that one step put the newest
+// cohort's payback at 14 months with a 6 to 22 range where its own month 0
+// and the post-fee donors say about 7.
+const projectedRevenue = cohort => cohort.recurringRevenue || cohort.revenue;
+
 function ratioPath(cohort) {
   const path = new Map();
-  for (let k = 1; k < cohort.revenue.length; k += 1) {
-    if (cohort.revenue[k - 1] > 0) path.set(k, cohort.revenue[k] / cohort.revenue[k - 1]);
+  const revenue = projectedRevenue(cohort);
+  for (let k = 1; k < revenue.length; k += 1) {
+    if (revenue[k - 1] > 0) path.set(k, revenue[k] / revenue[k - 1]);
   }
   return path;
 }
@@ -5838,7 +5851,12 @@ function terminalRate(path, depth = 6, counts = null, minDonors = 1) {
 // the same young cohort is worth, which is the defect that produced three
 // cost-per-logo figures: one number, two implementations, and the quiet one
 // stays wrong.
-export function donorTrajectory(cohorts, { halfLife = null } = {}) {
+//
+// The path is built on recurring revenue (see projectedRevenue) unless the
+// caller asks for the booked figure. Chart 33 still does, because it carries
+// every revenue stream forward from a cohort's last month and has its own
+// switch for the joining charge.
+export function donorTrajectory(cohorts, { halfLife = null, recurring = true } = {}) {
   // Donors need enough history to be worth pooling, but requiring a full year
   // of it excluded every recent cohort by construction: nothing from 2026 can
   // be twelve months old, so the path projecting 2026 cohorts was built
@@ -5853,10 +5871,11 @@ export function donorTrajectory(cohorts, { halfLife = null } = {}) {
   const counts = new Map();
   for (const cohort of donors) {
     const w = weigh(cohort);
-    for (let k = 1; k < cohort.revenue.length; k += 1) {
-      if (cohort.revenue[k - 1] <= 0) continue;
-      numerator.set(k, (numerator.get(k) || 0) + w * cohort.revenue[k]);
-      denominator.set(k, (denominator.get(k) || 0) + w * cohort.revenue[k - 1]);
+    const revenue = recurring ? projectedRevenue(cohort) : cohort.revenue;
+    for (let k = 1; k < revenue.length; k += 1) {
+      if (revenue[k - 1] <= 0) continue;
+      numerator.set(k, (numerator.get(k) || 0) + w * revenue[k]);
+      denominator.set(k, (denominator.get(k) || 0) + w * revenue[k - 1]);
       counts.set(k, (counts.get(k) || 0) + w);
     }
   }
@@ -5911,7 +5930,7 @@ export function projectedBreakEven(data, cohorts, options) {
         gp = cohort.profit ? cohort.profit[k] : cohort.revenue[k] * margin;
       } else {
         const step = path.has(k) ? path.get(k) : terminal;
-        projected = (projected === null ? cohort.revenue[cohort.maxOffset] : projected) * step;
+        projected = (projected === null ? projectedRevenue(cohort)[cohort.maxOffset] : projected) * step;
         gp = projected * effective;
       }
       cumulative += gp / cohort.size;

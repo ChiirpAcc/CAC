@@ -96,19 +96,64 @@ function projectionNote(b) {
         ? `. Monthly survival across those donors is ${fmt.pct(b.donorSurvival, 1)}, so ${how} `
           + `customers leaving rather than survivors paying less: revenue per surviving customer `
           + `is roughly flat once the first month is past.`
-        : '.');
+        : '.')
+    + ' The path is walked on recurring revenue, with the old joining charge taken out of '
+    + 'each donor\'s month 0, so a cohort that never paid the charge is not handed the month-1 '
+    + 'drop of one that did.';
 }
+
+// The margin chart 3 actually applies to the cohorts it draws, read from the
+// same monthly figure buildCohorts uses rather than the flat assumption.
+function recoveryMarginSentence(drawn) {
+  if (!MARGIN || !MARGIN.measured) {
+    return `Platform revenue is carried at the flat ${fmt.pct(SETTLED.margin, 1)} margin because `
+      + 'no cost ledger was pushed to measure it from.';
+  }
+  const months = new Set();
+  for (const c of drawn) {
+    for (let k = 0; k <= c.maxOffset; k += 1) months.add(monthAdd(c.month, k));
+  }
+  const values = [...months].map(m => MARGIN.byMonth.get(m)).filter(v => v !== undefined);
+  if (!values.length) return null;
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  return `Platform revenue carries the margin measured in the month it was earned, `
+    + `${fmt.pct(lo, 0)} to ${fmt.pct(hi, 0)} over the months these cohorts have lived, not a `
+    + `flat figure. Usage is carried at ${fmt.pct(CLASS_MARGINS.usage, 0)}, one-time at `
+    + `${fmt.pct(CLASS_MARGINS.oneTime, 0)}, and pass-through and recognised-elsewhere at zero.`;
+}
+
+// The donors behind every projection, read from the data rather than typed.
+function donorSpan() {
+  const b = projectionBasis(cohorts);
+  return b && b.firstDonor
+    ? `the ${b.donors} cohorts from ${fmt.monthLabel(b.firstDonor)} to ${fmt.monthLabel(b.lastDonor)}`
+    : 'every cohort with six months behind it';
+}
+
+// The decision on the joining charge, said once and used by every chart that
+// reads gross profit as it was booked.
+const JOINING_CHARGE_NOTE = 'The old joining charge was real cash, so it stays in gross profit '
+  + 'here: a 2024 cohort\'s first month carries it and a 2026 cohort\'s does not, which is part '
+  + 'of why the earlier cohorts recover sooner.';
 
 // The failure this projection could have, tested rather than asserted.
 function projectionCheck(b) {
   if (!b || b.recentSurvival === null || b.donorSurvival === null) return null;
   const gap = Math.abs(b.donorToSix - b.recentToSix) * 100;
   return `Those donors are the older cohorts by construction, so if the newer ones churned `
-    + `faster the projection would flatter them. They do not: monthly survival runs `
+    + `faster the projection would flatter them. `
+    + (b.recentSurvival < b.donorSurvival && gap >= 2 ? 'On this push they do: ' : 'On this push they do not: ')
+    + `monthly survival runs `
     + `${fmt.pct(b.donorSurvival, 1)} for the donors against ${fmt.pct(b.recentSurvival, 1)} `
-    + `for the ${b.recentCohorts} newer cohorts, and survival to month six `
+    + `for ${b.recentCohorts === 1 ? 'the one newer cohort' : `the ${b.recentCohorts} newer cohorts`} `
+    + `with six months behind them, and survival to month six `
     + `${fmt.pct(b.donorToSix, 1)} against ${fmt.pct(b.recentToSix, 1)}, `
     + `${gap < 2 ? 'which is the same within noise' : `a gap of ${gap.toFixed(1)} points`}. `
+    + (b.recentCohorts < 3
+        ? `That comparison rests on ${b.recentCohorts === 1 ? 'one cohort' : `${b.recentCohorts} cohorts`}, `
+          + 'so it can rule out a large difference and not a small one. '
+        : '')
     + `What it does not assume is that churn worsens: it carries today's rate forward `
     + `unchanged, so a bar far past its last observed month is an extrapolation, not a forecast.`;
 }
@@ -147,6 +192,21 @@ function wireCostToggles() {
 const ticked = id => new Set(
   [...$(id).querySelectorAll('input:checked')].map(i => i.value));
 
+
+// How fast cost per logo has moved against what a logo returns, between the
+// halves of chart 1 at the slider's age. Kept here so the finding and the
+// "what it means" paragraph read the same two numbers: the paragraph used to
+// say "about four times as fast" while the finding beside it said 3.3.
+let ltvPace = null;
+const risenBy = v => (v >= 0 ? `risen ${fmt.pct(v, 0)}` : `fallen ${fmt.pct(-v, 0)}`);
+function ltvPaceSentence(p) {
+  if (!p) return '';
+  if (p.cost <= 0) return 'What one costs has not risen between the halves.';
+  if (p.worth <= 0) return 'What a customer returns has not risen at all. What one costs has.';
+  if (p.cost <= p.worth) return 'What a customer returns has kept pace with what one costs.';
+  return `What one costs has risen ${(p.cost / p.worth).toFixed(1)} times as fast as what a `
+    + 'customer returns.';
+}
 
 // 1. LTV:CAC at a chosen age, redrawn whenever the age changes.
 //
@@ -208,8 +268,8 @@ function renderLtvAtAge() {
       return head + split + `
         <span>Cost per logo ${fmt.money(r.costPerLogo)}</span>
         <span>Gross profit per logo ${fmt.money(r.gpPerLogo)}</span>
-        <span class="muted">${fmt.int(r.size)} logos, ${fmt.pct(r.survival, 0)} still there at `
-        + `month ${r.survivalAt}</span>`;
+        <span class="muted">${fmt.int(r.size)} logos, ${fmt.pct(r.survival, 0)} still there `
+        + `${r.survivalAt} month${r.survivalAt === 1 ? '' : 's'} after the first</span>`;
     },
   });
 
@@ -225,6 +285,11 @@ function renderLtvAtAge() {
   const move = (a, b) => {
     const pct = (b / a - 1) * 100;
     return `${Math.abs(pct).toFixed(0)}% ${pct >= 0 ? 'higher' : 'lower'}`;
+  };
+  ltvPace = {
+    age,
+    cost: avg(late, 'costPerLogo') / avg(early, 'costPerLogo') - 1,
+    worth: avg(late, 'gpPerLogo') / avg(early, 'gpPerLogo') - 1,
   };
   $('ltv-finding').innerHTML =
     ''
@@ -244,7 +309,7 @@ function renderLtvAtAge() {
     + `while gross profit per logo is `
     + `${move(avg(early, 'gpPerLogo'), avg(late, 'gpPerLogo'))}, `
     + `${fmt.money(avg(early, 'gpPerLogo'))} against ${fmt.money(avg(late, 'gpPerLogo'))}. `
-    + `What a customer is worth has barely moved. What one costs has.`
+    + ltvPaceSentence(ltvPace)
     + (partial.length
         ? ` ${partial.length} of these columns are part projection, so the later half is `
           + `the half carrying most of that assumption.`
@@ -279,8 +344,8 @@ function renderLtvAtAge() {
           + `realised margin rather than the flat assumption. `
         : `Every cohort has actually reached month ${age}, so nothing here is projected. `)
     + 'Cost per logo is the month acquisition cost over the cohort count, the same denominator '
-    + 'on both halves of the ratio. A projection is worth least exactly where it is longest, '
-    + 'so read the newest columns as a question rather than an answer.';
+    + 'on both halves of the ratio. ' + JOINING_CHARGE_NOTE + ' A projection is worth least '
+    + 'exactly where it is longest, so read the newest columns as a question rather than an answer.';
 }
 
 
@@ -5090,15 +5155,16 @@ function renderAssumptionDependent() {
         ? `${paybackAtRisk} ${paybackAtRisk === 1 ? 'carries' : 'carry'} better than a one in `
           + `four chance of never recovering. `
         : '')
-    + `The run starts at ${economics[0].month} because acquisition cost is not recorded `
-    + `before then.`;
+    + JOINING_CHARGE_NOTE + ' '
+    + `The run starts at ${economics[0].month}, the first month the QuickBooks ledger carries, `
+    + `because acquisition cost is not recorded before then.`;
 
   // 3. Cumulative gross profit against cost, by cohort age.
   const mature = economics.filter(c => c.recovery.length >= 6).slice(-6);
   const span = Math.max(...mature.map(c => c.recovery.length), 0);
   multiLineChart($('chart-recovery'), {
     yTitle: 'Cumulative gross profit as a share of CAC',
-    labels: Array.from({ length: span }, (_, i) => `M${i + 1}`),
+    labels: Array.from({ length: span }, (_, i) => `M${i}`),
     series: mature.map((c, i) => ({
       label: c.month,
       colour: `var(--ramp-${i + 1})`,
@@ -5107,14 +5173,18 @@ function renderAssumptionDependent() {
     yFormat: v => fmt.pct(v),
     xTitle: 'Months since first revenue',
     refs: [{ value: 1, label: 'break-even', variant: 'ref-goal' }],
-    describe: i => `<strong>Month ${i + 1}</strong>` + mature.map(c =>
+    describe: i => `<strong>Month ${i}</strong>` + mature.map(c =>
       `<span>${c.month} ${fmt.pct(c.recovery[i] ?? null, 0)}</span>`).join(''),
   });
   $('recovery-note').textContent =
-    'The six most recent cohorts with at least six months of history. Where a line crosses 100% is the month that cohort paid back. This is the one chart here that survives the split being wrong: the shape of a curve bends the same way whatever the cost baseline is.';
+    'The six most recent cohorts with at least six months of history, month 0 being the first '
+    + 'month of revenue as in charts 4 and 8. Where a line crosses 100% is the month that cohort '
+    + 'paid back. The shape of a curve survives the split or the margin being wrong, because it '
+    + 'bends the same way whatever the cost baseline is; where it crosses 100% does not, since '
+    + 'that depends on both levels. ' + JOINING_CHARGE_NOTE;
 
 
-  // 16. Break-even by cohort, actual where it happened and projected where it
+  // 17. Break-even by cohort, actual where it happened and projected where it
   // has not. Recomputed with the sliders because the cost per logo moves.
   const projection = projectedBreakEven(data, cohorts, state);
   const rows = projection.map(p => {
@@ -5161,10 +5231,11 @@ function renderAssumptionDependent() {
     done + ' of ' + projection.length + ' cohorts have already covered their cost, and those '
     + 'rows report the month it happened rather than a forecast. The rest are projected from '
     + 'their last observed month along a revenue retention path. The range comes from '
-    + 'resampling whole donor cohorts from 2023 onward, so it answers how far this cohort '
+    + 'resampling whole donor cohorts, ' + donorSpan() + ', so it answers how far this cohort '
     + 'could sit from the average rather than how well the average is known, which is the '
     + 'wider and more useful question. ' + atRisk + ' cohorts carry at least a one in four '
     + 'chance of never covering their cost. Projection stops at ten years. '
+    + JOINING_CHARGE_NOTE + ' '
     + 'This table and chart 33 both report a break-even month and they will not agree. '
     + 'This one charges acquisition only, and counts subscription gross profit against it. '
     + 'Chart 33 charges every ongoing cost as well, which is harsher, but it also counts '
@@ -5889,10 +5960,12 @@ const MEANS = {
     + 'The annual customers are worth watching separately: two of them carry enough to make '
     + 'the months holding them read high.',
 
-  'chart-ltv-cac':
-    'Read the two averages under the chart together and the diagnosis is in them. Cut at the '
-    + 'same age, what a customer returns has risen a little between the earlier cohorts and the '
-    + 'later ones. What one costs has risen about four times as fast. That is the whole of the deterioration '
+  'chart-ltv-cac': () =>
+    'Read the two averages under the chart together and the diagnosis is in them. Cut at '
+    + `month ${ltvPace ? ltvPace.age : 6}, what a customer returns has `
+    + `${ltvPace ? risenBy(ltvPace.worth) : 'moved a little'} between the earlier cohorts and the `
+    + `later ones and what one costs has ${ltvPace ? risenBy(ltvPace.cost) : 'moved more'}. `
+    + 'That is the whole of the deterioration '
     + 'here, and it points at acquisition rather than at retention or pricing: the same '
     + 'retention curve clears the bar at the older cohorts’ cost per logo and does not at '
     + 'the newer ones’. Move the slider and the gap holds at every age both halves reach, '
@@ -6039,7 +6112,9 @@ function renderAnnotations() {
   const above3 = withLtv.filter(c => c.ltvCac >= 3).length;
   const belowOne = withLtv.filter(c => c.ltvCac < 1).length;
   const best = withLtv.reduce((a, b) => (b.ltvCac > a.ltvCac ? b : a));
-  const recovered = shown.filter(c => c.payback !== null);
+  // Chart 2 draws every cohort with a cost, young ones muted, so its card
+  // counts the same population its note does.
+  const recovered = ec.filter(c => c.payback !== null);
   const withinGoal = recovered.filter(c => c.payback <= 12).length;
 
   // Chart 1's annotation is written where the chart is drawn, because both
@@ -6047,15 +6122,15 @@ function renderAnnotations() {
   // measure the chart no longer uses.
 
   annotate('chart-payback', [
-    `<strong>${recovered.length} of ${shown.length} cohorts have covered their cost</strong>, `
+    `<strong>${recovered.length} of ${ec.length} cohorts have covered their cost</strong>, `
       + (withinGoal === recovered.length
         ? 'and every one of them did it inside the twelve month goal. Nothing has recovered late; cohorts either clear the bar or are still running.'
         : `and ${withinGoal} of those did it inside the twelve month goal.`),
-    `${shown.length - recovered.length} of those shown have not recovered and are drawn as projections in a separate colour, not as zeroes or gaps. A zero would read as instant payback, the opposite of what it means.`,
+    `${ec.length - recovered.length} of those shown have not recovered and are drawn as projections in a separate colour, not as zeroes or gaps. A zero would read as instant payback, the opposite of what it means.`,
     paybackByEra(recovered),
   ], [
-    `A bar is either what happened or a projection of what will, never a blank: ${recovered.length} of these are the month a cohort actually crossed its cost and ${shown.length - recovered.length} are projected. A gap would read as "never", and what it means is "not yet".`,
-    `The projection is the same one chart 1 draws hatched, so the two cannot disagree: the pooled month-on-month revenue path of the cohorts with a year of history, which is mostly churn because revenue per surviving customer is roughly flat after the first month. Measured at the month this chart predicts, chart 1 reads 1.0x for the same cohort. The difference between them is the question, not the model: this one asks when a cohort crosses its cost, that one asks where it stands at a fixed age.`,
+    `A bar is either what happened or a projection of what will, never a blank: ${recovered.length} of these are the month a cohort actually crossed its cost and ${ec.length - recovered.length} are projected. A gap would read as "never", and what it means is "not yet".`,
+    `The projection is the same one chart 1 draws hatched, so the two cannot disagree: the pooled month-on-month recurring revenue path of ${donorSpan()}, every cohort with at least seven months observed, which is mostly churn because revenue per surviving customer is roughly flat after the first month. Measured at the month this chart predicts, chart 1 reads 1.0x for the same cohort. The difference between them is the question, not the model: this one asks when a cohort crosses its cost, that one asks where it stands at a fixed age.`,
     `The range around each projection comes from resampling whole donor cohorts rather than resampling the average, so it answers how far one cohort could sit from the typical path rather than how well the typical path is known.`,
     `The run starts at ${data.historyStarts} because that is the first month the QuickBooks ledger carries, so an older cohort would have revenue and no acquisition cost to set against it. That is an absence of data rather than a verdict on earlier cohorts. The first bar holds only the customers with a Stripe start date in that month: everyone else present then may have started earlier and is left out rather than dated to the boundary.`,
   ]);
@@ -6064,10 +6139,10 @@ function renderAnnotations() {
   const crossed = mature.filter(c => c.payback !== null).length;
   annotate('chart-recovery', [
     `${crossed} of the ${mature.length} cohorts drawn have crossed the break-even line inside the window shown.`,
-    'The shape of each curve bends the same way whatever the cost baseline is, which makes this the one chart here that survives the split being wrong.',
+    'The shape of each curve bends the same way whatever the cost baseline is, so the shape survives the split or the margin being wrong. The month a line crosses 100% does not: it moves with both.',
     'Curves that flatten before 100% are cohorts whose revenue is decaying faster than it is accumulating profit.',
   ], [
-    'Margins are applied per revenue class where the push carries them, which it does from 2025-09. Platform 75.7%, usage 60%, one-time 90%, pass-through and recognised-elsewhere at zero. The classes sit alongside recognised MRR rather than dividing it. Cohorts that started before 2025-09 accrue their first months with no class data at all, so the earlier half of this window is effectively platform-only.',
+    recoveryMarginSentence(mature),
     'Only the six most recent cohorts with at least six months are drawn, so this is not the whole book.',
   ]);
 
@@ -6315,7 +6390,7 @@ function renderAnnotations() {
     ]);
   }
 
-  // 14, projected break-even.
+  // 17, projected break-even.
   const proj = projectedBreakEven(data, cohorts, state);
   if (proj.length) {
     const done = proj.filter(x => !x.projected);
@@ -6325,10 +6400,10 @@ function renderAnnotations() {
     annotate('breakeven-table', [
       `<strong>${done.length} of ${proj.length} cohorts have already covered their cost</strong>, and those rows are fact rather than forecast.`,
       atRisk.length && `${atRisk.length} carry at least a one in four chance of never covering it. ${atRisk[0].month} is the worst at ${fmt.pct(atRisk[0].neverRate)}.`,
-      widest.month && `Uncertainty widens sharply for young cohorts: ${widest.month} spans ${widest.low} to ${widest.high} months.`,
+      widest.month && `The widest range is ${widest.month}, ${widest.low} to ${widest.high} months.`,
     ], [
-      'The range comes from resampling <strong>whole donor cohorts</strong> from 2023 onward, not from resampling the average. It answers how far one cohort can sit from the average, which is the wider and more useful question.',
-      'No price rises or expansion revenue are modelled, and projection stops at ten years. "Not within 10 years" means the model gave up, not that the cohort is dead.',
+      `The range comes from resampling <strong>whole donor cohorts</strong>, ${donorSpan()}, not from resampling the average. It answers how far one cohort can sit from the average, which is the wider and more useful question.`,
+      'No price rises are modelled beyond what the donors themselves saw: the path is their netted MRR, so expansion among their survivors is carried in it and nothing else is. Projection stops at ten years. "Not within 10 years" means the model gave up, not that the cohort is dead.',
     ]);
   }
 
