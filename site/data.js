@@ -5780,7 +5780,7 @@ export function retentionByYear(cohorts, { maxMonths = 12, minAtRisk = 20 } = {}
       cohorts: group.length,
       cohortsInYear: group.length,
       reach: deepest,
-      reachedMonth6: reached(5).length,
+      reachedMonth6: reached(6).length,
       month3: points[3],
       month6: points[6],
       grossRevenue,
