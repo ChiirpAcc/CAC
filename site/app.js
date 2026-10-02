@@ -3682,11 +3682,15 @@ function renderEvents() {
   const t = e.totals;
   $('events-finding').innerHTML = tagged
     ? `<strong>${fmt.int(costed.length)} events cost ${money(t.spend)}; the ${fmt.int(t.customers)} `
-      + `customers tagged to them have paid ${money(t.collected)} and contributed `
+      + `tagged customers who started paying after their event have paid ${money(t.collected)} and contributed `
       + `${money(t.contribution)} after the cost of serving them.</strong> `
       + `${fmt.int(winners.length)} of the ${fmt.int(costed.length)} have paid for themselves so far. `
       + (best ? `${best.label} leads at ${signed(best.net)}. ` : '')
       + (worst && worst !== best ? `${worst.label} is furthest behind at ${signed(worst.net)}. ` : '')
+      + (t.alreadyPaying
+          ? `${fmt.int(t.alreadyPaying)} more customers carry an event tag but were already paying `
+            + `before that event, so they are shown beside it and kept out of its return. `
+          : '')
       + `An event from the last few months has had little time to earn anything back, so a red `
       + `bar for a recent event is a start rather than a verdict.`
     : `<strong>${fmt.int(costed.length)} events cost ${money(t.spend)} in this window.</strong> `
@@ -3704,7 +3708,8 @@ function renderEvents() {
       + `${!x.source && x.cost ? '<br><span class="muted">no customer tagged</span>' : ''}</td>`
       + `<td>${x.month ? fmt.monthLabel(x.month) : (x.year || '–')}</td>`
       + `<td class="n">${costCell}</td>`
-      + `<td class="n">${fmt.int(x.paid)}</td>`
+      + `<td class="n">${fmt.int(x.paid)}${x.alreadyPaying
+          ? `<br><span class="muted">+${fmt.int(x.alreadyPaying)} already paying</span>` : ''}</td>`
       + `<td class="n">${fmt.int(x.liveNow)}</td>`
       + `<td class="n">${money(x.mrrNow)}</td>`
       + `<td class="n">${money(x.collected)}</td>`
@@ -3721,7 +3726,10 @@ function renderEvents() {
   $('events-note').textContent =
     'Cost is the Event Costs tab with the sponsorship fee replaced by what QuickBooks booked '
     + 'wherever the two disagree or the tab has none; hover a cost to see what it is made of. '
-    + 'Travel is the tab\u2019s. A fee that paid for several events is split equally across '
+    + 'Travel is the tab\u2019s. A customer counts for an event only if their first payment '
+    + 'came in or after the event\u2019s month; one already paying before it carries the tag but '
+    + 'cannot have been brought by that event, and is shown as already paying instead. '
+    + 'A fee that paid for several events is split equally across '
     + 'them, and the table below adds the package up whole. Customers are those whose HubSpot '
     + 'lead source names the event, counted once each; a company with an account in both Stripe '
     + 'environments counts twice until the two are paired. Collected is net cash since the window '
@@ -3772,11 +3780,12 @@ function renderEvents() {
         return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
       };
       const head = ['event', 'month', 'hubspot_lead_source', 'sponsor', 'sponsor_basis', 'travel',
-        'cost', 'customers', 'live_now', 'mrr_now', 'collected', 'contribution', 'net_of_cost'];
+        'cost', 'customers', 'already_paying_before_event', 'live_now', 'mrr_now', 'collected',
+        'contribution', 'net_of_cost'];
       const lines = [head.join(',')].concat(e.events.map(x => [x.label, x.month, x.source,
         x.cost ? x.cost.sponsor : null, x.cost ? x.cost.sponsorBasis : null,
-        x.cost ? x.cost.travel : null, x.spend, x.paid, x.liveNow, x.mrrNow, x.collected,
-        x.contribution, x.net].map(cell).join(',')));
+        x.cost ? x.cost.travel : null, x.spend, x.paid, x.alreadyPaying, x.liveNow, x.mrrNow,
+        x.collected, x.contribution, x.net].map(cell).join(',')));
       const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');

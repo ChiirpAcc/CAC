@@ -3165,7 +3165,16 @@ export const EVENT_PACKAGES = [
 // Lead source values that do not match an Event Costs row by name. Filled
 // from the first push that carried lead_source; anything not listed and not
 // matched by name is reported as unmatched rather than guessed.
-export const EVENT_ALIASES = {};
+export const EVENT_ALIASES = {
+  '2025 - Home Service Freedom': 'HSF 2025',
+  '2025 - AOR HVAC Summit - WinSupply': 'WinSupply AOR Summit 2025',
+  '2025 - Garage Door Freedom Vertical Track': 'GDF Vertical Track 2025',
+  '2026 - Garage Door Freedom Vertical Track': 'GDF Vertical Track 2026',
+  '2025 - System Forward': 'System Forward Pro Boot Camp',
+  '2025 - Zoom Drain Expo': 'Zoom Drain Expo - Vortex',
+  '2026 - Certain Path Spring Expo': 'CertainPath Spring Expo 2026',
+  '2026 - EGIA Epic Tradeshow': 'EGIA Epic 2026',
+};
 
 const eventWords = text => String(text || '').toLowerCase()
   .replace(/\b20\d\d\b/g, ' ')
@@ -3239,7 +3248,26 @@ export function eventRoi(data) {
     b.rows.push(r);
   }
 
-  const summarise = (ids, rows) => {
+  // A tag says where HubSpot thinks a customer came from, not when. A
+  // customer already paying before the event cannot have been brought by it:
+  // 41 of the 109 tagged "2025 - Home Service Freedom" were paying before the
+  // September 2025 event, 13 since before this window opens. So an event is
+  // credited only with customers whose first revenue falls in or after its
+  // month. The rest are counted and shown, and kept out of the return.
+  const firstRevenueOf = new Map();
+  for (const r of data.customers) {
+    const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
+    if (rev > 0 && (!firstRevenueOf.has(r.id) || r.month < firstRevenueOf.get(r.id))) {
+      firstRevenueOf.set(r.id, r.month);
+    }
+  }
+  const summarise = (allIds, allRows, fromMonth) => {
+    const prior = new Set([...allIds].filter(id => fromMonth
+      && firstRevenueOf.has(id) && firstRevenueOf.get(id) < fromMonth));
+    const ids = new Set([...allIds].filter(id => !prior.has(id)));
+    const rows = allRows.filter(r => ids.has(r.id));
+    const priorMrrNow = allRows.filter(r => prior.has(r.id) && r.month === lastMonth && r.active)
+      .reduce((s, r) => s + (r.eopMrr || 0), 0);
     const firstRevenue = new Map();
     let collected = 0;
     let revenue = 0;
@@ -3265,6 +3293,9 @@ export function eventRoi(data) {
       if (contributionBy.has(id)) { contribution += contributionBy.get(id); measured = true; }
     }
     return {
+      tagged: allIds.size,
+      alreadyPaying: prior.size,
+      alreadyPayingMrrNow: priorMrrNow,
       customers: ids.size,
       paid: [...ids].filter(id => firstRevenue.has(id)).length,
       neverPaid: [...ids].filter(id => never.has(id)).length,
@@ -3272,7 +3303,8 @@ export function eventRoi(data) {
       mrrNow,
       collected,
       revenue,
-      contribution: measured ? contribution : null,
+      // Nobody counted means nothing returned, which is zero rather than unknown.
+      contribution: measured || !ids.size ? contribution : null,
       firstRevenueMonths: [...firstRevenue.values()].sort(),
     };
   };
@@ -3294,14 +3326,16 @@ export function eventRoi(data) {
       if (byName.length === 1 && !year) cost = byName[0];
     }
     if (cost) used.add(cost.event);
-    events.push({ source: b.source, year, cost, ...summarise(b.ids, b.rows) });
+    const fromMonth = cost ? cost.month : year ? `${year}-01` : null;
+    events.push({ source: b.source, year, cost, ...summarise(b.ids, b.rows, fromMonth) });
   }
   // Events that cost money and brought no tagged customer still belong on the
   // list: an event with a fee and nobody tagged is a result, and the most
   // expensive kind.
   for (const c of costRows) {
     if (used.has(c.event)) continue;
-    events.push({ source: null, year: c.year, cost: c, customers: 0, paid: 0, neverPaid: 0,
+    events.push({ source: null, year: c.year, cost: c, tagged: 0, alreadyPaying: 0,
+      alreadyPayingMrrNow: 0, customers: 0, paid: 0, neverPaid: 0,
       liveNow: 0, mrrNow: 0, collected: 0, revenue: 0, contribution: 0,
       firstRevenueMonths: [] });
   }
@@ -3360,6 +3394,7 @@ export function eventRoi(data) {
       collected: costed.reduce((s, e) => s + e.collected, 0),
       contribution: costed.reduce((s, e) => s + (e.contribution || 0), 0),
       customers: costed.reduce((s, e) => s + e.paid, 0),
+      alreadyPaying: events.reduce((s, e) => s + (e.alreadyPaying || 0), 0),
     },
   };
 }
