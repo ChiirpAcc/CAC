@@ -1114,7 +1114,7 @@ function renderEra() {
       })() + '.';
 }
 
-// The two views, and the four figures that appear in both.
+// The two views, and the two figures that appear in both.
 //
 // A chart can only live in one place in the document, so the story view does
 // not hold copies: it borrows the real figures and gives them back. Copying
@@ -5094,6 +5094,108 @@ function boot() {
   });
 }
 
+// The story view's figures, read from the same series as the two charts it
+// presents. They were typed, and within a few pushes the prose said 2026 lost
+// 9.6% before the second invoice while the chart under it said the median
+// intake lost nothing.
+function renderStory() {
+  const set = (id, html) => { if ($(id)) $(id).innerHTML = html; };
+  const pct = v => fmt.pct(v, 1);
+  const list = xs => (xs.length > 1 ? xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1] : xs[0] || '');
+
+  // Step 1: arrivals against churn, at every horizon chart 23 steps through.
+  const across = [1, 2, 3, 4, 5, 6].map(h => arrivalsAgainstChurn(data, { horizon: h }))
+    .filter(a => a.r !== null);
+  if (across.length) {
+    const clears = across.filter(a => a.significant);
+    const positive = across.filter(a => a.r > 0).length;
+    set('story-arrivals-sign', clears.length
+      ? `At ${clears.length} of ${across.length} horizons the correlation clears zero, so this `
+        + 'is worth a second look before it is ruled out.'
+      : 'At every horizon the correlation fails to clear zero'
+        + (positive && positive < across.length
+          ? ', and the sign flips across the range rather than holding a direction, which is '
+            + 'what noise looks like.'
+          : positive === across.length
+            ? ', and where it leans it leans against the fear: months with more arrivals lose '
+              + 'slightly more of the book, not less.'
+            : ', though it leans the way the fear says at every horizon, which is worth watching.'));
+  }
+
+  // The intake now, on the cohort count the page keeps.
+  const started = [...logosStarted(data, cohorts).entries()]
+    .filter(([, n]) => n !== null).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  if (started.length > 4) {
+    const lastFour = started.slice(-4);
+    const meanAll = started.reduce((s, [, n]) => s + n, 0) / started.length;
+    const thinnest = started.reduce((a, b) => (b[1] < a[1] ? b : a));
+    const latest = started[started.length - 1];
+    set('story-intake', `new customers ran ${list(lastFour.map(([, n]) => fmt.int(n)))} over the `
+      + `last four full months, against an average of ${fmt.int(meanAll)} a month across the `
+      + `window${latest[0] === thinnest[0]
+        ? `, and ${fmt.monthLabel(latest[0])} is the thinnest month in it.`
+        : `. The thinnest month in the window is ${fmt.monthLabel(thinnest[0])} at `
+          + `${fmt.int(thinnest[1])}.`}`);
+  }
+
+  // Step 2: the eras, at month 6 and in the first month.
+  const eras = retentionByYear(cohorts, { maxMonths: 12 });
+  if (eras.length < 2) return;
+  const newest = eras[eras.length - 1];
+  const at6 = eras.filter(e => e.points[6] !== null && e.points[6] !== undefined);
+  const lossOf = c => 1 - c.survivors[1] / c.survivors[0];
+  const earlierMedians = eras.slice(0, -1).map(e => e.month1MedianAll).filter(v => v !== null);
+  const steady = newest.month1MedianAll !== null && earlierMedians.length
+    && newest.month1MedianAll <= Math.max(...earlierMedians) + 0.01;
+  const bar = Math.max(...eras.map(e => e.month1MedianAll || 0)) + 0.05;
+  const heavy = cohorts
+    .filter(c => c.month.startsWith(newest.year) && c.maxOffset >= 1 && c.survivors[0] > 0)
+    .filter(c => lossOf(c) >= bar)
+    .sort((a, b) => lossOf(b) - lossOf(a));
+  const word = n => ['no', 'one', 'two', 'three', 'four', 'five'][n] || String(n);
+  set('story-era-lead', steady
+    ? (heavy.length
+      ? `No year has had a step change in the first month; ${word(heavy.length)} `
+        + `${heavy.length === 1 ? 'intake has' : 'intakes have'}.`
+      : 'No year has had a step change in the first month.')
+    : `${newest.year} loses more of an intake in its first month than the years before it.`);
+
+  const rank = [...at6].sort((a, b) => b.points[6] - a.points[6]);
+  set('story-era',
+    (at6.length > 1
+      ? `At month 6 the ${at6.length} years run ${list(at6.map(e => pct(e.points[6])))}: `
+        + `${rank[rank.length - 1].year} is the worst, `
+        + `${((rank[0].points[6] - rank[rank.length - 1].points[6]) * 100).toFixed(1)} points `
+        + `under ${rank[0].year}. `
+      : '')
+    + `Before the second invoice the median intake loses `
+    + `${list(eras.filter(e => e.month1MedianAll !== null)
+        .map(e => `${pct(e.month1MedianAll)} in ${e.year}`))}`
+    + (heavy.length
+      ? `. The ${newest.year} mean reads worse, ${pct(newest.month1LossAll)}, and it is carried `
+        + `by ${list(heavy.map(c => `${fmt.monthLabel(c.month)} at ${pct(lossOf(c))}`))}.`
+      : '.')
+    + (steady && heavy.length
+      ? ` That is not a step change across the year; it is ${word(heavy.length)} `
+        + `${heavy.length === 1 ? 'intake' : 'intakes'} worth asking about.`
+      : ''));
+
+  const at6Newest = newest.cohortsAt[6];
+  const lastPoint = newest.points.reduce((last, v, i) => (v === null ? last : i), 0);
+  set('story-era-sample',
+    (at6Newest
+      ? `The ${newest.year} line at month 6 rests on ${word(at6Newest)} `
+        + `${at6Newest === 1 ? 'cohort' : 'cohorts'} and ${fmt.int(newest.atRisk[6])} customers, `
+        + 'because nothing later has had six months to run'
+      : `The ${newest.year} line has not reached month 6 yet`)
+    + (lastPoint > 6
+      ? `, and the slider opens at month ${lastPoint}, where it rests on `
+        + `${word(newest.cohortsAt[lastPoint])} `
+        + `${newest.cohortsAt[lastPoint] === 1 ? 'cohort' : 'cohorts'}`
+      : '')
+    + '. Treat the right hand end as provisional.');
+}
+
 // Everything on the page, drawn once. Nothing here is adjustable any more.
 function renderStatic() {
   const w = data.waterfall;
@@ -5104,6 +5206,7 @@ function renderStatic() {
   renderVocabularyWarning();
   if ($('story-window-start')) $('story-window-start').textContent = fmt.monthLabel(data.historyStarts);
   if ($('story-window-end')) $('story-window-end').textContent = fmt.monthLabel(data.lastMonth);
+  renderStory();
 
   $('stamp').textContent =
     (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
