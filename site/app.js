@@ -499,7 +499,7 @@ function renderSettledTotals(data) {
   set('tam-total', money(tam));
 }
 
-// 24. What acquisition costs, by category and month.
+// 26. What acquisition costs, by category and month.
 //
 // Every other chart on this page reads the acquisition total as one number.
 // This is the number opened up, because the question the total cannot answer
@@ -2769,6 +2769,7 @@ function renderPastDue() {
     + 'because that is a collections question rather than a warning about the standing base.';
 }
 
+// 32. Customers present in every count who are paying nothing.
 function renderZeroMrr() {
   const rows = zeroMrrShare(data).filter(r => r.base >= 50);
   if (!rows.length) return;
@@ -4391,7 +4392,7 @@ function renderEvents() {
   }
 }
 
-// 40. The ledger behind every other cost figure on this page.
+// 41. The ledger behind every other cost figure on this page.
 function renderLedger() {
   if (!$('ledger-table')) return;
   const l = costLedger(data, { months: 6 });
@@ -7040,7 +7041,7 @@ function renderAnnotations() {
     ]);
   }
 
-  // 19, 20, 21.
+  // 20 and 21.
   const cap = capacityAnalysis(data);
   const rc2 = cap.correlations;
   const sign2 = v => (v >= 0 ? '+' : '') + v.toFixed(2);
@@ -7234,7 +7235,8 @@ function renderSignups() {
     + 'month, the count the cohort charts use; the first month of the window has no count, '
     + 'because only customers with a Stripe start date can be dated to it.';
 
-  // 14. Attach rate and fee are two different movements.
+  // Attach rate and fee are two different movements. No chart on the page
+  // draws this any more; the guards below keep it inert until one does.
   if ($('chart-onboarding')) multiLineChart($('chart-onboarding'), {
     yTitle: 'Share of new customers charged a setup fee',
     labels,
