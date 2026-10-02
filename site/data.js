@@ -3186,11 +3186,15 @@ export const EVENT_PACKAGES = [
 // and the event do not agree, or where the books do not say what was bought.
 export const EVENT_COST_CHECKS = [
   { event: 'RynoX 2026', amount: 40000,
-    found: 'One Chase card charge of $41,500 on Nov 24 2025 ($40,000 plus a $1,500 podcast payment), '
-      + 'booked to Feb 2026. No invoice in payables. RYNO was also paid $1,500 a month for a podcast '
-      + 'sponsorship, Sep 2025 to Mar 2026, $10,500 under advertising, plus $1,063 of RynoX swag.',
-    ask: 'What the $40,000 bought. RynoX 2026 attendee tickets were $7,500 standard and $10,000 VIP, '
-      + 'so it is the price of four VIP seats; was it a sponsorship, seats, or both years?' },
+    found: 'One Chase card charge of $41,500 on Nov 24 2025, split by the bookkeeper into $40,000 '
+      + '"for the period of February 2026" and a $1,500 podcast payment. No invoice in payables. '
+      + 'RYNO runs one event a year, RYNOx, and was separately paid $1,500 a month for a podcast '
+      + 'sponsorship, Sep 2025 to Mar 2026, $10,500 under advertising, plus $1,063 of "RYNOx sponsor '
+      + 'swag". The Nov 2025 Event ROI sheet planned RYNOx 2025 at $15,000, and the Aug 2026 Event '
+      + 'ROI report counts RynoX 2026 at $2,850 of travel with no sponsorship at all.',
+    ask: 'What the $40,000 bought: a higher RYNOx tier, seats ($7,500 standard, $10,000 VIP), two '
+      + 'years at once, or a wider RYNO agreement. Nothing in QuickBooks, the planning sheets, Slack '
+      + 'or email says; the approver of the Chase charge is the person to ask.' },
   { event: 'HSF 2025', amount: 64000,
     found: 'Titanium sponsorship $52,500, co-op postcard $10,000, website listing $1,500, Sep 2025. '
       + 'The planning sheet had $35,000.',
