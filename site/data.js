@@ -481,8 +481,8 @@ export async function load() {
       unpaidDue: num(r.unpaid_due) || 0,
       unpaidInvoices: num(r.unpaid_invoice_count) || 0,
       // Where HubSpot says the customer came from, matched to Stripe by the
-      // pipeline (v120). Blank means nobody tagged them, which is most of the
-      // book and is not the same as organic. leadMedium is event, webinar,
+      // pipeline (v120). Blank means nobody tagged them, about four in ten
+      // live customers, which is not the same as organic. leadMedium is event, webinar,
       // digital or partner or referral; an event value carries a year prefix.
       leadSource: String(r.lead_source || '').trim() || null,
       leadMedium: leadMediumOf(r.lead_source, r.lead_medium),
@@ -495,9 +495,11 @@ export async function load() {
       // contacts created on one day: "992 on 2025-11-11". A flag on the
       // source, not on the customer; whether this customer was in that batch
       // is their own record date against the batch date.
+      // Every "N on date" pair is read: a source can have had more than one.
       leadBulk: (() => {
-        const m = String(r.lead_bulk || '').match(/(\d[\d,]*)\s+on\s+(\d{4}-\d{2}-\d{2})/);
-        return m ? { count: Number(m[1].replace(/,/g, '')), date: m[2] } : null;
+        const bursts = [...String(r.lead_bulk || '').matchAll(/(\d[\d,]*)\s+on\s+(\d{4}-\d{2}-\d{2})/g)]
+          .map(m => ({ count: Number(m[1].replace(/,/g, '')), date: m[2] }));
+        return bursts.length ? bursts : null;
       })(),
     }));
 
@@ -559,12 +561,14 @@ export async function load() {
   // What each event cost, one row per event in the month it happened. Not
   // windowed: an event's cost belongs to it whenever the customers it brought
   // were billed. Sponsor is the 6100-07 fee, travel the 6100-41 to 45 lines.
+  // A row with no usable month is kept with month null, so its cost still
+  // counts and the tab can say it is undated, rather than dropping it.
   const eventCosts = byTab['Event Costs']
     ? byTab['Event Costs'].rows
-        .filter(r => r.event && /^\d{4}-\d{2}$/.test(String(r.month || '')))
+        .filter(r => r.event)
         .map(r => ({
           event: String(r.event).trim(),
-          month: r.month,
+          month: /^\d{4}-\d{2}$/.test(String(r.month || '')) ? r.month : null,
           sponsor: num(r.sponsor),
           travel: num(r.travel),
           costSource: String(r.cost_source || '').trim() || null,
@@ -3260,40 +3264,41 @@ export function accountServeCost(data) {
 // What each event cost and what the customers it brought have paid since.
 //
 // Two inputs, kept apart so either can be checked. The cost is the Event
-// Costs tab, one row per event, with the sponsorship fee corrected to
-// QuickBooks wherever the two disagree: the tab was built from the planning
-// sheet, and QuickBooks is what was actually paid. The customers are the ones
-// HubSpot tags with that event as their lead source, matched to Stripe by the
-// pipeline.
+// Costs tab, one row per event, corrected only where EVENT_FEE_DECISIONS
+// settles a disputed fee or EVENT_PACKAGES splits a shared one. The tab was
+// corrected to QuickBooks on 1 October; EVENT_FEES_QB explains each fee and
+// says where the two still differ. The customers are the ones HubSpot tags
+// with that event as their lead source, matched to Stripe by the pipeline.
 //
 // This is sourcing, not attribution. A customer tagged "2025 - Pantheon" is
 // counted for Pantheon whenever they signed. The partnerships ROI credits
 // revenue only to deals opened within sixty days of the event, less pre-event
 // and renewal deals, so the two will disagree and both are right about
-// different questions. Most customers carry no tag at all, and that is the
-// answer rather than a gap: every figure here is about tagged customers only.
+// different questions. About four in ten live customers carry no tag, so
+// every figure here is about tagged customers only and is a floor.
 
 // Sponsorship fees as QuickBooks booked them, from the Transaction Detail by
 // Account export of Sep 2025 to Sep 2026 (6100-07, P&L basis, each prepaid
-// traced to its bill). Only events where QuickBooks differs from the tab, or
-// where the tab has no fee, are here.
+// traced to its bill). Shown on hover as the fee's basis; where QuickBooks
+// and the tab still differ the basis says so and the tab is used.
 export const EVENT_FEES_QB = {
   'HSF 2025': { sponsor: 64000,
     basis: 'Titanium sponsorship $52,500, co-op postcard $10,000 and website $1,500, Sep 2025.' },
   'Nexstar Super Meeting 2025': { sponsor: 12750,
     basis: 'Single booth $10,500 and an additional attendee $2,250, Oct 2025.' },
   'Nuve Networks Tour': { sponsor: 4998,
-    basis: 'Nuve Controls, recognised Oct 2025. The tab models $10,000.' },
+    basis: 'Nuve Controls, recognised Oct 2025.' },
   'Clover Mastermind 2025': { sponsor: 12500,
-    basis: 'Clover Marketing, Fall Mastermind 2025 sponsor, Oct 2025. The tab has no fee.' },
+    basis: 'Clover Marketing, Fall Mastermind 2025 sponsor, Oct 2025.' },
   'Zoom Drain Expo - Vortex': { sponsor: 10000,
-    basis: 'Zoom Drain Franchising, 2025 Vortex silver sponsor, Oct 2025. The tab marks it absent.' },
+    basis: 'Zoom Drain Franchising, 2025 Vortex silver sponsor, Oct 2025.' },
   'We Mean Business Conference': { sponsor: 10000,
-    basis: 'We Mean Business, sponsor, Nov 2025. The tab marks it absent.' },
+    basis: 'We Mean Business, sponsor, Nov 2025.' },
   'Service World': { sponsor: 2900,
-    basis: 'Service World Expo, Oct 2025. The tab marks it absent.' },
+    basis: 'Service World Expo, Oct 2025.' },
   'BDR Spark 2026': { sponsor: 17900,
-    basis: 'Business Development Resources, $1,492 a month recognised over twelve months from Jan 2026.' },
+    basis: 'Business Development Resources, $1,492 a month recognised over twelve months from Jan 2026, '
+      + 'billed as a year of sponsorship at BDRU events and training classes, Spark among them.' },
   'EGIA Epic 2026': { sponsor: 16445,
     basis: 'Trade show $10,945 and a further $5,500, Feb 2026.' },
   'RynoX 2026': { sponsor: 40000,
@@ -3301,33 +3306,63 @@ export const EVENT_FEES_QB = {
       + 'with the partnerships team on Oct 2 2026 as the fee for RynoX 2026 alone. The RYNO podcast '
       + 'sponsorship, $1,500 a month, is separate and booked under advertising.' },
   'Raising GOATS 2026': { sponsor: 12500,
-    basis: 'EGIA bill for the Raising Goats conference, Mar 2026. The tab has $4,000.' },
+    basis: 'EGIA bill for the Raising Goats conference, Mar 2026.' },
   'Redwood Leadership Summit': { sponsor: 10000,
-    basis: 'Redwood Services sponsorship, Apr 2026. The tab has $3,000.' },
+    basis: 'Redwood Services sponsorship, Apr 2026.' },
 };
 
 // One fee that paid for several events. The fee is split equally across the
 // events it covers, and the package is also reported whole, because which of
 // the stops earned the customers is not something the fee can say.
+//
+// Membership is by rule, not by a list of names: any Event Costs row whose
+// name matches `match` and whose month falls in `from` to `to` is a member,
+// so each later Grosso stop is split the day it reaches the tab.
 export const EVENT_PACKAGES = [
   { key: 'lennox-live-2026', label: 'Lennox LIVE 2026, two stops', fee: 18800, covers: 2,
-    events: ['Lennox Live Anaheim 2026', 'Lennox Live New Orleans 2026'],
+    match: /lennox live (?!roadshow)/i, from: '2026-01', to: '2026-12',
     basis: 'One $18,000 sponsorship recognised Mar 2026 plus two $400 registrations in Jan 2026.' },
   { key: 'grosso-2026', label: 'Grosso University, six events', fee: 25000, covers: 6,
-    events: ['Grosso University 2026'],
+    match: /grosso/i, from: '2026-07', to: '2027-07',
     basis: 'Paid Jul 2026 for six Grosso events and recognised $2,083 a month from Aug 2026 in '
       + '6100-05. Each event carries a sixth. The first ran at the end of Aug 2026: its leads were '
       + 'posted on 1 Sep and booked under "2026 - Grosso University". The other five follow.' },
   { key: 'pantheon-2026', label: 'ServiceTitan Pantheon 2026, shared booth', fee: 48750, covers: 1,
-    events: [],
-    basis: 'The $195,000 package is shared four ways; two partners each paid $48,750 and a third '
-      + '$50,258, so the CHIIRP share is a quarter. The event is in October 2026, after this window.' },
+    match: /pantheon/i, from: '2026-01', to: '2026-12',
+    basis: 'The $195,000 package is shared four ways. QuickBooks shows two partners\' deposits of '
+      + '$48,750 each, and a third partner paid $50,258, which leaves $47,242 of the total; the 2027 '
+      + 'budget carries the CHIIRP share at $48,750, a quarter, and that is used. The event is in '
+      + 'October 2026.' },
+];
+const packageOf = c => EVENT_PACKAGES.find(pack => pack.match.test(c.event)
+  && c.month && c.month >= pack.from && c.month <= pack.to) || null;
+
+// Any table keyed by event name is read by the name, or failing that by the
+// same words and year, so a row renamed on the tab ("The Wealthy Plumber
+// Hoorah 2025") keeps its decision, kind and notes.
+const byEventName = (table, name, month) => {
+  if (table[name]) return table[name];
+  const words = eventWords(name);
+  const year = eventYear(name, month);
+  const key = Object.keys(table).find(k => eventWords(k) === words && eventYear(k) === year);
+  return key ? table[key] : null;
+};
+
+// 6100-07 sponsorship lines in the QuickBooks export (Sep 2025 to Aug 2026)
+// that belong to no event on the Event Costs tab, so they are in no figure on
+// the Events tab. Listed so the tab's total can be read against the ledger.
+export const EVENT_UNASSIGNED_QB = [
+  { what: 'Home First Services, "Event Costs Australia"', months: 'Oct and Nov 2025', amount: 3660 },
+  { what: 'Standard Plumbing Industry Show booth', months: 'Mar 2026', amount: 4997 },
+  { what: 'SOLA Group sponsorship media', months: 'Aug 2026', amount: 10000 },
+  { what: 'Utah Plumbing and Heating Contractors golf sponsorship', months: 'Aug 2026', amount: 876 },
+  { what: 'Booth materials and printing across the year', months: 'Sep 2025 to Aug 2026', amount: 8700, approximate: true },
 ];
 
 // Every disputed fee, settled on the evidence in hand: the November 2025
 // Event ROI sheet (the partnerships team's own 2025 calendar with a cost per
-// event), the August 2026 Event ROI report, and the QuickBooks Transaction
-// Detail export (Sep 2025 to Sep 2026) traced to each bill.
+// event) and the QuickBooks Transaction Detail export (Sep 2025 to Sep 2026)
+// traced to each bill.
 //
 // Where the decision changes a fee, it applies only while the Event Costs tab
 // still carries the value it replaces (`was`). Once the tab is updated, or
@@ -3336,8 +3371,9 @@ export const EVENT_PACKAGES = [
 export const EVENT_FEE_DECISIONS = [
   { event: 'Wealthy Plumber Hoorah 2025', was: 4997, now: 1000, confidence: 'strong',
     evidence: 'The Nov 2025 Event ROI sheet lists the Hoorah of Oct 2-3 at $1,000, and QuickBooks has '
-      + '$1,000 to the Hoorah in Dec 2025. The $4,997 was a Standard Plumbing Industry Show booth billed '
-      + 'Feb 2026 and booked Mar 2026, a 2026 show.' },
+      + '$1,000 to the Hoorah in Dec 2025. QuickBooks has two items of $4,997 and neither is the 2025 '
+      + 'Hoorah: a Feb 19 2026 bill from Gulf Coast Business Coaching for the Hoorah booth of Sep 2026, '
+      + 'deferred to that month, and a Standard Plumbing Industry Show booth booked Mar 2026.' },
   { event: 'Legacy Annual Offsite', was: 0, now: 10000, confidence: 'strong',
     evidence: 'The sheet lists the offsite of 14 Oct 2025 at $10,000, and QuickBooks has a $10,000 '
       + '"Tier 2" invoice from LSP HoldCo recognised Oct 2025, the Legacy partnership; the tab had none.' },
@@ -3370,9 +3406,10 @@ export const EVENT_FEE_DECISIONS = [
   { event: 'Redwood Leadership Summit', was: 10000, now: 10000, confidence: 'moderate',
     evidence: 'QuickBooks books $10,000 to Redwood Services as "Redwood Leadership Summit Sponsorship". '
       + 'The 2025 summit was $5,000 on the sheet, so the price doubled.' },
-  { event: 'BDR Spark 2026', was: 17500, now: 17500, confidence: 'strong',
+  { event: 'BDR Spark 2026', was: 17500, now: 17500, confidence: 'moderate',
     evidence: 'The 2026 section of the sheet lists Spark at $17,500. QuickBooks spreads a year-long BDRU '
-      + 'sponsorship of $17,900 across 2026 at $1,492 a month, which covers Spark and BDRU\'s other events.' },
+      + 'sponsorship of $17,900 across 2026 at $1,492 a month, which covers Spark and BDRU\'s other events '
+      + 'and training classes; none of those has its own lead source, so the whole fee sits on Spark.' },
   { event: 'EGIA Epic 2026', was: 16445, now: 16445, confidence: 'moderate',
     evidence: 'The trade show is $10,945 on the sheet and in QuickBooks. A further $5,500 from EGIA, '
       + 'billed before Sep 2025, is recognised in Feb 2026, Epic\'s month, and is taken as part of it.' },
@@ -3389,9 +3426,10 @@ export const EVENT_REPORT_NOV2025 = {
 };
 
 // Event lead sources for editions that happen after the last month of data,
-// with the month they happen. A customer tagged to one cannot have been
-// brought by it yet, so all of them read as already paying until the event
-// month arrives. 27 of the 30 tagged "2026 - Pantheon" were paying before
+// with the month they happen. A source is upcoming only while its month is
+// after the last month of data; a source whose year is after that year is
+// upcoming without being listed. A customer tagged to one cannot have been
+// brought by it yet, so none is credited until the event month arrives. 27 of the 30 tagged "2026 - Pantheon" were paying before
 // 2026 began. Pantheon 2026 is in October (the shared-booth invoice says so);
 // Home Service Freedom 2026 is 26 to 28 October; Nexstar's Super Meeting has
 // run at the end of September.
@@ -3469,7 +3507,14 @@ export const EVENT_META = {
   'GDF Vertical Track 2026': { type: 'Partner network event', organiser: 'Garage Door Freedom', plan2027: ON },
   'Nuve 2026': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
   'Grosso University 2026': { type: 'Partner network event', organiser: 'Grosso University', plan2027: ON },
+  // Due on the tab within the next pushes.
+  'Nexstar Super Meeting 2026': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
+  'HSF 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
+  'Pantheon 2026': { type: 'Conference sponsorship', organiser: 'ServiceTitan', plan2027: ON },
 };
+// A costed event with no EVENT_META entry is shown as unclassified rather
+// than dropped from the organiser and kind totals.
+export const EVENT_UNCLASSIFIED = 'Not yet classified';
 
 // The standing relationship behind an organiser, as HubSpot spells it. A
 // customer tagged with the partner rather than a dated event came through the
@@ -3524,41 +3569,69 @@ export function firstPaymentMonths(data) {
 // own estimate on its Live Tracking sheet (Aug 2026), marked modelled.
 export const EVENT_EXTRA_COSTS = [
   { event: 'Grosso University 2026', month: '2026-08', sponsor: null, travel: 5740,
-    costSource: 'modelled', note: 'A sixth of the $25,000 Grosso package; travel from the Live Tracking sheet.' },
+    costSource: 'modelled', note: 'Travel of $5,740 is modelled: the partnerships team\'s estimate on its '
+      + 'Live Tracking sheet, Aug 2026.' },
 ];
+// The tab carries an extra event if any row has its name, or its words and a
+// month within one of it, so "Grosso University Aug 2026" in September still
+// replaces the row here rather than adding to it.
+const onTab = (x, rows) => rows.some(c => c.event === x.event
+  || (eventWords(c.event).includes(eventWords(x.event)) && c.month
+    && Math.abs(monthDiff(c.month, x.month)) <= 1));
+
+// One reading of a month the ledger had not closed, for every Events figure:
+// contribution with the variable cost at the window's usual rate. In Aug 2026
+// a $69,848 revenue-share credit was not yet posted, so the booked rate is
+// 17.5% against a usual 9.0%. Read at the booked rate in one place and the
+// usual one in another, an event could be paid in one table and not in the
+// next. Every other month is as booked.
+export function eventContributionRows(serve) {
+  if (!serve) return [];
+  const open = new Set(serve.outliers);
+  return serve.rows.map(r => (open.has(r.month)
+    ? { ...r, contribution: r.revenue - r.platform - r.people - r.revenue * serve.medianRate, atUsualRate: true }
+    : r));
+}
+
+// Whether an event can be read for return: a cost above zero and a month. A
+// row costing nothing, or with no month, is listed but never ranked, since a
+// share of nothing recovered, or an age with no start, means nothing.
+export const eventHasReturn = e => e.spend > 0 && Boolean(e.month);
 
 export function eventRoi(data) {
-  const costs = [...(data.eventCosts || []),
-    ...EVENT_EXTRA_COSTS.filter(x => !(data.eventCosts || []).some(c => c.event === x.event))];
+  const costs = [...(data.eventCosts || []).map(c => ({ ...c, extra: false })),
+    ...EVENT_EXTRA_COSTS.filter(x => !onTab(x, data.eventCosts || [])).map(x => ({ ...x, extra: true }))];
   const tagged = data.customers.filter(r => r.leadSource);
   if (!tagged.length && !costs.length) return null;
 
-  // Cost per event: the tab, corrected to QuickBooks, with package fees split.
+  // Cost per event: the tab, with disputed fees settled and package fees split.
+  // A package is split by how many events the fee pays for, not by how many
+  // have happened: the first of Grosso's six would otherwise carry the whole
+  // $25,000.
   const packaged = new Map();
-  for (const pack of EVENT_PACKAGES) {
-    // Split by how many events the fee pays for, not by how many have happened:
-    // the first of Grosso's six would otherwise carry the whole $25,000.
-    const members = pack.events.filter(e => costs.some(c => c.event === e));
-    const covers = pack.covers || members.length;
-    for (const e of members) packaged.set(e, { pack, share: pack.fee / covers });
+  for (const c of costs) {
+    const pack = packageOf(c);
+    if (pack) packaged.set(c.event, { pack, share: pack.fee / pack.covers });
   }
+  const decisions = Object.fromEntries(EVENT_FEE_DECISIONS.map(d => [d.event, d]));
   const costRows = costs.map(c => {
     // The Event Costs tab is the fee. It was corrected to QuickBooks on 1
     // October; EVENT_FEES_QB now explains each fee rather than replacing it,
     // and says so where the two still differ, so a fee can only change in one
     // place. A shared fee is still split across the events it paid for.
-    const qb = EVENT_FEES_QB[c.event];
+    const qb = byEventName(EVENT_FEES_QB, c.event, c.month);
     const pk = packaged.get(c.event);
-    const decision = EVENT_FEE_DECISIONS.find(d => d.event === c.event);
-    const decided = decision && decision.now !== decision.was
-      && Math.abs((c.sponsor || 0) - decision.was) < 1;
+    const decision = byEventName(decisions, c.event, c.month);
+    const decided = Boolean(decision && decision.now !== decision.was
+      && Math.abs((c.sponsor || 0) - decision.was) < 1);
     const sponsor = pk ? pk.share : decided ? decision.now : c.sponsor;
     const qbDiffers = qb && c.sponsor !== null && Math.abs(qb.sponsor - c.sponsor) >= 1;
-    const sponsorBasis = pk ? `${pk.pack.label}: ${pk.pack.basis}`
+    const sponsorBasis = pk ? `${pk.pack.label}: ${pk.pack.basis}${c.extra && c.costSource === 'modelled' && c.note
+        ? ` ${c.note}` : ''}`
       : qb ? `QuickBooks: ${qb.basis}${qbDiffers
           ? ` QuickBooks shows $${qb.sponsor.toLocaleString()}; the Event Costs tab carries $${c.sponsor.toLocaleString()}, which is used.`
           : ''}`
-      : `Event Costs tab, ${c.costSource || 'source not stated'}.`;
+      : `Event Costs tab, ${c.costSource || 'source not stated'}.${c.extra && c.note ? ` ${c.note}` : ''}`;
     const basis = decided
       ? `Settled at $${decision.now.toLocaleString()} (the tab had $${decision.was.toLocaleString()}): ${decision.evidence}`
       : sponsorBasis;
@@ -3569,7 +3642,10 @@ export function eventRoi(data) {
       sponsor,
       sponsorBasis: basis,
       decided,
-      corrected: Boolean((qb && !qbDiffers) || pk || decided),
+      decision: decision || null,
+      // Where the fee used comes from, for the label beside it: a decision
+      // below, a shared package, or the tab agreeing with QuickBooks.
+      feeFrom: decided ? 'settled' : pk ? 'shared fee' : qb && !qbDiffers ? 'QuickBooks' : null,
       packageKey: pk ? pk.pack.key : null,
       cost: known ? (sponsor || 0) + (c.travel || 0) : null,
       year: eventYear(c.event, c.month),
@@ -3595,22 +3671,23 @@ export function eventRoi(data) {
   // lead_date is when the HubSpot record carrying the source was created. A
   // record created within a month either side of the event is a lead the
   // event plausibly produced; one created earlier is a contact who already
-  // existed and was given the event's name afterwards, which may be a real
-  // re-engagement or may be somebody's memory. lead_set_at, when it is filled,
-  // says when the tag itself was written: within 30 days of the record is
-  // tagged at the time, later is tagged afterwards. The pipeline found a batch
-  // of tagging in September 2025 that covered HSF and Pantheon, so both
-  // counts are shown beside every event rather than folded into it.
+  // existed when the event happened, which may be a real re-engagement at the
+  // event or a tag applied from memory. lead_set_at, when it is filled, says
+  // when the tag itself was written, and is read against the event: written
+  // by the end of the month after the event is tagged at the time, later is
+  // tagged afterwards, and no date is unknown. The pipeline found a batch of
+  // tagging in September 2025 that covered HSF and Pantheon, so both counts
+  // are shown beside every event rather than folded into it.
   const tagEvidence = (ids, eventMonth) => {
     const out = { atEvent: 0, before: 0, after: 0, noDate: 0, setPrompt: 0, setLater: 0, setUnknown: 0,
       inBulk: 0, bulk: null };
+    const bursts = new Map();
     for (const id of ids) {
       const created = leadDateOf.get(id);
-      const bulk = bulkOf.get(id);
-      if (bulk) {
-        out.bulk = bulk;
-        if (created === bulk.date) out.inBulk += 1;
+      for (const b of bulkOf.get(id) || []) {
+        bursts.set(b.date, b);
       }
+      if ((bulkOf.get(id) || []).some(b => b.date === created)) out.inBulk += 1;
       if (!created || !eventMonth) out.noDate += 1;
       else {
         const m = created.slice(0, 7);
@@ -3619,18 +3696,17 @@ export function eventRoi(data) {
         else out.atEvent += 1;
       }
       const set = leadSetOf.get(id);
-      if (!set || !created) out.setUnknown += 1;
-      else if ((Date.parse(set) - Date.parse(created)) / 864e5 <= 30) out.setPrompt += 1;
+      if (!set || !eventMonth) out.setUnknown += 1;
+      else if (set.slice(0, 7) <= monthAdd(eventMonth, 1)) out.setPrompt += 1;
       else out.setLater += 1;
     }
+    out.bulk = bursts.size ? [...bursts.values()].sort((a, b) => a.date.localeCompare(b.date)) : null;
     return out;
   };
   const serve = accountServeCost(data);
   const contributionBy = new Map();
-  if (serve) {
-    for (const r of serve.rows) {
-      contributionBy.set(r.id, (contributionBy.get(r.id) || 0) + r.contribution);
-    }
+  for (const r of eventContributionRows(serve)) {
+    contributionBy.set(r.id, (contributionBy.get(r.id) || 0) + r.contribution);
   }
   const lastMonth = data.lastMonth;
   const never = neverPaidIds(data);
@@ -3650,12 +3726,12 @@ export function eventRoi(data) {
 
   // A tag says where HubSpot thinks a customer came from, not when. A
   // customer already paying before the event cannot have been brought by it:
-  // 41 of the 109 tagged "2025 - Home Service Freedom" were paying before the
-  // September 2025 event, 13 since before this window opens. So an event is
+  // 85 of the 128 tagged "2025 - Home Service Freedom" were paying before the
+  // September 2025 event, 17 since before this window opens. So an event is
   // credited only with customers whose first revenue falls in or after its
   // month. The rest are counted and shown, and kept out of the return.
   const firstRevenueOf = firstPaymentMonths(data);
-  const summarise = (allIds, allRows, fromMonth) => {
+  const summarise = (allIds, allRows, fromMonth, notYet = false) => {
     const prior = new Set([...allIds].filter(id => fromMonth
       && firstRevenueOf.has(id) && firstRevenueOf.get(id) < fromMonth));
     const ids = new Set([...allIds].filter(id => !prior.has(id)));
@@ -3695,8 +3771,10 @@ export function eventRoi(data) {
       mrrNow,
       collected,
       revenue,
-      // Nobody counted means nothing returned, which is zero rather than unknown.
-      contribution: measured || !ids.size ? contribution : null,
+      // Nobody counted means nothing returned, which is zero rather than
+      // unknown; an event that has not happened has returned nothing yet,
+      // which is blank.
+      contribution: notYet ? null : measured || !ids.size ? contribution : null,
       firstRevenueMonths: [...firstRevenue.values()].sort(),
     };
   };
@@ -3718,13 +3796,21 @@ export function eventRoi(data) {
       if (byName.length === 1 && !year) cost = byName[0];
     }
     if (cost) used.add(cost.event);
-    const upcoming = !cost && EVENT_UPCOMING[b.source] ? EVENT_UPCOMING[b.source] : null;
-    const fromMonth = cost ? cost.month : upcoming || (year ? `${year}-01` : null);
-    const summary = summarise(b.ids, b.rows, fromMonth);
-    events.push({ source: b.source, year, cost, upcoming, ...summary,
+    // Upcoming only while the event is still after the data. A listed month
+    // that the data has reached is an event without a cost row, and a year
+    // after the data's year is upcoming without being listed.
+    const listed = EVENT_UPCOMING[b.source] || null;
+    const upcoming = cost ? null
+      : listed ? (listed > lastMonth ? listed : null)
+      : year && year > lastMonth.slice(0, 4) ? `${year}-01` : null;
+    const fromMonth = cost ? cost.month || (cost.year ? `${cost.year}-01` : null)
+      : upcoming || listed || (year ? `${year}-01` : null);
+    const summary = summarise(b.ids, b.rows, fromMonth, Boolean(upcoming));
+    if (upcoming) { summary.collected = null; summary.revenue = null; summary.mrrNow = null; }
+    events.push({ source: b.source, year, cost, upcoming, listedMonth: listed, ...summary,
       // The same customers the credited count is made of: brought, and paying.
       tags: tagEvidence(summary.broughtIds.filter(id => firstRevenueOf.has(id)),
-        cost ? cost.month : upcoming) });
+        cost ? cost.month : upcoming || listed) });
   }
   // Events that cost money and brought no tagged customer still belong on the
   // list: an event with a fee and nobody tagged is a result, and the most
@@ -3746,10 +3832,11 @@ export function eventRoi(data) {
     e.net = cost !== null && e.contribution !== null ? e.contribution - cost : null;
     e.costPerCustomer = cost !== null && e.paid ? cost / e.paid : null;
     e.matched = Boolean(e.cost && e.source);
-    const meta = e.cost ? EVENT_META[e.cost.event] : null;
-    e.type = meta ? meta.type : null;
-    e.organiser = meta ? meta.organiser : null;
+    const meta = e.cost ? byEventName(EVENT_META, e.cost.event, e.cost.month) : null;
+    e.type = meta ? meta.type : e.cost ? EVENT_UNCLASSIFIED : null;
+    e.organiser = meta ? meta.organiser : e.cost ? EVENT_UNCLASSIFIED : null;
     e.plan2027 = meta ? meta.plan2027 : null;
+    e.report2025 = e.cost ? byEventName(EVENT_REPORT_NOV2025, e.cost.event, e.cost.month) : null;
   }
   events.sort((a, b) => String(a.month || a.year || '').localeCompare(String(b.month || b.year || ''))
     || String(a.label).localeCompare(String(b.label)));
@@ -3761,9 +3848,11 @@ export function eventRoi(data) {
     const travel = members.reduce((s, e) => s + (e.cost.travel || 0), 0);
     const fees = members.reduce((s, e) => s + (e.cost.sponsor || 0), 0);
     const spend = members.length ? fees + travel : null;
-    return { ...pack, members, feeSoFar: fees, customers: sum('customers'), paid: sum('paid'),
-      collected: sum('collected'), contribution: members.length ? sum('contribution') : null,
-      mrrNow: sum('mrrNow'), spend,
+    const any = members.length > 0;
+    return { ...pack, members, feeSoFar: fees,
+      customers: any ? sum('customers') : null, paid: any ? sum('paid') : null,
+      collected: any ? sum('collected') : null, contribution: any ? sum('contribution') : null,
+      mrrNow: any ? sum('mrrNow') : null, spend,
       cashMultiple: spend ? sum('collected') / spend : null,
       net: spend !== null && members.length ? sum('contribution') - spend : null };
   });
@@ -3780,6 +3869,11 @@ export function eventRoi(data) {
     if (liveIds.has(id)) m.live += 1;
   }
   const unmatchedSources = events.filter(e => e.source && !e.cost && !e.upcoming).map(e => e.source);
+  const undatedCosts = costRows.filter(c => !c.month).map(c => c.event);
+  // A decision whose event is on no cost row: renamed beyond recognition, or
+  // removed. Shown, so a settled fee cannot lapse without anyone seeing it.
+  const decisionsMissing = EVENT_FEE_DECISIONS.filter(d => !costRows.some(c => c.decision === d))
+    .map(d => d.event);
   const upcomingSources = events.filter(e => e.upcoming).map(e => ({ source: e.source,
     month: e.upcoming, tagged: e.tagged }));
   const costed = events.filter(e => e.spend !== null);
@@ -3799,12 +3893,14 @@ export function eventRoi(data) {
       taggedEver: sourceOf.size },
     unmatchedSources,
     upcomingSources,
+    undatedCosts,
+    decisionsMissing,
     totals: {
       spend: costed.reduce((s, e) => s + e.spend, 0),
       collected: costed.reduce((s, e) => s + e.collected, 0),
       contribution: costed.reduce((s, e) => s + (e.contribution || 0), 0),
       customers: costed.reduce((s, e) => s + e.paid, 0),
-      alreadyPaying: events.reduce((s, e) => s + (e.alreadyPaying || 0), 0),
+      alreadyPaying: events.filter(e => !e.upcoming).reduce((s, e) => s + (e.alreadyPaying || 0), 0),
     },
   };
 }
@@ -3821,8 +3917,11 @@ export function eventRoi(data) {
 // is made per organiser and year, not per stop.
 //
 // Channels. Every lead medium against untagged customers, on what a customer
-// pays and how long they stay. No cost: webinar and digital spend is not tied
-// to a source in the push.
+// pays and how long they stay, with what the channel cost where QuickBooks
+// shows it (CHANNEL_SPEND).
+//
+// Payback. When the contribution from an event's customers covered its cost,
+// or the month it is projected to, or not within three years.
 //
 // Tagging coverage. The share of each month's new customers carrying any lead
 // source, because every figure on the tab is a floor by that much.
@@ -3830,7 +3929,7 @@ export const EVENT_AGES = [3, 6, 12];
 
 // What each way in cost, over the twelve months the QuickBooks export covers
 // (Sep 2025 to Aug 2026). Advertising is 6100-05 by vendor: Facebook and Meta
-// $66,429, almost all of it Facebook ads from May 2026; ClickFunnels $3,614 for
+// $66,429, three quarters of it from May 2026 on; ClickFunnels $3,614 for
 // landing pages; Google Ads $34. Webinars carry no cost: the partnerships team
 // says they usually have none, and QuickBooks has none tied to one (CSTG, which
 // runs "Can't Stop The Growth", was paid $6,250 in Sep 2025 for a quarterly
@@ -3851,15 +3950,18 @@ export function eventReports(data) {
   const lastMonth = roi.lastMonth;
   const serve = accountServeCost(data);
   const byIdMonth = new Map();
-  if (serve) {
-    for (const r of serve.rows) {
-      if (!byIdMonth.has(r.id)) byIdMonth.set(r.id, new Map());
-      byIdMonth.get(r.id).set(r.month, r.contribution);
-    }
+  for (const r of eventContributionRows(serve)) {
+    if (!byIdMonth.has(r.id)) byIdMonth.set(r.id, new Map());
+    byIdMonth.get(r.id).set(r.month, r.contribution);
   }
+  const ageOf = e => monthDiff(e.month, lastMonth) + 1;
+  // Under three months old with no customer yet is a start, not a result,
+  // everywhere on the tab: not in the nothing list, not behind on organisers,
+  // not "no customer" in payback or kinds.
+  const isTooNew = e => eventHasReturn(e) && !e.paid && ageOf(e) < 3;
 
   // ---- age-matched recovery
-  const recovery = roi.events.filter(e => e.spend && e.month).map(e => {
+  const recovery = roi.events.filter(eventHasReturn).map(e => {
     // Cumulative contribution as a share of cost, month by month from the
     // event, null once the month is past the last month of data.
     const curve = [];
@@ -3895,13 +3997,13 @@ export function eventReports(data) {
   // Actual where it has happened: the first month the contribution from the
   // customers it brought covered its cost. Projected where it has not: every
   // brought customer still live is carried forward at their own recent
-  // contribution, the median of their last three months, and kept on at
-  // projectBase's survival for a
-  // customer of their age, the curve charts 34 to 36 use. The event pays for
-  // itself in the first month the running total covers its cost; if that has
-  // not happened three years after the event, it is not expected to.
+  // contribution, the median of their last three months since they first
+  // paid, and kept on at projectBase's survival for a customer of their age,
+  // the curve charts 34 to 36 use. The event pays for itself in the first
+  // month the running total covers its cost; if that has not happened three
+  // years after the event, it is not expected to.
   const base = projectBase(data);
-  const outlierMonths = new Set(serve ? serve.outliers : []);
+  const firstPaid = firstPaymentMonths(data);
   const firstLive = new Map();
   const liveIn = new Map();
   for (const r of data.customers) {
@@ -3911,11 +4013,10 @@ export function eventReports(data) {
     liveIn.get(r.id).add(r.month);
   }
   const HORIZON = 36;
-  const latestAtMedian = new Map((serve ? serve.latest : []).map(x => [x.id, x.contributionAtMedianRate]));
   const payback = new Map();
   for (const e of roi.events) {
-    if (!e.spend || !e.month) continue;
-    const age = monthDiff(e.month, lastMonth) + 1;
+    if (!eventHasReturn(e)) continue;
+    const age = ageOf(e);
     let running = 0;
     let paidAt = null;
     for (let k = 1; k <= age; k += 1) {
@@ -3928,15 +4029,15 @@ export function eventReports(data) {
     }
     const live = e.broughtIds.filter(id => liveIn.get(id) && liveIn.get(id).has(lastMonth));
     // The median of each customer's last three months, so one large invoice
-    // cannot set the pace for two years. The latest month, if the ledger had
-    // not closed it, is taken at the window's usual variable rate rather than
-    // dropped, because it carries the customer's current price.
+    // cannot set the pace for two years. Only months from their first
+    // payment: a customer live at $0 for three months who has just started
+    // paying would otherwise be projected at nothing. An unclosed month is at
+    // the usual variable rate, as everywhere on the tab.
     const rates = live.map(id => {
       const months = byIdMonth.get(id);
-      const keys = [...(months ? months.keys() : [])]
-        .filter(m => m === lastMonth || !outlierMonths.has(m)).sort().slice(-3);
-      const vals = keys.map(m => (m === lastMonth && outlierMonths.has(m) && latestAtMedian.has(id)
-        ? latestAtMedian.get(id) : months.get(m))).sort((x, y) => x - y);
+      const from = firstPaid.get(id) || lastMonth;
+      const keys = [...(months ? months.keys() : [])].filter(m => m >= from).sort().slice(-3);
+      const vals = keys.map(m => months.get(m)).sort((x, y) => x - y);
       const mid = vals.length >> 1;
       const rate = !vals.length ? 0 : vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
       return { id, rate, age: monthDiff(firstLive.get(id), lastMonth) };
@@ -3959,17 +4060,15 @@ export function eventReports(data) {
       recovered: running / e.spend, liveCustomers: live.length, monthlyNow,
       paidAt, projectedAt,
       status: paidAt !== null ? 'paid' : projectedAt !== null ? 'projected'
-        : !e.paid ? 'none' : 'not expected',
+        : isTooNew(e) ? 'too new' : !e.paid ? 'none' : 'not expected',
     });
   }
 
   // ---- spend with nothing to show
   // At least three months old: an event from last month with no customer yet
   // is a start, not a result.
-  const nothing = roi.events.filter(e => e.spend && !e.paid && e.month
-    && monthDiff(e.month, lastMonth) + 1 >= 3);
-  const tooNew = roi.events.filter(e => e.spend && !e.paid && e.month
-    && monthDiff(e.month, lastMonth) + 1 < 3);
+  const nothing = roi.events.filter(e => eventHasReturn(e) && !e.paid && !isTooNew(e));
+  const tooNew = roi.events.filter(isTooNew);
 
   // ---- organisers
   const sourceOf = new Map();
@@ -3991,6 +4090,8 @@ export function eventReports(data) {
     const plans = [...new Set(o.events.map(e => e.plan2027).filter(Boolean))];
     return {
       organiser: o.organiser,
+      // Every costed event it ran is too new to have customers: not behind yet.
+      tooNew: o.events.filter(e => e.spend > 0).every(isTooNew),
       events: o.events.sort((a, b) => String(a.month).localeCompare(String(b.month))),
       years,
       types: [...new Set(o.events.map(e => e.type).filter(Boolean))],
@@ -4008,13 +4109,14 @@ export function eventReports(data) {
   }).sort((a, b) => b.spend - a.spend);
 
   // ---- by type
-  const types = EVENT_TYPES.map(type => {
-    const list = roi.events.filter(e => e.type === type && e.spend);
+  const types = [...EVENT_TYPES, EVENT_UNCLASSIFIED].map(type => {
+    const list = roi.events.filter(e => e.type === type && e.spend !== null);
     const spend = list.reduce((s, e) => s + e.spend, 0);
     const contribution = list.reduce((s, e) => s + (e.contribution || 0), 0);
     return { type, events: list.length, spend, customers: list.reduce((s, e) => s + e.paid, 0),
       contribution, net: contribution - spend,
-      nothing: list.filter(e => !e.paid).length };
+      nothing: list.filter(e => eventHasReturn(e) && !e.paid && !isTooNew(e)).length,
+      tooNew: list.filter(isTooNew).length };
   }).filter(t => t.events);
 
   // ---- channels
@@ -4090,7 +4192,14 @@ export function eventReports(data) {
   const coverage = [...coverageByMonth.values()].sort((a, b) => a.month.localeCompare(b.month))
     .map(c => ({ ...c, share: c.starters ? c.tagged / c.starters : null }));
 
-  return { roi, recovery, nothing, tooNew, organisers, types, channels, coverage,
+  // Organisers and kinds must add up to every costed event; if they do not,
+  // the tab says so rather than letting an event fall out unseen.
+  const orgSpend = organisers.reduce((t, o) => t + o.spend, 0);
+  const typeSpend = types.reduce((t, x) => t + x.spend, 0);
+  const sums = { total: roi.totals.spend, organisers: orgSpend, types: typeSpend,
+    agree: Math.abs(orgSpend - roi.totals.spend) < 1 && Math.abs(typeSpend - roi.totals.spend) < 1 };
+
+  return { roi, recovery, nothing, tooNew, organisers, types, channels, coverage, sums,
            payback: [...payback.values()], paybackHorizon: HORIZON };
 }
 

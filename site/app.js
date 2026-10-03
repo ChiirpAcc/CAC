@@ -12,7 +12,8 @@ import {
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
-  ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, EVENT_REPORT_NOV2025,
+  ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS,
+  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -3952,6 +3953,7 @@ const EVENT_TYPE_INK = {
   'Partner network event': INK.secondary,
   'Small room': INK.accent,
   'Training': INK.tertiary,
+  [EVENT_UNCLASSIFIED]: 'var(--ink-soft)',
 };
 function renderEvents() {
   if (!$('chart-events')) return;
@@ -3970,14 +3972,42 @@ function renderEvents() {
     : `<span class="event-chip ${plan.startsWith('On') ? 'on' : plan.startsWith('Dropped') ? 'dropped' : ''}">`
       + `${plan.startsWith('On') ? '2027: on' : plan.startsWith('Dropped') ? '2027: dropped' : '2027: not listed'}</span>`);
   const tagged = e.coverage.taggedEver > 0;
-  const typeLegend = Object.entries(EVENT_TYPE_INK).map(([label, colour]) => ({ label, colour }));
-  const ageOf = x => (x.month ? monthDiff(x.month, e.lastMonth) + 1 : null);
+  const kindsPresent = new Set(e.events.map(x => x.type).filter(Boolean));
+  const typeLegend = Object.entries(EVENT_TYPE_INK).filter(([label]) => kindsPresent.has(label))
+    .map(([label, colour]) => ({ label, colour }));
+  const qty = (k, one, many = one + 's') => `${fmt.int(k)} ${k === 1 ? one : many}`;
+  const untaggedShare = e.coverage.share === null ? null : 1 - e.coverage.share;
+  // A month the ledger had not closed is read at the usual variable rate in
+  // every figure on this tab (eventContributionRows).
+  const openMonths = ((accountServeCost(data) || {}).outliers || []);
+  const openWords = openMonths.length
+    ? `${openMonths.map(fmt.monthLabel).join(' and ')} ${openMonths.length === 1 ? 'is' : 'are'} read with merchant `
+      + `and revenue-share costs at the usual rate, because the ledger had not closed `
+      + `${openMonths.length === 1 ? 'it' : 'them'} when the data was pulled. `
+    : '';
+
+  // The HubSpot notice shows only while the push lacks the date each tag was
+  // written, and says which push it is about.
+  const notice = $('events-hubspot-notice');
+  if (notice) {
+    const missing = tagged && e.tagDates.withSetAt === 0;
+    notice.hidden = !missing;
+    if (missing) {
+      notice.innerHTML = `<strong>HubSpot: the date each contact's lead source was set is still not `
+        + `coming through.</strong> lead_set_at is blank on all ${fmt.int(e.tagDates.tagged)} tagged `
+        + `customers in the push of ${data.pushedAt ? (([y, m, d]) => `${Number(d)} `
+            + `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m) - 1]} ${y}`)(
+            data.pushedAt.slice(0, 10).split('-')) : 'this push'}`
+        + `${data.pipelineVersion ? ` (${data.pipelineVersion})` : ''}, `
+        + `so the tag-timing columns below are blank. Lead sources themselves are read.`;
+    }
+  }
 
   $('events-coverage').innerHTML = tagged
     ? `<strong>${fmt.int(e.coverage.taggedLive)} of ${fmt.int(e.coverage.live)} live customers `
       + `(${fmt.pct(e.coverage.share, 0)}) carry a HubSpot lead source in ${fmt.monthLabel(e.lastMonth)}.</strong> `
       + `Everything below is about those customers. A blank means nobody tagged the customer, `
-      + `not that they arrived on their own, so every count here is a floor.`
+      + `not that they arrived on their own, so every count here is a floor. ` + openWords
     : data.hasLeadSource
       ? '<strong>This push carries the lead source columns but every row is blank.</strong> '
         + 'The customer figures read zero for that reason, not because the events brought no one.'
@@ -3988,13 +4018,14 @@ function renderEvents() {
   // year-old event and a two-month-old one are never ranked on time one of
   // them has not had. The event month counts as month one. An event younger
   // than the chosen age is set aside, not ranked low.
-  const costed = e.events.filter(x => x.spend !== null);
+  const costed = e.events.filter(eventHasReturn);
   const t = e.totals;
   const paybackBy = new Map(r.payback.map(p => [p.label, p]));
   const paybackWords = p => (!p ? 'no projection'
     : p.status === 'paid' ? `paid for itself in month ${p.paidAt}`
     : p.status === 'projected' ? `projected to pay for itself by month ${p.projectedAt}`
     : p.status === 'none' ? 'no customer to project from'
+    : p.status === 'too new' ? 'too new to have customers yet'
     : `not expected to pay for itself within ${r.paybackHorizon} months`);
   const recBy = new Map(r.recovery.map(x => [x.label, x]));
   const ageInput = $('events-age');
@@ -4018,7 +4049,7 @@ function renderEvents() {
       items: [
         ...judged.map(x => ({
           label: x.label,
-          sub: `${fmt.monthLabel(x.month)} · ${fmt.int(x.paid)} customer${x.paid === 1 ? '' : 's'} · cost ${money(x.spend)}`,
+          sub: `${fmt.monthLabel(x.month)} · ${qty(x.paid, 'customer')} · cost ${money(x.spend)}`,
           value: x.netAtK,
           colour: x.netAtK >= 0 ? INK.positive : INK.negative,
           title: `${x.label}: cost ${money(x.spend)}, contribution in its first ${k} months `
@@ -4026,7 +4057,7 @@ function renderEvents() {
         })),
         ...young.map(x => ({
           label: x.label,
-          sub: `${fmt.monthLabel(x.month)} · ${x.age} month${x.age === 1 ? '' : 's'} old, not yet ${k}`
+          sub: `${fmt.monthLabel(x.month)} · ${qty(x.age, 'month')} old, not yet ${k}`
             + ` · ${paybackWords(paybackBy.get(x.label))}`,
           value: null,
           muted: true,
@@ -4040,7 +4071,11 @@ function renderEvents() {
       ],
     });
     const winners = judged.filter(x => x.netAtK >= 0);
-    const best = judged[0];
+    // With nobody paid back, the least-negative net is just the cheapest
+    // event, often one with no customer; name the closest by share instead.
+    const closest = [...judged].filter(x => x.paid > 0)
+      .sort((a, b) => b.contributionAtK / b.spend - a.contributionAtK / a.spend)[0];
+    const best = winners.length ? judged[0] : null;
     const worst = judged[judged.length - 1];
     const spendJ = judged.reduce((s, x) => s + x.spend, 0);
     const contribJ = judged.reduce((s, x) => s + x.contributionAtK, 0);
@@ -4048,13 +4083,17 @@ function renderEvents() {
       ? `<strong>${k} month${k === 1 ? '' : 's'} after each event, ${fmt.int(winners.length)} of the ${fmt.int(judged.length)} `
         + `events old enough to compare had paid for themselves: ${money(spendJ)} of cost against `
         + `${money(contribJ)} of contribution from the customers they brought.</strong> `
-        + (best ? `${best.label} leads at ${signed(best.netAtK)}. ` : '')
+        + (best ? `${best.label} leads at ${signed(best.netAtK)}. `
+          : closest ? `None has yet; ${closest.label} is closest, with ${pct(closest.contributionAtK / closest.spend)} `
+            + `of its cost back. ` : '')
         + (worst && worst !== best ? `${worst.label} is furthest behind at ${signed(worst.netAtK)}. ` : '')
-        + (young.length ? `${fmt.int(young.length)} events are younger than ${k} month${k === 1 ? '' : 's'} and are listed `
-          + `faded at the bottom rather than ranked. ` : '')
+        + (young.length ? `${qty(young.length, 'event is', 'events are')} younger than ${qty(k, 'month')} and `
+          + `${young.length === 1 ? 'is' : 'are'} listed faded at the bottom rather than ranked. ` : '')
         + (t.alreadyPaying
-            ? `${fmt.int(t.alreadyPaying)} more customers carry an event tag but were already paying `
-              + `before that event, and are kept out of every figure here. `
+            ? `${qty(t.alreadyPaying, 'more customer carries', 'more customers carry')} an event tag but `
+              + `${t.alreadyPaying === 1 ? 'was' : 'were'} already paying before that event, and `
+              + `${t.alreadyPaying === 1 ? 'is' : 'are'} kept out of every event figure; the channel and `
+              + `coverage sections count them by their tag. `
             : '')
         + `Move the slider to read every event at the same age: short ages favour events whose `
         + `customers start on a large first invoice, long ages favour the ones that keep them.`
@@ -4065,27 +4104,34 @@ function renderEvents() {
     const dots = judged;
     scatterBreakEven($('chart-event-scatter'), {
       points: dots.map(x => ({ x: x.spend, y: x.contributionAtK,
-        colour: EVENT_TYPE_INK[x.type] || INK.tertiary, label: x.label })),
+        colour: EVENT_TYPE_INK[x.type] || EVENT_TYPE_INK[EVENT_UNCLASSIFIED], label: x.label })),
       xLabel: 'What the event cost',
       yLabel: `Contribution in its first ${k} months`,
       describe: i => {
         const x = dots[i];
         return `<strong>${x.label}</strong><span>${x.type || ''} · ${fmt.monthLabel(x.month)}</span>`
           + `<span>Cost ${money(x.spend)}, first ${k} months ${money(x.contributionAtK)}</span>`
-          + `<span>${fmt.int(x.paid)} customers, net ${signed(x.netAtK)}</span>`;
+          + `<span>${qty(x.paid, 'customer')}, net ${signed(x.netAtK)}</span>`;
       },
       legendItems: typeLegend,
     });
     const above = dots.filter(x => x.contributionAtK >= x.spend);
-    const zeros = dots.filter(x => !x.paid);
+    const floor = dots.filter(x => x.contributionAtK <= 0);
+    const floorNobody = floor.filter(x => !x.paid).length;
     $('event-scatter-finding').innerHTML =
       `<strong>At ${k} months, ${fmt.int(above.length)} of ${fmt.int(dots.length)} events sit above the line.</strong> `
-      + `${fmt.int(zeros.length)} sit on the floor at zero because nobody tagged to them started paying. `
+      + (floor.length
+          ? `${qty(floor.length, 'sits', 'sit')} on the floor at zero or below: `
+            + [floorNobody ? `${fmt.int(floorNobody)} because nobody tagged to ${floorNobody === 1 ? 'it' : 'them'} has started paying` : '',
+               floor.length - floorNobody ? `${fmt.int(floor.length - floorNobody)} because ${floor.length - floorNobody === 1 ? 'its' : 'their'} `
+                 + `customers had contributed nothing by then` : ''].filter(Boolean).join(', and ') + '. '
+          : '')
       + `Distance above the line is money made back beyond the cost; a dot far to the right and low `
       + `is an expensive event that has not produced its customers. The slider above sets the age.`;
   };
+  renderEvents.drawAt = drawAt;
   if (ageInput && !ageInput.dataset.ready) {
-    ageInput.addEventListener('input', () => drawAt(Number(ageInput.value)));
+    ageInput.addEventListener('input', () => renderEvents.drawAt(Number(ageInput.value)));
     ageInput.dataset.ready = '1';
   }
   drawAt(Number(ageInput ? ageInput.value : 6));
@@ -4094,17 +4140,17 @@ function renderEvents() {
     const c = x.cost;
     const costCell = c
       ? `<span title="${(c.sponsorBasis || '').replace(/"/g, '&quot;')}">${money(x.spend)}</span>`
-        + `<br><span class="muted">${money(c.sponsor)} fee${c.corrected ? ' (QuickBooks)' : ''}, `
+        + `<br><span class="muted">${money(c.sponsor)} fee${c.feeFrom ? ` (${c.feeFrom})` : ''}, `
         + `${money(c.travel)} travel</span>`
       : x.upcoming ? '<span class="muted">after the data</span>' : '<span class="muted">no cost row</span>';
     return `<tr><td>${x.label} ${chip(x.plan2027)}`
       + `${x.type ? `<br><span class="muted">${x.type}${x.organiser ? ' · ' + x.organiser : ''}</span>` : ''}`
       + `${x.source && x.cost && x.source !== x.label ? `<br><span class="muted">HubSpot: ${x.source}</span>` : ''}`
       + `${!x.source && x.cost ? '<br><span class="muted">no customer tagged</span>' : ''}</td>`
-      + `<td>${x.month ? fmt.monthLabel(x.month) : (x.year || '–')}</td>`
+      + `<td>${x.month ? fmt.monthLabel(x.month) : x.cost ? `<span class="muted">undated</span>` : (x.year || '–')}</td>`
       + `<td class="n">${costCell}</td>`
       + `<td class="n">${fmt.int(x.paid)}${x.tags && x.paid
-          ? `<br><span class="muted">${fmt.int(x.tags.atEvent)} new to HubSpot at the event</span>` : ''}${x.alreadyPaying
+          ? `<br><span class="muted">${fmt.int(x.tags.atEvent)} with a record created around the event</span>` : ''}${x.alreadyPaying
           ? `<br><span class="muted">+${fmt.int(x.alreadyPaying)} already paying</span>` : ''}</td>`
       + `<td class="n">${fmt.int(x.liveNow)}</td>`
       + `<td class="n">${money(x.mrrNow)}</td>`
@@ -4119,9 +4165,11 @@ function renderEvents() {
     + '<th class="n">Contribution</th><th class="n">Net of cost</th><th class="n">Collected per $1</th>'
     + '</tr></thead><tbody>' + e.events.map(row).join('') + '</tbody>';
 
+  const unassigned = EVENT_UNASSIGNED_QB.reduce((s, x) => s + x.amount, 0);
   $('events-note').textContent =
-    'Cost is the Event Costs tab, with the sponsorship fee replaced by what QuickBooks booked '
-    + 'wherever the two disagree; hover a cost to see what it is made of. A customer counts for an '
+    'Cost is the Event Costs tab, corrected only where a decision further down settles a disputed '
+    + 'fee or a shared fee is split; the label beside the fee says which, and hovering a cost shows '
+    + 'what it is made of. ' + openWords + 'A customer counts for an '
     + 'event only if their first payment came in or after the event’s month; one already paying '
     + 'before it carries the tag but cannot have been brought by that event. A fee that paid for '
     + 'several events is split equally across them, and the shared fees are added up whole further '
@@ -4132,33 +4180,44 @@ function renderEvents() {
     + 'days of an event, less pre-event and renewal deals, so the two will disagree and both are '
     + 'right about different questions. '
     + (e.unmatchedSources.length
-        ? `${fmt.int(e.unmatchedSources.length)} event lead sources match no cost row and are listed `
-          + `with no cost: ${e.unmatchedSources.join('; ')}. `
+        ? `${qty(e.unmatchedSources.length, 'event lead source matches', 'event lead sources match')} no cost `
+          + `row and ${e.unmatchedSources.length === 1 ? 'is' : 'are'} listed with no cost: `
+          + `${e.unmatchedSources.join('; ')}. `
+        : '')
+    + (e.undatedCosts.length
+        ? `${qty(e.undatedCosts.length, 'cost row has', 'cost rows have')} no month on the Event Costs tab `
+          + `and ${e.undatedCosts.length === 1 ? 'is' : 'are'} counted in the cost but not in any figure by age: `
+          + `${e.undatedCosts.join('; ')}. `
         : '')
     + (e.upcomingSources.length
-        ? `${e.upcomingSources.map(u => `${fmt.int(u.tagged)} customers are tagged "${u.source}", which happens in `
-            + fmt.monthLabel(u.month)).join('; ')}, after the last month of data, so all of them were `
-          + `already paying and none is credited to the event. `
+        ? e.upcomingSources.map(u => `${qty(u.tagged, 'customer is', 'customers are')} tagged "${u.source}", `
+            + `which happens in ${fmt.monthLabel(u.month)}`).join('; ')
+          + `, after the last month of data, so none is credited to ${e.upcomingSources.length === 1 ? 'it' : 'them'} yet. `
         : '')
     + 'Lead sources named as a webinar or a podcast are counted under those channels even where the '
     + 'pipeline marks them as events, and podcasts are not costed here: they are bought separately. '
-    + 'One QuickBooks line is in no row: $3,660 paid to Home First Services in Oct and Nov 2025 as '
-    + '"Event Costs Australia", which is not an event on the calendar.';
+    + `QuickBooks sponsorship lines that belong to no event on the calendar are in no row, about `
+    + `${fmt.money(unassigned)} over the year: `
+    + EVENT_UNASSIGNED_QB.map(x => `${x.what}, ${x.approximate ? 'about ' : ''}${fmt.money(x.amount)} (${x.months})`).join('; ')
+    + '.';
 
   // ---------------------------------------------------------------- payback, actual or projected
-  const order = { paid: 0, projected: 1, 'not expected': 2, none: 3 };
+  const order = { paid: 0, projected: 1, 'not expected': 2, 'too new': 3, none: 4 };
   const pb = [...r.payback].sort((x, y) => (order[x.status] - order[y.status])
     || ((x.paidAt ?? x.projectedAt ?? 999) - (y.paidAt ?? y.projectedAt ?? 999))
     || x.label.localeCompare(y.label));
   const count = st => pb.filter(p => p.status === st).length;
   const within = n => pb.filter(p => p.status === 'projected' && p.projectedAt <= n).length;
   $('event-payback-finding').innerHTML =
-    `<strong>${fmt.int(count('paid'))} events have paid for themselves, ${fmt.int(count('projected'))} more `
-    + `are projected to, and ${fmt.int(count('not expected'))} are not expected to within `
+    `<strong>${qty(count('paid'), 'event has', 'events have')} paid for ${count('paid') === 1 ? 'itself' : 'themselves'}, `
+    + `${fmt.int(count('projected'))} more ${count('projected') === 1 ? 'is' : 'are'} projected to, and `
+    + `${fmt.int(count('not expected'))} ${count('not expected') === 1 ? 'is' : 'are'} not expected to within `
     + `${r.paybackHorizon} months of the event.</strong> `
     + `${fmt.int(within(12))} of the projected ones get there inside their first year and `
-    + `${fmt.int(within(24))} inside two. A further ${fmt.int(count('none'))} have no customer to project `
-    + `from. A new event always starts below the line; this is how long each one is likely to stay there.`;
+    + `${fmt.int(within(24))} inside two. A further ${fmt.int(count('none'))} ${count('none') === 1 ? 'has' : 'have'} `
+    + `no customer to project from`
+    + (count('too new') ? `, and ${qty(count('too new'), 'is', 'are')} too new to have customers yet` : '')
+    + `. A new event always starts below the line; this is how long each one is likely to stay there.`;
   $('event-payback-table').innerHTML =
     '<thead><tr><th>Event</th><th>When</th><th class="n">Cost</th><th class="n">Recovered so far</th>'
     + '<th class="n">Live customers</th><th class="n">Contribution a month now</th>'
@@ -4167,17 +4226,18 @@ function renderEvents() {
       + `<span class="muted">${p.age} month${p.age === 1 ? '' : 's'} old</span></td>`
       + `<td class="n">${money(p.spend)}</td><td class="n">${pct(p.recovered)}</td>`
       + `<td class="n">${fmt.int(p.liveCustomers)}</td><td class="n">${money(p.monthlyNow)}</td>`
-      + `<td><span class="${p.status === 'paid' ? 'held' : p.status === 'projected' ? '' : 'notviable'}">`
+      + `<td><span class="${p.status === 'paid' ? 'held' : p.status === 'projected' || p.status === 'too new' ? '' : 'notviable'}">`
       + `${p.status === 'paid' ? `Paid, month ${p.paidAt}`
         : p.status === 'projected' ? `Projected, month ${p.projectedAt}`
         : p.status === 'none' ? 'No customer'
+        : p.status === 'too new' ? 'Too new to tell'
         : 'Not expected'}</span></td></tr>`).join('')
     + '</tbody>';
   $('event-payback-note').textContent =
     'Paid is the first month, counting the event month as month 1, in which contribution from the '
     + 'customers the event brought covered its cost. Projected carries every one of those customers '
-    + 'still live forward at their own contribution, the median of their last three months with an '
-    + 'unclosed latest month taken at the usual variable rate, and keeps them on at the survival curve the '
+    + 'still live forward at their own contribution, the median of their last three months since they '
+    + 'first paid, and keeps them on at the survival curve the '
     + 'projection in charts 34 to 36 uses for a customer of their age, so the line slows as customers '
     + 'leave. Not expected means the running total has not reached the cost '
     + `${r.paybackHorizon} months after the event. No new customers are assumed, and an event whose `
@@ -4187,6 +4247,13 @@ function renderEvents() {
   // ---------------------------------------------------------------- how the tags were made
   const hsfNow = e.events.find(x => x.label === 'HSF 2025');
   if ($('event-hsf-now') && hsfNow) $('event-hsf-now').textContent = fmt.int(hsfNow.paid);
+  if ($('event-hsf-made') && hsfNow && hsfNow.tags) {
+    const h = hsfNow.tags;
+    $('event-hsf-made').textContent = `of the ${fmt.int(hsfNow.paid)} customers who keep the tag, `
+      + `${fmt.int(h.atEvent)} have a HubSpot record created around the event and ${fmt.int(h.before)} a `
+      + `record made before it`
+      + (h.after ? `; ${qty(h.after, 'was', 'were')} created later, so the tag was applied afterwards` : '');
+  }
   const withCust = e.events.filter(x => x.tags && x.paid > 0)
     .sort((p, q) => (q.paid - p.paid) || p.label.localeCompare(q.label));
   const td = e.tagDates;
@@ -4196,7 +4263,7 @@ function renderEvents() {
     items: withCust.map(x => ({
       label: x.label,
       sub: `${fmt.int(x.paid)} credited · ${fmt.int(x.tags.atEvent)} created around the event, `
-        + `${fmt.int(x.tags.before)} already in HubSpot, ${fmt.int(x.tags.after)} later`,
+        + `${fmt.int(x.tags.before)} before it, ${fmt.int(x.tags.after)} later`,
       value: x.paid ? x.tags.atEvent / x.paid : null,
       colour: x.paid && x.tags.atEvent / x.paid >= 0.5 ? INK.positive : INK.secondary,
     })),
@@ -4209,14 +4276,15 @@ function renderEvents() {
   const bigTwo = withCust.filter(x => /^HSF 2025$|^Pantheon 2025$/.test(x.label));
   $('event-tags-finding').innerHTML =
     `<strong>Of the ${fmt.int(credited)} customers credited to an event, ${fmt.int(sumT('atEvent'))} have a `
-    + `HubSpot record created within a month of that event; ${fmt.int(sumT('before'))} were already in `
-    + `HubSpot and were given the event's name afterwards.</strong> `
+    + `HubSpot record created within a month of that event; ${fmt.int(sumT('before'))} already had a record `
+    + `when the event happened, and ${fmt.int(sumT('after'))} were created after it.</strong> `
     + (bigTwo.length
         ? bigTwo.map(x => `${x.label}: ${fmt.int(x.tags.atEvent)} of ${fmt.int(x.paid)} created around the event`).join('; ') + '. '
         : '')
     + (td.withSetAt
-        ? `${fmt.int(td.withSetAt)} tags carry the date they were written, and ${fmt.int(sumT('setLater'))} of the `
-          + `credited ones were written more than 30 days after the record was created. `
+        ? `${qty(td.withSetAt, 'tag carries', 'tags carry')} the date ${td.withSetAt === 1 ? 'it was' : 'they were'} `
+          + `written: of the credited customers, ${fmt.int(sumT('setPrompt'))} were tagged by the end of the month `
+          + `after their event, ${fmt.int(sumT('setLater'))} later, and ${fmt.int(sumT('setUnknown'))} carry no date. `
         : `When each tag was written cannot be checked yet: lead_set_at is blank on all `
           + `${fmt.int(td.tagged)} tagged customers in this push, so a tag added in a batch months later `
           + `looks the same here as one entered on the day. `)
@@ -4224,8 +4292,9 @@ function renderEvents() {
       const flagged = withCust.filter(x => x.tags.bulk);
       const inBulk = flagged.reduce((t, x) => t + x.tags.inBulk, 0);
       return flagged.length
-        ? `${fmt.int(flagged.length)} of these events have a source that also carries a list import, 50 or more `
-          + `contacts created on one day; ${fmt.int(inBulk)} of their credited customers were created on that day. `
+        ? `${qty(flagged.length, 'of these events has a source', 'of these events have a source')} that also `
+          + `carries a list import, 50 or more contacts created on one day; ${fmt.int(inBulk)} of their credited `
+          + `customers were created on such a day. `
         : '';
     })()
     + `A tag is somebody's record of where a customer came from, and the ones made long after the `
@@ -4234,26 +4303,28 @@ function renderEvents() {
     '<thead><tr><th>Event</th><th class="n">Credited</th><th class="n">Record created around the event</th>'
     + '<th class="n">Already in HubSpot</th><th class="n">Created later</th>'
     + '<th class="n">From a list import</th>'
-    + '<th class="n">Tagged at the time</th><th class="n">Tagged later</th></tr></thead><tbody>'
+    + '<th class="n">Tagged at the time</th><th class="n">Tagged later</th><th class="n">Tag not dated</th></tr></thead><tbody>'
     + withCust.map(x => `<tr><td>${x.label}${x.month ? `<br><span class="muted">${fmt.monthLabel(x.month)}</span>` : ''}</td>`
       + `<td class="n">${fmt.int(x.paid)}</td><td class="n">${fmt.int(x.tags.atEvent)}</td>`
       + `<td class="n">${fmt.int(x.tags.before)}</td><td class="n">${fmt.int(x.tags.after)}</td>`
-      + `<td class="n">${x.tags.bulk ? `${fmt.int(x.tags.inBulk)}<br><span class="muted">${fmt.int(x.tags.bulk.count)} `
-          + `on ${x.tags.bulk.date}</span>` : '–'}</td>`
-      + `<td class="n">${td.withSetAt ? fmt.int(x.tags.setPrompt) : '–'}</td>`
-      + `<td class="n">${td.withSetAt ? fmt.int(x.tags.setLater) : '–'}</td></tr>`).join('')
+      + `<td class="n">${x.tags.bulk ? `${fmt.int(x.tags.inBulk)}<br><span class="muted">`
+          + x.tags.bulk.map(b => `${fmt.int(b.count)} on ${b.date}`).join('<br>') + '</span>' : '–'}</td>`
+      + `<td class="n">${x.tags.setPrompt + x.tags.setLater ? fmt.int(x.tags.setPrompt) : '–'}</td>`
+      + `<td class="n">${x.tags.setPrompt + x.tags.setLater ? fmt.int(x.tags.setLater) : '–'}</td>`
+      + `<td class="n">${fmt.int(x.tags.setUnknown)}</td></tr>`).join('')
     + '</tbody>';
   $('event-tags-note').textContent =
     'Only customers the event is credited with, those whose first payment came in or after its month. '
     + 'Created around the event means the HubSpot record that carries the source (lead_date) was '
     + 'created between the month before the event and the month after it, which is when a lead met '
-    + 'there would be entered. Already in HubSpot means it existed before that: a contact given the '
-    + 'event\u2019s name later, which may be a genuine re-engagement at the event or a tag applied from '
-    + 'memory. Tagged at the time and tagged later read lead_set_at, the date the source field was '
-    + 'first filled, against lead_date, with 30 days as the line; they stay blank until the pipeline '
-    + 'fills that column. From a list import counts credited customers whose record was created on '
-    + 'the day the pipeline flags (lead_bulk) for their source, when 50 or more of its contacts '
-    + 'arrived at once; the flag is on the source, so the date decides. '
+    + 'there would be entered. Already in HubSpot means the record existed before that, when the '
+    + 'event happened: a genuine re-engagement at the event, or a tag applied from memory. Created later '
+    + 'is a record made after the month after the event. Tagged at the time and tagged later read '
+    + 'lead_set_at, the date the source field was first filled, against the event: by the end of the '
+    + 'month after it is at the time. They are blank for an event none of whose tags is dated, and '
+    + 'Tag not dated counts the rest. From a list import counts credited customers whose record was '
+    + 'created on a day the pipeline flags (lead_bulk) for their source, when 50 or more of its '
+    + 'contacts arrived at once; the flag is on the source, so the date decides. '
     + 'The pipeline found a burst of deal tagging in September 2025: 57% of that '
     + 'month’s deals carry a source, against 16% in August and 27% in October, and that month '
     + 'covered HSF 2025 and Pantheon 2025.';
@@ -4276,7 +4347,7 @@ function renderEvents() {
     yFormat: v => fmt.pct(v, 0),
     series: [
       ...rec.filter(x => x.customers > 0).map(x => ({
-        label: x.label, colour: EVENT_TYPE_INK[x.type] || INK.tertiary, thin: true, values: x.curve,
+        label: x.label, colour: EVENT_TYPE_INK[x.type] || EVENT_TYPE_INK[EVENT_UNCLASSIFIED], thin: true, values: x.curve,
       })),
       { label: 'Median event', colour: 'var(--ink)', values: medianCurve },
     ],
@@ -4323,19 +4394,24 @@ function renderEvents() {
   barList($('chart-event-organisers'), {
     items: [...orgs].sort((a, b) => b.net - a.net).map(o => ({
       label: o.organiser,
-      sub: `${o.years.join(', ')} · ${fmt.int(o.events.length)} event${o.events.length === 1 ? '' : 's'}`
+      sub: `${o.years.join(', ')} · ${qty(o.events.length, 'event')}`
         + ` · cost ${money(o.spend)} · ${o.plan2027.startsWith('On') ? '2027: on'
-          : o.plan2027.startsWith('Dropped') ? '2027: dropped' : '2027: not listed'}`,
+          : o.plan2027.startsWith('Dropped') ? '2027: dropped' : '2027: not listed'}`
+        + (o.tooNew ? ' · too new to judge' : ''),
       value: o.net,
+      muted: o.tooNew,
       colour: o.net >= 0 ? INK.positive : INK.negative,
     })),
     format: signed,
   });
   const onPlan = orgs.filter(o => o.plan2027.startsWith('On'));
-  const onPlanBehind = onPlan.filter(o => o.net < 0);
+  const onPlanBehind = onPlan.filter(o => o.net < 0 && !o.tooNew);
+  const onPlanNew = onPlan.filter(o => o.tooNew);
   $('event-organisers-finding').innerHTML =
     `<strong>${fmt.int(onPlan.length)} organisers are on the 2027 calendar, and ${fmt.int(onPlanBehind.length)} `
     + `of them have not yet earned back what was spent with them.</strong> `
+    + (onPlanNew.length ? `${onPlanNew.map(o => o.organiser).join(' and ')} ${onPlanNew.length === 1 ? 'is' : 'are'} `
+        + `left out of that count: ${onPlanNew.length === 1 ? 'its' : 'their'} only event so far is under three months old. ` : '')
     + (onPlanBehind.length
         ? `The furthest behind: ${[...onPlanBehind].sort((a, b) => a.net - b.net).slice(0, 3)
             .map(o => `${o.organiser} ${signed(o.net)}`).join(', ')}. `
@@ -4357,15 +4433,20 @@ function renderEvents() {
     + 'and the dealer day; CertainPath for its fall and spring expos; EGIA for Epic and Raising GOATS. '
     + '"Via the partnership" counts customers tagged with the standing relationship, such as '
     + '"Certain Path" or "Nexstar" with no year, which came through the partner channel rather than '
-    + 'a dated event. 2027 status is from the 2027 Partnerships budget.';
+    + 'a dated event. 2027 status is from the 2027 Partnerships budget.'
+    + (r.sums.agree ? ''
+      : ` These do not add up: organisers total ${fmt.money(r.sums.organisers)} and kinds `
+        + `${fmt.money(r.sums.types)} against ${fmt.money(r.sums.total)} for every costed event.`)
+    + (r.organisers.some(o => o.organiser === EVENT_UNCLASSIFIED)
+      ? ` ${EVENT_UNCLASSIFIED} gathers events on the Event Costs tab that EVENT_META does not yet describe.` : '');
 
   // ---------------------------------------------------------------- types
   barList($('chart-event-types'), {
     items: r.types.map(ty => ({
       label: ty.type,
-      sub: `${fmt.int(ty.events)} events · cost ${money(ty.spend)} · ${fmt.int(ty.customers)} customers`,
+      sub: `${qty(ty.events, 'event')} · cost ${money(ty.spend)} · ${qty(ty.customers, 'customer')}`,
       value: ty.net,
-      colour: EVENT_TYPE_INK[ty.type] || INK.tertiary,
+      colour: EVENT_TYPE_INK[ty.type] || EVENT_TYPE_INK[EVENT_UNCLASSIFIED],
     })),
     format: signed,
   });
@@ -4377,7 +4458,7 @@ function renderEvents() {
       + `<td class="n">${money(ty.spend)}</td><td class="n">${fmt.int(ty.customers)}</td>`
       + `<td class="n">${ty.customers ? money(ty.spend / ty.customers) : '–'}</td>`
       + `<td class="n"><span class="${ty.net < 0 ? 'notviable' : 'held'}">${signed(ty.net)}</span></td>`
-      + `<td class="n">${fmt.int(ty.nothing)}</td></tr>`).join('')
+      + `<td class="n">${fmt.int(ty.nothing)}${ty.tooNew ? `<br><span class="muted">+${fmt.int(ty.tooNew)} too new</span>` : ''}</td></tr>`).join('')
     + '</tbody>';
   $('event-types-note').textContent =
     'A conference sponsorship is a booth or sponsorship at an open industry event. A partner network '
@@ -4391,10 +4472,10 @@ function renderEvents() {
   const nothingTotal = nothing.reduce((s, x) => s + x.spend, 0);
   const nothingOn = nothing.filter(x => (x.plan2027 || '').startsWith('On'));
   $('event-nothing-finding').innerHTML = nothing.length
-    ? `<strong>${fmt.int(nothing.length)} events cost ${money(nothingTotal)} and no customer tagged to them `
-      + `has started paying since.</strong> `
+    ? `<strong>${qty(nothing.length, 'event', 'events')} cost ${money(nothingTotal)} and no customer tagged to `
+      + `${nothing.length === 1 ? 'it' : 'them'} has started paying since.</strong> `
       + (nothingOn.length
-          ? `${fmt.int(nothingOn.length)} of them are on the 2027 calendar: `
+          ? `${fmt.int(nothingOn.length)} of them ${nothingOn.length === 1 ? 'is' : 'are'} on the 2027 calendar: `
             + `${nothingOn.map(x => x.label).join(', ')}. `
           : '')
       + (r.tooNew.length ? `${r.tooNew.map(x => x.label).join(' and ')} ${r.tooNew.length > 1 ? 'are' : 'is'} `
@@ -4408,40 +4489,51 @@ function renderEvents() {
     + '<th class="n">Tagged, already paying</th><th>Partnerships report, Nov 2025</th><th>2027</th></tr></thead><tbody>'
     + nothing.map(x => `<tr><td>${x.label}</td><td>${fmt.monthLabel(x.month)}</td>`
       + `<td>${x.type || '–'}</td><td class="n">${money(x.spend)}</td>`
-      + `<td class="n">${x.alreadyPaying ? fmt.int(x.alreadyPaying) : '–'}</td>`
-      + `<td>${EVENT_REPORT_NOV2025[x.label] || '<span class="muted">not in the report</span>'}</td>`
+      + `<td class="n">${fmt.int(x.alreadyPaying || 0)}</td>`
+      + `<td>${x.report2025 || '<span class="muted">not in the report</span>'}</td>`
       + `<td>${chip(x.plan2027)}</td></tr>`).join('')
     + '</tbody>';
 
   // ---------------------------------------------------------------- disputed fees, settled
-  const byLabel = new Map(e.events.map(x => [x.label, x]));
+  // Found by the decision the cost row carries, so a renamed row keeps its line.
+  const byDecision = d => e.events.find(x => x.cost && x.cost.decision === d) || null;
+  const applied = e.events.filter(x => x.cost && x.cost.decided).length;
   const changed = EVENT_FEE_DECISIONS.filter(d => d.now !== d.was);
+  const kept = EVENT_FEE_DECISIONS.length - changed.length;
+  const settledOnTab = changed.filter(d => { const x = byDecision(d); return x && !x.cost.decided; }).length;
   $('event-checks-table').innerHTML =
-    '<thead><tr><th>Event</th><th class="n">Tab had</th><th class="n">Fee used</th>'
+    '<thead><tr><th>Event</th><th class="n">Tab has</th><th class="n">Fee used</th>'
     + '<th>Evidence</th><th>Confidence</th><th class="n">Net of cost</th></tr></thead><tbody>'
     + EVENT_FEE_DECISIONS.map(d => {
-      const x = byLabel.get(d.event);
+      const x = byDecision(d);
       const used = x && x.cost ? x.cost.sponsor : null;
-      return `<tr><td>${d.event}${x ? ' ' + chip(x.plan2027) : ''}</td>`
-        + `<td class="n">${fmt.money(d.was)}</td>`
-        + `<td class="n">${used === null ? '–' : `<span class="${d.now !== d.was ? 'held' : ''}">${fmt.money(used)}</span>`}</td>`
+      const tab = x && x.cost ? x.cost.tabSponsor : null;
+      return `<tr><td>${x ? x.label : d.event}${x ? ' ' + chip(x.plan2027)
+          : '<br><span class="notviable">not on the Event Costs tab</span>'}</td>`
+        + `<td class="n">${tab === null ? '–' : fmt.money(tab)}</td>`
+        + `<td class="n">${used === null ? '–' : `<span class="${x.cost.decided ? 'held' : ''}">${fmt.money(used)}</span>`}</td>`
         + `<td>${d.evidence}</td><td>${d.confidence}</td>`
         + `<td class="n">${x && x.net !== null ? `<span class="${x.net < 0 ? 'notviable' : 'held'}">${signed(x.net)}</span>` : '–'}</td></tr>`;
     }).join('')
     + '</tbody>';
   $('event-checks-note').textContent =
-    `${fmt.int(changed.length)} fees are changed from what the Event Costs tab carries and `
-    + `${fmt.int(EVENT_FEE_DECISIONS.length - changed.length)} are kept, each on the evidence shown: the `
-    + 'November 2025 Event ROI sheet, the August 2026 Event ROI report, and the QuickBooks export traced '
-    + 'to each bill. A change applies only while the tab still carries the value it replaces, so once the '
-    + 'tab is updated, or says anything else, the tab wins. Strong means two sources agree; moderate means one.';
+    `${qty(applied, 'fee is', 'fees are')} changed from what the Event Costs tab carries`
+    + (settledOnTab ? `, ${fmt.int(settledOnTab)} more ${settledOnTab === 1 ? 'is' : 'are'} already corrected on the tab,` : '')
+    + ` and ${qty(kept, 'is', 'are')} kept, each on the evidence shown: the November 2025 Event ROI sheet `
+    + 'and the QuickBooks export traced to each bill. A change applies only while the tab still carries '
+    + 'the value it replaces, so once the tab is updated, or says anything else, the tab wins and the fee '
+    + 'used is not highlighted. Strong means two sources agree; moderate means one.'
+    + (e.decisionsMissing.length
+      ? ` ${e.decisionsMissing.join('; ')} ${e.decisionsMissing.length === 1 ? 'is' : 'are'} no longer on the `
+        + 'Event Costs tab under that name, so the decision applies to nothing.'
+      : '');
 
   // ---------------------------------------------------------------- packages
   const packRow = p => `<tr><td>${p.label}</td>`
     + `<td>${p.members.length ? p.members.map(m => m.label).join(', ') : '<span class="muted">none in this window</span>'}`
-    + `<br><span class="muted">${fmt.int(p.members.length)} of ${fmt.int(p.covers || p.members.length)} events so far</span></td>`
+    + `<br><span class="muted">${fmt.int(p.members.length)} of ${qty(p.covers || p.members.length, 'event')} so far</span></td>`
     + `<td class="n">${fmt.money(p.fee)}</td><td class="n">${money(p.spend)}</td>`
-    + `<td class="n">${fmt.int(p.paid)}</td><td class="n">${money(p.collected)}</td>`
+    + `<td class="n">${p.paid === null ? '–' : fmt.int(p.paid)}</td><td class="n">${money(p.collected)}</td>`
     + `<td class="n">${p.net === null ? '–' : signed(p.net)}</td></tr>`;
   $('event-packages-table').innerHTML =
     '<thead><tr><th>Package</th><th>Events it covered</th><th class="n">Fee</th>'
@@ -4455,7 +4547,8 @@ function renderEvents() {
   const ch = r.channels;
   $('event-channels-table').innerHTML =
     '<thead><tr><th>How they arrived</th><th class="n">New customers</th><th class="n">Live now</th>'
-    + '<th class="n">Spend, Sep 25 to Aug 26</th><th class="n">Per new customer then</th>'
+    + `<th class="n">Spend, ${fmt.monthLabel(CHANNEL_SPEND.from)} to ${fmt.monthLabel(CHANNEL_SPEND.to)}</th>`
+    + '<th class="n">Per new customer then</th>'
     + '<th class="n">Median first MRR</th><th class="n">Paid a month</th>'
     + '<th class="n">Still here at 6 months</th><th class="n">At 12 months</th></tr></thead><tbody>'
     + ch.map(c => `<tr${c.key === 'untagged' ? ' class="muted"' : ''}><td>${label[c.key] || c.key}</td>`
@@ -4475,16 +4568,18 @@ function renderEvents() {
     ? `<strong>Customers from events are still here at twelve months ${pct(evc.kept12.rate)} of the time, `
       + `against ${pct(unt.kept12.rate)} for untagged customers.</strong> `
       + (web && web.kept12.rate !== null
-          ? `Webinar customers start higher, at a median ${money(web.medianFirstMrr)} against `
-            + `${money(evc.medianFirstMrr)}, and keep ${pct(web.kept12.rate)} at twelve months. `
+          ? `Webinar customers start ${web.medianFirstMrr > evc.medianFirstMrr ? 'higher'
+              : web.medianFirstMrr < evc.medianFirstMrr ? 'lower' : 'at the same price'}, at a median `
+            + `${money(web.medianFirstMrr)} against ${money(evc.medianFirstMrr)} for events, and keep `
+            + `${pct(web.kept12.rate)} at twelve months. `
           : '')
       + (() => {
           const dig = ch.find(c => c.key === 'digital');
           return dig && dig.costPerCustomer
             ? `Digital cost ${fmt.money(dig.spend)} in advertising over the twelve months, almost all of it `
               + `Facebook, against ${fmt.int(dig.startedInSpendWindow)} digital customers who started in those `
-              + `months, ${fmt.money(dig.costPerCustomer)} each; webinars and the podcast cost nothing.`
-            : 'Webinars and the podcast cost nothing.';
+              + `months, ${fmt.money(dig.costPerCustomer)} each; webinars and the podcast carry no recorded cost.`
+            : 'Webinars and the podcast carry no recorded cost.';
         })()
     : 'Not enough customers have reached twelve months to compare channels.';
   $('event-channels-note').textContent =
@@ -4495,8 +4590,9 @@ function renderEvents() {
     + 'their paying months. Spend is QuickBooks advertising (6100-05) by vendor for digital; webinars and '
     + 'the podcast have none; events are costed in the tables above; partners are paid in revenue share, '
     + 'which this page counts as a cost of keeping customers, so their row carries none. Per new customer '
-    + 'divides the spend by the tagged customers who started in the same twelve months, so with most '
-    + 'customers untagged it is a ceiling, not a cost.';
+    + 'divides the spend by the tagged customers who started in the same twelve months, so with '
+    + (untaggedShare === null ? 'some' : `about ${pct(untaggedShare)} of live`) + ' customers untagged it '
+    + 'is a ceiling, not a cost.';
 
   // ---------------------------------------------------------------- tagging coverage
   const cov = r.coverage;
@@ -4527,6 +4623,7 @@ function renderEvents() {
     + 'a lead source of any medium, and of the event medium. Customers already paying when the window '
     + 'opens are left out, since they have no first month.';
 
+  renderEvents.latest = { e, r };
   const button = $('events-download');
   if (button && !button.dataset.ready) {
     button.addEventListener('click', () => {
@@ -4536,6 +4633,7 @@ function renderEvents() {
         const text = String(v);
         return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
       };
+      const { e, r } = renderEvents.latest;
       const recBy = new Map(r.recovery.map(x => [x.label, x]));
       const head = ['event', 'month', 'kind', 'organiser', 'plan_2027', 'hubspot_lead_source',
         'sponsor', 'sponsor_basis', 'travel', 'cost', 'customers', 'already_paying_before_event',

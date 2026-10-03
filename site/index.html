@@ -748,15 +748,15 @@
   </div><!-- view-all -->
 
   <section id="view-events" class="wrap" hidden>
-    <p class="finding negative" id="events-hubspot-notice"><strong>A new HubSpot API key is
-      needed to read contact lead sources.</strong></p>
+    <p class="finding negative" id="events-hubspot-notice" hidden></p>
     <header class="story-head">
       <h2>What each event cost, and what its customers have paid since</h2>
-      <p>One row per event. Cost is the sponsorship QuickBooks booked plus the
-        travel, with a fee that paid for several events split across them. The
-        customers are the ones HubSpot tags with that event as their lead source,
-        matched to Stripe, counted only if they started paying after the event.
-        Tagged customers only: most of the book carries no tag.</p>
+      <p>One row per event. Cost is the Event Costs tab, sponsorship plus
+        travel, with disputed fees settled on the evidence below and a fee that
+        paid for several events split across them. The customers are the ones
+        HubSpot tags with that event as their lead source, matched to Stripe,
+        counted only if their first payment came in or after the event's month.
+        Tagged customers only, so every count is a floor.</p>
     </header>
     <p class="finding" id="events-coverage"></p>
 
@@ -798,8 +798,8 @@
         none in the three months after it, which a live event does not produce. HSF 2025 drops
         from about 1,068 tagged contacts to about 241. Its credited customers here hardly move,
         from 43 to <span id="event-hsf-now">43</span>, because the imported contacts were almost
-        all people who never became customers, and the customers who keep the tag were created on
-        the event days or in the two years before. Earlier versions of this tab that showed HSF
+        all people who never became customers: <span id="event-hsf-made">most of the customers
+        who keep the tag have a record made around the event or before it</span>. Earlier versions of this tab that showed HSF
         as the standout on contacts were reading the import.</p>
       <p class="finding" id="event-tags-finding"></p>
       <div class="plot" id="chart-event-tags"></div>
