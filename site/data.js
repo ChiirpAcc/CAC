@@ -491,6 +491,14 @@ export async function load() {
       // source field was first given a value (v128). Blank stays null.
       leadDate: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_date || '')) ? String(r.lead_date).slice(0, 10) : null,
       leadSetAt: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_set_at || '')) ? String(r.lead_set_at).slice(0, 10) : null,
+      // Set by the pipeline (v129) where this customer's source had 50 or more
+      // contacts created on one day: "992 on 2025-11-11". A flag on the
+      // source, not on the customer; whether this customer was in that batch
+      // is their own record date against the batch date.
+      leadBulk: (() => {
+        const m = String(r.lead_bulk || '').match(/(\d[\d,]*)\s+on\s+(\d{4}-\d{2}-\d{2})/);
+        return m ? { count: Number(m[1].replace(/,/g, '')), date: m[2] } : null;
+      })(),
     }));
 
 
@@ -3315,39 +3323,69 @@ export const EVENT_PACKAGES = [
       + '$50,258, so the CHIIRP share is a quarter. The event is in October 2026, after this window.' },
 ];
 
-// Fees to confirm with whoever holds the vendor relationship. Each was traced
-// from the QuickBooks Transaction Detail export (Sep 2025 to Sep 2026) back
-// to its bill or card charge; these are the ones where the books, the plan
-// and the event do not agree, or where the books do not say what was bought.
-export const EVENT_COST_CHECKS = [
-  { event: 'HSF 2025', amount: 64000,
-    found: 'Titanium sponsorship $52,500, co-op postcard $10,000, website listing $1,500, Sep 2025. '
-      + 'The planning sheet had $35,000.',
-    ask: 'Whether the contract is $52,500 or $35,000 plus extras, and whether the postcard belongs to the event.' },
-  { event: 'Raising GOATS 2026', amount: 12500,
-    found: 'An EGIA bill for the Raising Goats conference, Mar 2026. The planning sheet had $4,000.',
-    ask: 'Whether the bill covers anything beyond the Raising GOATS session, such as EGIA membership.' },
-  { event: 'EGIA Epic 2026', amount: 16445,
-    found: 'Trade show $10,945 plus a separate $5,500 from EGIA booked as "activity for Feb 2026".',
-    ask: 'What the $5,500 is. If it is not Epic, Epic is $10,945.' },
-  { event: 'BDR Spark 2026', amount: 17500,
-    found: 'QuickBooks spreads $1,492 a month to BDR, already running in Oct 2025 under advertising '
-      + 'before it moved to tradeshows in Jan 2026.',
-    ask: 'Whether that is the Spark fee or a twelve-month BDR programme; no separate Spark bill was found.' },
-  { event: 'Redwood Leadership Summit', amount: 10000,
-    found: 'Redwood Services sponsorship, Apr 2026. The planning sheet had $3,000.',
-    ask: 'Which figure the agreement says.' },
-  { event: 'Wealthy Plumber Hoorah 2025', amount: 4997,
-    found: 'The $4,997 was paid to Standard Plumbing Industry Show for a Hoorah booth, billed Feb 2026 '
-      + 'and booked Mar 2026. The only Hoorah charge near the Oct 2025 event is $1,000 in Dec 2025.',
-    ask: 'Whether the $4,997 belongs to a 2026 Hoorah, in which case the 2025 event cost $1,000.' },
-  { event: 'Pantheon 2025', amount: 30000,
-    found: 'QuickBooks books $30,000 to ServiceTitan in Sep 2025. The planning sheet had $40,000.',
-    ask: 'Whether a $10,000 deposit was paid before Sep 2025, outside the export.' },
-  { event: 'Clover Mastermind 2025', amount: 12500,
-    found: 'Confirmed: Clover Marketing, Fall Mastermind sponsor. Nobody tagged to it has started paying.',
-    ask: 'Whether attendees were tagged in HubSpot; same question for Zoom Drain ($10,000) and We Mean Business ($10,000).' },
+// Every disputed fee, settled on the evidence in hand: the November 2025
+// Event ROI sheet (the partnerships team's own 2025 calendar with a cost per
+// event), the August 2026 Event ROI report, and the QuickBooks Transaction
+// Detail export (Sep 2025 to Sep 2026) traced to each bill.
+//
+// Where the decision changes a fee, it applies only while the Event Costs tab
+// still carries the value it replaces (`was`). Once the tab is updated, or
+// carries anything else, the tab wins, so a fee can never be overridden by a
+// stale note. Strong means two independent sources agree; moderate means one.
+export const EVENT_FEE_DECISIONS = [
+  { event: 'Wealthy Plumber Hoorah 2025', was: 4997, now: 1000, confidence: 'strong',
+    evidence: 'The Nov 2025 Event ROI sheet lists the Hoorah of Oct 2-3 at $1,000, and QuickBooks has '
+      + '$1,000 to the Hoorah in Dec 2025. The $4,997 was a Standard Plumbing Industry Show booth billed '
+      + 'Feb 2026 and booked Mar 2026, a 2026 show.' },
+  { event: 'Legacy Annual Offsite', was: 0, now: 10000, confidence: 'strong',
+    evidence: 'The sheet lists the offsite of 14 Oct 2025 at $10,000, and QuickBooks has a $10,000 '
+      + '"Tier 2" invoice from LSP HoldCo recognised Oct 2025, the Legacy partnership; the tab had none.' },
+  { event: 'System Forward Pro Boot Camp', was: 0, now: 5000, confidence: 'strong',
+    evidence: 'The sheet lists the boot camp at $5,000, and QuickBooks pays SystemForward America $417 '
+      + 'a month across the year, about $5,000, booked under advertising; the tab had none.' },
+  { event: 'CertainPath Fall Expo 2025', was: 8850, now: 0, confidence: 'strong',
+    evidence: 'The sheet lists the Fall Expo "Partner Jam" at $0 and QuickBooks has no CertainPath fee '
+      + 'Sep to Dec 2025; the tab\'s $8,850 was modelled on the spring expo.' },
+  { event: 'Lennox Live Roadshow', was: 9400, now: 0, confidence: 'strong',
+    evidence: 'The sheet and the Nov 2025 report both carry the roadshow at $0, a strategic visit, and '
+      + 'QuickBooks has no Lennox fee in Oct 2025; the tab\'s $9,400 was modelled on the 2026 stops.' },
+  { event: 'Blue Collar Success Group 2025', was: 3500, now: 0, confidence: 'strong',
+    evidence: 'The sheet lists the Nov 2025 BCSG event at $0. The $455 a month QuickBooks pays BCSG to '
+      + 'Dec 2025 is the tail of the May 2025 event, $5,000 on the same sheet.' },
+  { event: 'The Huge Convention 2025', was: 0, now: 4000, confidence: 'moderate',
+    evidence: 'The sheet lists the convention of Aug 19-24 2025 at $4,000. August is before the '
+      + 'QuickBooks export begins, so only the sheet speaks to it; the ledger\'s $5,548 of August '
+      + 'sponsorship leaves room for it.' },
+  // Kept as charged, with what settled them.
+  { event: 'HSF 2025', was: 64000, now: 64000, confidence: 'strong',
+    evidence: 'The sheet lists the Titanium sponsorship at $52,500, and QuickBooks adds the HSF co-op '
+      + 'postcard ($10,000) and the HSF site listing ($1,500), both bought because of the event.' },
+  { event: 'Pantheon 2025', was: 30000, now: 30000, confidence: 'strong',
+    evidence: 'The sheet lists Pantheon of Sep 17-19 at $30,000 and QuickBooks books $30,000 to '
+      + 'ServiceTitan that month. The $40,000 on the planning sheet was not paid.' },
+  { event: 'Raising GOATS 2026', was: 12500, now: 12500, confidence: 'moderate',
+    evidence: 'The EGIA bill in QuickBooks names the Raising Goats conference of Mar 2026. Only the bill '
+      + 'speaks to it; the planning figure of $4,000 has no bill behind it.' },
+  { event: 'Redwood Leadership Summit', was: 10000, now: 10000, confidence: 'moderate',
+    evidence: 'QuickBooks books $10,000 to Redwood Services as "Redwood Leadership Summit Sponsorship". '
+      + 'The 2025 summit was $5,000 on the sheet, so the price doubled.' },
+  { event: 'BDR Spark 2026', was: 17500, now: 17500, confidence: 'strong',
+    evidence: 'The 2026 section of the sheet lists Spark at $17,500. QuickBooks spreads a year-long BDRU '
+      + 'sponsorship of $17,900 across 2026 at $1,492 a month, which covers Spark and BDRU\'s other events.' },
+  { event: 'EGIA Epic 2026', was: 16445, now: 16445, confidence: 'moderate',
+    evidence: 'The trade show is $10,945 on the sheet and in QuickBooks. A further $5,500 from EGIA, '
+      + 'billed before Sep 2025, is recognised in Feb 2026, Epic\'s month, and is taken as part of it.' },
 ];
+
+// What the partnerships team's own Nov 2025 report found for events with no
+// tagged customer, so a zero here can be read as a result or as a tagging gap.
+export const EVENT_REPORT_NOV2025 = {
+  'Clover Mastermind 2025': '0 demos, 0 contracts; marked no-go',
+  'Zoom Drain Expo - Vortex': '6 demos, 0 contracts; marked no-go',
+  'Service World': '4 demos, 0 contracts; marked no-go, cancel membership',
+  'CertainPath Fall Expo 2025': '14 demos, 0 contracts',
+  'Lennox Live Roadshow': '0 demos; marked strategic',
+};
 
 // Event lead sources for editions that happen after the last month of data,
 // with the month they happen. A customer tagged to one cannot have been
@@ -3496,20 +3534,27 @@ export function eventRoi(data) {
     // place. A shared fee is still split across the events it paid for.
     const qb = EVENT_FEES_QB[c.event];
     const pk = packaged.get(c.event);
-    const sponsor = pk ? pk.share : c.sponsor;
+    const decision = EVENT_FEE_DECISIONS.find(d => d.event === c.event);
+    const decided = decision && decision.now !== decision.was
+      && Math.abs((c.sponsor || 0) - decision.was) < 1;
+    const sponsor = pk ? pk.share : decided ? decision.now : c.sponsor;
     const qbDiffers = qb && c.sponsor !== null && Math.abs(qb.sponsor - c.sponsor) >= 1;
     const sponsorBasis = pk ? `${pk.pack.label}: ${pk.pack.basis}`
       : qb ? `QuickBooks: ${qb.basis}${qbDiffers
           ? ` QuickBooks shows $${qb.sponsor.toLocaleString()}; the Event Costs tab carries $${c.sponsor.toLocaleString()}, which is used.`
           : ''}`
       : `Event Costs tab, ${c.costSource || 'source not stated'}.`;
+    const basis = decided
+      ? `Settled at $${decision.now.toLocaleString()} (the tab had $${decision.was.toLocaleString()}): ${decision.evidence}`
+      : sponsorBasis;
     const known = sponsor !== null || c.travel !== null;
     return {
       ...c,
       tabSponsor: c.sponsor,
       sponsor,
-      sponsorBasis,
-      corrected: Boolean((qb && !qbDiffers) || pk),
+      sponsorBasis: basis,
+      decided,
+      corrected: Boolean((qb && !qbDiffers) || pk || decided),
       packageKey: pk ? pk.pack.key : null,
       cost: known ? (sponsor || 0) + (c.travel || 0) : null,
       year: eventYear(c.event, c.month),
@@ -3523,10 +3568,12 @@ export function eventRoi(data) {
   const mediumOf = new Map();
   const leadDateOf = new Map();
   const leadSetOf = new Map();
+  const bulkOf = new Map();
   for (const r of data.customers) {
     if (r.leadSource) { sourceOf.set(r.id, r.leadSource); mediumOf.set(r.id, r.leadMedium); }
     if (r.leadDate) leadDateOf.set(r.id, r.leadDate);
     if (r.leadSetAt) leadSetOf.set(r.id, r.leadSetAt);
+    if (r.leadBulk) bulkOf.set(r.id, r.leadBulk);
   }
   // How a tag was made, for the customers an event is credited with.
   //
@@ -3540,9 +3587,15 @@ export function eventRoi(data) {
   // of tagging in September 2025 that covered HSF and Pantheon, so both
   // counts are shown beside every event rather than folded into it.
   const tagEvidence = (ids, eventMonth) => {
-    const out = { atEvent: 0, before: 0, after: 0, noDate: 0, setPrompt: 0, setLater: 0, setUnknown: 0 };
+    const out = { atEvent: 0, before: 0, after: 0, noDate: 0, setPrompt: 0, setLater: 0, setUnknown: 0,
+      inBulk: 0, bulk: null };
     for (const id of ids) {
       const created = leadDateOf.get(id);
+      const bulk = bulkOf.get(id);
+      if (bulk) {
+        out.bulk = bulk;
+        if (created === bulk.date) out.inBulk += 1;
+      }
       if (!created || !eventMonth) out.noDate += 1;
       else {
         const m = created.slice(0, 7);

@@ -12,7 +12,7 @@ import {
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
-  ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_COST_CHECKS,
+  ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, EVENT_REPORT_NOV2025,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4142,8 +4142,8 @@ function renderEvents() {
         : '')
     + 'Lead sources named as a webinar or a podcast are counted under those channels even where the '
     + 'pipeline marks them as events, and podcasts are not costed here: they are bought separately. '
-    + 'Two QuickBooks sponsorship lines could not be tied to an event and are in no row: $10,000 '
-    + 'to LSP HoldCo in Oct 2025 and $3,660 of event costs in Australia in Oct and Nov 2025.';
+    + 'One QuickBooks line is in no row: $3,660 paid to Home First Services in Oct and Nov 2025 as '
+    + '"Event Costs Australia", which is not an event on the calendar.';
 
   // ---------------------------------------------------------------- payback, actual or projected
   const order = { paid: 0, projected: 1, 'not expected': 2, none: 3 };
@@ -4185,6 +4185,8 @@ function renderEvents() {
     + 'customers were not tagged reads later than it really is.';
 
   // ---------------------------------------------------------------- how the tags were made
+  const hsfNow = e.events.find(x => x.label === 'HSF 2025');
+  if ($('event-hsf-now') && hsfNow) $('event-hsf-now').textContent = fmt.int(hsfNow.paid);
   const withCust = e.events.filter(x => x.tags && x.paid > 0)
     .sort((p, q) => (q.paid - p.paid) || p.label.localeCompare(q.label));
   const td = e.tagDates;
@@ -4218,15 +4220,26 @@ function renderEvents() {
         : `When each tag was written cannot be checked yet: lead_set_at is blank on all `
           + `${fmt.int(td.tagged)} tagged customers in this push, so a tag added in a batch months later `
           + `looks the same here as one entered on the day. `)
+    + (() => {
+      const flagged = withCust.filter(x => x.tags.bulk);
+      const inBulk = flagged.reduce((t, x) => t + x.tags.inBulk, 0);
+      return flagged.length
+        ? `${fmt.int(flagged.length)} of these events have a source that also carries a list import, 50 or more `
+          + `contacts created on one day; ${fmt.int(inBulk)} of their credited customers were created on that day. `
+        : '';
+    })()
     + `A tag is somebody's record of where a customer came from, and the ones made long after the `
     + `fact are memory rather than record.`;
   $('event-tags-table').innerHTML =
     '<thead><tr><th>Event</th><th class="n">Credited</th><th class="n">Record created around the event</th>'
     + '<th class="n">Already in HubSpot</th><th class="n">Created later</th>'
+    + '<th class="n">From a list import</th>'
     + '<th class="n">Tagged at the time</th><th class="n">Tagged later</th></tr></thead><tbody>'
     + withCust.map(x => `<tr><td>${x.label}${x.month ? `<br><span class="muted">${fmt.monthLabel(x.month)}</span>` : ''}</td>`
       + `<td class="n">${fmt.int(x.paid)}</td><td class="n">${fmt.int(x.tags.atEvent)}</td>`
       + `<td class="n">${fmt.int(x.tags.before)}</td><td class="n">${fmt.int(x.tags.after)}</td>`
+      + `<td class="n">${x.tags.bulk ? `${fmt.int(x.tags.inBulk)}<br><span class="muted">${fmt.int(x.tags.bulk.count)} `
+          + `on ${x.tags.bulk.date}</span>` : '–'}</td>`
       + `<td class="n">${td.withSetAt ? fmt.int(x.tags.setPrompt) : '–'}</td>`
       + `<td class="n">${td.withSetAt ? fmt.int(x.tags.setLater) : '–'}</td></tr>`).join('')
     + '</tbody>';
@@ -4238,7 +4251,10 @@ function renderEvents() {
     + 'event\u2019s name later, which may be a genuine re-engagement at the event or a tag applied from '
     + 'memory. Tagged at the time and tagged later read lead_set_at, the date the source field was '
     + 'first filled, against lead_date, with 30 days as the line; they stay blank until the pipeline '
-    + 'fills that column. The pipeline found a burst of deal tagging in September 2025: 57% of that '
+    + 'fills that column. From a list import counts credited customers whose record was created on '
+    + 'the day the pipeline flags (lead_bulk) for their source, when 50 or more of its contacts '
+    + 'arrived at once; the flag is on the source, so the date decides. '
+    + 'The pipeline found a burst of deal tagging in September 2025: 57% of that '
     + 'month’s deals carry a source, against 16% in August and 27% in October, and that month '
     + 'covered HSF 2025 and Pantheon 2025.';
 
@@ -4381,35 +4397,42 @@ function renderEvents() {
           ? `${fmt.int(nothingOn.length)} of them are on the 2027 calendar: `
             + `${nothingOn.map(x => x.label).join(', ')}. `
           : '')
-      + `With three customers in four untagged, some of these will have brought customers nobody `
-      + `recorded, so this is the list to ask about rather than the list to cut.`
+      + `For the ones the partnerships team reported on in November 2025, their own deal records agree: `
+      + `demos and no contracts, or no demos at all, so the zero is a result rather than a tagging gap. `
+      + `The rest may still hide customers nobody tagged.`
     : 'Every costed event has at least one tagged customer.';
   $('event-nothing-table').innerHTML =
     '<thead><tr><th>Event</th><th>When</th><th>Kind</th><th class="n">Cost</th>'
-    + '<th class="n">Tagged, already paying</th><th>2027</th></tr></thead><tbody>'
+    + '<th class="n">Tagged, already paying</th><th>Partnerships report, Nov 2025</th><th>2027</th></tr></thead><tbody>'
     + nothing.map(x => `<tr><td>${x.label}</td><td>${fmt.monthLabel(x.month)}</td>`
       + `<td>${x.type || '–'}</td><td class="n">${money(x.spend)}</td>`
       + `<td class="n">${x.alreadyPaying ? fmt.int(x.alreadyPaying) : '–'}</td>`
+      + `<td>${EVENT_REPORT_NOV2025[x.label] || '<span class="muted">not in the report</span>'}</td>`
       + `<td>${chip(x.plan2027)}</td></tr>`).join('')
     + '</tbody>';
 
-  // ---------------------------------------------------------------- costs to confirm
+  // ---------------------------------------------------------------- disputed fees, settled
   const byLabel = new Map(e.events.map(x => [x.label, x]));
+  const changed = EVENT_FEE_DECISIONS.filter(d => d.now !== d.was);
   $('event-checks-table').innerHTML =
-    '<thead><tr><th>Event</th><th class="n">Fee used</th><th>What QuickBooks shows</th>'
-    + '<th>What to confirm</th><th class="n">Net of cost</th></tr></thead><tbody>'
-    + EVENT_COST_CHECKS.map(c => {
-      const x = byLabel.get(c.event);
-      return `<tr><td>${c.event}${x ? ' ' + chip(x.plan2027) : ''}</td><td class="n">${fmt.money(c.amount)}</td>`
-        + `<td>${c.found}</td><td>${c.ask}</td>`
+    '<thead><tr><th>Event</th><th class="n">Tab had</th><th class="n">Fee used</th>'
+    + '<th>Evidence</th><th>Confidence</th><th class="n">Net of cost</th></tr></thead><tbody>'
+    + EVENT_FEE_DECISIONS.map(d => {
+      const x = byLabel.get(d.event);
+      const used = x && x.cost ? x.cost.sponsor : null;
+      return `<tr><td>${d.event}${x ? ' ' + chip(x.plan2027) : ''}</td>`
+        + `<td class="n">${fmt.money(d.was)}</td>`
+        + `<td class="n">${used === null ? '–' : `<span class="${d.now !== d.was ? 'held' : ''}">${fmt.money(used)}</span>`}</td>`
+        + `<td>${d.evidence}</td><td>${d.confidence}</td>`
         + `<td class="n">${x && x.net !== null ? `<span class="${x.net < 0 ? 'notviable' : 'held'}">${signed(x.net)}</span>` : '–'}</td></tr>`;
     }).join('')
     + '</tbody>';
   $('event-checks-note').textContent =
-    'Each fee was traced from the QuickBooks Transaction Detail export, Sep 2025 to Sep 2026, back '
-    + 'to its bill or card charge. These are the ones where the books, the planning sheet and the event '
-    + 'do not agree, or where the books do not say what was bought. The fee used is what the page '
-    + 'charges the event today; change it on the Event Costs tab once confirmed.';
+    `${fmt.int(changed.length)} fees are changed from what the Event Costs tab carries and `
+    + `${fmt.int(EVENT_FEE_DECISIONS.length - changed.length)} are kept, each on the evidence shown: the `
+    + 'November 2025 Event ROI sheet, the August 2026 Event ROI report, and the QuickBooks export traced '
+    + 'to each bill. A change applies only while the tab still carries the value it replaces, so once the '
+    + 'tab is updated, or says anything else, the tab wins. Strong means two sources agree; moderate means one.';
 
   // ---------------------------------------------------------------- packages
   const packRow = p => `<tr><td>${p.label}</td>`
@@ -5334,6 +5357,22 @@ function renderStatic() {
   const censored = cohorts.censoredCount || 0;
   renderVocabularyWarning();
 
+  // The one churn number for the board, as METRICS.md proposes it: customers
+  // lost over the last three complete months as a share of the customers there
+  // at the start of each (chart 5's count, pooled), with chart 45's revenue
+  // kept at twelve months beside it. Labelled a proposal until it is agreed.
+  if ($('board-number')) {
+    const last3 = departures(data).filter(d => d.rate !== null).slice(-3);
+    const left = last3.reduce((t, d) => t + d.left, 0);
+    const base = last3.reduce((t, d) => t + d.base, 0);
+    const kept12 = (revenueRetentionAtAges(cohorts).pooled || []).find(p => p.age === 12);
+    $('board-number').innerHTML = last3.length && base
+      ? `<strong>Board churn number (proposed):</strong> ${fmt.pct(left / base, 1)} of customers a month `
+        + `left over ${fmt.monthLabel(last3[0].month)} to ${fmt.monthLabel(last3[last3.length - 1].month)}`
+        + (kept12 ? `, and cohorts keep ${fmt.pct(kept12.value, 0)} of their starting revenue at twelve months` : '')
+        + '. Definition in METRICS.md.'
+      : '';
+  }
   $('stamp').textContent =
     (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
     + `Months ${data.historyStarts} to ${data.lastMonth}, `

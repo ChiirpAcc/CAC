@@ -265,6 +265,8 @@ judgement for a person.
 | By organiser, by kind of event | `eventReports`, `EVENT_META`, `ORGANISER_PARTNER_SOURCES` | Events summed by who runs them and by kind. Organiser, kind and 2027 status are editorial, set in `EVENT_META`. Customers tagged with the standing partnership (no year) are counted beside the organiser and never added to its events. |
 | Spend with no customer | `eventReports` | Costed events where no tagged customer started paying after the event. |
 | Events against other channels | `eventReports` | Customers who started inside the window, by lead medium, against untagged: median first MRR, paid per paying month, share live 6 and 12 months after first payment (blank under ten). No cost. |
+| How the tags were made | `eventRoi` `tagEvidence`, `lead_date`, `lead_set_at`, `lead_bulk` (v128, v129) | For each credited customer: HubSpot record created within a month of the event, before it, or later; created on the day the pipeline flags a list import for their source; and, once `lead_set_at` is filled, tagged within 30 days of the record or later. A dated note records the v129 removal of the HSF 2025 September import. |
+| Disputed fees, settled | `EVENT_FEE_DECISIONS`, `EVENT_REPORT_NOV2025` | Each disputed fee with the evidence that settled it: the Nov 2025 Event ROI sheet, the Aug 2026 report, the QuickBooks bill. A changed fee applies only while the Event Costs tab still carries the value it replaces. |
 | Tagging coverage | `eventReports` | New customers by first-payment month, share carrying any lead source and an event source. |
 
 ### Projection and pricing decisions

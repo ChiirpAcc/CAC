@@ -60,8 +60,8 @@ Three months rather than one because a single month moves by a point on
 noise alone; trailing rather than calendar quarter so it is the same
 measure in every board pack. Logo rather than revenue as the headline because
 the cost side divides by logos and the two have to be read together. This
-is a proposal; the number is already on the page, so agreeing it is a
-decision, not a build.
+is a proposal, shown under the page stamp as "Board churn number (proposed)" and
+computed on every load, so agreeing it is a decision, not a build.
 
 ## 3. Revenue per account
 

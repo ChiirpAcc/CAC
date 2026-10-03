@@ -27,6 +27,7 @@
   <div class="masthead-inner">
     <h1>CHIIRP unit economics</h1>
     <p id="stamp" class="stamp">Loading.</p>
+    <p id="board-number" class="stamp"></p>
   </div>
 </header>
 
@@ -791,6 +792,15 @@
 
     <figure class="card wide" id="fig-event-tags">
       <figcaption><h3>How the tags behind each event were made</h3></figcaption>
+      <p class="finding negative" id="event-hsf-correction"><strong>Correction, 2 October 2026
+        (pipeline v129).</strong> 827 HubSpot contacts tagged "2025 - Home Service Freedom" were
+        created in one list import in September 2025 and have been untagged; the pipeline found
+        none in the three months after it, which a live event does not produce. HSF 2025 drops
+        from about 1,068 tagged contacts to about 241. Its credited customers here hardly move,
+        from 43 to <span id="event-hsf-now">43</span>, because the imported contacts were almost
+        all people who never became customers, and the customers who keep the tag were created on
+        the event days or in the two years before. Earlier versions of this tab that showed HSF
+        as the standout on contacts were reading the import.</p>
       <p class="finding" id="event-tags-finding"></p>
       <div class="plot" id="chart-event-tags"></div>
       <div class="table-scroll">
@@ -837,7 +847,7 @@
     </figure>
 
     <figure class="card wide" id="fig-event-checks">
-      <figcaption><h3>Costs to confirm before they drive a 2027 decision</h3></figcaption>
+      <figcaption><h3>Disputed fees, and how each was settled</h3></figcaption>
       <div class="table-scroll">
         <table class="data-table" id="event-checks-table"></table>
       </div>
