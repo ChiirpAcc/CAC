@@ -487,6 +487,10 @@ export async function load() {
       leadSource: String(r.lead_source || '').trim() || null,
       leadMedium: leadMediumOf(r.lead_source, r.lead_medium),
       leadMediumRaw: String(r.lead_medium || '').trim() || null,
+      // When the HubSpot record carrying the source was created, and when the
+      // source field was first given a value (v128). Blank stays null.
+      leadDate: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_date || '')) ? String(r.lead_date).slice(0, 10) : null,
+      leadSetAt: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_set_at || '')) ? String(r.lead_set_at).slice(0, 10) : null,
     }));
 
 
@@ -3492,9 +3496,42 @@ export function eventRoi(data) {
   // pipeline found, so the latest row is as good as any.
   const sourceOf = new Map();
   const mediumOf = new Map();
+  const leadDateOf = new Map();
+  const leadSetOf = new Map();
   for (const r of data.customers) {
     if (r.leadSource) { sourceOf.set(r.id, r.leadSource); mediumOf.set(r.id, r.leadMedium); }
+    if (r.leadDate) leadDateOf.set(r.id, r.leadDate);
+    if (r.leadSetAt) leadSetOf.set(r.id, r.leadSetAt);
   }
+  // How a tag was made, for the customers an event is credited with.
+  //
+  // lead_date is when the HubSpot record carrying the source was created. A
+  // record created within a month either side of the event is a lead the
+  // event plausibly produced; one created earlier is a contact who already
+  // existed and was given the event's name afterwards, which may be a real
+  // re-engagement or may be somebody's memory. lead_set_at, when it is filled,
+  // says when the tag itself was written: within 30 days of the record is
+  // tagged at the time, later is tagged afterwards. The pipeline found a batch
+  // of tagging in September 2025 that covered HSF and Pantheon, so both
+  // counts are shown beside every event rather than folded into it.
+  const tagEvidence = (ids, eventMonth) => {
+    const out = { atEvent: 0, before: 0, after: 0, noDate: 0, setPrompt: 0, setLater: 0, setUnknown: 0 };
+    for (const id of ids) {
+      const created = leadDateOf.get(id);
+      if (!created || !eventMonth) out.noDate += 1;
+      else {
+        const m = created.slice(0, 7);
+        if (m < monthAdd(eventMonth, -1)) out.before += 1;
+        else if (m > monthAdd(eventMonth, 1)) out.after += 1;
+        else out.atEvent += 1;
+      }
+      const set = leadSetOf.get(id);
+      if (!set || !created) out.setUnknown += 1;
+      else if ((Date.parse(set) - Date.parse(created)) / 864e5 <= 30) out.setPrompt += 1;
+      else out.setLater += 1;
+    }
+    return out;
+  };
   const serve = accountServeCost(data);
   const contributionBy = new Map();
   if (serve) {
@@ -3599,15 +3636,18 @@ export function eventRoi(data) {
     if (cost) used.add(cost.event);
     const upcoming = !cost && EVENT_UPCOMING[b.source] ? EVENT_UPCOMING[b.source] : null;
     const fromMonth = cost ? cost.month : upcoming || (year ? `${year}-01` : null);
-    events.push({ source: b.source, year, cost, upcoming,
-      ...summarise(b.ids, b.rows, fromMonth) });
+    const summary = summarise(b.ids, b.rows, fromMonth);
+    events.push({ source: b.source, year, cost, upcoming, ...summary,
+      // The same customers the credited count is made of: brought, and paying.
+      tags: tagEvidence(summary.broughtIds.filter(id => firstRevenueOf.has(id)),
+        cost ? cost.month : upcoming) });
   }
   // Events that cost money and brought no tagged customer still belong on the
   // list: an event with a fee and nobody tagged is a result, and the most
   // expensive kind.
   for (const c of costRows) {
     if (used.has(c.event)) continue;
-    events.push({ source: null, year: c.year, cost: c, broughtIds: [], tagged: 0, alreadyPaying: 0,
+    events.push({ source: null, year: c.year, cost: c, broughtIds: [], tags: null, tagged: 0, alreadyPaying: 0,
       alreadyPayingMrrNow: 0, customers: 0, paid: 0, neverPaid: 0,
       liveNow: 0, mrrNow: 0, collected: 0, revenue: 0, contribution: 0,
       firstRevenueMonths: [] });
@@ -3659,10 +3699,15 @@ export function eventRoi(data) {
     month: e.upcoming, tagged: e.tagged }));
   const costed = events.filter(e => e.spend !== null);
 
+  const setGaps = [...sourceOf.keys()]
+    .filter(id => leadSetOf.has(id) && leadDateOf.has(id))
+    .map(id => ({ id, set: leadSetOf.get(id), gapDays: (Date.parse(leadSetOf.get(id)) - Date.parse(leadDateOf.get(id))) / 864e5 }));
   return {
     lastMonth,
     events,
     packages,
+    tagDates: { tagged: sourceOf.size, withDate: [...sourceOf.keys()].filter(id => leadDateOf.has(id)).length,
+      withSetAt: setGaps.length, setGaps },
     mediums: [...mediums.values()].sort((a, b) => b.customers - a.customers),
     coverage: { live: liveIds.size, taggedLive: taggedLive.length,
       share: liveIds.size ? taggedLive.length / liveIds.size : null,

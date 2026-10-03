@@ -4103,7 +4103,8 @@ function renderEvents() {
       + `${!x.source && x.cost ? '<br><span class="muted">no customer tagged</span>' : ''}</td>`
       + `<td>${x.month ? fmt.monthLabel(x.month) : (x.year || '–')}</td>`
       + `<td class="n">${costCell}</td>`
-      + `<td class="n">${fmt.int(x.paid)}${x.alreadyPaying
+      + `<td class="n">${fmt.int(x.paid)}${x.tags && x.paid
+          ? `<br><span class="muted">${fmt.int(x.tags.atEvent)} new to HubSpot at the event</span>` : ''}${x.alreadyPaying
           ? `<br><span class="muted">+${fmt.int(x.alreadyPaying)} already paying</span>` : ''}</td>`
       + `<td class="n">${fmt.int(x.liveNow)}</td>`
       + `<td class="n">${money(x.mrrNow)}</td>`
@@ -4182,6 +4183,63 @@ function renderEvents() {
     + `${r.paybackHorizon} months after the event. No new customers are assumed, and an event whose `
     + 'customers have all left cannot recover any more. Tagged customers only, so an event whose '
     + 'customers were not tagged reads later than it really is.';
+
+  // ---------------------------------------------------------------- how the tags were made
+  const withCust = e.events.filter(x => x.tags && x.paid > 0)
+    .sort((p, q) => (q.paid - p.paid) || p.label.localeCompare(q.label));
+  const td = e.tagDates;
+  const sumT = k => withCust.reduce((t, x) => t + x.tags[k], 0);
+  const credited = withCust.reduce((t, x) => t + x.paid, 0);
+  barList($('chart-event-tags'), {
+    items: withCust.map(x => ({
+      label: x.label,
+      sub: `${fmt.int(x.paid)} credited · ${fmt.int(x.tags.atEvent)} created around the event, `
+        + `${fmt.int(x.tags.before)} already in HubSpot, ${fmt.int(x.tags.after)} later`,
+      value: x.paid ? x.tags.atEvent / x.paid : null,
+      colour: x.paid && x.tags.atEvent / x.paid >= 0.5 ? INK.positive : INK.secondary,
+    })),
+    format: v => fmt.pct(v, 0),
+    legendItems: [
+      { label: 'Share of credited customers whose HubSpot record was created within a month of the event', colour: INK.positive },
+      { label: 'Under half', colour: INK.secondary },
+    ],
+  });
+  const bigTwo = withCust.filter(x => /^HSF 2025$|^Pantheon 2025$/.test(x.label));
+  $('event-tags-finding').innerHTML =
+    `<strong>Of the ${fmt.int(credited)} customers credited to an event, ${fmt.int(sumT('atEvent'))} have a `
+    + `HubSpot record created within a month of that event; ${fmt.int(sumT('before'))} were already in `
+    + `HubSpot and were given the event's name afterwards.</strong> `
+    + (bigTwo.length
+        ? bigTwo.map(x => `${x.label}: ${fmt.int(x.tags.atEvent)} of ${fmt.int(x.paid)} created around the event`).join('; ') + '. '
+        : '')
+    + (td.withSetAt
+        ? `${fmt.int(td.withSetAt)} tags carry the date they were written, and ${fmt.int(sumT('setLater'))} of the `
+          + `credited ones were written more than 30 days after the record was created. `
+        : `When each tag was written cannot be checked yet: lead_set_at is blank on all `
+          + `${fmt.int(td.tagged)} tagged customers in this push, so a tag added in a batch months later `
+          + `looks the same here as one entered on the day. `)
+    + `A tag is somebody's record of where a customer came from, and the ones made long after the `
+    + `fact are memory rather than record.`;
+  $('event-tags-table').innerHTML =
+    '<thead><tr><th>Event</th><th class="n">Credited</th><th class="n">Record created around the event</th>'
+    + '<th class="n">Already in HubSpot</th><th class="n">Created later</th>'
+    + '<th class="n">Tagged at the time</th><th class="n">Tagged later</th></tr></thead><tbody>'
+    + withCust.map(x => `<tr><td>${x.label}${x.month ? `<br><span class="muted">${fmt.monthLabel(x.month)}</span>` : ''}</td>`
+      + `<td class="n">${fmt.int(x.paid)}</td><td class="n">${fmt.int(x.tags.atEvent)}</td>`
+      + `<td class="n">${fmt.int(x.tags.before)}</td><td class="n">${fmt.int(x.tags.after)}</td>`
+      + `<td class="n">${td.withSetAt ? fmt.int(x.tags.setPrompt) : '–'}</td>`
+      + `<td class="n">${td.withSetAt ? fmt.int(x.tags.setLater) : '–'}</td></tr>`).join('')
+    + '</tbody>';
+  $('event-tags-note').textContent =
+    'Only customers the event is credited with, those whose first payment came in or after its month. '
+    + 'Created around the event means the HubSpot record that carries the source (lead_date) was '
+    + 'created between the month before the event and the month after it, which is when a lead met '
+    + 'there would be entered. Already in HubSpot means it existed before that: a contact given the '
+    + 'event\u2019s name later, which may be a genuine re-engagement at the event or a tag applied from '
+    + 'memory. Tagged at the time and tagged later read lead_set_at, the date the source field was '
+    + 'first filled, against lead_date, with 30 days as the line; they stay blank until the pipeline '
+    + 'fills that column. The pipeline found most deal tagging done in one batch in September 2025, '
+    + 'the month that covered HSF 2025 and Pantheon 2025.';
 
   // ---------------------------------------------------------------- recovery by age
   const rec = r.recovery;

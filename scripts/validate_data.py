@@ -346,6 +346,12 @@ def check_lead_source(customers):
         report("warning", "Customer Waterfall",
                f"{conflicts} rows carry a lead_source different from the same customer's other "
                f"rows. A customer keeps one source.")
+    set_at = [r for r in customers["rows"] if str(r.get("lead_source") or "").strip()]
+    if "lead_set_at" in cols and set_at and not any(str(r.get("lead_set_at") or "").strip() for r in set_at):
+        report("warning", "Customer Waterfall",
+               f"lead_set_at is present but blank on every tagged row, so the site cannot tell a tag "
+               f"written on the day from one added in a batch months later. The brief asks for that "
+               f"check before any event is presented.")
     counts = {}
     for m in medium_of.values():
         counts[m] = counts.get(m, 0) + 1
