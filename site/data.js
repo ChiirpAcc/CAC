@@ -3310,14 +3310,15 @@ export const EVENT_FEES_QB = {
 // events it covers, and the package is also reported whole, because which of
 // the stops earned the customers is not something the fee can say.
 export const EVENT_PACKAGES = [
-  { key: 'lennox-live-2026', label: 'Lennox LIVE 2026, two stops', fee: 18800,
+  { key: 'lennox-live-2026', label: 'Lennox LIVE 2026, two stops', fee: 18800, covers: 2,
     events: ['Lennox Live Anaheim 2026', 'Lennox Live New Orleans 2026'],
     basis: 'One $18,000 sponsorship recognised Mar 2026 plus two $400 registrations in Jan 2026.' },
-  { key: 'grosso-2026', label: 'Grosso University, six events', fee: 25000,
-    events: [],
-    basis: 'Paid Jul 2026 for six Grosso events and recognised $2,083 a month from Aug 2026 '
-      + 'in 6100-05. None of the six had happened inside this window, so it carries no customers yet.' },
-  { key: 'pantheon-2026', label: 'ServiceTitan Pantheon 2026, shared booth', fee: 48750,
+  { key: 'grosso-2026', label: 'Grosso University, six events', fee: 25000, covers: 6,
+    events: ['Grosso University 2026'],
+    basis: 'Paid Jul 2026 for six Grosso events and recognised $2,083 a month from Aug 2026 in '
+      + '6100-05. Each event carries a sixth. The first ran at the end of Aug 2026: its leads were '
+      + 'posted on 1 Sep and booked under "2026 - Grosso University". The other five follow.' },
+  { key: 'pantheon-2026', label: 'ServiceTitan Pantheon 2026, shared booth', fee: 48750, covers: 1,
     events: [],
     basis: 'The $195,000 package is shared four ways; two partners each paid $48,750 and a third '
       + '$50,258, so the CHIIRP share is a quarter. The event is in October 2026, after this window.' },
@@ -3467,6 +3468,7 @@ export const EVENT_META = {
   'Redwood Leadership Summit': { type: 'Partner network event', organiser: 'Redwood', plan2027: ON },
   'GDF Vertical Track 2026': { type: 'Partner network event', organiser: 'Garage Door Freedom', plan2027: ON },
   'Nuve 2026': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
+  'Grosso University 2026': { type: 'Partner network event', organiser: 'Grosso University', plan2027: ON },
 };
 
 // The standing relationship behind an organiser, as HubSpot spells it. A
@@ -3516,16 +3518,29 @@ export function firstPaymentMonths(data) {
   return first;
 }
 
+// Events that happened inside the window and are not on the Event Costs tab
+// yet. Each is added only while the tab does not carry it, so the tab takes
+// over the moment somebody adds the row. Travel is the partnerships team's
+// own estimate on its Live Tracking sheet (Aug 2026), marked modelled.
+export const EVENT_EXTRA_COSTS = [
+  { event: 'Grosso University 2026', month: '2026-08', sponsor: null, travel: 5740,
+    costSource: 'modelled', note: 'A sixth of the $25,000 Grosso package; travel from the Live Tracking sheet.' },
+];
+
 export function eventRoi(data) {
-  const costs = data.eventCosts || [];
+  const costs = [...(data.eventCosts || []),
+    ...EVENT_EXTRA_COSTS.filter(x => !(data.eventCosts || []).some(c => c.event === x.event))];
   const tagged = data.customers.filter(r => r.leadSource);
   if (!tagged.length && !costs.length) return null;
 
   // Cost per event: the tab, corrected to QuickBooks, with package fees split.
   const packaged = new Map();
   for (const pack of EVENT_PACKAGES) {
+    // Split by how many events the fee pays for, not by how many have happened:
+    // the first of Grosso's six would otherwise carry the whole $25,000.
     const members = pack.events.filter(e => costs.some(c => c.event === e));
-    for (const e of members) packaged.set(e, { pack, share: pack.fee / members.length });
+    const covers = pack.covers || members.length;
+    for (const e of members) packaged.set(e, { pack, share: pack.fee / covers });
   }
   const costRows = costs.map(c => {
     // The Event Costs tab is the fee. It was corrected to QuickBooks on 1
@@ -3744,8 +3759,9 @@ export function eventRoi(data) {
     const members = events.filter(e => e.cost && e.cost.packageKey === pack.key);
     const sum = k => members.reduce((s, e) => s + (e[k] || 0), 0);
     const travel = members.reduce((s, e) => s + (e.cost.travel || 0), 0);
-    const spend = members.length ? pack.fee + travel : null;
-    return { ...pack, members, customers: sum('customers'), paid: sum('paid'),
+    const fees = members.reduce((s, e) => s + (e.cost.sponsor || 0), 0);
+    const spend = members.length ? fees + travel : null;
+    return { ...pack, members, feeSoFar: fees, customers: sum('customers'), paid: sum('paid'),
       collected: sum('collected'), contribution: members.length ? sum('contribution') : null,
       mrrNow: sum('mrrNow'), spend,
       cashMultiple: spend ? sum('collected') / spend : null,
@@ -3811,6 +3827,23 @@ export function eventRoi(data) {
 // Tagging coverage. The share of each month's new customers carrying any lead
 // source, because every figure on the tab is a floor by that much.
 export const EVENT_AGES = [3, 6, 12];
+
+// What each way in cost, over the twelve months the QuickBooks export covers
+// (Sep 2025 to Aug 2026). Advertising is 6100-05 by vendor: Facebook and Meta
+// $66,429, almost all of it Facebook ads from May 2026; ClickFunnels $3,614 for
+// landing pages; Google Ads $34. Webinars carry no cost: the partnerships team
+// says they usually have none, and QuickBooks has none tied to one (CSTG, which
+// runs "Can't Stop The Growth", was paid $6,250 in Sep 2025 for a quarterly
+// podcast sponsorship, not the webinar). The Tommy Mello podcast has no cost in
+// QuickBooks. Partner channels are paid in revenue share, which is a cost of
+// keeping customers on this page rather than of winning them, so it is not here.
+export const CHANNEL_SPEND = {
+  from: '2025-09', to: '2026-08',
+  digital: { total: 70077, bySource: { Facebook: 66429, Google: 34 },
+    basis: 'Facebook and Meta $66,429, ClickFunnels $3,614, Google Ads $34 (6100-05).' },
+  webinar: { total: 0, basis: 'None: usually free, and none in QuickBooks.' },
+  podcast: { total: 0, basis: 'None in QuickBooks for the Tommy Mello podcast.' },
+};
 
 export function eventReports(data) {
   const roi = eventRoi(data);
@@ -3931,7 +3964,12 @@ export function eventReports(data) {
   }
 
   // ---- spend with nothing to show
-  const nothing = roi.events.filter(e => e.spend && !e.paid);
+  // At least three months old: an event from last month with no customer yet
+  // is a start, not a result.
+  const nothing = roi.events.filter(e => e.spend && !e.paid && e.month
+    && monthDiff(e.month, lastMonth) + 1 >= 3);
+  const tooNew = roi.events.filter(e => e.spend && !e.paid && e.month
+    && monthDiff(e.month, lastMonth) + 1 < 3);
 
   // ---- organisers
   const sourceOf = new Map();
@@ -4021,8 +4059,16 @@ export function eventReports(data) {
       return row ? row.eopMrr || 0 : null;
     }).filter(v => v !== null).sort((a, b) => a - b);
     const mid = firstMrr.length >> 1;
+    const spendFor = CHANNEL_SPEND[key];
+    const inSpendWindow = spendFor
+      ? ids.filter(id => firstRevenue.get(id) >= CHANNEL_SPEND.from && firstRevenue.get(id) <= CHANNEL_SPEND.to).length
+      : null;
     return {
       key, customers: ids.length,
+      spend: spendFor ? spendFor.total : null,
+      spendBasis: spendFor ? spendFor.basis : null,
+      startedInSpendWindow: inSpendWindow,
+      costPerCustomer: spendFor && inSpendWindow ? spendFor.total / inSpendWindow : null,
       liveNow: ids.filter(id => liveNow.has(id)).length,
       revenuePerMonth: months ? rev / months : null,
       medianFirstMrr: firstMrr.length
@@ -4044,7 +4090,7 @@ export function eventReports(data) {
   const coverage = [...coverageByMonth.values()].sort((a, b) => a.month.localeCompare(b.month))
     .map(c => ({ ...c, share: c.starters ? c.tagged / c.starters : null }));
 
-  return { roi, recovery, nothing, organisers, types, channels, coverage,
+  return { roi, recovery, nothing, tooNew, organisers, types, channels, coverage,
            payback: [...payback.values()], paybackHorizon: HORIZON };
 }
 

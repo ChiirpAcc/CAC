@@ -4397,6 +4397,8 @@ function renderEvents() {
           ? `${fmt.int(nothingOn.length)} of them are on the 2027 calendar: `
             + `${nothingOn.map(x => x.label).join(', ')}. `
           : '')
+      + (r.tooNew.length ? `${r.tooNew.map(x => x.label).join(' and ')} ${r.tooNew.length > 1 ? 'are' : 'is'} `
+          + `left off: under three months old, too new to have customers yet. ` : '')
       + `For the ones the partnerships team reported on in November 2025, their own deal records agree: `
       + `demos and no contracts, or no demos at all, so the zero is a result rather than a tagging gap. `
       + `The rest may still hide customers nobody tagged.`
@@ -4436,13 +4438,14 @@ function renderEvents() {
 
   // ---------------------------------------------------------------- packages
   const packRow = p => `<tr><td>${p.label}</td>`
-    + `<td>${p.members.length ? p.members.map(m => m.label).join(', ') : '<span class="muted">none in this window</span>'}</td>`
+    + `<td>${p.members.length ? p.members.map(m => m.label).join(', ') : '<span class="muted">none in this window</span>'}`
+    + `<br><span class="muted">${fmt.int(p.members.length)} of ${fmt.int(p.covers || p.members.length)} events so far</span></td>`
     + `<td class="n">${fmt.money(p.fee)}</td><td class="n">${money(p.spend)}</td>`
     + `<td class="n">${fmt.int(p.paid)}</td><td class="n">${money(p.collected)}</td>`
     + `<td class="n">${p.net === null ? '–' : signed(p.net)}</td></tr>`;
   $('event-packages-table').innerHTML =
     '<thead><tr><th>Package</th><th>Events it covered</th><th class="n">Fee</th>'
-    + '<th class="n">Fee and travel</th><th class="n">Customers</th><th class="n">Collected</th>'
+    + '<th class="n">Share so far and travel</th><th class="n">Customers</th><th class="n">Collected</th>'
     + '<th class="n">Net of cost</th></tr></thead><tbody>' + e.packages.map(packRow).join('') + '</tbody>';
   $('event-packages-note').textContent = e.packages.map(p => `${p.label}: ${p.basis}`).join(' ');
 
@@ -4452,10 +4455,15 @@ function renderEvents() {
   const ch = r.channels;
   $('event-channels-table').innerHTML =
     '<thead><tr><th>How they arrived</th><th class="n">New customers</th><th class="n">Live now</th>'
+    + '<th class="n">Spend, Sep 25 to Aug 26</th><th class="n">Per new customer then</th>'
     + '<th class="n">Median first MRR</th><th class="n">Paid a month</th>'
     + '<th class="n">Still here at 6 months</th><th class="n">At 12 months</th></tr></thead><tbody>'
     + ch.map(c => `<tr${c.key === 'untagged' ? ' class="muted"' : ''}><td>${label[c.key] || c.key}</td>`
       + `<td class="n">${fmt.int(c.customers)}</td><td class="n">${fmt.int(c.liveNow)}</td>`
+      + `<td class="n">${c.spend === null ? (c.key === 'event' ? '<span class="muted">see above</span>' : '–')
+          : `<span title="${(c.spendBasis || '').replace(/"/g, '&quot;')}">${fmt.money(c.spend)}</span>`}</td>`
+      + `<td class="n">${c.costPerCustomer === null ? '–' : fmt.money(c.costPerCustomer)}`
+      + `${c.startedInSpendWindow ? `<br><span class="muted">${fmt.int(c.startedInSpendWindow)} started</span>` : ''}</td>`
       + `<td class="n">${money(c.medianFirstMrr)}</td><td class="n">${money(c.revenuePerMonth)}</td>`
       + `<td class="n">${pct(c.kept6.rate)}<br><span class="muted">of ${fmt.int(c.kept6.n)}</span></td>`
       + `<td class="n">${pct(c.kept12.rate)}<br><span class="muted">of ${fmt.int(c.kept12.n)}</span></td></tr>`).join('')
@@ -4470,15 +4478,25 @@ function renderEvents() {
           ? `Webinar customers start higher, at a median ${money(web.medianFirstMrr)} against `
             + `${money(evc.medianFirstMrr)}, and keep ${pct(web.kept12.rate)} at twelve months. `
           : '')
-      + `None of this carries a cost: what webinars and digital spend cost is not tied to a source in the push.`
+      + (() => {
+          const dig = ch.find(c => c.key === 'digital');
+          return dig && dig.costPerCustomer
+            ? `Digital cost ${fmt.money(dig.spend)} in advertising over the twelve months, almost all of it `
+              + `Facebook, against ${fmt.int(dig.startedInSpendWindow)} digital customers who started in those `
+              + `months, ${fmt.money(dig.costPerCustomer)} each; webinars and the podcast cost nothing.`
+            : 'Webinars and the podcast cost nothing.';
+        })()
     : 'Not enough customers have reached twelve months to compare channels.';
   $('event-channels-note').textContent =
     'Customers who started paying inside the window, by the medium of their HubSpot lead source; '
     + 'untagged is everyone else, for comparison. Still here at six or twelve months is the share of '
     + 'those old enough to have had that long who were live that many months after their first '
     + 'payment, and is left blank below ten customers. Paid a month is everything they paid divided by '
-    + 'their paying months. The webinar, digital and partner rows have no cost on this page, so they '
-    + 'compare customers, not returns.';
+    + 'their paying months. Spend is QuickBooks advertising (6100-05) by vendor for digital; webinars and '
+    + 'the podcast have none; events are costed in the tables above; partners are paid in revenue share, '
+    + 'which this page counts as a cost of keeping customers, so their row carries none. Per new customer '
+    + 'divides the spend by the tagged customers who started in the same twelve months, so with most '
+    + 'customers untagged it is a ceiling, not a cost.';
 
   // ---------------------------------------------------------------- tagging coverage
   const cov = r.coverage;
