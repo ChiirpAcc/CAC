@@ -3461,6 +3461,23 @@ const eventYear = (name, month) => {
   return m ? m[1] : String(month || '').slice(0, 4) || null;
 };
 
+// The first month a customer paid anything: classified revenue (subscription,
+// usage, one-off, pass-through) or cash. Cash alone matters: a customer on a
+// product the revenue classifier does not recognise carries cash and no
+// revenue, and reading revenue only gave them no first payment at all, so one
+// paying since January 2024 was credited to a May 2026 event along with two
+// years of cash. Every Events figure that asks when a customer started uses
+// this.
+export function firstPaymentMonths(data) {
+  const first = new Map();
+  for (const r of data.customers) {
+    const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
+    if (!(rev > 0) && !((r.netCash || 0) > 0)) continue;
+    if (!first.has(r.id) || r.month < first.get(r.id)) first.set(r.id, r.month);
+  }
+  return first;
+}
+
 export function eventRoi(data) {
   const costs = data.eventCosts || [];
   const tagged = data.customers.filter(r => r.leadSource);
@@ -3473,18 +3490,26 @@ export function eventRoi(data) {
     for (const e of members) packaged.set(e, { pack, share: pack.fee / members.length });
   }
   const costRows = costs.map(c => {
+    // The Event Costs tab is the fee. It was corrected to QuickBooks on 1
+    // October; EVENT_FEES_QB now explains each fee rather than replacing it,
+    // and says so where the two still differ, so a fee can only change in one
+    // place. A shared fee is still split across the events it paid for.
     const qb = EVENT_FEES_QB[c.event];
     const pk = packaged.get(c.event);
-    const sponsor = pk ? pk.share : qb ? qb.sponsor : c.sponsor;
+    const sponsor = pk ? pk.share : c.sponsor;
+    const qbDiffers = qb && c.sponsor !== null && Math.abs(qb.sponsor - c.sponsor) >= 1;
     const sponsorBasis = pk ? `${pk.pack.label}: ${pk.pack.basis}`
-      : qb ? `QuickBooks: ${qb.basis}` : `Event Costs tab, ${c.costSource || 'source not stated'}.`;
+      : qb ? `QuickBooks: ${qb.basis}${qbDiffers
+          ? ` QuickBooks shows $${qb.sponsor.toLocaleString()}; the Event Costs tab carries $${c.sponsor.toLocaleString()}, which is used.`
+          : ''}`
+      : `Event Costs tab, ${c.costSource || 'source not stated'}.`;
     const known = sponsor !== null || c.travel !== null;
     return {
       ...c,
       tabSponsor: c.sponsor,
       sponsor,
       sponsorBasis,
-      corrected: Boolean(qb || pk),
+      corrected: Boolean((qb && !qbDiffers) || pk),
       packageKey: pk ? pk.pack.key : null,
       cost: known ? (sponsor || 0) + (c.travel || 0) : null,
       year: eventYear(c.event, c.month),
@@ -3561,13 +3586,7 @@ export function eventRoi(data) {
   // September 2025 event, 13 since before this window opens. So an event is
   // credited only with customers whose first revenue falls in or after its
   // month. The rest are counted and shown, and kept out of the return.
-  const firstRevenueOf = new Map();
-  for (const r of data.customers) {
-    const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
-    if (rev > 0 && (!firstRevenueOf.has(r.id) || r.month < firstRevenueOf.get(r.id))) {
-      firstRevenueOf.set(r.id, r.month);
-    }
-  }
+  const firstRevenueOf = firstPaymentMonths(data);
   const summarise = (allIds, allRows, fromMonth) => {
     const prior = new Set([...allIds].filter(id => fromMonth
       && firstRevenueOf.has(id) && firstRevenueOf.get(id) < fromMonth));
@@ -3585,10 +3604,7 @@ export function eventRoi(data) {
       collected += r.netCash || 0;
       const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
       revenue += rev;
-      if (rev > 0) {
-        const seen = firstRevenue.get(r.id);
-        if (seen === undefined || r.month < seen) firstRevenue.set(r.id, r.month);
-      }
+      if (firstRevenueOf.has(r.id)) firstRevenue.set(r.id, firstRevenueOf.get(r.id));
       if (r.month === lastMonth && r.active) {
         liveNow.add(r.id);
         mrrNow += r.eopMrr || 0;
@@ -3911,13 +3927,9 @@ export function eventReports(data) {
   }).filter(t => t.events);
 
   // ---- channels
-  const firstRevenue = new Map();
+  const firstRevenue = firstPaymentMonths(data);
   const live = new Map();
   for (const r of data.customers) {
-    const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
-    if (rev > 0 && (!firstRevenue.has(r.id) || r.month < firstRevenue.get(r.id))) {
-      firstRevenue.set(r.id, r.month);
-    }
     if (r.active) {
       if (!live.has(r.id)) live.set(r.id, new Set());
       live.get(r.id).add(r.month);

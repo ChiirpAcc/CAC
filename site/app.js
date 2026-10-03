@@ -4238,8 +4238,9 @@ function renderEvents() {
     + 'event\u2019s name later, which may be a genuine re-engagement at the event or a tag applied from '
     + 'memory. Tagged at the time and tagged later read lead_set_at, the date the source field was '
     + 'first filled, against lead_date, with 30 days as the line; they stay blank until the pipeline '
-    + 'fills that column. The pipeline found most deal tagging done in one batch in September 2025, '
-    + 'the month that covered HSF 2025 and Pantheon 2025.';
+    + 'fills that column. The pipeline found a burst of deal tagging in September 2025: 57% of that '
+    + 'month’s deals carry a source, against 16% in August and 27% in October, and that month '
+    + 'covered HSF 2025 and Pantheon 2025.';
 
   // ---------------------------------------------------------------- recovery by age
   const rec = r.recovery;
