@@ -33,7 +33,7 @@ the named classes, and it holds on all 45,635 rows with zero failures. The
 page reconciles its own revenue against it and prints the result in the
 stamp.
 
-Only `Event Costs` is now listed and unused.
+Every listed tab is now read; Event Costs feeds the Events tab.
 
 ---
 

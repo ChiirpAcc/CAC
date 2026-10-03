@@ -248,6 +248,21 @@ const REQUIRED_TABS = ['Waterfall Summary', 'CAC Monthly', 'QB Expenses', 'Custo
 const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Cohorts',
   'Serve Monthly', 'Event Costs', 'Cash Detail'];
 
+// The pipeline calls any lead source with a year prefix an event. A few that
+// carry a year are not events by their own name: "2025 - Smart AC Webinar" is
+// a webinar and "2026 - Tommy Mello Podcast" a podcast. They are read as what
+// their names say, so a webinar is not costed against the event calendar and
+// a podcast, which is bought and judged separately from events, gets a channel
+// of its own. The pipeline's own value is kept as leadMediumRaw.
+function leadMediumOf(source, medium) {
+  const name = String(source || '').trim();
+  const raw = String(medium || '').trim() || null;
+  if (!name) return raw;
+  if (/podcast/i.test(name)) return 'podcast';
+  if (/webinar/i.test(name)) return 'webinar';
+  return raw;
+}
+
 export async function load() {
   const index = await fetch(`${DATA_DIR}/index.json`, { cache: 'no-store' })
     .then(async r => {
@@ -470,7 +485,8 @@ export async function load() {
       // book and is not the same as organic. leadMedium is event, webinar,
       // digital or partner or referral; an event value carries a year prefix.
       leadSource: String(r.lead_source || '').trim() || null,
-      leadMedium: String(r.lead_medium || '').trim() || null,
+      leadMedium: leadMediumOf(r.lead_source, r.lead_medium),
+      leadMediumRaw: String(r.lead_medium || '').trim() || null,
     }));
 
 
@@ -2258,39 +2274,6 @@ function fmtMonth(m) {
 }
 
 
-// The accounts worth a conversation, named.
-//
-// Two groups, and they need different conversations. The zero-MRR accounts are
-// not a price rise, they are a customer who stopped paying and stayed on the
-// platform: the ask is to start paying anything at all. The under-$306 group
-// pays something but less than it costs to serve once support and overhead are
-// counted, so the ask there is an upgrade to a supported tier.
-//
-// Sorted by how much the account is short of the target rather than by size,
-// because the sales effort per conversation is roughly constant and the
-// biggest gaps are where that effort pays.
-// What to ask each account for, scored on what they have already paid.
-//
-// The only strong signal for willingness to pay in this data is the price a
-// customer once held. 98 of the accounts under $500 have paid more than they
-// do now; the median has been at $350 and pays $200. That is not an inference
-// about willingness, it is a record of it, and "you were on $450 until March
-// last year" is a conversation a salesperson can actually have.
-//
-// Everything else available is weaker. Tenure and usage were tried as
-// multipliers on top and made the outcome worse: they push targets above a
-// customer's own peak, which turns an easy conversation into an invented one
-// and loses more accounts than the uplift earns.
-//
-//   target = max(floor, min(peak ever paid, current x 3))
-//
-// The floor protects solvency. The peak anchors to demonstrated willingness.
-// The cap stops an account at $50 being asked for $900 because of one odd
-// month three years ago.
-export function targetPrice(current, peak, { floor = 600, cap = 3 } = {}) {
-  const anchored = Math.min(peak || 0, current * cap);
-  return Math.max(floor, anchored);
-}
 
 // Whether asking is realistic at all.
 //
@@ -2837,17 +2820,26 @@ export function costCalculator(data, { costKeys = null, logoKeys = null } = {}) 
   // a customer who paid once counts as lapsed in every month they sit at zero,
   // including months before their first payment, rather than flipping back
   // and forth.
-  const countFor = month => {
+  // The customers the switches select in a month, counted and their revenue
+  // summed together, so the revenue side always stands on the same customers
+  // as the cost side. It used to take every customer's revenue and divide it
+  // by the selected count, so unticking a type kept its revenue and spread it
+  // over fewer customers.
+  const selectedIn = month => {
     const live = data.customers.filter(r => r.active && r.month === month);
     let n = 0;
+    let revenue = 0;
     for (const row of live) {
       const isNever = never.has(row.id);
       const paying = (row.eopMrr || 0) > 0;
       const type = isNever ? 'never' : (paying ? 'paying' : 'lapsed');
-      if (types.includes(type)) n += 1;
+      if (!types.includes(type)) continue;
+      n += 1;
+      revenue += (row.eopMrr || 0) + (row.usage || 0) + (row.oneTime || 0) + (row.passThrough || 0);
     }
-    return n;
+    return { n, revenue };
   };
+  const countFor = month => selectedIn(month).n;
 
   const windowFor = n => {
     const slice = ledger.window.slice(-n);
@@ -2877,10 +2869,12 @@ export function costCalculator(data, { costKeys = null, logoKeys = null } = {}) 
   const revenueFor = n => {
     const slice = ledger.window.slice(-n);
     let rev = 0;
-    ledger.window.forEach((m, i) => {
-      if (slice.includes(m)) rev += ledger.counts[i].revenue;
-    });
-    const logos = slice.reduce((s, m) => s + countFor(m), 0);
+    let logos = 0;
+    for (const m of slice) {
+      const sel = selectedIn(m);
+      rev += sel.revenue;
+      logos += sel.n;
+    }
     return logos ? rev / logos : null;
   };
   const revSix = revenueFor(6);
@@ -3351,6 +3345,19 @@ export const EVENT_COST_CHECKS = [
     ask: 'Whether attendees were tagged in HubSpot; same question for Zoom Drain ($10,000) and We Mean Business ($10,000).' },
 ];
 
+// Event lead sources for editions that happen after the last month of data,
+// with the month they happen. A customer tagged to one cannot have been
+// brought by it yet, so all of them read as already paying until the event
+// month arrives. 27 of the 30 tagged "2026 - Pantheon" were paying before
+// 2026 began. Pantheon 2026 is in October (the shared-booth invoice says so);
+// Home Service Freedom 2026 is 26 to 28 October; Nexstar's Super Meeting has
+// run at the end of September.
+export const EVENT_UPCOMING = {
+  '2026 - Pantheon': '2026-10',
+  '2026 - Home Service Freedom': '2026-10',
+  '2026 - Nexstar Super Meeting': '2026-09',
+};
+
 // Lead source values that do not match an Event Costs row by name. Filled
 // from the first push that carried lead_source; anything not listed and not
 // matched by name is reported as unmatched rather than guessed.
@@ -3590,8 +3597,10 @@ export function eventRoi(data) {
       if (byName.length === 1 && !year) cost = byName[0];
     }
     if (cost) used.add(cost.event);
-    const fromMonth = cost ? cost.month : year ? `${year}-01` : null;
-    events.push({ source: b.source, year, cost, ...summarise(b.ids, b.rows, fromMonth) });
+    const upcoming = !cost && EVENT_UPCOMING[b.source] ? EVENT_UPCOMING[b.source] : null;
+    const fromMonth = cost ? cost.month : upcoming || (year ? `${year}-01` : null);
+    events.push({ source: b.source, year, cost, upcoming,
+      ...summarise(b.ids, b.rows, fromMonth) });
   }
   // Events that cost money and brought no tagged customer still belong on the
   // list: an event with a fee and nobody tagged is a result, and the most
@@ -3607,7 +3616,7 @@ export function eventRoi(data) {
   for (const e of events) {
     const cost = e.cost ? e.cost.cost : null;
     e.label = e.cost ? e.cost.event : e.source;
-    e.month = e.cost ? e.cost.month : null;
+    e.month = e.cost ? e.cost.month : e.upcoming || null;
     e.spend = cost;
     e.cashMultiple = cost ? e.collected / cost : null;
     e.net = cost !== null && e.contribution !== null ? e.contribution - cost : null;
@@ -3645,7 +3654,9 @@ export function eventRoi(data) {
     m.customers += 1;
     if (liveIds.has(id)) m.live += 1;
   }
-  const unmatchedSources = events.filter(e => e.source && !e.cost).map(e => e.source);
+  const unmatchedSources = events.filter(e => e.source && !e.cost && !e.upcoming).map(e => e.source);
+  const upcomingSources = events.filter(e => e.upcoming).map(e => ({ source: e.source,
+    month: e.upcoming, tagged: e.tagged }));
   const costed = events.filter(e => e.spend !== null);
 
   return {
@@ -3657,6 +3668,7 @@ export function eventRoi(data) {
       share: liveIds.size ? taggedLive.length / liveIds.size : null,
       taggedEver: sourceOf.size },
     unmatchedSources,
+    upcomingSources,
     totals: {
       spend: costed.reduce((s, e) => s + e.spend, 0),
       collected: costed.reduce((s, e) => s + e.collected, 0),
@@ -3882,7 +3894,7 @@ export function eventReports(data) {
   // like for like: left-censored customers have no start month at all.
   const starters = [...firstRevenue].filter(([, m]) => m > data.historyStarts);
   const channelOf = id => mediumOf.get(id) || 'untagged';
-  const channelKeys = ['event', 'webinar', 'digital', 'partner or referral', 'untagged'];
+  const channelKeys = ['event', 'webinar', 'podcast', 'digital', 'partner or referral', 'untagged'];
   const keptAt = (ids, k) => {
     const eligible = ids.filter(id => monthAdd(firstRevenue.get(id), k) <= lastMonth);
     if (eligible.length < 10) return { rate: null, n: eligible.length };
@@ -4437,6 +4449,48 @@ export function cohortRevenueRetention(cohorts, {
 // horizons, and leaving those lines to stop short hides the most interesting
 // part of the chart, which is what the recent intakes are heading for. They are
 // carried forward instead, and marked as carried rather than measured.
+// How far cohorts drift from a reference curve, per month carried.
+//
+// For every cohort and every pair of ages it has lived through, the log of
+// how much its own reading moved, less how much the reference says it should
+// have. The drift is the least-squares slope of those gaps on the number of
+// months between the two ages, through the origin. Charts 45, 46 and 47 each
+// carried their own copy of this loop against their own reference; one
+// implementation now, each chart passing its reference and its reach.
+//
+//   top(c)        the oldest age to read cohort c to
+//   value(c, a)   the cohort's reading at age a, or null
+//   usable(a)     whether the reference can be used at age a
+//   reference(a)  the reference curve at age a
+function referenceDrift(cohorts, { top, value, usable, reference }) {
+  const byGap = new Map();
+  const pairs = [];
+  let num = 0;
+  let den = 0;
+  for (const c of cohorts) {
+    const last = top(c);
+    for (let a = 1; a <= last; a += 1) {
+      if (!usable(a)) continue;
+      const x = value(c, a);
+      if (!x || x <= 0) continue;
+      for (let b = a + 1; b <= last; b += 1) {
+        if (!usable(b)) continue;
+        const y = value(c, b);
+        if (!y || y <= 0) continue;
+        const moved = Math.log(y / x) - Math.log(reference(b) / reference(a));
+        if (!Number.isFinite(moved)) continue;
+        const gap = b - a;
+        if (!byGap.has(gap)) byGap.set(gap, []);
+        byGap.get(gap).push(moved);
+        pairs.push({ gap, moved });
+        num += moved * gap;
+        den += gap * gap;
+      }
+    }
+  }
+  return { drift: den ? num / den : 0, byGap, pairs, den };
+}
+
 export function revenueRetentionAtAges(cohorts, { ages = [3, 6, 9, 12, 18] } = {}) {
   const usable = cohorts.filter(c => (c.retainedStartingRevenue[0] || 0) > 0);
   if (usable.length < 4) return null;
@@ -4468,25 +4522,13 @@ export function revenueRetentionAtAges(cohorts, { ages = [3, 6, 9, 12, 18] } = {
   // interval on the chart.
   const oldest = Math.max(...ages);
   const usableAge = age => age < shape.length && Number.isFinite(shape[age]) && shape[age] > 0;
-  const byGap = new Map();
-  for (const c of usable) {
-    const top = Math.min(c.maxOffset, oldest);
-    for (let from = 1; from <= top; from += 1) {
-      if (!usableAge(from)) continue;
-      const a = retained(c, from);
-      if (!a || a <= 0) continue;
-      for (let to = from + 1; to <= top; to += 1) {
-        if (!usableAge(to)) continue;
-        const b = retained(c, to);
-        if (!b || b <= 0) continue;
-        const moved = Math.log(b / a) - Math.log(shape[to] / shape[from]);
-        if (!Number.isFinite(moved)) continue;
-        const gap = to - from;
-        if (!byGap.has(gap)) byGap.set(gap, []);
-        byGap.get(gap).push(moved);
-      }
-    }
-  }
+  const fit = referenceDrift(usable, {
+    top: c => Math.min(c.maxOffset, oldest),
+    value: retained,
+    usable: usableAge,
+    reference: age => shape[age],
+  });
+  const byGap = fit.byGap;
   // Carrying a reading along the average shape is optimistic, because the
   // average shape is fit on every cohort including the old ones and the newer
   // ones fall away faster. This is that bias, measured: the average log gap per
@@ -4497,14 +4539,7 @@ export function revenueRetentionAtAges(cohorts, { ages = [3, 6, 9, 12, 18] } = {
   // moves the bias from +0.4 to -0.5, so it is a correction on the bias of the
   // carry and not an accuracy gain, and the backtest is not rerun on load. It
   // is not a forecast of decline.
-  const drift = (() => {
-    let num = 0;
-    let den = 0;
-    for (const [gap, xs] of byGap) {
-      for (const moved of xs) { num += moved * gap; den += gap * gap; }
-    }
-    return den ? num / den : 0;
-  })();
+  const drift = fit.drift;
 
   const spreadAt = gap => {
     const xs = byGap.get(gap);
@@ -4608,30 +4643,15 @@ export function windowRetentionCurve(cohorts, { from = null, span = 3, maxAge = 
   // How far a cohort drifts from that shape over a gap of n months, and how
   // much the shape overstates what actually happens per month carried. Both
   // measured on every cohort, both used the same way chart 45 uses them.
-  const byGap = new Map();
-  for (const c of usable) {
-    const top = Math.min(c.maxOffset, maxAge);
-    const at = a => (c.retainedStartingRevenue[0] && a <= top
-      ? c.cappedRetainedRevenue[a] / c.retainedStartingRevenue[0] : null);
-    for (let a = 1; a <= top; a += 1) {
-      if (!usableAge(a)) continue;
-      const x = at(a);
-      if (!x || x <= 0) continue;
-      for (let b = a + 1; b <= top; b += 1) {
-        if (!usableAge(b)) continue;
-        const y = at(b);
-        if (!y || y <= 0) continue;
-        const moved = Math.log(y / x) - Math.log(shape[b] / shape[a]);
-        if (!Number.isFinite(moved)) continue;
-        if (!byGap.has(b - a)) byGap.set(b - a, []);
-        byGap.get(b - a).push(moved);
-      }
-    }
-  }
-  let num = 0;
-  let den = 0;
-  for (const [gap, xs] of byGap) for (const m of xs) { num += m * gap; den += gap * gap; }
-  const drift = den ? num / den : 0;
+  const fit = referenceDrift(usable, {
+    top: c => Math.min(c.maxOffset, maxAge),
+    value: (c, a) => (c.retainedStartingRevenue[0] && a <= Math.min(c.maxOffset, maxAge)
+      ? c.cappedRetainedRevenue[a] / c.retainedStartingRevenue[0] : null),
+    usable: usableAge,
+    reference: age => shape[age],
+  });
+  const byGap = fit.byGap;
+  const drift = fit.drift;
   const spreadAt = gap => {
     const xs = byGap.get(gap);
     if (!xs || xs.length < 6) return null;
@@ -5094,27 +5114,16 @@ export function leverProjection(data, cohorts, {
   const logoHeld = logoHeldRaw.length >= 13 ? extend(logoHeldRaw, months + 40) : logoRef;
   const best = pickCurve(grown.slice(0, 6));
 
-  let num = 0;
-  let den = 0;
-  const pairs = [];
-  for (const c of usable) {
-    const top = Math.min(c.maxOffset, referenceRaw.length - 1, 24);
-    const at = a => (a <= top ? c.cappedRetainedRevenue[a] / c.retainedStartingRevenue[0] : null);
-    for (let a = 1; a <= top; a += 1) {
-      const x = at(a);
-      if (!x || x <= 0 || !reference[a]) continue;
-      for (let b = a + 1; b <= top; b += 1) {
-        const y = at(b);
-        if (!y || y <= 0 || !reference[b]) continue;
-        const moved = Math.log(y / x) - Math.log(reference[b] / reference[a]);
-        if (!Number.isFinite(moved)) continue;
-        pairs.push({ gap: b - a, moved });
-        num += moved * (b - a);
-        den += (b - a) ** 2;
-      }
-    }
-  }
-  const drift = den ? num / den : 0;
+  const topOf = c => Math.min(c.maxOffset, referenceRaw.length - 1, 24);
+  const fit = referenceDrift(usable, {
+    top: topOf,
+    value: (c, a) => (a <= topOf(c) ? c.cappedRetainedRevenue[a] / c.retainedStartingRevenue[0] : null),
+    usable: a => Boolean(reference[a]),
+    reference: a => reference[a],
+  });
+  const pairs = fit.pairs;
+  const den = fit.den;
+  const drift = fit.drift;
   // Clustered on cohorts, not on pairs. The pairs overlap heavily -- every
   // cohort contributes one for each ordering of its own ages -- so the naive
   // standard error is about a tenth of the real one.
@@ -5654,6 +5663,26 @@ export const COST_CATEGORIES = [
 // a month of spend over that partial count is about the count. Cached per
 // load, because several charts ask and buildCohorts is the expensive part.
 const startedCache = new WeakMap();
+// Months QuickBooks had not closed when the push was taken. Until a month
+// closes, its Stripe revenue sits in 4000-96 Revenue Clearing and the month's
+// adjusting entries are not posted, so every cost line in it may still move.
+// A closed month carries at most a small residue there (under 3% of revenue
+// in 2024); an unclosed one carries about all of it. Half is the line.
+export function unclosedMonths(data) {
+  const clearing = new Map();
+  const revenue = new Map();
+  for (const r of data.expenses) {
+    const a = r.account || '';
+    if (r.amount === null || !/^4000-/.test(a)) continue;
+    revenue.set(r.month, (revenue.get(r.month) || 0) + r.amount);
+    if (/^4000-96/.test(a)) clearing.set(r.month, (clearing.get(r.month) || 0) + r.amount);
+  }
+  return [...clearing.keys()].filter(m => {
+    const total = revenue.get(m) || 0;
+    return total > 0 && clearing.get(m) >= total * 0.5;
+  }).sort();
+}
+
 export function logosStarted(data, cohorts = null) {
   if (!cohorts && startedCache.has(data)) return startedCache.get(data);
   const built = cohorts || buildCohorts(data);
@@ -6650,9 +6679,13 @@ export function signupEconomics(data, { dropTrailing = true } = {}) {
     };
   });
 
-  const startTypes = [...new Set(rows.map(r => r.startType || 'unclassified'))];
+  // Totals over the months drawn, not every row: a trailing month dropped as
+  // a partial pull was still being counted in the finding beneath the chart.
+  const drawn = new Set(months);
+  const kept = rows.filter(r => drawn.has(r.month));
+  const startTypes = [...new Set(kept.map(r => r.startType || 'unclassified'))];
   const typeTotals = startTypes.map(type => {
-    const group = rows.filter(r => (r.startType || 'unclassified') === type);
+    const group = kept.filter(r => (r.startType || 'unclassified') === type);
     return {
       type,
       customers: group.length,
@@ -6660,7 +6693,7 @@ export function signupEconomics(data, { dropTrailing = true } = {}) {
     };
   }).sort((a, b) => b.customers - a.customers);
 
-  const below = rows.filter(r => r.firstPayment < r.startingMrr);
+  const below = kept.filter(r => r.firstPayment < r.startingMrr);
   const billedMonths = [...billed.values()];
 
   return {
@@ -6669,7 +6702,7 @@ export function signupEconomics(data, { dropTrailing = true } = {}) {
     months: series,
     startTypes,
     typeTotals,
-    total: rows.length,
+    total: kept.length,
     paidBelow: { customers: below.length, startingMrr: below.reduce((s, r) => s + r.startingMrr, 0) },
   };
 }
