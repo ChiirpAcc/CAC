@@ -5506,6 +5506,12 @@ function renderStatic() {
     + (data.missingTabs && data.missingTabs.length
         ? ` Optional tabs absent: ${data.missingTabs.join(', ')}.`
         : '')
+    + (data.staleTabs && data.staleTabs.length
+        ? ` The latest push left out ${data.staleTabs.map(x => x.tab).join(', ')}; `
+          + `${data.staleTabs.length === 1 ? 'it is' : 'they are'} read from the last push that carried `
+          + `${data.staleTabs.length === 1 ? 'it' : 'them'} (${data.staleTabs.map(x => `${x.tab}: `
+            + `${String(x.pushedAt || 'date unknown').replace('T', ' ')}${x.pipelineVersion ? `, ${x.pipelineVersion}` : ''}`).join('; ')}).`
+        : '')
     // Whether the revenue on this page agrees with the only other statement of
     // it in the push. Said here rather than buried, because a page that cannot
     // check itself should not imply that it has.

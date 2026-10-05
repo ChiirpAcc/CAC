@@ -245,6 +245,14 @@ function widen(doc, name) {
 // new tabs have arrived unannounced more than once, and fetching every file
 // meant one bad or renamed file took the whole page down rather than one chart.
 const REQUIRED_TABS = ['Waterfall Summary', 'CAC Monthly', 'QB Expenses', 'Customer Waterfall'];
+// The file each tab is pushed to, for reading a tab the latest index left out.
+const TAB_FILES = {
+  'Waterfall Summary': 'waterfall_summary.json', 'CAC Monthly': 'cac_monthly.json',
+  'QB Expenses': 'qb_expenses.json', 'Customer Waterfall': 'customer_waterfall.json',
+  'QB Accounts': 'qb_accounts.json', 'Subscription Lifetimes': 'subscription_lifetimes.json',
+  'New Customer Cohorts': 'signup_pricing.json', 'Serve Monthly': 'serve_monthly.json',
+  'Event Costs': 'event_costs.json', 'Cash Detail': 'cash_detail.json',
+};
 const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Cohorts',
   'Serve Monthly', 'Event Costs', 'Cash Detail'];
 
@@ -291,6 +299,21 @@ export async function load() {
       missing.push(entry.tab);
     }
   }));
+
+  // A push that leaves a tab out of its index does not delete the tab's file
+  // from the repository. The 5 Oct 2026 push listed nine tabs and dropped the
+  // Customer Waterfall, which every customer chart needs; rather than show no
+  // site, the last file pushed is read and named as stale (staleTabs).
+  const staleTabs = [];
+  await Promise.all(Object.entries(TAB_FILES)
+    .filter(([tab]) => !byTab[tab] && !index.files.some(e => e.tab === tab))
+    .map(async ([tab, file]) => {
+      try {
+        byTab[tab] = await readFile(file);
+        staleTabs.push({ tab, pushedAt: byTab[tab].pushed_at || null,
+          pipelineVersion: byTab[tab].pipeline_version || null });
+      } catch (err) { /* not in the repository either */ }
+    }));
 
   for (const tab of REQUIRED_TABS) {
     if (!byTab[tab]) throw new Error(`${tab} is missing from the push`);
@@ -603,6 +626,7 @@ export async function load() {
     serve,
     vocabulary,
     missingTabs: missing,
+    staleTabs,
     lastMonth: waterfall.length ? waterfall[waterfall.length - 1].month : null,
   };
 }
