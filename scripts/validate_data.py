@@ -449,6 +449,43 @@ def check_missing_customers(customers):
            f"had been refunded or stopped paying. Paid a first invoice: {', '.join(real) or 'none'}.")
 
 
+def check_lead_counts(doc):
+    """The Lead Counts tab (hs-v23): the checks its brief asks for on every push.
+
+    Earned plus list must not exceed the total; before plus after must equal the
+    total where the event has a date; event sources must be a real share of the
+    rows. A source that is mostly a loaded list is reported, because its total
+    describes a file rather than leads, and the site uses earned for it.
+    """
+    if not doc:
+        return
+    rows = doc.get("rows") or []
+    if not rows:
+        report("warning", "Lead Counts", "the tab is in the push with no rows.")
+        return
+    n = lambda v: number(v) or 0
+    bad_sum = [r.get("source") for r in rows
+               if n(r.get("earned")) + n(r.get("list")) > n(r.get("total")) + 3]
+    bad_split = [r.get("source") for r in rows
+                 if str(r.get("event date") or "").strip()
+                 and n(r.get("before the event")) + n(r.get("after the event")) not in (0, n(r.get("total")))]
+    if bad_sum:
+        report("warning", "Lead Counts", f"earned plus list exceeds the total for {len(bad_sum)} sources: "
+               f"{', '.join(map(str, bad_sum[:8]))}.")
+    if bad_split:
+        report("warning", "Lead Counts", f"before plus after the event does not equal the total for "
+               f"{len(bad_split)} dated events: {', '.join(map(str, bad_split[:8]))}.")
+    events = [r for r in rows if str(r.get("medium") or "") == "event"]
+    if len(events) < 5:
+        report("warning", "Lead Counts", f"only {len(events)} of {len(rows)} sources are events; the medium "
+               f"classification may not be landing.")
+    listy = [r for r in events if n(r.get("total")) >= 50 and n(r.get("list")) / max(n(r.get("total")), 1) > 0.5]
+    report("note", "Lead Counts",
+           f"{len(rows)} sources, {len(events)} of them events. Mostly a loaded list, so read by earned leads: "
+           + (", ".join(f"{r.get('source')} ({n(r.get('list')):,.0f} of {n(r.get('total')):,.0f})" for r in listy)
+              or "none") + ".")
+
+
 def main():
     index = load("index.json")
     if index is None:
@@ -484,6 +521,8 @@ def main():
         check_departures_are_booked(waterfall, customers)
         check_lead_source(customers)
         check_missing_customers(customers)
+        lead_counts = present.get("Lead Counts")
+        check_lead_counts(load(lead_counts["file"]) if lead_counts else None)
         check_ledger_closed(load("qb_expenses.json"))
 
         # The base count is the one number that needs no interpretation, so a

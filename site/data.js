@@ -3504,6 +3504,8 @@ export const EVENT_ALIASES = {
   '2026 - Certain Path Spring Expo': 'CertainPath Spring Expo 2026',
   '2026 - EGIA Epic Tradeshow': 'EGIA Epic 2026',
   'Blue Sky Mastermind (Tradesformation) (contact)': 'Blue Sky Mastermind (Tradesformation) 2025',
+  '2025 - Certain Path Fall Expo': 'CertainPath Fall Expo 2025',
+  '2026 - Nuve Home Contractor Trades Event': 'Nuve 2026',
 };
 
 // What kind of event each one is, who runs it, and where it stands in the
@@ -4355,7 +4357,7 @@ export function eventReports(data, options = {}) {
 // but not divided into cost: for Pantheon 2025 it counts 1,045 contacts, most
 // of them the 992-contact list loaded on 11 Nov 2025.
 export function eventLeads(data, roi = eventRoi(data)) {
-  const rows = (data.leadCounts || []).filter(r => r.medium === 'event'
+  const rows = (data.leadCounts || []).filter(r => (r.medium === 'event' || LEAD_SOURCE_EVENT_VALUES.has(r.source))
     && !/podcast|webinar/i.test(r.source));
   if (!rows.length || !roi) return null;
   const costRows = roi.events.filter(e => e.cost);
@@ -4382,6 +4384,10 @@ export function eventLeads(data, roi = eventRoi(data)) {
       credited: e ? e.paid : null,
       leadToCustomer: e && leads ? e.paid / leads : null,
       type: e ? e.type : null, upcoming: !e || !e.cost,
+      // After the data: the event has not happened in the months the site reads.
+      afterData: (roi.upcomingSources.find(u => u.source === r.source) || {}).month
+        || ((r.source.match(/^(20\d\d)\s*-/) || [])[1] > roi.lastMonth.slice(0, 4) ? r.source.slice(0, 4) : null)
+        || (r.eventDate && r.eventDate.slice(0, 7) > roi.lastMonth ? r.eventDate.slice(0, 7) : null),
     };
   }).sort((a, b) => (b.leads || 0) - (a.leads || 0));
   return {

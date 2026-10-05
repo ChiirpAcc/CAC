@@ -4009,7 +4009,7 @@ function renderMarketing() {
     + `Paid social cost ${money(meta.spend)}: ${fmt.int(meta.leads)} leads at ${money(meta.costPerLead)} each, `
     + `${fmt.int(meta.won)} won deals at ${money(meta.costPerWon)} each. Events cost ${money(ev.spend)} for `
     + `${fmt.int(ev.won)} won deals, ${money(ev.costPerWon)} each. Partners, referrals, website and search `
-    + `carry no spend here, so the blended figure flatters the paid channels' share of it.`;
+    + `win deals with no spend recorded here, which is why the blended figure is below every paid channel’s.`;
 
   // Spend by month.
   const spendSeries = ['Paid social', 'Events', 'Podcasts'].map(c => ({
@@ -4088,8 +4088,8 @@ function renderMarketing() {
     + 'of keeping customers. Leads are HubSpot contacts created, by Original Traffic Source, because the lead '
     + 'source field is set on almost no digital lead; event leads are the earned leads in the Lead Counts tab. '
     + 'Contacts entered by hand or imported (Offline Sources) are left out of the lead lines. Deals are by the '
-    + 'deal’s own lead source: Digital Marketing deals before Meta (Ads) existed as a value in January 2026 '
-    + 'may be Meta, and the large numbers of deals opened in March and July 2026 are bulk loads, so deals opened '
+    + 'deal’s own lead source: Digital Marketing deals from before Meta (Ads) came into use in December 2025 '
+    + 'may be Meta, and the large numbers of deals opened in March, April and July 2026 are bulk loads, so deals opened '
     + 'is not a demand measure. Paying customers are Stripe customers by the month of their first payment and '
     + 'their HubSpot tag. Leads and deals are a snapshot until the pipeline pushes them.';
 }
@@ -4179,8 +4179,9 @@ function renderEventPage(label) {
     + `${e.source ? ` · HubSpot source "${e.source}"` : ''}</p></header>`
     + `<p class="finding"><strong>${e.spend === null ? 'No cost recorded' : `Cost ${money(e.spend)}`}`
     + `${e.net !== null ? `, net ${signed(e.net)} so far` : ''}.</strong> `
-    + `${int(e.paid)} customer${e.paid === 1 ? '' : 's'} credited, ${int(e.liveNow)} still live, `
-    + `${money(e.collected)} collected.</p>`
+    + (e.upcoming ? `It happens after the last month of data, so nothing is credited to it yet.</p>`
+      : `${int(e.paid)} customer${e.paid === 1 ? '' : 's'} credited, ${int(e.liveNow)} still live, `
+        + `${money(e.collected)} collected.</p>`)
     + `<figure class="card wide"><figcaption><h3>What it cost</h3></figcaption>`
     + `<div class="table-scroll"><table class="data-table"><tbody>${costRows}</tbody></table></div>`
     // The basis already carries a settled decision's or a shared fee's text,
@@ -4536,7 +4537,8 @@ function renderEvents() {
           + `<td class="n">${x.dated ? `${fmt.int(x.before)} / ${fmt.int(x.after)}` : '<span class="muted">no date</span>'}</td>`
           + `<td class="n">${x.confirmed === null ? '–' : fmt.int(x.confirmed)}</td>`
           + `<td class="n">${x.contradicted === null ? '–' : fmt.int(x.contradicted)}</td>`
-          + `<td class="n">${money(x.costPerLead)}${x.upcoming ? '<br><span class="muted">no cost row</span>' : ''}</td>`
+          + `<td class="n">${money(x.costPerLead)}${x.upcoming ? `<br><span class="muted">${x.afterData
+            ? `after the data (${/^\d{4}-\d{2}$/.test(x.afterData) ? fmt.monthLabel(x.afterData) : x.afterData})` : 'no cost row'}</span>` : ''}</td>`
           + `<td class="n">${x.credited === null ? '–' : fmt.int(x.credited)}</td></tr>`).join('')
         + '</tbody>';
       $('event-leads-note').textContent =
