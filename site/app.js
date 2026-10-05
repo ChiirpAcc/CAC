@@ -4934,7 +4934,7 @@ function renderEvents() {
     items: [...orgs].sort((a, b) => b.net - a.net).map(o => ({
       label: o.organiser,
       sub: `${o.years.join(', ')} · ${qty(o.events.length, 'event')}`
-        + ` · cost ${money(o.spend)} · ${o.plan2027.startsWith('On') ? '2027: on'
+        + ` · cost ${money(o.spend)}${o.committed ? ` + ${money(o.committed)} not yet run or settling` : ''} · ${o.plan2027.startsWith('On') ? '2027: on'
           : o.plan2027.startsWith('Dropped') ? '2027: dropped' : '2027: not listed'}`
         + (o.tooNew ? ' · too new to judge' : ''),
       value: o.net,
@@ -4962,7 +4962,7 @@ function renderEvents() {
     + '<th class="n">Net of cost</th><th class="n">Via the partnership</th><th>2027</th></tr></thead><tbody>'
     + orgs.map(o => `<tr><td>${o.organiser}<br><span class="muted">${o.types.join(', ')}</span></td>`
       + `<td>${o.events.map(x => `${x.label} <span class="muted">${x.month ? fmt.monthLabel(x.month) : ''}</span>`).join('<br>')}</td>`
-      + `<td class="n">${money(o.spend)}</td><td class="n">${fmt.int(o.customers)}</td>`
+      + `<td class="n">${money(o.spend)}${o.committed ? `<br><span class="muted">+ ${money(o.committed)} not yet run or settling</span>` : ''}</td><td class="n">${fmt.int(o.customers)}</td>`
       + `<td class="n"><span class="${o.net < 0 ? 'notviable' : 'held'}">${signed(o.net)}</span></td>`
       + `<td class="n">${o.partnerCustomers ? `${fmt.int(o.partnerCustomers)}<br><span class="muted">${fmt.int(o.partnerLive)} live</span>` : '–'}</td>`
       + `<td>${chip(o.plan2027)}</td></tr>`).join('')
@@ -4983,7 +4983,7 @@ function renderEvents() {
   barList($('chart-event-types'), {
     items: r.types.map(ty => ({
       label: ty.type,
-      sub: `${qty(ty.events, 'event')} · cost ${money(ty.spend)} · ${qty(ty.customers, 'customer')}`,
+      sub: `${qty(ty.events, 'event')} · cost ${money(ty.spend)}${ty.committed ? ` + ${money(ty.committed)} not yet run` : ''} · ${qty(ty.customers, 'customer')}`,
       value: ty.net,
       colour: EVENT_TYPE_INK[ty.type] || EVENT_TYPE_INK[EVENT_UNCLASSIFIED],
     })),
@@ -4994,7 +4994,7 @@ function renderEvents() {
     + '<th class="n">Customers</th><th class="n">Cost per customer</th><th class="n">Net of cost</th>'
     + '<th class="n">With no customer</th></tr></thead><tbody>'
     + r.types.map(ty => `<tr><td>${ty.type}</td><td class="n">${fmt.int(ty.events)}</td>`
-      + `<td class="n">${money(ty.spend)}</td><td class="n">${fmt.int(ty.customers)}</td>`
+      + `<td class="n">${money(ty.spend)}${ty.committed ? `<br><span class="muted">+ ${money(ty.committed)} not yet run or settling</span>` : ''}</td><td class="n">${fmt.int(ty.customers)}</td>`
       + `<td class="n">${ty.customers ? money(ty.spend / ty.customers) : '–'}</td>`
       + `<td class="n"><span class="${ty.net < 0 ? 'notviable' : 'held'}">${signed(ty.net)}</span></td>`
       + `<td class="n">${fmt.int(ty.nothing)}${ty.tooNew ? `<br><span class="muted">+${fmt.int(ty.tooNew)} too new</span>` : ''}</td></tr>`).join('')

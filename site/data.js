@@ -3394,8 +3394,8 @@ export const EVENT_PACKAGES = [
     match: /pantheon/i, from: '2026-01', to: '2026-12',
     basis: 'The $195,000 package is shared four ways. QuickBooks shows two partners\' deposits of '
       + '$48,750 each, and a third partner paid $50,258, which leaves $47,242 of the total; the 2027 '
-      + 'budget carries the CHIIRP share at $48,750, a quarter, and that is used. The event is in '
-      + 'October 2026.' },
+      + 'budget carries the CHIIRP share at $48,750, a quarter, and that is used. The event ran on '
+      + '16 September 2026.' },
 ];
 const packageOf = c => EVENT_PACKAGES.find(pack => pack.match.test(c.event)
   && c.month && c.month >= pack.from && c.month <= pack.to) || null;
@@ -4360,9 +4360,14 @@ export function eventReports(data, options = {}) {
     if (!orgMap.has(e.organiser)) orgMap.set(e.organiser, { organiser: e.organiser, events: [] });
     orgMap.get(e.organiser).events.push(e);
   }
+  // An event still ahead, or whose cost is still settling, has not had the
+  // chance to bring anyone; its cost is shown as committed and kept out of
+  // the net, or an organiser reads behind for an event that has not run.
+  const isCommitted = e => Boolean(e.upcoming || e.costState);
   const organisers = [...orgMap.values()].map(o => {
     const sum = k => o.events.reduce((s, e) => s + (e[k] || 0), 0);
-    const spend = o.events.reduce((s, e) => s + (e.spend || 0), 0);
+    const spend = o.events.filter(e => !isCommitted(e)).reduce((s, e) => s + (e.spend || 0), 0);
+    const committed = o.events.filter(isCommitted).reduce((s, e) => s + (e.spend || 0), 0);
     const contribution = sum('contribution');
     const partnerValues = ORGANISER_PARTNER_SOURCES[o.organiser] || [];
     const partnerIds = [...sourceOf].filter(([, v]) => partnerValues.includes(v)).map(([id]) => id);
@@ -4377,6 +4382,7 @@ export function eventReports(data, options = {}) {
       types: [...new Set(o.events.map(e => e.type).filter(Boolean))],
       plan2027: plans.includes(ON) ? ON : plans.includes('Dropped for 2027') ? 'Dropped for 2027' : OFF,
       spend,
+      committed,
       customers: sum('paid'),
       alreadyPaying: sum('alreadyPaying'),
       collected: sum('collected'),
@@ -4391,9 +4397,10 @@ export function eventReports(data, options = {}) {
   // ---- by type
   const types = [...EVENT_TYPES, EVENT_UNCLASSIFIED].map(type => {
     const list = roi.events.filter(e => e.type === type && e.spend !== null);
-    const spend = list.reduce((s, e) => s + e.spend, 0);
+    const spend = list.filter(e => !isCommitted(e)).reduce((s, e) => s + e.spend, 0);
+    const committed = list.filter(isCommitted).reduce((s, e) => s + e.spend, 0);
     const contribution = list.reduce((s, e) => s + (e.contribution || 0), 0);
-    return { type, events: list.length, spend, customers: list.reduce((s, e) => s + e.paid, 0),
+    return { type, events: list.length, spend, committed, customers: list.reduce((s, e) => s + e.paid, 0),
       contribution, net: contribution - spend,
       nothing: list.filter(e => eventHasReturn(e) && !e.paid && !isTooNew(e)).length,
       tooNew: list.filter(isTooNew).length };
@@ -4474,8 +4481,8 @@ export function eventReports(data, options = {}) {
 
   // Organisers and kinds must add up to every costed event; if they do not,
   // the tab says so rather than letting an event fall out unseen.
-  const orgSpend = organisers.reduce((t, o) => t + o.spend, 0);
-  const typeSpend = types.reduce((t, x) => t + x.spend, 0);
+  const orgSpend = organisers.reduce((t, o) => t + o.spend + o.committed, 0);
+  const typeSpend = types.reduce((t, x) => t + x.spend + x.committed, 0);
   const sums = { total: roi.totals.spend, organisers: orgSpend, types: typeSpend,
     agree: Math.abs(orgSpend - roi.totals.spend) < 1 && Math.abs(typeSpend - roi.totals.spend) < 1 };
 
