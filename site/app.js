@@ -13,6 +13,7 @@ import {
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
+  eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
@@ -1133,13 +1134,14 @@ function renderEra() {
       })() + '.';
 }
 
-// The three views: every chart, the Upgrade list, and Events.
+// The views: every chart, the Upgrade list, Events and Marketing.
 function showView(which) {
   $('view-all').hidden = which !== 'all';
   if ($('view-list')) $('view-list').hidden = which !== 'list';
   if ($('view-events')) $('view-events').hidden = which !== 'events';
+  if ($('view-marketing')) $('view-marketing').hidden = which !== 'marketing';
   for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'],
-                          ['tab-events', which === 'events']]) {
+                          ['tab-events', which === 'events'], ['tab-marketing', which === 'marketing']]) {
     if (!$(id)) continue;
     $(id).setAttribute('aria-selected', String(on));
     $(id).classList.toggle('is-on', on);
@@ -1151,6 +1153,7 @@ function wireTabs() {
   $('tab-all').addEventListener('click', () => showView('all'));
   if ($('tab-list')) $('tab-list').addEventListener('click', () => showView('list'));
   if ($('tab-events')) $('tab-events').addEventListener('click', () => showView('events'));
+  if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => showView('marketing'));
   showView('all');
 }
 
@@ -3955,6 +3958,127 @@ const EVENT_TYPE_INK = {
   'Training': INK.tertiary,
   [EVENT_UNCLASSIFIED]: 'var(--ink-soft)',
 };
+// The Marketing tab. What each way of winning customers cost, month by month,
+// against the leads, deals and paying customers it produced. Spend is
+// QuickBooks, leads and deals are HubSpot, paying customers are Stripe.
+const MARKETING_INK = {
+  'Paid social': INK.primary,
+  'Events': INK.secondary,
+  'Podcasts': INK.accent,
+  'Other digital': INK.tertiary,
+  'Website and search': INK.positive,
+  'Webinars': 'var(--ink-soft)',
+  'Partners and referrals': INK.negative,
+};
+function renderMarketing() {
+  if (!$('chart-mkt-spend')) return;
+  const r = marketingReport(data);
+  if (!r) {
+    $('chart-mkt-spend').innerHTML = '<p class="empty">No months to show yet.</p>';
+    return;
+  }
+  const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
+  const int = v => (v === null || v === undefined ? '–' : fmt.int(v));
+  const labels = r.months.map(fmt.monthLabel);
+  const span = `${fmt.monthLabel(r.months[0])} to ${fmt.monthLabel(r.months[r.months.length - 1])}`;
+  const cat = name => r.totals.find(t => t.category === name);
+  const meta = cat('Paid social');
+  const ev = cat('Events');
+
+  $('mkt-source').textContent = `Spend is QuickBooks; leads and deals are HubSpot as read on `
+    + `${r.snapshotAsOf}; paying customers are Stripe. ${span}.`;
+
+  $('mkt-finding').innerHTML =
+    `<strong>${money(r.spendAll)} of marketing spend over ${r.months.length} months against `
+    + `${fmt.int(r.wonAll)} won deals, ${money(r.blendedPerWon)} a deal across every channel.</strong> `
+    + `Paid social cost ${money(meta.spend)}: ${fmt.int(meta.leads)} leads at ${money(meta.costPerLead)} each, `
+    + `${fmt.int(meta.won)} won deals at ${money(meta.costPerWon)} each. Events cost ${money(ev.spend)} for `
+    + `${fmt.int(ev.won)} won deals, ${money(ev.costPerWon)} each. Partners, referrals, website and search `
+    + `carry no spend here, so the blended figure flatters the paid channels' share of it.`;
+
+  // Spend by month.
+  const spendSeries = ['Paid social', 'Events', 'Podcasts'].map(c => ({
+    label: c, colour: MARKETING_INK[c], values: r.byMonth.map(x => x.spend[c] || null),
+  }));
+  spendSeries.push({ label: 'Other advertising', colour: 'var(--ink-soft)', dashed: true,
+    values: r.byMonth.map(x => (x.adsOther > 0 ? x.adsOther : null)) });
+  multiLineChart($('chart-mkt-spend'), {
+    labels, series: spendSeries, yFormat: v => fmt.money(v), yMin: 0, yTitle: 'Spend in the month',
+    describe: i => `<strong>${labels[i]}</strong>` + spendSeries.map(s => `<span>${s.label}: `
+      + `${money(s.values[i])}</span>`).join(''),
+  });
+
+  // The category table.
+  $('mkt-table').innerHTML =
+    '<thead><tr><th>Category</th><th class="n">Spend</th><th class="n">Leads</th><th class="n">Deals opened</th>'
+    + '<th class="n">Deals won</th><th class="n">Paying customers</th><th class="n">Per lead</th>'
+    + '<th class="n">Per won deal</th><th class="n">Per paying customer</th></tr></thead><tbody>'
+    + r.totals.map(t => `<tr${t.hasSpend ? '' : ' class="muted"'}><td>${t.category}</td>`
+      + `<td class="n">${t.hasSpend ? money(t.spend) : '–'}</td><td class="n">${t.leads ? int(t.leads) : '–'}</td>`
+      + `<td class="n">${int(t.created)}</td><td class="n">${int(t.won)}</td><td class="n">${int(t.customers)}</td>`
+      + `<td class="n">${money(t.costPerLead)}</td><td class="n">${money(t.costPerWon)}</td>`
+      + `<td class="n">${money(t.costPerCustomer)}</td></tr>`).join('')
+    + `<tr><td>Other advertising</td><td class="n">${money(r.byMonth.reduce((s, x) => s + x.adsOther, 0))}</td>`
+    + '<td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td>'
+    + '<td class="n">–</td><td class="n">–</td></tr>'
+    + `<tr><td><strong>Every channel</strong></td><td class="n"><strong>${money(r.spendAll)}</strong></td>`
+    + `<td class="n">–</td><td class="n">–</td><td class="n"><strong>${int(r.wonAll)}</strong></td>`
+    + `<td class="n"><strong>${int(r.customersAll)}</strong></td><td class="n">–</td>`
+    + `<td class="n"><strong>${money(r.blendedPerWon)}</strong></td>`
+    + `<td class="n"><strong>${money(r.blendedPerCustomer)}</strong></td></tr></tbody>`;
+
+  // Cost per won deal by month, over the three months to date.
+  const cpw = r.paid.map(c => ({ label: c, colour: MARKETING_INK[c],
+    values: r.costPerWon[c].map(x => x.trailing) }));
+  multiLineChart($('chart-mkt-cpw'), {
+    labels, series: cpw, yFormat: v => fmt.money(v), yMin: 0, yTitle: 'Spend per won deal, three months to date',
+    describe: i => `<strong>${labels[i]}</strong>` + r.paid.map(c => {
+      const x = r.costPerWon[c][i];
+      return `<span>${c}: ${money(x.trailing)} over three months, ${money(x.single)} that month</span>`;
+    }).join(''),
+  });
+  const last = r.costPerWon['Paid social'].at(-1);
+  $('mkt-cpw-finding').innerHTML = last && last.trailing
+    ? `<strong>Paid social cost ${money(last.trailing)} per won deal over the three months to `
+      + `${fmt.monthLabel(last.month)}.</strong> The line is spend over the three months to date divided by the deals `
+      + `won in them, because a lead bought in one month often closes in a later one; a single month's figure `
+      + `is in the hover and swings with when deals happen to close.`
+    : '';
+
+  // Leads and won deals by month.
+  const leadCats = ['Paid social', 'Website and search', 'Other digital', 'Events'];
+  multiLineChart($('chart-mkt-leads'), {
+    labels, yMin: 0, yTitle: 'Leads in the month',
+    series: leadCats.map(c => ({ label: c, colour: MARKETING_INK[c], values: r.byMonth.map(x => x.leads[c]) })),
+    describe: i => `<strong>${labels[i]}</strong>` + leadCats.map(c => `<span>${c}: `
+      + `${int(r.byMonth[i].leads[c])}</span>`).join('')
+      + `<span class="muted">Entered by hand or imported: ${int(r.byMonth[i].leads.Offline)}</span>`,
+  });
+  const cats = r.totals.filter(t => t.won || t.spend).map(t => t.category);
+  $('mkt-month-table').innerHTML =
+    '<thead><tr><th>Month</th>' + cats.map(c => `<th class="n">${c}</th>`).join('')
+    + '<th class="n">Spend</th></tr></thead><tbody>'
+    + r.byMonth.map(x => `<tr><td>${fmt.monthLabel(x.month)}</td>`
+      + cats.map(c => `<td class="n">${int(x.won[c])}${x.spend[c] && x.won[c]
+          ? `<br><span class="muted">${money(x.spend[c] / x.won[c])} each</span>` : ''}</td>`).join('')
+      + `<td class="n">${money(MARKETING_CATEGORIES.reduce((s, c) => s + (x.spend[c] || 0), 0) + x.adsOther)}</td></tr>`).join('')
+    + '</tbody>';
+
+  $('mkt-note').textContent =
+    'Spend: Meta and podcast sponsorships are split out of QuickBooks 6100-05 Advertising by vendor; '
+    + 'everything else in it, ClickFunnels landing pages and $34 of Google Ads included, is other advertising, so the categories add '
+    + 'back to the ledger. Event spend is the Events tab’s cost for each event, in its month, including '
+    + 'travel; event fees booked under advertising are counted there once. Webinars, website, search and '
+    + 'partners carry no direct spend; partners are paid in revenue share, which this page counts as a cost '
+    + 'of keeping customers. Leads are HubSpot contacts created, by Original Traffic Source, because the lead '
+    + 'source field is set on almost no digital lead; event leads are the earned leads in the Lead Counts tab. '
+    + 'Contacts entered by hand or imported (Offline Sources) are left out of the lead lines. Deals are by the '
+    + 'deal’s own lead source: Digital Marketing deals before Meta (Ads) existed as a value in January 2026 '
+    + 'may be Meta, and the large numbers of deals opened in March and July 2026 are bulk loads, so deals opened '
+    + 'is not a demand measure. Paying customers are Stripe customers by the month of their first payment and '
+    + 'their HubSpot tag. Leads and deals are a snapshot until the pipeline pushes them.';
+}
+
 function renderEvents() {
   if (!$('chart-events')) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
@@ -4221,6 +4345,62 @@ function renderEvents() {
     + `${fmt.money(unassigned)} over the year: `
     + EVENT_UNASSIGNED_QB.map(x => `${x.what}, ${x.approximate ? 'about ' : ''}${fmt.money(x.amount)} (${x.months})`).join('; ')
     + '.';
+
+  // ---------------------------------------------------------------- leads per event (Lead Counts)
+  const el = eventLeads(data, e);
+  if ($('event-leads-table')) {
+    if (!el) {
+      $('event-leads-finding').textContent = 'This push carries no Lead Counts tab.';
+      $('event-leads-table').innerHTML = '';
+      $('chart-event-leads').innerHTML = '';
+    } else {
+      const withCost = el.events.filter(x => x.costPerLead !== null).sort((a, b) => a.costPerLead - b.costPerLead);
+      barList($('chart-event-leads'), {
+        items: withCost.map(x => ({
+          label: x.label,
+          sub: `${qty(x.leads, 'earned lead')} · cost ${money(x.spend)}`
+            + (x.list ? ` · ${fmt.int(x.list)} more from a list, not counted` : ''),
+          value: x.costPerLead,
+          colour: EVENT_TYPE_INK[x.type] || EVENT_TYPE_INK[EVENT_UNCLASSIFIED],
+        })),
+        format: v => fmt.money(v),
+        legendItems: typeLegend,
+      });
+      const big = el.importsTop.filter(x => x.list);
+      const cheap = withCost[0];
+      const dear = withCost[withCost.length - 1];
+      $('event-leads-finding').innerHTML = cheap
+        ? `<strong>Cost per earned lead runs from ${money(cheap.costPerLead)} at ${cheap.label} to `
+          + `${money(dear.costPerLead)} at ${dear.label}.</strong> An earned lead is someone who did something: a `
+          + `booth scan, a booked meeting, a form, a rep adding them, a chat. A list loaded into HubSpot is not `
+          + `counted. `
+          + (big.length ? `${big.map(x => `${x.label} has ${fmt.int(x.list)}`).join(', ')} contacts that arrived `
+            + `in a list, so their totals describe a file rather than the event. ` : '')
+          + `HubSpot tags a contact with the last event they touched, so contradicted counts contacts whose only `
+          + `form or meeting names a different event.`
+        : 'No event in the Lead Counts tab has both a cost and an earned lead.';
+      $('event-leads-table').innerHTML =
+        '<thead><tr><th>Event</th><th class="n">Earned leads</th><th class="n">From a list</th>'
+        + '<th class="n">Before / after the event</th><th class="n">Confirmed</th><th class="n">Contradicted</th>'
+        + '<th class="n">Cost per earned lead</th><th class="n">Customers credited</th></tr></thead><tbody>'
+        + el.events.map(x => `<tr><td>${x.label}${x.eventDate ? `<br><span class="muted">${x.eventDate}</span>` : ''}</td>`
+          + `<td class="n">${x.leads === null ? '–' : fmt.int(x.leads)}</td>`
+          + `<td class="n">${x.list ? `${fmt.int(x.list)}<br><span class="muted">${pct(x.listShare)} of all</span>` : fmt.int(x.list || 0)}</td>`
+          + `<td class="n">${x.dated ? `${fmt.int(x.before)} / ${fmt.int(x.after)}` : '<span class="muted">no date</span>'}</td>`
+          + `<td class="n">${x.confirmed === null ? '–' : fmt.int(x.confirmed)}</td>`
+          + `<td class="n">${x.contradicted === null ? '–' : fmt.int(x.contradicted)}</td>`
+          + `<td class="n">${money(x.costPerLead)}${x.upcoming ? '<br><span class="muted">no cost row</span>' : ''}</td>`
+          + `<td class="n">${x.credited === null ? '–' : fmt.int(x.credited)}</td></tr>`).join('')
+        + '</tbody>';
+      $('event-leads-note').textContent =
+        'From the Lead Counts tab: HubSpot contacts carrying each event as their lead source. Cost per earned '
+        + 'lead divides the event’s cost on this tab by its earned leads; a total that includes a loaded list '
+        + 'would make an event look cheap for leads it did not generate. Before and after the event exist only '
+        + 'where the event has a date, and after-the-event counts include lists loaded later, so they are shown, '
+        + 'not divided into cost. Confirmed means an at-event form or meeting names this event; contradicted means '
+        + 'the contact’s only conversion names a different one.';
+    }
+  }
 
   // ---------------------------------------------------------------- payback, actual or projected
   const order = { paid: 0, projected: 1, 'not expected': 2, 'too new': 3, none: 4 };
@@ -5406,6 +5586,7 @@ function boot() {
     renderOngoing();
     renderAccountServe();
     renderEvents();
+    renderMarketing();
     renderFloors();
     renderUpgradeList();
     renderCampaign();

@@ -41,6 +41,7 @@
     <button id="tab-all" role="tab" aria-selected="true" aria-controls="view-all">Every chart</button>
     <button id="tab-list" role="tab" aria-selected="false" aria-controls="view-list">Upgrade list</button>
     <button id="tab-events" role="tab" aria-selected="false" aria-controls="view-events">Events</button>
+    <button id="tab-marketing" role="tab" aria-selected="false" aria-controls="view-marketing">Marketing</button>
   </nav>
 
   <div id="view-all">
@@ -795,6 +796,16 @@
       <p class="note" id="event-payback-note"></p>
     </figure>
 
+    <figure class="card wide" id="fig-event-leads">
+      <figcaption><h3>What each event cost per lead it earned</h3></figcaption>
+      <p class="finding" id="event-leads-finding"></p>
+      <div class="plot" id="chart-event-leads"></div>
+      <div class="table-scroll">
+        <table class="data-table" id="event-leads-table"></table>
+      </div>
+      <p class="note" id="event-leads-note"></p>
+    </figure>
+
     <figure class="card wide" id="fig-event-tags">
       <figcaption><h3>How the tags behind each event were made</h3></figcaption>
       <p class="finding negative" id="event-hsf-correction"><strong>Correction, 2 October 2026
@@ -881,6 +892,39 @@
       <div class="plot" id="chart-event-coverage"></div>
       <p class="finding" id="event-coverage-finding"></p>
       <p class="note" id="event-coverage-note"></p>
+    </figure>
+  </section>
+
+  <section id="view-marketing" class="wrap" hidden>
+    <header class="story-head">
+      <h2>What each way of winning customers cost, month by month</h2>
+      <p>Spend by category against the leads, deals and paying customers each
+        produced, so a month of paid social can be read beside a month of events.
+        <span id="mkt-source"></span></p>
+    </header>
+    <p class="finding" id="mkt-finding"></p>
+
+    <figure class="card wide" id="fig-mkt-spend">
+      <figcaption><h3>Spend by category, by month</h3></figcaption>
+      <div class="plot" id="chart-mkt-spend"></div>
+      <div class="table-scroll">
+        <table class="data-table" id="mkt-table"></table>
+      </div>
+    </figure>
+
+    <figure class="card wide" id="fig-mkt-cpw">
+      <figcaption><h3>Spend per won deal, by month</h3></figcaption>
+      <div class="plot" id="chart-mkt-cpw"></div>
+      <p class="finding" id="mkt-cpw-finding"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-mkt-leads">
+      <figcaption><h3>Leads and won deals by category, by month</h3></figcaption>
+      <div class="plot" id="chart-mkt-leads"></div>
+      <div class="table-scroll">
+        <table class="data-table" id="mkt-month-table"></table>
+      </div>
+      <p class="note" id="mkt-note"></p>
     </figure>
   </section>
 

@@ -272,6 +272,7 @@ judgement for a person.
 | Fees that paid for more than one event | `EVENT_PACKAGES` | Each shared fee whole, with the events it has covered so far, their share of the fee plus travel, customers, collected and net. Blank where no event has happened yet. |
 | Sponsorship in no event | `EVENT_UNASSIGNED_QB` | 6100-07 lines in the QuickBooks export that belong to no event on the calendar, listed in the events note. |
 | Stripe customers missing from the waterfall | `scripts/validate_data.py` `check_missing_customers` | Not a chart. Customers in Subscription Lifetimes or New Customer Cohorts with no waterfall rows (the workbook's payment pull does not pick them up, and the pipeline is not being changed). Checked against Stripe's own Sigma pull on 5 Oct 2026: 44 such customers, all at $0 of new MRR in Stripe (refunded, never paid, or a card check), so no revenue is added for them; the validator reports them by id on every push and warns if those who paid a first invoice pass 8% of cohort signups. Companies already present under another Stripe id are ignored. |
+| Cost per earned lead, by event | `data.leadCounts` (Lead Counts tab, hs-v23), `eventLeads` | Earned leads (booth scan, meeting, form, rep, chat; never a loaded list) per lead source, matched to the event's cost by the same rules as customers. Before and after the event are shown where the event has a date but not divided into cost, because later list loads land after it. Confirmed and contradicted as the pipeline counts them. |
 | Tagging coverage | `eventReports` | New customers by first-payment month, share carrying any lead source and an event source. |
 
 ### Projection and pricing decisions
@@ -409,3 +410,13 @@ here as well would overwrite ordinary MRR on any customer who has both.
   surviving Stripe id.
 - **Signup coverage** is maintained by hand and not backfilled. Use
   `new_mrr` from the customer file for price series.
+
+### The Marketing tab
+
+| Report | Source | Transformation |
+|---|---|---|
+| Spend by category, by month | `data.expenses` (6100-05 total), `MARKETING_AD_VENDORS`, `eventRoi` | Meta and podcast sponsorships split out of 6100-05 by vendor from the QuickBooks Transaction Detail export (Sep 2025 to Aug 2026); the rest of 6100-05 is other advertising, so categories add back to the ledger. Event spend is the Events tab's cost by event month; event fees booked under advertising are taken out of advertising so they count once. |
+| Leads, deals opened, deals won | `MARKETING_SNAPSHOT` (HubSpot, read 5 Oct 2026) | Contacts created by Original Traffic Source (paid social, search and direct, other digital; Offline Sources left out), plus earned event leads by event month. Deals opened and won by the deal's lead source, mapped to the same categories. A snapshot until the pipeline pushes these monthly. |
+| Paying customers | `data.customers`, `firstPaymentMonths` | Stripe customers by the month of their first payment and the category of their HubSpot tag; untagged where there is none. |
+| Cost per lead, won deal, paying customer | `marketingReport` | Category spend divided by its leads, won deals or paying customers over the window; by month, spend over the three months to date divided by deals won in them. Categories with no direct spend show none. |
+

@@ -252,9 +252,10 @@ const TAB_FILES = {
   'QB Accounts': 'qb_accounts.json', 'Subscription Lifetimes': 'subscription_lifetimes.json',
   'New Customer Cohorts': 'signup_pricing.json', 'Serve Monthly': 'serve_monthly.json',
   'Event Costs': 'event_costs.json', 'Cash Detail': 'cash_detail.json',
+  'Lead Counts': 'lead_counts.json',
 };
 const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Cohorts',
-  'Serve Monthly', 'Event Costs', 'Cash Detail'];
+  'Serve Monthly', 'Event Costs', 'Cash Detail', 'Lead Counts'];
 
 // The pipeline calls any lead source with a year prefix an event. A few that
 // carry a year are not events by their own name: "2025 - Smart AC Webinar" is
@@ -606,6 +607,25 @@ export async function load() {
         }))
     : [];
 
+  // HubSpot contacts per lead source (hs-v23): total, earned (a booth scan,
+  // meeting, form, rep or chat) against list (a file loaded), and for an event
+  // with a date, before and after it. Counts arrive as text; blank stays null.
+  const count = v => (String(v ?? '').trim() === '' || String(v).trim() === '..' ? null : num(v));
+  const leadCounts = byTab['Lead Counts']
+    ? byTab['Lead Counts'].rows.filter(r => r.source).map(r => ({
+        source: String(r.source).trim(),
+        medium: String(r.medium || '').trim() || null,
+        eventDate: /^\d{4}-\d{2}-\d{2}/.test(String(r['event date'] || '')) ? String(r['event date']).slice(0, 10) : null,
+        total: count(r.total), earned: count(r.earned), list: count(r.list),
+        booth: count(r['booth scan']), meeting: count(r['booked a meeting']), form: count(r['form fill']),
+        rep: count(r['rep added']), chat: count(r.chat), swept: count(r['swept in']),
+        before: count(r['before the event']), after: count(r['after the event']),
+        confirmed: count(r.confirmed), contradicted: count(r.contradicted),
+        withCompany: count(r['with a company']), withStripe: count(r['with a stripe id']),
+        readAs: String(r['read this as'] || '').trim() || null,
+      }))
+    : [];
+
   const vocabulary = checkVocabulary(byTab['Customer Waterfall'], customers);
 
   return {
@@ -620,6 +640,7 @@ export async function load() {
     customers,
     cashDetail,
     eventCosts,
+    leadCounts,
     lifetimes,
     lifetimeRecords,
     signups,
@@ -4302,6 +4323,250 @@ export function eventReports(data, options = {}) {
 // The gap between the two is the whole argument: on the push of October 2026
 // it is $117 against $475. Chart 37 reads both from here, never from this
 // comment.
+// Leads per event, from the Lead Counts tab (hs-v23), set against what the
+// event cost. A tag is HubSpot's last touch, so the total mixes the event's
+// own leads with list imports and later touches. Where the event has a date
+// the count used is "after the event"; where it has none, "earned" (a booth
+// scan, meeting, form, rep or chat rather than a file); never the total.
+// Cost is the Events tab's own figure for the event, matched by the same
+// rules as the customers are.
+//
+// Cost per lead uses earned leads only. "After the event" is shown beside it
+// but not divided into cost: for Pantheon 2025 it counts 1,045 contacts, most
+// of them the 992-contact list loaded on 11 Nov 2025.
+export function eventLeads(data, roi = eventRoi(data)) {
+  const rows = (data.leadCounts || []).filter(r => r.medium === 'event'
+    && !/podcast|webinar/i.test(r.source));
+  if (!rows.length || !roi) return null;
+  const costRows = roi.events.filter(e => e.cost);
+  const costFor = source => {
+    const bySource = roi.events.find(e => e.source === source && e.cost);
+    if (bySource) return bySource;
+    const aliased = EVENT_ALIASES[source];
+    if (aliased) return costRows.find(e => e.label === aliased) || null;
+    const year = (source.match(/^(20\d\d)\s*-/) || [])[1] || null;
+    const words = eventWords(source.replace(/^20\d\d\s*-\s*/, ''));
+    return costRows.find(e => e.cost.words === words && e.cost.year === year) || null;
+  };
+  const events = rows.map(r => {
+    const e = costFor(r.source);
+    const dated = Boolean(r.eventDate);
+    const leads = r.earned;
+    const spend = e ? e.spend : null;
+    return {
+      source: r.source, label: e ? e.label : r.source, eventDate: r.eventDate, month: e ? e.month : null,
+      dated, leads, total: r.total, earned: r.earned, list: r.list, before: r.before, after: r.after,
+      confirmed: r.confirmed, contradicted: r.contradicted, withStripe: r.withStripe, readAs: r.readAs,
+      listShare: r.total ? r.list / r.total : null,
+      spend, costPerLead: spend > 0 && leads ? spend / leads : null,
+      credited: e ? e.paid : null,
+      leadToCustomer: e && leads ? e.paid / leads : null,
+      type: e ? e.type : null, upcoming: !e || !e.cost,
+    };
+  }).sort((a, b) => (b.leads || 0) - (a.leads || 0));
+  return {
+    events,
+    imports: events.reduce((t, x) => t + (x.list || 0), 0),
+    importsTop: [...events].sort((a, b) => (b.list || 0) - (a.list || 0)).slice(0, 3),
+  };
+}
+
+// The Marketing tab: what each way of winning customers cost, month by month,
+// against the leads, deals and paying customers it produced.
+//
+// Spend. QuickBooks 6100-05 Advertising is in the push only as a monthly
+// total, so the vendors inside it are split here from the Transaction Detail
+// export (Sep 2025 to Aug 2026), and whatever the split does not name is
+// "other advertising", so the categories always add back to the push. Event
+// spend is the Events tab's own cost, by event month; the event fees booked
+// under advertising (Grosso, System Forward) are already in it and are taken
+// out of advertising so nothing counts twice. Partners are paid in revenue
+// share, a cost of keeping customers on this page, so they carry no spend.
+export const MARKETING_AD_VENDORS = {
+  source: 'QuickBooks Transaction Detail by Account, 6100-05, Sep 2025 to Aug 2026',
+  meta: { '2025-09': -178.67, '2025-10': 12.87, '2025-11': 448.39, '2025-12': 2994.63, '2026-01': 3726.98,
+    '2026-02': 3081.71, '2026-03': 2787.6, '2026-04': 3102.8, '2026-05': 9344.24, '2026-06': 22048.22,
+    '2026-07': 12057.37, '2026-08': 7002.07 },
+  podcast: { '2025-09': 7750, '2025-10': 1500, '2025-11': 1500, '2025-12': 2523.29, '2026-01': 1500,
+    '2026-02': 1500, '2026-03': 1500 },
+  landing: { '2025-09': 1382.16, '2025-10': 318.83, '2025-11': 318.83, '2025-12': 318.83, '2026-01': 318.83,
+    '2026-02': 318.83, '2026-03': 318.83, '2026-04': 318.83 },
+  google: { '2025-09': 34.2 },
+  eventsInAds: { '2025-09': 416.67, '2025-10': 416.67, '2025-11': 416.67, '2025-12': 416.67, '2026-01': 416.67,
+    '2026-02': 416.67, '2026-03': 416.67, '2026-04': 416.67, '2026-05': 416.67, '2026-06': 416.67,
+    '2026-07': 416.67, '2026-08': 2244.58 },
+};
+
+// Leads and deals by month from HubSpot, read on 5 Oct 2026, until the push
+// carries them. Leads are contacts created, by HubSpot's Original Traffic
+// Source, because the lead source field is set on almost no digital lead (9
+// contacts say Facebook; about 1,800 arrived through paid social). Deals are
+// by the deal's own lead source. Offline Sources is everything entered by
+// hand or imported, events and partner lists included.
+export const MARKETING_SNAPSHOT = {
+  asOf: '2026-10-05',
+  leadKeys: ['ORGANIC_SEARCH', 'PAID_SEARCH', 'EMAIL_MARKETING', 'SOCIAL_MEDIA', 'REFERRALS',
+    'OTHER_CAMPAIGNS', 'DIRECT_TRAFFIC', 'OFFLINE', 'PAID_SOCIAL', 'AI_REFERRALS'],
+  leads: {
+    '2025-09': [64, 0, 0, 1, 11, 0, 227, 3840, 1, 0],
+    '2025-10': [51, 0, 9, 16, 7, 0, 108, 1022, 20, 1],
+    '2025-11': [13, 0, 1, 10, 3, 0, 106, 2091, 34, 0],
+    '2025-12': [69, 0, 0, 12, 6, 0, 105, 1212, 153, 1],
+    '2026-01': [97, 1, 28, 34, 5, 1, 121, 793, 196, 0],
+    '2026-02': [73, 0, 40, 5, 4, 3, 105, 296, 142, 0],
+    '2026-03': [127, 0, 58, 9, 18, 2, 151, 7646, 131, 1],
+    '2026-04': [80, 0, 26, 13, 4, 3, 80, 473, 115, 1],
+    '2026-05': [40, 0, 42, 26, 4, 4, 52, 1250, 195, 4],
+    '2026-06': [33, 0, 39, 36, 3, 92, 36, 472, 552, 1],
+    '2026-07': [27, 0, 11, 14, 4, 19, 51, 336, 190, 1],
+    '2026-08': [13, 0, 43, 7, 2, 39, 71, 404, 97, 1],
+  },
+  dealKeys: ['Unassigned', 'Events/Trade Shows', 'Meta (Ads)', 'Website', 'Referrals', 'Account Manager',
+    'Webinar', 'Partnerships', 'Other', 'Digital Marketing', 'Partner', 'Best Practice Group', 'Podcast',
+    'Direct', 'Affiliates', 'SDR Outreach', 'Google', 'AM Outreach'],
+  won: {
+    '2025-09': [20, 24, 0, 0, 9, 0, 0, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2025-10': [32, 23, 0, 0, 5, 0, 0, 3, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2025-11': [22, 7, 0, 0, 5, 0, 0, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2025-12': [29, 11, 0, 0, 2, 0, 0, 5, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2026-01': [4, 11, 3, 8, 0, 0, 0, 14, 5, 13, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2026-02': [1, 11, 0, 1, 2, 0, 0, 28, 1, 10, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2026-03': [44, 67, 0, 2, 12, 0, 0, 39, 4, 14, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2026-04': [2, 14, 5, 16, 6, 3, 3, 7, 0, 0, 13, 0, 8, 0, 0, 0, 0, 0],
+    '2026-05': [0, 7, 3, 4, 3, 1, 4, 2, 0, 1, 12, 0, 3, 0, 0, 0, 0, 0],
+    '2026-06': [0, 4, 10, 3, 1, 1, 1, 2, 1, 3, 8, 1, 1, 3, 0, 0, 0, 0],
+    '2026-07': [0, 4, 10, 6, 0, 2, 3, 3, 0, 4, 5, 0, 2, 1, 0, 0, 0, 0],
+    '2026-08': [0, 2, 3, 7, 1, 0, 1, 5, 0, 2, 9, 1, 1, 2, 2, 0, 0, 0],
+  },
+  created: {
+    '2025-09': [145, 203, 0, 0, 11, 0, 0, 7, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2025-10': [144, 75, 0, 0, 15, 0, 0, 26, 17, 6, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2025-11': [134, 19, 0, 0, 4, 0, 0, 12, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2025-12': [135, 30, 2, 3, 1, 0, 0, 8, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2026-01': [121, 29, 2, 5, 1, 0, 0, 27, 0, 31, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2026-02': [66, 15, 1, 4, 2, 0, 0, 30, 2, 13, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2026-03': [579, 721, 0, 3, 52, 0, 0, 145, 72, 63, 0, 0, 0, 0, 0, 0, 0, 0],
+    '2026-04': [452, 40, 7, 13, 8, 11, 4, 12, 9, 8, 14, 0, 9, 0, 0, 0, 0, 0],
+    '2026-05': [63, 20, 10, 6, 3, 2, 3, 9, 5, 4, 14, 0, 5, 2, 0, 1, 0, 0],
+    '2026-06': [39, 20, 18, 4, 1, 1, 1, 3, 5, 3, 9, 1, 1, 6, 0, 0, 0, 0],
+    '2026-07': [285, 14, 17, 5, 0, 2, 5, 4, 2, 2, 5, 0, 2, 1, 0, 0, 0, 0],
+    '2026-08': [99, 4, 6, 7, 1, 0, 7, 7, 1, 4, 16, 2, 1, 6, 5, 1, 0, 1],
+  },
+};
+
+// The categories the tab reports, and how each source falls into one.
+export const MARKETING_CATEGORIES = ['Paid social', 'Website and search', 'Other digital', 'Events',
+  'Webinars', 'Podcasts', 'Partners and referrals', 'Sales outreach', 'Untagged'];
+const DEAL_CATEGORY = {
+  'Meta (Ads)': 'Paid social', 'Website': 'Website and search', 'Direct': 'Website and search',
+  'Google': 'Website and search', 'Digital Marketing': 'Other digital', 'Events/Trade Shows': 'Events',
+  'Webinar': 'Webinars', 'Podcast': 'Podcasts', 'Partnerships': 'Partners and referrals',
+  'Partner': 'Partners and referrals', 'Referrals': 'Partners and referrals',
+  'Affiliates': 'Partners and referrals', 'Best Practice Group': 'Partners and referrals',
+  'Account Manager': 'Sales outreach', 'SDR Outreach': 'Sales outreach', 'AM Outreach': 'Sales outreach',
+  'Unassigned': 'Untagged', 'Other': 'Untagged',
+};
+const LEAD_CATEGORY = {
+  PAID_SOCIAL: 'Paid social', PAID_SEARCH: 'Website and search', ORGANIC_SEARCH: 'Website and search',
+  DIRECT_TRAFFIC: 'Website and search', AI_REFERRALS: 'Website and search', SOCIAL_MEDIA: 'Other digital',
+  EMAIL_MARKETING: 'Other digital', REFERRALS: 'Other digital', OTHER_CAMPAIGNS: 'Other digital',
+  OFFLINE: 'Offline',
+};
+const customerCategory = r => {
+  if (!r.leadSource) return 'Untagged';
+  if (r.leadMedium === 'event') return 'Events';
+  if (r.leadMedium === 'webinar') return 'Webinars';
+  if (r.leadMedium === 'podcast') return 'Podcasts';
+  if (r.leadMedium === 'partner or referral') return 'Partners and referrals';
+  if (/facebook|instagram|meta/i.test(r.leadSource)) return 'Paid social';
+  if (/google|bing|search|website|direct|chatgpt/i.test(r.leadSource)) return 'Website and search';
+  return 'Other digital';
+};
+
+export function marketingReport(data, roi = eventRoi(data)) {
+  const snap = MARKETING_SNAPSHOT;
+  const months = Object.keys(snap.leads).filter(m => m >= data.historyStarts && m <= data.lastMonth).sort();
+  if (!months.length) return null;
+  const blank = () => Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, 0]));
+  const byMonth = months.map(m => ({ month: m, spend: blank(), leads: { ...blank(), Offline: 0 },
+    created: blank(), won: blank(), customers: blank(), adsTotal: 0, adsOther: 0 }));
+  const at = new Map(byMonth.map(x => [x.month, x]));
+
+  // Spend.
+  const v = MARKETING_AD_VENDORS;
+  for (const r of data.expenses) {
+    const x = at.get(r.month);
+    if (x && String(r.account).startsWith('6100-05')) x.adsTotal += r.amount || 0;
+  }
+  for (const x of byMonth) {
+    const m = x.month;
+    // Landing pages (ClickFunnels) and $34 of Google Ads are tools rather
+    // than a channel with its own leads, so they stay in other advertising.
+    const named = (v.meta[m] || 0) + (v.podcast[m] || 0) + (v.eventsInAds[m] || 0);
+    x.spend['Paid social'] = v.meta[m] || 0;
+    x.spend['Podcasts'] = v.podcast[m] || 0;
+    x.adsOther = x.adsTotal - named;
+  }
+  if (roi) {
+    for (const e of roi.events) {
+      if (e.spend && e.month && at.has(e.month)) at.get(e.month).spend['Events'] += e.spend;
+    }
+    // Event leads are the earned leads of each event, in the event's month.
+    const el = eventLeads(data, roi);
+    for (const x of el ? el.events : []) {
+      if (x.month && at.has(x.month) && x.leads) at.get(x.month).leads['Events'] += x.leads;
+    }
+  }
+
+  // Leads and deals, from the snapshot.
+  for (const x of byMonth) {
+    (snap.leads[x.month] || []).forEach((n, i) => {
+      const cat = LEAD_CATEGORY[snap.leadKeys[i]];
+      x.leads[cat] = (x.leads[cat] || 0) + n;
+    });
+    for (const [field, table] of [['created', snap.created], ['won', snap.won]]) {
+      (table[x.month] || []).forEach((n, i) => { x[field][DEAL_CATEGORY[snap.dealKeys[i]]] += n; });
+    }
+  }
+
+  // Paying customers, from Stripe: the month each first paid, by its tag.
+  const first = firstPaymentMonths(data);
+  const catOf = new Map();
+  for (const r of data.customers) if (r.leadSource) catOf.set(r.id, customerCategory(r));
+  for (const [id, m] of first) {
+    if (m <= data.historyStarts || !at.has(m)) continue;
+    at.get(m).customers[catOf.get(id) || 'Untagged'] += 1;
+  }
+
+  const sum = (cat, field) => byMonth.reduce((t, x) => t + (x[field][cat] || 0), 0);
+  const per = (a, b) => (a > 0 && b > 0 ? a / b : null);
+  const totals = MARKETING_CATEGORIES.map(cat => {
+    const spend = sum(cat, 'spend');
+    const won = sum(cat, 'won');
+    const leads = sum(cat, 'leads');
+    const customers = sum(cat, 'customers');
+    return { category: cat, spend, leads, created: sum(cat, 'created'), won, customers,
+      costPerLead: per(spend, leads), costPerWon: per(spend, won), costPerCustomer: per(spend, customers),
+      hasSpend: spend > 0 };
+  });
+  const spendAll = totals.reduce((t, x) => t + x.spend, 0) + byMonth.reduce((t, x) => t + x.adsOther, 0);
+  const wonAll = totals.reduce((t, x) => t + x.won, 0);
+  const customersAll = totals.reduce((t, x) => t + x.customers, 0);
+  // Cost per won deal by month for each paid category, and over the three
+  // months to date, because a lead bought in June can close in August.
+  const trailing = (cat, i) => {
+    const w = byMonth.slice(Math.max(0, i - 2), i + 1);
+    return per(w.reduce((t, x) => t + x.spend[cat], 0), w.reduce((t, x) => t + x.won[cat], 0));
+  };
+  const paid = ['Paid social', 'Events', 'Podcasts'];
+  const costPerWon = Object.fromEntries(paid.map(cat => [cat, byMonth.map((x, i) => ({
+    month: x.month, single: per(x.spend[cat], x.won[cat]), trailing: trailing(cat, i) }))]));
+  return { months, byMonth, totals, spendAll, wonAll, customersAll, costPerWon, paid,
+    blendedPerWon: per(spendAll, wonAll), blendedPerCustomer: per(spendAll, customersAll),
+    adsCheck: byMonth.map(x => ({ month: x.month, pushed: x.adsTotal, other: x.adsOther })),
+    snapshotAsOf: snap.asOf };
+}
+
 export function priceFloors(data, { window = 6 } = {}) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
