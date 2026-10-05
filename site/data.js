@@ -3631,7 +3631,7 @@ export const eventHasReturn = e => e.spend > 0 && Boolean(e.month);
 
 export const WINBACK_GAP = 3;
 
-export function eventRoi(data) {
+export function eventRoi(data, { promptTagsOnly = false } = {}) {
   const costs = [...(data.eventCosts || []).map(c => ({ ...c, extra: false })),
     ...EVENT_EXTRA_COSTS.filter(x => !onTab(x, data.eventCosts || [])).map(x => ({ ...x, extra: true }))];
   const tagged = data.customers.filter(r => r.leadSource);
@@ -3848,6 +3848,7 @@ export function eventRoi(data) {
   // and year, then by name alone when only one row carries that name.
   const used = new Set();
   const events = [];
+  const droppedLate = new Set();
   for (const b of bySource.values()) {
     if (b.medium !== 'event') continue;
     const aliased = EVENT_ALIASES[b.source];
@@ -3870,7 +3871,19 @@ export function eventRoi(data) {
       : year && year > lastMonth.slice(0, 4) ? `${year}-01` : null;
     const fromMonth = cost ? cost.month || (cost.year ? `${cost.year}-01` : null)
       : upcoming || listed || (year ? `${year}-01` : null);
-    const summary = summarise(b.ids, b.rows, fromMonth, Boolean(upcoming));
+    // With the switch on, a customer whose tag was written after the end of
+    // the month following the event is left out, as if untagged: a later
+    // memory rather than a record made at the time. No write date is kept.
+    let ids = b.ids;
+    let rowsIn = b.rows;
+    if (promptTagsOnly && fromMonth) {
+      const late = [...b.ids].filter(id => leadSetOf.has(id)
+        && leadSetOf.get(id).slice(0, 7) > monthAdd(fromMonth, 1));
+      late.forEach(id => droppedLate.add(id));
+      ids = new Set([...b.ids].filter(id => !late.includes(id)));
+      rowsIn = b.rows.filter(r => ids.has(r.id));
+    }
+    const summary = summarise(ids, rowsIn, fromMonth, Boolean(upcoming));
     if (upcoming) { summary.collected = null; summary.revenue = null; summary.mrrNow = null; }
     events.push({ source: b.source, year, cost, upcoming, listedMonth: listed, ...summary,
       // The same customers the credited count is made of: brought, and paying.
@@ -3960,6 +3973,8 @@ export function eventRoi(data) {
     upcomingSources,
     undatedCosts,
     decisionsMissing,
+    promptTagsOnly,
+    droppedLate: droppedLate.size,
     totals: {
       spend: costed.reduce((s, e) => s + e.spend, 0),
       collected: costed.reduce((s, e) => s + e.collected, 0),
@@ -4010,8 +4025,8 @@ export const CHANNEL_SPEND = {
   podcast: { total: 0, basis: 'None in QuickBooks for the Tommy Mello podcast.' },
 };
 
-export function eventReports(data) {
-  const roi = eventRoi(data);
+export function eventReports(data, options = {}) {
+  const roi = eventRoi(data, options);
   if (!roi) return null;
   const lastMonth = roi.lastMonth;
   const serve = accountServeCost(data);

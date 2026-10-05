@@ -3957,7 +3957,8 @@ const EVENT_TYPE_INK = {
 };
 function renderEvents() {
   if (!$('chart-events')) return;
-  const r = eventReports(data);
+  const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
+  const r = eventReports(data, { promptTagsOnly: promptOnly });
   if (!r) {
     $('chart-events').innerHTML = '<p class="empty">No event costs or lead sources in this push.</p>';
     return;
@@ -3971,7 +3972,23 @@ function renderEvents() {
   const chip = plan => (!plan ? ''
     : `<span class="event-chip ${plan.startsWith('On') ? 'on' : plan.startsWith('Dropped') ? 'dropped' : ''}">`
       + `${plan.startsWith('On') ? '2027: on' : plan.startsWith('Dropped') ? '2027: dropped' : '2027: not listed'}</span>`);
+  const qtyEarly = (k, one, many = one + 's') => `${fmt.int(k)} ${k === 1 ? one : many}`;
   const tagged = e.coverage.taggedEver > 0;
+  const sw = $('events-prompt-only');
+  if (sw && !sw.dataset.ready) {
+    sw.addEventListener('change', () => renderEvents());
+    sw.dataset.ready = '1';
+  }
+  if (sw) {
+    const usable = e.tagDates && e.tagDates.withSetAt > 0;
+    sw.disabled = !usable;
+    $('events-prompt-note').textContent = !usable
+      ? 'Needs lead_set_at: no tag in this push carries the date it was written.'
+      : promptOnly
+        ? `On: ${qtyEarly(e.droppedLate, 'tagged customer')} whose tag was written after the month following `
+          + 'their event are counted as untagged in every figure below.'
+        : `Off: every tag counts, however late it was written.`;
+  }
   const kindsPresent = new Set(e.events.map(x => x.type).filter(Boolean));
   const typeLegend = Object.entries(EVENT_TYPE_INK).filter(([label]) => kindsPresent.has(label))
     .map(([label, colour]) => ({ label, colour }));
