@@ -793,6 +793,10 @@
           <option value="oldest">Oldest event first</option>
           <option value="newest">Newest event first</option>
         </select>
+        <span class="view-toggle" role="radiogroup" aria-label="Table detail">
+          <label><input type="radio" name="events-view" id="events-view-simple" checked> Simple</label>
+          <label><input type="radio" name="events-view" id="events-view-technical"> Technical</label>
+        </span>
       </div>
       <div class="plot" id="chart-events"></div>
       <p class="finding" id="events-finding"></p>

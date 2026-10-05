@@ -4448,9 +4448,11 @@ function renderEvents() {
         : sortBy === 'oldest' ? (a, b) => a.month.localeCompare(b.month) || a.label.localeCompare(b.label)
         : (a, b) => b.month.localeCompare(a.month) || a.label.localeCompare(b.label));
     const link = x => `<a href="${eventHref(x.label)}">${x.label}</a>`;
-    // A ranked table rather than a bar list: one row per event with its
-    // customers, earned leads, cost, return and ROI side by side, and the net
-    // drawn as a bar in its own column on one shared scale.
+    // A ranked table rather than a bar list. Simple shows what most readers
+    // need: cost (with cost per lead and per customer), customers, net and
+    // the 12-month return. Technical adds leads, contribution, and ROI at the
+    // chosen age beside the 12-month figure.
+    const technical = Boolean($('events-view-technical') && $('events-view-technical').checked);
     const leadsBy = new Map(((eventLeads(data, e) || {}).events || []).map(l => [l.label, l]));
     const reachedNets = order.filter(x => x.reached).map(x => x.netAtK);
     const negMax = Math.max(0, ...reachedNets.map(v => -v));
@@ -4460,41 +4462,50 @@ function renderEvents() {
     const bar = v => {
       const w = (Math.abs(v) / range) * 100;
       const left = v >= 0 ? zero : zero - w;
-      return `<div class="rank-bar"><span class="bar-zero" style="left:${zero.toFixed(1)}%"></span>`
-        + `<span class="bar-fill" style="left:${left.toFixed(1)}%;width:${Math.max(w, 0.6).toFixed(1)}%;`
-        + `background:${v >= 0 ? INK.positive : INK.negative}"></span></div>`;
+      return `<span class="rank-bar"><span class="bar-zero" style="left:${zero.toFixed(1)}%"></span>`
+        + `<span class="bar-fill" style="left:${left.toFixed(1)}%;width:${Math.max(w, 0.8).toFixed(1)}%;`
+        + `background:${v >= 0 ? INK.positive : INK.negative}"></span></span>`;
     };
     const cls = v => (v === null || v === undefined ? '' : v < 0 ? 'notviable' : 'held');
+    const costCell = (x, lead) => {
+      const perLead = lead && lead.costPerLead !== null ? lead.costPerLead : null;
+      const perCustomer = x.paid ? x.spend / x.paid : null;
+      return `<td class="n">${money(x.spend)}<br><span class="muted">`
+        + `${perLead === null ? 'no leads counted' : `${money(perLead)} a lead`}<br>`
+        + `${perCustomer === null ? 'no customer yet' : `${money(perCustomer)} a customer`}</span></td>`;
+    };
+    const roiCell = x => {
+      const twelve = `<span class="${cls(x.roi12)}">${x.roi12 === null ? '–' : signedPct(x.roi12)}</span>`
+        + `<span class="muted"> ${x.roi12Projected ? 'projected' : 'actual'}</span>`;
+      if (!technical) return `<td class="n">${twelve}</td>`;
+      const now = x.reached ? `<span class="${cls(x.roiAtK)}">${signedPct(x.roiAtK)}</span>` : '–';
+      return `<td class="n">${now}<span class="muted"> ${allTime ? 'to date' : `at ${k} mo`}</span><br>${twelve}<span class="muted"> at 12 mo</span></td>`;
+    };
     $('chart-events').innerHTML =
-      `<div class="table-scroll"><table class="data-table rank-table"><thead><tr>`
-      + `<th>Event</th><th class="n">Customers</th><th class="n">Earned leads</th><th class="n">Cost</th>`
-      + `<th class="n">Contribution ${allTime ? 'to date' : `by month ${k}`}</th>`
-      + `<th class="rank-bar-col">Net of cost</th>`
-      + `<th class="n">ROI ${allTime ? 'to date' : `at ${k} months`}</th><th class="n">12-month ROI</th>`
+      `<div class="table-scroll"><table class="data-table rank-table${technical ? ' is-technical' : ''}"><thead><tr>`
+      + `<th>Event</th><th class="n">Cost</th><th class="n">Customers</th>`
+      + (technical ? `<th class="n">Earned leads</th><th class="n">Contribution ${allTime ? 'to date' : `by month ${k}`}</th>` : '')
+      + `<th class="rank-bar-col">Net of cost ${allTime ? 'to date' : `at ${k} months`}</th>`
+      + `<th class="n">${technical ? 'ROI' : '12-month ROI'}</th>`
       + `</tr></thead><tbody>`
       + order.map(x => {
         const lead = leadsBy.get(x.label);
-        const pb = paybackBy.get(x.label);
-        const ev = `<td><a href="${eventHref(x.label)}">${x.label}</a><br><span class="muted">`
-          + `${fmt.monthLabel(x.month)}${x.type ? ` · ${x.type}` : ''}</span></td>`
+        const head = `<td><a href="${eventHref(x.label)}">${x.label}</a><br><span class="muted">`
+          + `${fmt.monthLabel(x.month)}${technical && x.type ? ` · ${x.type}` : ''}</span></td>`
+          + costCell(x, lead)
           + `<td class="n">${fmt.int(x.paid)}${x.liveNow ? `<br><span class="muted">${fmt.int(x.liveNow)} live</span>` : ''}</td>`
-          + `<td class="n">${lead && lead.leads !== null ? fmt.int(lead.leads) : '–'}</td>`
-          + `<td class="n">${money(x.spend)}</td>`;
-        const roi12 = `<td class="n"><span class="${cls(x.roi12)}">${x.roi12 === null ? '–' : signedPct(x.roi12)}</span>`
-          + `${x.roi12Projected && x.roi12 !== null ? '<br><span class="muted">projected</span>' : ''}</td>`;
-        if (!x.reached) {
-          return `<tr class="rank-young">${ev}<td class="n">–</td>`
-            + `<td class="rank-bar-col"><span class="muted">${qty(x.age, 'month')} old, not yet ${k}; `
-            + `${paybackWords(pb)}</span></td><td class="n">–</td>${roi12}</tr>`;
-        }
-        return `<tr>${ev}<td class="n">${money(x.contributionAtK)}</td>`
-          + `<td class="rank-bar-col">${bar(x.netAtK)}<span class="rank-bar-value ${cls(x.netAtK)}">`
-          + `${signed(x.netAtK)}</span></td>`
-          + `<td class="n"><span class="${cls(x.roiAtK)}">${signedPct(x.roiAtK)}</span></td>${roi12}</tr>`;
+          + (technical ? `<td class="n">${lead && lead.leads !== null ? fmt.int(lead.leads) : '–'}</td>`
+            + `<td class="n">${x.reached ? money(x.contributionAtK) : '–'}</td>` : '');
+        const net = x.reached
+          ? `<td class="rank-bar-col"><div class="rank-net">${bar(x.netAtK)}`
+            + `<span class="rank-bar-value ${cls(x.netAtK)}">${signed(x.netAtK)}</span></div></td>`
+          : `<td class="rank-bar-col"><span class="muted">${qty(x.age, 'month')} old, not yet ${k}; ${paybackWords(paybackBy.get(x.label))}</span></td>`;
+        return `<tr${x.reached ? '' : ' class="rank-young"'}>${head}${net}${roiCell(x)}</tr>`;
       }).join('')
       + `</tbody></table></div>`
-      + `<p class="note">Customers are those credited to the event; earned leads are from the Lead Counts tab. `
-      + `Contribution and ROI are read ${allTime ? 'on everything to date' : `${k} months after each event`}; `
+      + `<p class="note">Cost per lead divides the event\u2019s cost by its earned leads from the Lead Counts tab, and is `
+      + `left out while a cost is still settling; cost per customer divides it by the customers it is credited with. `
+      + `Net and ${technical ? 'the first ROI' : 'its bar'} are read ${allTime ? 'on everything to date' : `${k} months after each event`}; `
       + `12-month ROI is actual for events a year old and projected for younger ones.`
       + (allTime ? '' : ` Faded rows are younger than ${qty(k, 'month')} and are not ranked.`) + `</p>`;
     const winners = judged.filter(x => x.netAtK >= 0);
@@ -4567,6 +4578,9 @@ function renderEvents() {
     }
     if ($('events-age-on')) {
       $('events-age-on').addEventListener('change', () => renderEvents.drawAt(Number(ageInput.value)));
+    }
+    for (const id of ['events-view-simple', 'events-view-technical']) {
+      if ($(id)) $(id).addEventListener('change', () => renderEvents.drawAt(Number(ageInput.value)));
     }
     ageInput.dataset.ready = '1';
   }

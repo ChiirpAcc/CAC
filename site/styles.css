@@ -1115,13 +1115,25 @@ figcaption { margin-bottom: .9rem; }
 }
 
 /* The event ranking as a table. */
+.rank-table { width: 100%; }
 .rank-table td { vertical-align: middle; }
-.rank-table .rank-bar-col { min-width: 220px; }
-.rank-bar { position: relative; height: 12px; display: inline-block; width: calc(100% - 6.5rem); vertical-align: middle; }
-.rank-bar .bar-fill { border-radius: 3px; }
-.rank-bar-value { display: inline-block; width: 6rem; text-align: right; font-variant-numeric: tabular-nums; vertical-align: middle; }
+.rank-table th { white-space: normal; vertical-align: bottom; }
+.rank-table .rank-bar-col { width: 32%; min-width: 180px; }
+.rank-net { display: flex; align-items: center; gap: 0.5rem; }
+.rank-bar { position: relative; flex: 1 1 auto; min-width: 70px; height: 12px; background: var(--surface-sunk); border-radius: 3px; }
+.rank-bar .bar-zero { top: -3px; bottom: -3px; }
+.rank-bar .bar-fill { position: absolute; top: 0; height: 100%; border-radius: 3px; }
+.rank-bar-value { flex: 0 0 auto; min-width: 5.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+.rank-table td, .rank-table th { white-space: normal; }
+.rank-table td.n { white-space: nowrap; }
+.rank-table.is-technical .rank-bar-col { width: 20%; min-width: 120px; }
+.rank-table.is-technical .rank-bar { min-width: 40px; }
+.rank-table.is-technical .rank-bar-value { min-width: 4.8rem; }
 .rank-young td { opacity: 0.55; }
 .rank-table tbody tr:hover { background: var(--surface-sunk); }
+.view-toggle { display: inline-flex; gap: 0.75rem; margin-left: 1rem; }
+.view-toggle label { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }
 @media (max-width: 640px) {
-  .rank-table .rank-bar-col { min-width: 160px; }
+  .rank-table .rank-bar-col { min-width: 140px; }
+  .view-toggle { margin-left: 0; }
 }
