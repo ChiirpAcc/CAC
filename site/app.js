@@ -4137,7 +4137,8 @@ function renderEventPage(label) {
   const box = $('event-page');
   if (!box) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
-  const r = eventReports(data, { promptTagsOnly: promptOnly });
+  const creditRule = ($('events-credit') && $('events-credit').value) || 'all';
+  const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule });
   const e = r ? r.roi.events.find(x => x.label === label) : null;
   if (!e) {
     box.innerHTML = `<p><a href="#events" class="ev-back">All events</a></p>`
@@ -4295,12 +4296,23 @@ function renderEventPage(label) {
 function renderEvents() {
   if (!$('chart-events')) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
-  const r = eventReports(data, { promptTagsOnly: promptOnly });
+  const creditRule = ($('events-credit') && $('events-credit').value) || 'all';
+  const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule });
+  const cr = $('events-credit');
+  if (cr && !cr.dataset.ready) {
+    cr.addEventListener('change', () => renderEvents());
+    cr.dataset.ready = '1';
+  }
   if (!r) {
     $('chart-events').innerHTML = '<p class="empty">No event costs or lead sources in this push.</p>';
     return;
   }
   const e = r.roi;
+  if ($('events-credit-note')) {
+    $('events-credit-note').textContent = creditRule === 'all'
+      ? 'Every tagged customer who first paid in or after the event’s month.'
+      : `${fmt.int(e.droppedRule)} tagged customer${e.droppedRule === 1 ? '' : 's'} left out by this rule.`;
+  }
   const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
   const signed = v => (v === null || v === undefined ? '–'
     : (v < 0 ? '−' : '+') + fmt.money(Math.abs(v)));

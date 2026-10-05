@@ -3654,7 +3654,14 @@ export const eventHasReturn = e => e.spend > 0 && Boolean(e.month);
 
 export const WINBACK_GAP = 3;
 
-export function eventRoi(data, { promptTagsOnly = false } = {}) {
+// Which tagged customers an event is credited with. 'all' is every one who
+// first paid in or after its month. 'record' also needs their HubSpot record
+// to exist by the end of the month after the event, so a contact created and
+// tagged months later is left out. 'within3' and 'within6' need the first
+// payment within that many months of the event, counting its month as one.
+export const CREDIT_RULES = ['all', 'record', 'within3', 'within6'];
+
+export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = {}) {
   const costs = [...(data.eventCosts || []).map(c => ({ ...c, extra: false })),
     ...EVENT_EXTRA_COSTS.filter(x => !onTab(x, data.eventCosts || [])).map(x => ({ ...x, extra: true }))];
   const tagged = data.customers.filter(r => r.leadSource);
@@ -3892,6 +3899,7 @@ export function eventRoi(data, { promptTagsOnly = false } = {}) {
   const used = new Set();
   const events = [];
   const droppedLate = new Set();
+  const droppedRule = new Set();
   for (const b of bySource.values()) {
     if (b.medium !== 'event') continue;
     const aliased = EVENT_ALIASES[b.source];
@@ -3925,6 +3933,22 @@ export function eventRoi(data, { promptTagsOnly = false } = {}) {
       late.forEach(id => droppedLate.add(id));
       ids = new Set([...b.ids].filter(id => !late.includes(id)));
       rowsIn = b.rows.filter(r => ids.has(r.id));
+    }
+    if (creditRule !== 'all' && fromMonth && !upcoming) {
+      const keep = id => {
+        const fp = firstRevenueOf.get(id);
+        if (!fp || fp < fromMonth) return true; // never paid, already paying or a win-back: decided below
+        if (creditRule === 'record') {
+          const made = leadDateOf.get(id);
+          return !made || made.slice(0, 7) <= monthAdd(fromMonth, 1);
+        }
+        const within = creditRule === 'within3' ? 3 : 6;
+        return monthDiff(fromMonth, fp) < within;
+      };
+      const out = [...ids].filter(id => !keep(id));
+      out.forEach(id => droppedRule.add(id));
+      ids = new Set([...ids].filter(keep));
+      rowsIn = rowsIn.filter(r => ids.has(r.id));
     }
     const summary = summarise(ids, rowsIn, fromMonth, Boolean(upcoming));
     if (upcoming) { summary.collected = null; summary.revenue = null; summary.mrrNow = null; }
@@ -4018,6 +4042,8 @@ export function eventRoi(data, { promptTagsOnly = false } = {}) {
     decisionsMissing,
     promptTagsOnly,
     droppedLate: droppedLate.size,
+    creditRule,
+    droppedRule: droppedRule.size,
     totals: {
       spend: costed.reduce((s, e) => s + e.spend, 0),
       collected: costed.reduce((s, e) => s + e.collected, 0),
