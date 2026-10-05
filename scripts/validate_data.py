@@ -348,10 +348,11 @@ def check_lead_source(customers):
                f"rows. A customer keeps one source.")
     set_at = [r for r in customers["rows"] if str(r.get("lead_source") or "").strip()]
     if "lead_set_at" in cols and set_at and not any(str(r.get("lead_set_at") or "").strip() for r in set_at):
-        report("warning", "Customer Waterfall",
+        # A note, not a warning: the pipeline is not being changed (Oct 2026),
+        # so this would fire on every push. The Events tab says it at the top.
+        report("note", "Customer Waterfall",
                f"lead_set_at is present but blank on every tagged row, so the site cannot tell a tag "
-               f"written on the day from one added in a batch months later. The brief asks for that "
-               f"check before any event is presented.")
+               f"written on the day from one added in a batch months later.")
     counts = {}
     for m in medium_of.values():
         counts[m] = counts.get(m, 0) + 1
@@ -390,6 +391,64 @@ def check_ledger_closed(expenses):
                f"{last} holds ${totals[last]:,.0f} of ledger against a median of ${median:,.0f}, "
                f"so it has not closed. The site stops at the month before it until it does.")
 
+def check_missing_customers(customers):
+    """Stripe customers the workbook's payment tabs never picked up.
+
+    Subscription Lifetimes and New Customer Cohorts are both read from Stripe,
+    and the Customer Waterfall is built from the workbook's own payment pull.
+    A customer in the first two and not the third has no revenue anywhere on
+    the site. On 5 Oct 2026 Stripe's own metrics (the Sigma pull) put almost
+    every such customer at $0 of new MRR: refunded, never paid, or a $10 card
+    check. So this is a note, and the pipeline is not being changed; it turns
+    into a warning only if the share grows past what that explains.
+
+    Companies whose name is already in the waterfall under another Stripe id
+    are left out: the same company billed on a second customer record.
+    Only ids are printed, because these findings are posted publicly.
+    """
+    if not customers:
+        return
+    lifetimes = load("subscription_lifetimes.json")
+    cohorts = load("signup_pricing.json")
+    if not lifetimes and not cohorts:
+        return
+    norm = lambda s: re.sub(r"[^a-z0-9]", "", re.sub(r"\b(llc|inc|co|company|the|and|corp|ltd)\b", "",
+                                                    str(s or "").lower()))
+    known = set()
+    names = set()
+    for r in customers["rows"]:
+        known.add(r.get("customer_id"))
+        known.add(r.get("canonical_id"))
+        names.add(norm(r.get("company_name")))
+    missing = {}
+    for r in (lifetimes or {}).get("rows", []):
+        cid = str(r.get("Stripe Customer ID") or "").strip()
+        if cid.startswith("cus_") and cid not in known and norm(r.get("Account")) not in names:
+            missing[cid] = {"active": str(r.get("Status") or "").lower() == "active", "paid": None}
+    signed = 0
+    for r in (cohorts or {}).get("rows", []):
+        cid = str(r.get("customer_id") or "").strip()
+        if not cid:
+            continue
+        signed += 1
+        if cid not in known and norm(r.get("customer_name")) not in names:
+            entry = missing.setdefault(cid, {"active": False, "paid": None})
+            entry["paid"] = number(r.get("first_payment"))
+    if not missing:
+        report("note", "Customer Waterfall",
+               "every Stripe customer in Subscription Lifetimes and New Customer Cohorts is in the waterfall.")
+        return
+    real = sorted(c for c, v in missing.items() if (v["paid"] or 0) >= 100)
+    active = sum(1 for v in missing.values() if v["active"])
+    share = len(real) / signed if signed else 0
+    level = "warning" if share > 0.08 else "note"
+    report(level, "Customer Waterfall",
+           f"{len(missing)} Stripe customers in Subscription Lifetimes or New Customer Cohorts have no "
+           f"waterfall rows ({active} still active in Stripe). {len(real)} of them paid a first invoice "
+           f"of $100 or more ({share:.0%} of {signed} cohort signups); in Oct 2026 every one of those "
+           f"had been refunded or stopped paying. Paid a first invoice: {', '.join(real) or 'none'}.")
+
+
 def main():
     index = load("index.json")
     if index is None:
@@ -424,6 +483,7 @@ def main():
         check_presence_is_not_payment(waterfall, customers)
         check_departures_are_booked(waterfall, customers)
         check_lead_source(customers)
+        check_missing_customers(customers)
         check_ledger_closed(load("qb_expenses.json"))
 
         # The base count is the one number that needs no interpretation, so a

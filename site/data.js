@@ -254,10 +254,17 @@ const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Co
 // their names say, so a webinar is not costed against the event calendar and
 // a podcast, which is bought and judged separately from events, gets a channel
 // of its own. The pipeline's own value is kept as leadMediumRaw.
+//
+// HubSpot can store a value that differs from the label people pick. The
+// option labelled "2025 - Blue Sky Mastermind (Tradesformation)" is stored as
+// "Blue Sky Mastermind (Tradesformation) (contact)", with no year, so the
+// pipeline reads it as the partner. It is the 2025 event, and is read as one.
+const LEAD_SOURCE_EVENT_VALUES = new Set(['Blue Sky Mastermind (Tradesformation) (contact)']);
 function leadMediumOf(source, medium) {
   const name = String(source || '').trim();
   const raw = String(medium || '').trim() || null;
   if (!name) return raw;
+  if (LEAD_SOURCE_EVENT_VALUES.has(name)) return 'event';
   if (/podcast/i.test(name)) return 'podcast';
   if (/webinar/i.test(name)) return 'webinar';
   return raw;
@@ -3451,6 +3458,7 @@ export const EVENT_ALIASES = {
   '2025 - Zoom Drain Expo': 'Zoom Drain Expo - Vortex',
   '2026 - Certain Path Spring Expo': 'CertainPath Spring Expo 2026',
   '2026 - EGIA Epic Tradeshow': 'EGIA Epic 2026',
+  'Blue Sky Mastermind (Tradesformation) (contact)': 'Blue Sky Mastermind (Tradesformation) 2025',
 };
 
 // What kind of event each one is, who runs it, and where it stands in the
@@ -3528,7 +3536,6 @@ export const ORGANISER_PARTNER_SOURCES = {
   'Garage Door Freedom': ['Garage Door Freedom'],
   'Blue Collar Success Group': ['Blue Collar Success'],
   'Lennox': ['Lennox', 'Lennox Pilot 2026'],
-  'Tradesformation': ['Blue Sky Mastermind (Tradesformation) (contact)'],
   'Redwood': ['Redwood Services'],
   'EGIA': ['EGIA - Electric & Gas Industries Association'],
   'Nuve': ['Nuve Home Contractor Trades Event'],
@@ -3597,6 +3604,8 @@ export function eventContributionRows(serve) {
 // row costing nothing, or with no month, is listed but never ranked, since a
 // share of nothing recovered, or an age with no start, means nothing.
 export const eventHasReturn = e => e.spend > 0 && Boolean(e.month);
+
+export const WINBACK_GAP = 3;
 
 export function eventRoi(data) {
   const costs = [...(data.eventCosts || []).map(c => ({ ...c, extra: false })),
@@ -3730,12 +3739,37 @@ export function eventRoi(data) {
   // September 2025 event, 17 since before this window opens. So an event is
   // credited only with customers whose first revenue falls in or after its
   // month. The rest are counted and shown, and kept out of the return.
+  //
+  // One exception: a win-back. A customer who had paid before but paid
+  // nothing in the WINBACK_GAP months before the event, and paid again in or
+  // after its month, was a former customer the event brought back. They are
+  // credited, and only what they paid from the event's month on counts.
   const firstRevenueOf = firstPaymentMonths(data);
+  const payingMonths = new Map();
+  for (const r of data.customers) {
+    const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
+    if (!(rev > 0) && !((r.netCash || 0) > 0)) continue;
+    if (!payingMonths.has(r.id)) payingMonths.set(r.id, new Set());
+    payingMonths.get(r.id).add(r.month);
+  }
+  const contributionByMonth = new Map();
+  for (const r of eventContributionRows(serve)) {
+    if (!contributionByMonth.has(r.id)) contributionByMonth.set(r.id, []);
+    contributionByMonth.get(r.id).push(r);
+  }
+  const isWinback = (id, fromMonth) => {
+    const months = payingMonths.get(id);
+    if (!months || !fromMonth) return false;
+    for (let k = 1; k <= WINBACK_GAP; k += 1) if (months.has(monthAdd(fromMonth, -k))) return false;
+    return [...months].some(m => m >= fromMonth);
+  };
   const summarise = (allIds, allRows, fromMonth, notYet = false) => {
-    const prior = new Set([...allIds].filter(id => fromMonth
-      && firstRevenueOf.has(id) && firstRevenueOf.get(id) < fromMonth));
+    const earlier = [...allIds].filter(id => fromMonth
+      && firstRevenueOf.has(id) && firstRevenueOf.get(id) < fromMonth);
+    const winbacks = new Set(notYet ? [] : earlier.filter(id => isWinback(id, fromMonth)));
+    const prior = new Set(earlier.filter(id => !winbacks.has(id)));
     const ids = new Set([...allIds].filter(id => !prior.has(id)));
-    const rows = allRows.filter(r => ids.has(r.id));
+    const rows = allRows.filter(r => ids.has(r.id) && (!winbacks.has(r.id) || r.month >= fromMonth));
     const priorMrrNow = allRows.filter(r => prior.has(r.id) && r.month === lastMonth && r.active)
       .reduce((s, r) => s + (r.eopMrr || 0), 0);
     const firstRevenue = new Map();
@@ -3748,7 +3782,9 @@ export function eventRoi(data) {
       collected += r.netCash || 0;
       const rev = (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
       revenue += rev;
-      if (firstRevenueOf.has(r.id)) firstRevenue.set(r.id, firstRevenueOf.get(r.id));
+      if (firstRevenueOf.has(r.id)) {
+        firstRevenue.set(r.id, winbacks.has(r.id) ? fromMonth : firstRevenueOf.get(r.id));
+      }
       if (r.month === lastMonth && r.active) {
         liveNow.add(r.id);
         mrrNow += r.eopMrr || 0;
@@ -3757,10 +3793,15 @@ export function eventRoi(data) {
     let contribution = 0;
     let measured = false;
     for (const id of ids) {
-      if (contributionBy.has(id)) { contribution += contributionBy.get(id); measured = true; }
+      if (winbacks.has(id)) {
+        for (const r of contributionByMonth.get(id) || []) {
+          if (r.month >= fromMonth) { contribution += r.contribution; measured = true; }
+        }
+      } else if (contributionBy.has(id)) { contribution += contributionBy.get(id); measured = true; }
     }
     return {
       broughtIds: [...ids],
+      winbacks: winbacks.size,
       tagged: allIds.size,
       alreadyPaying: prior.size,
       alreadyPayingMrrNow: priorMrrNow,
@@ -3819,7 +3860,7 @@ export function eventRoi(data) {
     if (used.has(c.event)) continue;
     events.push({ source: null, year: c.year, cost: c, broughtIds: [], tags: null, tagged: 0, alreadyPaying: 0,
       alreadyPayingMrrNow: 0, customers: 0, paid: 0, neverPaid: 0,
-      liveNow: 0, mrrNow: 0, collected: 0, revenue: 0, contribution: 0,
+      winbacks: 0, liveNow: 0, mrrNow: 0, collected: 0, revenue: 0, contribution: 0,
       firstRevenueMonths: [] });
   }
 
@@ -3900,6 +3941,7 @@ export function eventRoi(data) {
       collected: costed.reduce((s, e) => s + e.collected, 0),
       contribution: costed.reduce((s, e) => s + (e.contribution || 0), 0),
       customers: costed.reduce((s, e) => s + e.paid, 0),
+      winbacks: costed.reduce((s, e) => s + (e.winbacks || 0), 0),
       alreadyPaying: events.filter(e => !e.upcoming).reduce((s, e) => s + (e.alreadyPaying || 0), 0),
     },
   };

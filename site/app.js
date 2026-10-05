@@ -12,7 +12,7 @@ import {
   costToServe, costRecovery, churnByTenure, zeroMrrShare,
   fullCostRecovery, COST_GROUPS, REVENUE_GROUPS, platformMargins, costRates,
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
-  ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS,
+  ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
@@ -3993,8 +3993,8 @@ function renderEvents() {
     const missing = tagged && e.tagDates.withSetAt === 0;
     notice.hidden = !missing;
     if (missing) {
-      notice.innerHTML = `<strong>HubSpot: the date each contact's lead source was set is still not `
-        + `coming through.</strong> lead_set_at is blank on all ${fmt.int(e.tagDates.tagged)} tagged `
+      notice.innerHTML = `<strong>HubSpot: the date each contact's lead source was set is not in `
+        + `the data.</strong> lead_set_at is blank on all ${fmt.int(e.tagDates.tagged)} tagged `
         + `customers in the push of ${data.pushedAt ? (([y, m, d]) => `${Number(d)} `
             + `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m) - 1]} ${y}`)(
             data.pushedAt.slice(0, 10).split('-')) : 'this push'}`
@@ -4150,7 +4150,8 @@ function renderEvents() {
       + `<td>${x.month ? fmt.monthLabel(x.month) : x.cost ? `<span class="muted">undated</span>` : (x.year || '–')}</td>`
       + `<td class="n">${costCell}</td>`
       + `<td class="n">${fmt.int(x.paid)}${x.tags && x.paid
-          ? `<br><span class="muted">${fmt.int(x.tags.atEvent)} with a record created around the event</span>` : ''}${x.alreadyPaying
+          ? `<br><span class="muted">${fmt.int(x.tags.atEvent)} with a record created around the event</span>` : ''}${x.winbacks
+          ? `<br><span class="muted">incl. ${fmt.int(x.winbacks)} won back</span>` : ''}${x.alreadyPaying
           ? `<br><span class="muted">+${fmt.int(x.alreadyPaying)} already paying</span>` : ''}</td>`
       + `<td class="n">${fmt.int(x.liveNow)}</td>`
       + `<td class="n">${money(x.mrrNow)}</td>`
@@ -4171,7 +4172,10 @@ function renderEvents() {
     + 'fee or a shared fee is split; the label beside the fee says which, and hovering a cost shows '
     + 'what it is made of. ' + openWords + 'A customer counts for an '
     + 'event only if their first payment came in or after the event’s month; one already paying '
-    + 'before it carries the tag but cannot have been brought by that event. A fee that paid for '
+    + 'before it carries the tag but cannot have been brought by that event. The exception is a '
+    + `win-back: a former customer who paid nothing in the ${WINBACK_GAP} months before the event and paid `
+    + 'again from its month is credited, counting only what they paid from then'
+    + (t.winbacks ? ` (${qty(t.winbacks, 'customer')} this time)` : '') + '. A fee that paid for '
     + 'several events is split equally across them, and the shared fees are added up whole further '
     + 'down. Collected is net cash since the window opened; contribution is what they paid less '
     + 'platform, people and variable cost, chart 49’s basis, and leaves out G&A and R&D. A company '
