@@ -3837,15 +3837,35 @@ export function eventRoi(data, { promptTagsOnly = false } = {}) {
     }
     let contribution = 0;
     let measured = false;
+    const contributionOf = new Map();
     for (const id of ids) {
+      let own = null;
       if (winbacks.has(id)) {
         for (const r of contributionByMonth.get(id) || []) {
-          if (r.month >= fromMonth) { contribution += r.contribution; measured = true; }
+          if (r.month >= fromMonth) { own = (own || 0) + r.contribution; measured = true; }
         }
-      } else if (contributionBy.has(id)) { contribution += contributionBy.get(id); measured = true; }
+      } else if (contributionBy.has(id)) { own = contributionBy.get(id); measured = true; }
+      if (own !== null) { contribution += own; contributionOf.set(id, own); }
     }
+    // One line per credited customer, for the event's own page.
+    const customerRows = [...ids].map(id => {
+      const own = rows.filter(r => r.id === id);
+      const now = own.find(r => r.month === lastMonth);
+      return {
+        id, name: (own.find(r => r.name) || allRows.find(r => r.id === id && r.name) || {}).name || id,
+        firstPaid: firstRevenue.get(id) || null,
+        winback: winbacks.has(id),
+        live: Boolean(now && now.active),
+        mrrNow: now && now.active ? now.eopMrr || 0 : 0,
+        collected: own.reduce((t, r) => t + (r.netCash || 0), 0),
+        contribution: contributionOf.has(id) ? contributionOf.get(id) : null,
+        leadDate: leadDateOf.get(id) || null,
+        leadSetAt: leadSetOf.get(id) || null,
+      };
+    }).sort((a, b) => (b.contribution || 0) - (a.contribution || 0));
     return {
       broughtIds: [...ids],
+      customerRows,
       winbacks: winbacks.size,
       tagged: allIds.size,
       alreadyPaying: prior.size,
@@ -3916,7 +3936,7 @@ export function eventRoi(data, { promptTagsOnly = false } = {}) {
   // expensive kind.
   for (const c of costRows) {
     if (used.has(c.event)) continue;
-    events.push({ source: null, year: c.year, cost: c, broughtIds: [], tags: null, tagged: 0, alreadyPaying: 0,
+    events.push({ source: null, year: c.year, cost: c, broughtIds: [], customerRows: [], tags: null, tagged: 0, alreadyPaying: 0,
       alreadyPayingMrrNow: 0, customers: 0, paid: 0, neverPaid: 0,
       winbacks: 0, liveNow: 0, mrrNow: 0, collected: 0, revenue: 0, contribution: 0,
       firstRevenueMonths: [] });

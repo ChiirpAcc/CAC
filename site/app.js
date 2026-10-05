@@ -1140,8 +1140,15 @@ function showView(which) {
   if ($('view-list')) $('view-list').hidden = which !== 'list';
   if ($('view-events')) $('view-events').hidden = which !== 'events';
   if ($('view-marketing')) $('view-marketing').hidden = which !== 'marketing';
+  if ($('view-event')) $('view-event').hidden = which !== 'event';
+  // Leaving an event's page drops its address, so the same event can be
+  // opened again from the list.
+  if (which !== 'event' && /^#event=/.test(location.hash)) {
+    history.replaceState(null, '', which === 'events' ? '#events' : location.pathname + location.search);
+  }
   for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'],
-                          ['tab-events', which === 'events'], ['tab-marketing', which === 'marketing']]) {
+                          ['tab-events', which === 'events' || which === 'event'],
+                          ['tab-marketing', which === 'marketing']]) {
     if (!$(id)) continue;
     $(id).setAttribute('aria-selected', String(on));
     $(id).classList.toggle('is-on', on);
@@ -1154,7 +1161,15 @@ function wireTabs() {
   if ($('tab-list')) $('tab-list').addEventListener('click', () => showView('list'));
   if ($('tab-events')) $('tab-events').addEventListener('click', () => showView('events'));
   if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => showView('marketing'));
-  showView('all');
+  // An event's own page is #event=<name>; #events returns to the list.
+  const route = () => {
+    const m = location.hash.match(/^#event=(.+)$/);
+    if (m) { renderEventPage(decodeURIComponent(m[1])); showView('event'); return true; }
+    if (location.hash === '#events') { showView('events'); return true; }
+    return false;
+  };
+  window.addEventListener('hashchange', route);
+  if (!route()) showView('all');
 }
 
 // 27. Acquisition cost per logo, one line per category.
@@ -4079,6 +4094,130 @@ function renderMarketing() {
     + 'their HubSpot tag. Leads and deals are a snapshot until the pipeline pushes them.';
 }
 
+// One event on its own page: every cost behind it, where each figure came
+// from, the leads, the customers it is credited with and what they have paid.
+// Reached from any event name on the Events tab as #event=<name>.
+const eventHref = label => `#event=${encodeURIComponent(label)}`;
+function renderEventPage(label) {
+  const box = $('event-page');
+  if (!box) return;
+  const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
+  const r = eventReports(data, { promptTagsOnly: promptOnly });
+  const e = r ? r.roi.events.find(x => x.label === label) : null;
+  if (!e) {
+    box.innerHTML = `<p class="empty">No event called "${label}" in this push.</p>`;
+    return;
+  }
+  const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
+  const signed = v => (v === null || v === undefined ? '–' : (v < 0 ? '−' : '+') + fmt.money(Math.abs(v)));
+  const pct = v => (v === null || v === undefined ? '–' : fmt.pct(v, 0));
+  const int = v => (v === null || v === undefined ? '–' : fmt.int(v));
+  const c = e.cost;
+  const rc = r.recovery.find(x => x.label === label);
+  const pb = r.payback.find(x => x.label === label);
+  const el = eventLeads(data, r.roi);
+  const lead = el ? el.events.find(x => x.label === label) : null;
+  const pack = c && c.packageKey ? r.roi.packages.find(p => p.key === c.packageKey) : null;
+  const row = (k, v, note = '') => `<tr><th scope="row">${k}</th><td class="n">${v}</td><td>${note}</td></tr>`;
+
+  const costRows = c
+    ? row('Sponsorship fee used', money(c.sponsor), c.feeFrom ? `From ${c.feeFrom === 'settled' ? 'a settled decision'
+        : c.feeFrom === 'shared fee' ? 'a fee shared with other events' : 'QuickBooks, agreeing with the tab'}.` : 'As the Event Costs tab carries it.')
+      + (c.tabSponsor !== c.sponsor ? row('Event Costs tab fee', money(c.tabSponsor), 'What the tab carries; replaced as below.') : '')
+      + row('Travel', money(c.travel), c.extra && c.costSource === 'modelled' ? 'Modelled: the partnerships team’s estimate.'
+        : 'Airfare, ground transport, lodging and meals on the Event Costs tab.')
+      + row('<strong>Total cost</strong>', `<strong>${money(e.spend)}</strong>`, '')
+      + row('Cost source on the tab', c.costSource || '–', c.note || '')
+    : row('Cost', '–', e.upcoming ? `Happens in ${fmt.monthLabel(e.upcoming)}, after the data.` : 'No row on the Event Costs tab.');
+
+  const resultRows =
+    row('Customers credited', int(e.paid), (e.winbacks ? `Including ${int(e.winbacks)} won back. ` : '')
+      + 'First paid in or after the event’s month.')
+    + row('Tagged, already paying', int(e.alreadyPaying), 'Carry the tag but were paying before the event; not credited.')
+    + row('Live now', int(e.liveNow), `In ${fmt.monthLabel(r.roi.lastMonth)}.`)
+    + row('MRR now', money(e.mrrNow), '')
+    + row('Collected', money(e.collected), 'Net cash from the credited customers.')
+    + row('Contribution', money(e.contribution), 'What they paid less platform, people and variable cost (chart 49).')
+    + row('<strong>Net of cost</strong>', `<strong>${signed(e.net)}</strong>`, '')
+    + row('Collected per $1 spent', e.cashMultiple === null ? '–' : `${e.cashMultiple.toFixed(1)}x`, '')
+    + (pb ? row('Pays for itself', pb.status === 'paid' ? `Month ${pb.paidAt}` : pb.status === 'projected'
+        ? `Projected, month ${pb.projectedAt}` : pb.status === 'too new' ? 'Too new to tell'
+        : pb.status === 'none' ? 'No customer' : 'Not expected', `${pct(pb.recovered)} of cost recovered so far.`) : '')
+    + (rc ? [3, 6, 12].map(k => row(`Recovered by month ${k}`, rc.at[k] ? pct(rc.at[k].recovered) : 'not yet', '')).join('') : '');
+
+  const leadRows = lead
+    ? row('Earned leads', int(lead.leads), 'A booth scan, meeting, form, rep or chat.')
+      + row('From a list', int(lead.list), lead.listShare ? `${pct(lead.listShare)} of every contact with this tag; not counted.` : '')
+      + (lead.dated ? row('Before / after the event', `${int(lead.before)} / ${int(lead.after)}`, `Event date ${lead.eventDate}.`) : '')
+      + row('Confirmed / contradicted', `${int(lead.confirmed)} / ${int(lead.contradicted)}`,
+        'An at-event form or meeting names this event / names a different one.')
+      + row('Cost per earned lead', money(lead.costPerLead), '')
+      + (lead.readAs ? row('Pipeline note', '', lead.readAs) : '')
+    : row('Leads', '–', 'This event has no row in the Lead Counts tab.');
+
+  const t = e.tags;
+  const tagRows = t
+    ? row('Record created around the event', int(t.atEvent), 'The month before to the month after.')
+      + row('Record already existed', int(t.before), '')
+      + row('Record created later', int(t.after), '')
+      + row('Tagged by the end of the following month', t.setPrompt + t.setLater ? int(t.setPrompt) : '–', '')
+      + row('Tagged later than that', t.setPrompt + t.setLater ? int(t.setLater) : '–', '')
+      + (t.bulk ? row('Created on a list-import day', int(t.inBulk),
+        t.bulk.map(b => `${fmt.int(b.count)} contacts on ${b.date}`).join('; ')) : '')
+    : '';
+
+  const custRows = (e.customerRows || []).map(x => `<tr><td>${x.name}${x.winback ? ' <span class="muted">won back</span>' : ''}</td>`
+    + `<td>${x.firstPaid ? fmt.monthLabel(x.firstPaid) : '–'}</td><td>${x.live ? 'Live' : 'Gone'}</td>`
+    + `<td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
+    + `<td class="n">${money(x.contribution)}</td><td>${x.leadDate || '–'}</td><td>${x.leadSetAt || '–'}</td></tr>`).join('');
+
+  box.innerHTML =
+    `<p><a href="#events" class="back-link">Back to all events</a></p>`
+    + `<header class="story-head"><h2>${e.label}</h2>`
+    + `<p>${e.month ? fmt.monthLabel(e.month) : e.upcoming ? `Happens ${fmt.monthLabel(e.upcoming)}` : 'Undated'}`
+    + `${e.type ? ` · ${e.type}` : ''}${e.organiser ? ` · ${e.organiser}` : ''}${e.plan2027 ? ` · ${e.plan2027}` : ''}`
+    + `${e.source ? ` · HubSpot source "${e.source}"` : ''}</p></header>`
+    + `<p class="finding"><strong>${e.spend === null ? 'No cost recorded' : `Cost ${money(e.spend)}`}`
+    + `${e.net !== null ? `, net ${signed(e.net)} so far` : ''}.</strong> `
+    + `${int(e.paid)} customer${e.paid === 1 ? '' : 's'} credited, ${int(e.liveNow)} still live, `
+    + `${money(e.collected)} collected.</p>`
+    + `<figure class="card wide"><figcaption><h3>What it cost</h3></figcaption>`
+    + `<div class="table-scroll"><table class="data-table"><tbody>${costRows}</tbody></table></div>`
+    // The basis already carries a settled decision's or a shared fee's text,
+    // which have their own notes below; show it only when it adds something.
+    + (c && !c.decided && !pack ? `<p class="note">${c.sponsorBasis || ''}</p>` : '')
+    + (c && c.decision ? `<p class="note"><strong>${c.decided ? 'Settled fee' : 'Fee checked'} `
+      + `(${c.decision.confidence}):</strong> ${c.decision.evidence}</p>` : '')
+    + (pack ? `<p class="note"><strong>${pack.label}:</strong> one fee of ${money(pack.fee)} covering ${fmt.int(pack.covers)} `
+      + `event${pack.covers === 1 ? '' : 's'}; this one carries ${money(pack.fee / pack.covers)}. ${pack.basis}</p>` : '')
+    + (e.report2025 ? `<p class="note"><strong>Partnerships report, Nov 2025:</strong> ${e.report2025}</p>` : '')
+    + `</figure>`
+    + `<figure class="card wide"><figcaption><h3>What came back</h3></figcaption>`
+    + (rc ? '<div class="plot" id="event-page-curve"></div>' : '')
+    + `<div class="table-scroll"><table class="data-table"><tbody>${resultRows}</tbody></table></div></figure>`
+    + `<figure class="card wide"><figcaption><h3>Leads</h3></figcaption>`
+    + `<div class="table-scroll"><table class="data-table"><tbody>${leadRows}</tbody></table></div></figure>`
+    + (tagRows ? `<figure class="card wide"><figcaption><h3>How the tags were made</h3></figcaption>`
+      + `<div class="table-scroll"><table class="data-table"><tbody>${tagRows}</tbody></table></div></figure>` : '')
+    + `<figure class="card wide"><figcaption><h3>Customers credited</h3></figcaption>`
+    + (custRows
+      ? `<div class="table-scroll"><table class="data-table"><thead><tr><th>Customer</th><th>First paid</th><th>Now</th>`
+        + `<th class="n">MRR now</th><th class="n">Collected</th><th class="n">Contribution</th>`
+        + `<th>HubSpot record</th><th>Tag written</th></tr></thead><tbody>${custRows}</tbody></table></div>`
+      : '<p class="empty">No tagged customer has started paying since this event.</p>')
+    + `</figure>`;
+
+  if (rc) {
+    const ages = rc.curve.map((_, i) => `M${i + 1}`);
+    lineChart($('event-page-curve'), {
+      labels: ages, values: rc.curve, yMin: 0, yFormat: v => fmt.pct(v, 0),
+      yTitle: 'Share of cost recovered', refs: [{ value: 1, label: 'Paid for itself', variant: 'ref-goal' }],
+      describe: i => `<strong>Month ${i + 1}</strong><span>${rc.curve[i] === null ? 'Not reached yet'
+        : `${pct(rc.curve[i])} of cost recovered`}</span>`,
+    });
+  }
+}
+
 function renderEvents() {
   if (!$('chart-events')) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
@@ -4186,24 +4325,29 @@ function renderEvents() {
     });
     const judged = atK.filter(x => x.reached).sort((a, b) => b.netAtK - a.netAtK);
     const young = atK.filter(x => !x.reached).sort((a, b) => (b.age || 0) - (a.age || 0));
+    // Sort: by result at this age (events too young at the bottom), by name,
+    // or by when the event happened. Every order keeps young events faded.
+    const sortBy = ($('events-sort') && $('events-sort').value) || 'result';
+    const order = sortBy === 'result' ? [...judged, ...young]
+      : [...judged, ...young].sort(sortBy === 'az' ? (a, b) => a.label.localeCompare(b.label)
+        : sortBy === 'oldest' ? (a, b) => a.month.localeCompare(b.month) || a.label.localeCompare(b.label)
+        : (a, b) => b.month.localeCompare(a.month) || a.label.localeCompare(b.label));
+    const link = x => `<a href="${eventHref(x.label)}">${x.label}</a>`;
     barList($('chart-events'), {
-      items: [
-        ...judged.map(x => ({
-          label: x.label,
+      items: order.map(x => (x.reached ? {
+          label: link(x),
           sub: `${fmt.monthLabel(x.month)} · ${qty(x.paid, 'customer')} · cost ${money(x.spend)}`,
           value: x.netAtK,
           colour: x.netAtK >= 0 ? INK.positive : INK.negative,
           title: `${x.label}: cost ${money(x.spend)}, contribution in its first ${k} months `
             + `${money(x.contributionAtK)}, contribution to date ${money(x.contribution)}`,
-        })),
-        ...young.map(x => ({
-          label: x.label,
+        } : {
+          label: link(x),
           sub: `${fmt.monthLabel(x.month)} · ${qty(x.age, 'month')} old, not yet ${k}`
             + ` · ${paybackWords(paybackBy.get(x.label))}`,
           value: null,
           muted: true,
         })),
-      ],
       format: signed,
       legendItems: [
         { label: `Contribution in the first ${k} months has covered the cost`, colour: INK.positive },
@@ -4273,6 +4417,9 @@ function renderEvents() {
   renderEvents.drawAt = drawAt;
   if (ageInput && !ageInput.dataset.ready) {
     ageInput.addEventListener('input', () => renderEvents.drawAt(Number(ageInput.value)));
+    if ($('events-sort')) {
+      $('events-sort').addEventListener('change', () => renderEvents.drawAt(Number(ageInput.value)));
+    }
     ageInput.dataset.ready = '1';
   }
   drawAt(Number(ageInput ? ageInput.value : 6));
@@ -4284,7 +4431,7 @@ function renderEvents() {
         + `<br><span class="muted">${money(c.sponsor)} fee${c.feeFrom ? ` (${c.feeFrom})` : ''}, `
         + `${money(c.travel)} travel</span>`
       : x.upcoming ? '<span class="muted">after the data</span>' : '<span class="muted">no cost row</span>';
-    return `<tr><td>${x.label} ${chip(x.plan2027)}`
+    return `<tr><td><a href="${eventHref(x.label)}">${x.label}</a> ${chip(x.plan2027)}`
       + `${x.type ? `<br><span class="muted">${x.type}${x.organiser ? ' · ' + x.organiser : ''}</span>` : ''}`
       + `${x.source && x.cost && x.source !== x.label ? `<br><span class="muted">HubSpot: ${x.source}</span>` : ''}`
       + `${!x.source && x.cost ? '<br><span class="muted">no customer tagged</span>' : ''}</td>`

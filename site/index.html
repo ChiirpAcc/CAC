@@ -773,6 +773,15 @@
         <input type="range" id="events-age" min="1" max="12" step="1" value="6">
         <output id="events-age-value">6 months</output>
       </div>
+      <div class="chart-control">
+        <label for="events-sort">Sort by</label>
+        <select id="events-sort">
+          <option value="result">Most paid back at that age</option>
+          <option value="az">Name, A to Z</option>
+          <option value="oldest">Oldest event first</option>
+          <option value="newest">Newest event first</option>
+        </select>
+      </div>
       <div class="plot" id="chart-events"></div>
       <p class="finding" id="events-finding"></p>
       <div class="chart-control">
@@ -893,6 +902,10 @@
       <p class="finding" id="event-coverage-finding"></p>
       <p class="note" id="event-coverage-note"></p>
     </figure>
+  </section>
+
+  <section id="view-event" class="wrap" hidden>
+    <div id="event-page"></div>
   </section>
 
   <section id="view-marketing" class="wrap" hidden>
