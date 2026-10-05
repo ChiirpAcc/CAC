@@ -769,6 +769,7 @@
     <figure class="card wide" id="fig-events">
       <figcaption><h3>Which events had paid for themselves, the same number of months on</h3></figcaption>
       <div class="chart-control">
+        <label><input type="checkbox" id="events-age-on" checked> Same age for every event</label>
         <label for="events-age">Read every event this long after it happened</label>
         <input type="range" id="events-age" min="1" max="12" step="1" value="6">
         <output id="events-age-value">6 months</output>
@@ -776,7 +777,8 @@
       <div class="chart-control">
         <label for="events-sort">Sort by</label>
         <select id="events-sort">
-          <option value="result">Most paid back at that age</option>
+          <option value="result">Net gain</option>
+          <option value="roi">Return on cost (ROI)</option>
           <option value="az">Name, A to Z</option>
           <option value="oldest">Oldest event first</option>
           <option value="newest">Newest event first</option>
@@ -938,6 +940,15 @@
         <table class="data-table" id="mkt-month-table"></table>
       </div>
       <p class="note" id="mkt-note"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-mkt-summary">
+      <figcaption><h3>Summary: what each source cost and what it returned</h3></figcaption>
+      <p class="finding" id="mkt-summary-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="mkt-summary"></table>
+      </div>
+      <p class="note" id="mkt-summary-note"></p>
     </figure>
   </section>
 

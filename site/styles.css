@@ -1064,3 +1064,52 @@ figcaption { margin-bottom: .9rem; }
   .bar-track { grid-area: track; }
   .bar-value { grid-area: value; }
 }
+
+/* An event's own page. */
+.ev-back { display: inline-block; margin: 0.5rem 0 0.75rem; font-size: 0.85rem; color: var(--ink-mid); text-decoration: none; }
+.ev-back::before { content: '\2039'; margin-right: 0.35rem; }
+.ev-back:hover { color: var(--ink); }
+.ev-hero { padding: 1.4rem 1.5rem; margin-bottom: 1rem; border-radius: 16px;
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface-sunk) 100%); border: 1px solid var(--rule); }
+.ev-hero h2 { margin: 0 0 0.6rem; font-size: 1.7rem; letter-spacing: -0.01em; }
+.ev-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.ev-chip { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.75rem;
+  background: var(--surface); border: 1px solid var(--rule); color: var(--ink-mid); }
+.ev-chip.on { border-color: var(--series-pos); color: var(--series-pos); }
+.ev-chip.off { border-color: var(--series-neg); color: var(--series-neg); }
+.ev-source { margin: 0.6rem 0 0; font-size: 0.8rem; color: var(--ink-soft); }
+.ev-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.6rem; margin-bottom: 1rem; }
+.ev-kpi { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.85rem 1rem; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--rule); border-top: 3px solid var(--rule-strong); }
+.ev-kpi.pos { border-top-color: var(--series-pos); }
+.ev-kpi.neg { border-top-color: var(--series-neg); }
+.ev-kpi-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.ev-kpi-value { font-size: 1.45rem; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ev-kpi.pos .ev-kpi-value { color: var(--series-pos); }
+.ev-kpi.neg .ev-kpi-value { color: var(--series-neg); }
+.ev-kpi-sub { font-size: 0.75rem; color: var(--ink-soft); }
+.ev-panel { padding: 1.1rem 1.25rem 1.2rem; margin-bottom: 1rem; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--rule); }
+.ev-panel h3 { margin: 0 0 0.8rem; font-size: 1rem; }
+.ev-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.5rem; margin: 0.6rem 0; }
+.ev-fact { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.6rem 0.75rem; border-radius: 10px; background: var(--surface-sunk); }
+.ev-fact-label { font-size: 0.72rem; color: var(--ink-soft); }
+.ev-fact-value { font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ev-fact-sub { font-size: 0.72rem; color: var(--ink-soft); }
+.ev-note { font-size: 0.82rem; color: var(--ink-mid); margin: 0.5rem 0 0; line-height: 1.5; }
+.ev-split { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--surface-sunk); }
+.ev-split span { display: block; height: 100%; }
+.ev-split-fee { background: var(--series-1); }
+.ev-split-travel { background: var(--series-2); }
+.ev-split-key { display: flex; gap: 1rem; margin: 0.4rem 0 0.2rem; font-size: 0.8rem; color: var(--ink-mid); }
+.ev-split-key i { display: inline-block; width: 0.65rem; height: 0.65rem; border-radius: 3px; margin-right: 0.35rem; vertical-align: -1px; }
+.ev-dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-right: 0.45rem; vertical-align: 1px; }
+.ev-dot.live { background: var(--series-pos); }
+.ev-dot.gone { background: var(--rule-strong); }
+.ev-table td, .ev-table th { white-space: nowrap; }
+@media (max-width: 640px) {
+  .ev-hero { padding: 1rem; }
+  .ev-hero h2 { font-size: 1.35rem; }
+  .ev-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ev-kpi-value { font-size: 1.15rem; }
+}

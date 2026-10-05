@@ -4137,6 +4137,44 @@ export function eventReports(data, options = {}) {
     liveIn.get(r.id).add(r.month);
   }
   const HORIZON = 36;
+  // Each event's customers are projected on their own record where they have
+  // one, pulled toward the whole book where they do not. Two adjustments:
+  //
+  // Churn. The company survival curve is scaled by a hazard ratio: churns
+  // observed among the event's customers against the churns the curve
+  // expected of them at their ages, with two expected churns of prior weight,
+  // so a handful of customers cannot claim zero churn or certain death.
+  //
+  // Revenue change. The month-on-month change in MRR among the event's
+  // customers who were paying in both months, against the same for every
+  // customer over the last year, blended by how many such pairs the event
+  // has (36 pairs counts as half its own). Capped at 3% a month either way.
+  const mrrOf = new Map();
+  for (const r of data.customers) {
+    if (!r.active || !((r.eopMrr || 0) > 0)) continue;
+    if (!mrrOf.has(r.id)) mrrOf.set(r.id, new Map());
+    mrrOf.get(r.id).set(r.month, r.eopMrr);
+  }
+  const growthOver = (ids, from) => {
+    let prev = 0;
+    let next = 0;
+    let pairs = 0;
+    for (const id of ids) {
+      const months = mrrOf.get(id);
+      if (!months) continue;
+      for (const [m, v] of months) {
+        if (m < from) continue;
+        const n = months.get(monthAdd(m, 1));
+        if (n === undefined) continue;
+        prev += v; next += n; pairs += 1;
+      }
+    }
+    return { rate: prev ? next / prev - 1 : 0, pairs };
+  };
+  const bookGrowth = growthOver([...mrrOf.keys()], monthAdd(lastMonth, -12));
+  const PRIOR_CHURNS = 2;
+  const GROWTH_WEIGHT = 36;
+  const GROWTH_CAP = 0.03;
   const payback = new Map();
   for (const e of roi.events) {
     if (!eventHasReturn(e)) continue;
@@ -4167,22 +4205,83 @@ export function eventReports(data, options = {}) {
       return { id, rate, age: monthDiff(firstLive.get(id), lastMonth) };
     });
     const monthlyNow = rates.reduce((t, x) => t + x.rate, 0);
-    let projectedAt = null;
-    if (paidAt === null && base && monthlyNow > 0) {
+
+    // This event's own churn against what the company curve expected.
+    let observed = 0;
+    let expected = 0;
+    if (base) {
+      for (const id of e.broughtIds) {
+        const months = liveIn.get(id);
+        if (!months || !firstLive.has(id)) continue;
+        const start = firstPaid.get(id) && firstPaid.get(id) > firstLive.get(id) ? firstPaid.get(id) : firstLive.get(id);
+        for (let m = start; m < lastMonth; m = monthAdd(m, 1)) {
+          if (!months.has(m)) continue;
+          expected += 1 - base.survival(monthDiff(firstLive.get(id), m));
+          if (!months.has(monthAdd(m, 1))) observed += 1;
+        }
+      }
+    }
+    const hazard = Math.min(4, Math.max(0.25, (observed + PRIOR_CHURNS) / (expected + PRIOR_CHURNS)));
+    const own = growthOver(e.broughtIds, e.month);
+    const weight = own.pairs / (own.pairs + GROWTH_WEIGHT);
+    const growth = Math.max(-GROWTH_CAP, Math.min(GROWTH_CAP, weight * own.rate + (1 - weight) * bookGrowth.rate));
+
+    // Cumulative contribution, actual to date and projected after, for the
+    // event's page: month k counts the event month as 1.
+    const project = (hz, g) => {
       const alive = rates.map(x => ({ ...x, p: 1 }));
       let total = running;
+      let at = null;
+      const path = [];
       for (let t = 1; age + t <= HORIZON; t += 1) {
         for (const x of alive) {
-          x.p *= base.survival(x.age + t - 1);
-          total += x.rate * x.p;
+          x.p *= base.survival(x.age + t - 1) ** hz;
+          total += x.rate * x.p * (1 + g) ** t;
         }
-        if (total >= e.spend) { projectedAt = age + t; break; }
+        path.push(total);
+        if (at === null && total >= e.spend) at = age + t;
+      }
+      return { at, path };
+    };
+    let projectedAt = null;
+    let companyOnlyAt = null;
+    let projectedPath = [];
+    if (base && monthlyNow > 0) {
+      const mine = project(hazard, growth);
+      projectedPath = mine.path;
+      if (paidAt === null) {
+        projectedAt = mine.at;
+        companyOnlyAt = project(1, 0).at;
+      }
+    }
+    const actualPath = [];
+    {
+      let run = 0;
+      for (let k = 1; k <= age; k += 1) {
+        const m = monthAdd(e.month, k - 1);
+        for (const id of e.broughtIds) {
+          const months = byIdMonth.get(id);
+          if (months && months.has(m)) run += months.get(m);
+        }
+        actualPath.push(run);
       }
     }
     payback.set(e.label, {
       label: e.label, month: e.month, spend: e.spend, age, soFar: running,
       recovered: running / e.spend, liveCustomers: live.length, monthlyNow,
-      paidAt, projectedAt,
+      paidAt, projectedAt, companyOnlyAt,
+      churn: { observed, expected, hazard },
+      growth: { rate: growth, own: own.rate, pairs: own.pairs, book: bookGrowth.rate },
+      actualPath, projectedPath,
+      // Return on cost: to date, and at twelve months from the event, actual
+      // where the event is that old and projected (as above) where it is not.
+      roiToDate: (running - e.spend) / e.spend,
+      roi12: (() => {
+        const at12 = age >= 12 ? actualPath[11]
+          : projectedPath.length >= 12 - age ? projectedPath[12 - age - 1] : running;
+        return (at12 - e.spend) / e.spend;
+      })(),
+      roi12Projected: age < 12,
       status: paidAt !== null ? 'paid' : projectedAt !== null ? 'projected'
         : isTooNew(e) ? 'too new' : !e.paid ? 'none' : 'not expected',
     });
@@ -4480,6 +4579,13 @@ export const MARKETING_SNAPSHOT = {
   },
 };
 
+// Whether a category's spend recurs every month or is paid once per thing.
+const SPEND_KIND = {
+  'Paid social': 'Recurring: ad spend every month',
+  'Podcasts': 'Recurring: a monthly sponsorship',
+  'Events': 'One-time: a fee and travel per event',
+};
+
 // The categories the tab reports, and how each source falls into one.
 export const MARKETING_CATEGORIES = ['Paid social', 'Website and search', 'Other digital', 'Events',
   'Webinars', 'Podcasts', 'Partners and referrals', 'Sales outreach', 'Untagged'];
@@ -4559,9 +4665,29 @@ export function marketingReport(data, roi = eventRoi(data)) {
   const first = firstPaymentMonths(data);
   const catOf = new Map();
   for (const r of data.customers) if (r.leadSource) catOf.set(r.id, customerCategory(r));
+  const starterCat = new Map();
   for (const [id, m] of first) {
     if (m <= data.historyStarts || !at.has(m)) continue;
     at.get(m).customers[catOf.get(id) || 'Untagged'] += 1;
+    starterCat.set(id, catOf.get(id) || 'Untagged');
+  }
+  // What those customers have paid since, by category: recurring (the
+  // subscription and its usage) against one-time (set-up, one-off and
+  // pass-through), cash collected, and contribution on chart 49's basis.
+  const returns = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, { recurring: 0, oneTime: 0,
+    collected: 0, contribution: 0, liveNow: 0, mrrNow: 0 }]));
+  for (const r of data.customers) {
+    const c = starterCat.get(r.id);
+    if (!c) continue;
+    const x = returns[c];
+    x.recurring += (r.eopMrr || 0) + (r.usage || 0);
+    x.oneTime += (r.oneTime || 0) + (r.passThrough || 0);
+    x.collected += r.netCash || 0;
+    if (r.month === data.lastMonth && r.active) { x.liveNow += 1; x.mrrNow += r.eopMrr || 0; }
+  }
+  for (const r of eventContributionRows(accountServeCost(data))) {
+    const c = starterCat.get(r.id);
+    if (c) returns[c].contribution += r.contribution;
   }
 
   const sum = (cat, field) => byMonth.reduce((t, x) => t + (x[field][cat] || 0), 0);
@@ -4571,9 +4697,11 @@ export function marketingReport(data, roi = eventRoi(data)) {
     const won = sum(cat, 'won');
     const leads = sum(cat, 'leads');
     const customers = sum(cat, 'customers');
+    const ret = returns[cat];
     return { category: cat, spend, leads, created: sum(cat, 'created'), won, customers,
       costPerLead: per(spend, leads), costPerWon: per(spend, won), costPerCustomer: per(spend, customers),
-      hasSpend: spend > 0 };
+      hasSpend: spend > 0, spendKind: SPEND_KIND[cat] || null, ...ret,
+      net: ret.contribution - spend, roi: spend > 0 ? (ret.contribution - spend) / spend : null };
   });
   const spendAll = totals.reduce((t, x) => t + x.spend, 0) + byMonth.reduce((t, x) => t + x.adsOther, 0);
   const wonAll = totals.reduce((t, x) => t + x.won, 0);
