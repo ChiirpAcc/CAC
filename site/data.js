@@ -3506,6 +3506,7 @@ export const EVENT_ALIASES = {
   'Blue Sky Mastermind (Tradesformation) (contact)': 'Blue Sky Mastermind (Tradesformation) 2025',
   '2025 - Certain Path Fall Expo': 'CertainPath Fall Expo 2025',
   '2026 - Nuve Home Contractor Trades Event': 'Nuve 2026',
+  '2026 - Home Service Hoorah': 'Home Service Hoorah 2026',
 };
 
 // What kind of event each one is, who runs it, and where it stands in the
@@ -3563,6 +3564,7 @@ export const EVENT_META = {
   'Nuve 2026': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
   'Grosso University 2026': { type: 'Partner network event', organiser: 'Grosso University', plan2027: ON },
   // Due on the tab within the next pushes.
+  'Home Service Hoorah 2026': { type: 'Partner network event', organiser: 'The Wealthy Plumber', plan2027: ON },
   'Nexstar Super Meeting 2026': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
   'HSF 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   'Pantheon 2026': { type: 'Conference sponsorship', organiser: 'ServiceTitan', plan2027: ON },
@@ -3622,6 +3624,9 @@ export function firstPaymentMonths(data) {
 // over the moment somebody adds the row. Travel is the partnerships team's
 // own estimate on its Live Tracking sheet (Aug 2026), marked modelled.
 export const EVENT_EXTRA_COSTS = [
+  { event: 'Home Service Hoorah 2026', month: '2026-09', sponsor: 4997, travel: null,
+    costSource: 'recorded', note: 'QuickBooks: a Feb 19 2026 bill from Gulf Coast Business Coaching, "Vendor '
+      + 'Booth Home service hoorah for the period of September 2026", deferred to Sep 2026. Travel is not known yet.' },
   { event: 'Grosso University 2026', month: '2026-08', sponsor: null, travel: 5740,
     costSource: 'modelled', note: 'Travel of $5,740 is modelled: the partnerships team\'s estimate on its '
       + 'Live Tracking sheet, Aug 2026.' },
@@ -3650,7 +3655,7 @@ export function eventContributionRows(serve) {
 // Whether an event can be read for return: a cost above zero and a month. A
 // row costing nothing, or with no month, is listed but never ranked, since a
 // share of nothing recovered, or an age with no start, means nothing.
-export const eventHasReturn = e => e.spend > 0 && Boolean(e.month);
+export const eventHasReturn = e => e.spend > 0 && Boolean(e.month) && !e.upcoming;
 
 export const WINBACK_GAP = 3;
 
@@ -3694,7 +3699,8 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
       : qb ? `QuickBooks: ${qb.basis}${qbDiffers
           ? ` QuickBooks shows $${qb.sponsor.toLocaleString()}; the Event Costs tab carries $${c.sponsor.toLocaleString()}, which is used.`
           : ''}`
-      : `Event Costs tab, ${c.costSource || 'source not stated'}.${c.extra && c.note ? ` ${c.note}` : ''}`;
+      : c.extra ? `Added here until the Event Costs tab carries it. ${c.note || ''}`
+      : `Event Costs tab, ${c.costSource || 'source not stated'}.`;
     const basis = decided
       ? `Settled at $${decision.now.toLocaleString()} (the tab had $${decision.was.toLocaleString()}): ${decision.evidence}`
       : sponsorBasis;
@@ -3708,7 +3714,8 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
       decision: decision || null,
       // Where the fee used comes from, for the label beside it: a decision
       // below, a shared package, or the tab agreeing with QuickBooks.
-      feeFrom: decided ? 'settled' : pk ? 'shared fee' : qb && !qbDiffers ? 'QuickBooks' : null,
+      feeFrom: decided ? 'settled' : pk ? 'shared fee' : qb && !qbDiffers ? 'QuickBooks'
+        : c.extra ? 'added here' : null,
       packageKey: pk ? pk.pack.key : null,
       cost: known ? (sponsor || 0) + (c.travel || 0) : null,
       year: eventYear(c.event, c.month),
@@ -3917,7 +3924,9 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
     // that the data has reached is an event without a cost row, and a year
     // after the data's year is upcoming without being listed.
     const listed = EVENT_UPCOMING[b.source] || null;
-    const upcoming = cost ? null
+    // A cost row dated after the data is an event that has not happened yet
+    // in the months the site reads: costed, but upcoming.
+    const upcoming = cost ? (cost.month && cost.month > lastMonth ? cost.month : null)
       : listed ? (listed > lastMonth ? listed : null)
       : year && year > lastMonth.slice(0, 4) ? `${year}-01` : null;
     const fromMonth = cost ? cost.month || (cost.year ? `${cost.year}-01` : null)
@@ -3970,10 +3979,15 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
 
   for (const e of events) {
     const cost = e.cost ? e.cost.cost : null;
+    if (e.cost && !e.upcoming && e.cost.month && e.cost.month > lastMonth) {
+      // A costed event after the data with nobody tagged to it yet.
+      e.upcoming = e.cost.month;
+      e.contribution = null; e.collected = null; e.mrrNow = null;
+    }
     e.label = e.cost ? e.cost.event : e.source;
     e.month = e.cost ? e.cost.month : e.upcoming || null;
     e.spend = cost;
-    e.cashMultiple = cost ? e.collected / cost : null;
+    e.cashMultiple = cost && e.collected !== null ? e.collected / cost : null;
     e.net = cost !== null && e.contribution !== null ? e.contribution - cost : null;
     e.costPerCustomer = cost !== null && e.paid ? cost / e.paid : null;
     e.matched = Boolean(e.cost && e.source);
@@ -4019,7 +4033,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
   // removed. Shown, so a settled fee cannot lapse without anyone seeing it.
   const decisionsMissing = EVENT_FEE_DECISIONS.filter(d => !costRows.some(c => c.decision === d))
     .map(d => d.event);
-  const upcomingSources = events.filter(e => e.upcoming).map(e => ({ source: e.source,
+  const upcomingSources = events.filter(e => e.upcoming && e.source).map(e => ({ source: e.source,
     month: e.upcoming, tagged: e.tagged }));
   const costed = events.filter(e => e.spend !== null);
 

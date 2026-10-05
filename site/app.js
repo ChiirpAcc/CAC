@@ -4193,11 +4193,13 @@ function renderEventPage(label) {
     : '';
   const feeFrom = !c ? '' : c.feeFrom === 'settled' ? 'Settled on the evidence below'
     : c.feeFrom === 'shared fee' ? 'Share of a fee covering several events'
-    : c.feeFrom === 'QuickBooks' ? 'Agrees with QuickBooks' : 'As the Event Costs tab carries it';
+    : c.feeFrom === 'QuickBooks' ? 'Agrees with QuickBooks'
+    : c.feeFrom === 'added here' ? 'Added here until the Event Costs tab carries it' : 'As the Event Costs tab carries it';
   const costFacts = c
     ? fact('Fee used', money(c.sponsor), feeFrom)
       + (c.tabSponsor !== c.sponsor ? fact('Tab carries', money(c.tabSponsor), 'replaced by the fee used') : '')
-      + fact('Travel', money(c.travel), c.extra && c.costSource === 'modelled' ? 'modelled estimate' : 'airfare, ground, lodging, meals')
+      + fact('Travel', money(c.travel), c.travel === null ? 'not known yet'
+        : c.extra && c.costSource === 'modelled' ? 'modelled estimate' : 'airfare, ground, lodging, meals')
       + fact('Recorded as', c.costSource || '–', c.note || '')
     : fact('Cost', '–', e.upcoming ? 'after the data' : 'no row on the Event Costs tab');
   const costNotes = (c && !c.decided && !pack ? `<p class="ev-note">${c.sponsorBasis || ''}</p>` : '')
