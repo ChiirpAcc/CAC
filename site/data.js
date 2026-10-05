@@ -4762,10 +4762,63 @@ export function marketingReport(data, roi = eventRoi(data)) {
     x.collected += r.netCash || 0;
     if (r.month === data.lastMonth && r.active) { x.liveNow += 1; x.mrrNow += r.eopMrr || 0; }
   }
-  for (const r of eventContributionRows(accountServeCost(data))) {
+  const contribRows = eventContributionRows(accountServeCost(data));
+  const monthlyReturn = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, {}]));
+  const contribOf = new Map();
+  const contribMonths = new Map();
+  for (const r of contribRows) {
     const c = starterCat.get(r.id);
-    if (c) returns[c].contribution += r.contribution;
+    if (!c) continue;
+    returns[c].contribution += r.contribution;
+    monthlyReturn[c][r.month] = (monthlyReturn[c][r.month] || 0) + r.contribution;
+    contribOf.set(r.id, (contribOf.get(r.id) || 0) + r.contribution);
+    if (!contribMonths.has(r.id)) contribMonths.set(r.id, new Map());
+    contribMonths.get(r.id).set(r.month, r.contribution);
   }
+
+  // One line per customer for each source's page, and the next twelve
+  // months projected for those still paying: each at the median of their
+  // last three months since they first paid, kept on at the survival curve
+  // charts 34 to 36 use for a customer of their age. No new customers.
+  const base = projectBase(data);
+  const nameOf = new Map();
+  const nowRow = new Map();
+  const firstLive = new Map();
+  const billed = new Map();
+  const cash = new Map();
+  const sourceOf = new Map();
+  for (const r of data.customers) {
+    if (!starterCat.has(r.id)) continue;
+    if (r.name) nameOf.set(r.id, r.name);
+    if (r.leadSource) sourceOf.set(r.id, r.leadSource);
+    if (r.month === data.lastMonth) nowRow.set(r.id, r);
+    if (r.active && (!firstLive.has(r.id) || r.month < firstLive.get(r.id))) firstLive.set(r.id, r.month);
+    billed.set(r.id, (billed.get(r.id) || 0) + (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0));
+    cash.set(r.id, (cash.get(r.id) || 0) + (r.netCash || 0));
+  }
+  const projected12 = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, 0]));
+  const customerRows = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, []]));
+  for (const [id, cat] of starterCat) {
+    const now = nowRow.get(id);
+    const live = Boolean(now && now.active);
+    let rate = 0;
+    if (live) {
+      const months = contribMonths.get(id) || new Map();
+      const vals = [...months.keys()].filter(m => m >= first.get(id)).sort().slice(-3).map(m => months.get(m))
+        .sort((a, b) => a - b);
+      const mid = vals.length >> 1;
+      rate = !vals.length ? 0 : vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+      if (base && rate > 0) {
+        let p = 1;
+        const age = monthDiff(firstLive.get(id) || first.get(id), data.lastMonth);
+        for (let t = 1; t <= 12; t += 1) { p *= base.survival(age + t - 1); projected12[cat] += rate * p; }
+      }
+    }
+    customerRows[cat].push({ id, name: nameOf.get(id) || id, firstPaid: first.get(id), source: sourceOf.get(id) || null,
+      live, mrrNow: live ? now.eopMrr || 0 : 0, billed: billed.get(id) || 0, collected: cash.get(id) || 0,
+      contribution: contribOf.has(id) ? contribOf.get(id) : null, monthlyNow: rate });
+  }
+  for (const c of MARKETING_CATEGORIES) customerRows[c].sort((a, b) => (b.contribution || 0) - (a.contribution || 0));
 
   const sum = (cat, field) => byMonth.reduce((t, x) => t + (x[field][cat] || 0), 0);
   const per = (a, b) => (a > 0 && b > 0 ? a / b : null);
@@ -4781,8 +4834,15 @@ export function marketingReport(data, roi = eventRoi(data)) {
       ? (data.leadCounts || []).filter(r => r.medium === 'webinar' || /webinar/i.test(r.source))
         .reduce((t, r) => t + (r.earned || 0), 0) || null
       : null;
+    const created = sum(cat, 'created');
+    const ahead = ret.contribution + projected12[cat];
     return {
-      leadsAllTime, category: cat, spend, leads, created: sum(cat, 'created'), won, customers,
+      leadsAllTime, category: cat, spend, leads, created, won, customers,
+      projected12: projected12[cat],
+      roi12: spend > 0 ? (ahead - spend) / spend : null,
+      leadToWon: leads > 0 ? won / leads : null,
+      openedToWon: created > 0 ? won / created : null,
+      wonToCustomer: won > 0 ? customers / won : null,
       costPerLead: per(spend, leads), costPerWon: per(spend, won), costPerCustomer: per(spend, customers),
       hasSpend: spend > 0, spendKind: SPEND_KIND[cat] || null, ...ret,
       net: ret.contribution - spend, roi: spend > 0 ? (ret.contribution - spend) / spend : null };
@@ -4799,7 +4859,27 @@ export function marketingReport(data, roi = eventRoi(data)) {
   const paid = ['Paid social', 'Events', 'Podcasts'];
   const costPerWon = Object.fromEntries(paid.map(cat => [cat, byMonth.map((x, i) => ({
     month: x.month, single: per(x.spend[cat], x.won[cat]), trailing: trailing(cat, i) }))]));
-  return { months, byMonth, totals, spendAll, wonAll, customersAll, costPerWon, paid,
+  // Each source month by month, with spend and return added up as they go,
+  // for its own page.
+  const detail = Object.fromEntries(MARKETING_CATEGORIES.map(cat => {
+    let cs = 0;
+    let cr = 0;
+    const monthly = byMonth.map(x => {
+      cs += x.spend[cat] || 0;
+      cr += monthlyReturn[cat][x.month] || 0;
+      return { month: x.month, spend: x.spend[cat] || 0, leads: x.leads[cat] || 0, created: x.created[cat] || 0,
+        won: x.won[cat] || 0, customers: x.customers[cat] || 0, contribution: monthlyReturn[cat][x.month] || 0,
+        cumSpend: cs, cumContribution: cr };
+    });
+    return [cat, { monthly, customers: customerRows[cat] }];
+  }));
+  const paidTotals = totals.filter(t => t.hasSpend);
+  const paidSpend = paidTotals.reduce((t, x) => t + x.spend, 0);
+  const paidContribution = paidTotals.reduce((t, x) => t + x.contribution, 0);
+  return { months, byMonth, totals, spendAll, wonAll, customersAll, costPerWon, paid, detail,
+    paidRoi: paidSpend ? (paidContribution - paidSpend) / paidSpend : null, paidSpend, paidContribution,
+    contributionAll: totals.reduce((t, x) => t + x.contribution, 0),
+    mrrNowAll: totals.reduce((t, x) => t + x.mrrNow, 0),
     blendedPerWon: per(spendAll, wonAll), blendedPerCustomer: per(spendAll, customersAll),
     adsCheck: byMonth.map(x => ({ month: x.month, pushed: x.adsTotal, other: x.adsOther })),
     snapshotAsOf: snap.asOf };

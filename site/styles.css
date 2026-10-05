@@ -1142,3 +1142,31 @@ figcaption { margin-bottom: .9rem; }
 .data-table.mkt-summary th { white-space: normal; vertical-align: bottom; }
 .data-table.mkt-summary td { white-space: normal; }
 .data-table.mkt-summary td.n { white-space: nowrap; }
+
+/* Marketing: spend against return, and the funnels. */
+.mkt-bar { position: relative; flex: 1 1 auto; min-width: 70px; height: 14px; background: var(--surface-sunk); border-radius: 3px; overflow: hidden; }
+.mkt-bar span { position: absolute; top: 0; height: 100%; }
+.mkt-bar-spend { left: 0; top: 0; height: 4px !important; background: var(--series-neg); z-index: 2; }
+.mkt-bar-back { left: 0; top: 4px !important; height: 10px !important; background: var(--series-pos); }
+.mkt-bar-ahead { top: 4px !important; height: 10px !important; background: var(--series-pos); opacity: 0.35; }
+.mkt-key { display: flex; flex-wrap: wrap; gap: 1rem; margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--ink-mid); }
+.mkt-key i { display: inline-block; width: 0.8rem; height: 0.6rem; border-radius: 2px; margin-right: 0.35rem; vertical-align: 0; }
+.mkt-key-spend { background: var(--series-neg); }
+.mkt-key-back { background: var(--series-pos); }
+.mkt-key-ahead { background: var(--series-pos); opacity: 0.35; }
+.mkt-funnels { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.75rem; }
+.mkt-funnel { display: block; padding: 0.9rem 1rem; border-radius: 12px; border: 1px solid var(--rule); background: var(--surface);
+  color: var(--ink); text-decoration: none; transition: border-color 0.15s, transform 0.15s; }
+.mkt-funnel:hover { border-color: var(--series-1); transform: translateY(-1px); }
+.mkt-funnel h4 { margin: 0 0 0.6rem; font-size: 0.95rem; }
+.mkt-funnel-bars { display: flex; flex-direction: column; gap: 3px; margin-bottom: 0.6rem; }
+.mkt-funnel-bars span { display: block; height: 8px; border-radius: 4px; }
+.mkt-funnel-bars .f1 { background: var(--ramp-5); }
+.mkt-funnel-bars .f2 { background: var(--ramp-4); }
+.mkt-funnel-bars .f3 { background: var(--ramp-3); }
+.mkt-funnel-bars .f4 { background: var(--ramp-2); }
+.mkt-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 0.3rem; }
+.mkt-step { display: flex; flex-direction: column; }
+.mkt-step-n { font-weight: 650; font-variant-numeric: tabular-nums; }
+.mkt-step-label { font-size: 0.72rem; color: var(--ink-soft); }
+.mkt-step-rate { font-size: 0.72rem; color: var(--series-1); }

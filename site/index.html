@@ -924,6 +924,10 @@
     <div id="event-page"></div>
   </section>
 
+  <section id="view-source" class="wrap" hidden>
+    <div id="source-page"></div>
+  </section>
+
   <section id="view-marketing" class="wrap" hidden>
     <header class="story-head">
       <h2>What each way of winning customers cost, month by month</h2>
@@ -931,7 +935,35 @@
         produced, so a month of paid social can be read beside a month of events.
         <span id="mkt-source"></span></p>
     </header>
+    <div class="ev-kpis" id="mkt-kpis"></div>
     <p class="finding" id="mkt-finding"></p>
+
+    <figure class="card wide" id="fig-mkt-rank">
+      <figcaption><h3>Every source, what it cost and what it returned</h3></figcaption>
+      <div class="chart-control">
+        <label for="mkt-sort">Sort by</label>
+        <select id="mkt-sort">
+          <option value="roi12">ROI with 12 more months</option>
+          <option value="roi">ROI to date</option>
+          <option value="contribution">Contribution returned</option>
+          <option value="spend">Spend</option>
+          <option value="customers">Paying customers</option>
+          <option value="az">Name, A to Z</option>
+        </select>
+        <span class="view-toggle" role="radiogroup" aria-label="Table detail">
+          <label><input type="radio" name="mkt-view" id="mkt-view-simple" checked> Simple</label>
+          <label><input type="radio" name="mkt-view" id="mkt-view-technical"> Technical</label>
+        </span>
+      </div>
+      <p class="finding" id="mkt-rank-finding"></p>
+      <div id="mkt-rank"></div>
+    </figure>
+
+    <figure class="card wide" id="fig-mkt-funnels">
+      <figcaption><h3>From lead to paying customer, by source</h3></figcaption>
+      <div class="mkt-funnels" id="mkt-funnels"></div>
+      <p class="note" id="mkt-funnel-note"></p>
+    </figure>
 
     <figure class="card wide" id="fig-mkt-spend">
       <figcaption><h3>Spend by category, by month</h3></figcaption>

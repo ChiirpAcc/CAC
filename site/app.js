@@ -1141,14 +1141,18 @@ function showView(which) {
   if ($('view-events')) $('view-events').hidden = which !== 'events';
   if ($('view-marketing')) $('view-marketing').hidden = which !== 'marketing';
   if ($('view-event')) $('view-event').hidden = which !== 'event';
+  if ($('view-source')) $('view-source').hidden = which !== 'source';
   // Leaving an event's page drops its address, so the same event can be
   // opened again from the list.
+  if (which !== 'source' && /^#source=/.test(location.hash)) {
+    history.replaceState(null, '', which === 'marketing' ? '#marketing' : location.pathname + location.search);
+  }
   if (which !== 'event' && /^#event=/.test(location.hash)) {
     history.replaceState(null, '', which === 'events' ? '#events' : location.pathname + location.search);
   }
   for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'],
                           ['tab-events', which === 'events' || which === 'event'],
-                          ['tab-marketing', which === 'marketing']]) {
+                          ['tab-marketing', which === 'marketing' || which === 'source']]) {
     if (!$(id)) continue;
     $(id).setAttribute('aria-selected', String(on));
     $(id).classList.toggle('is-on', on);
@@ -1166,6 +1170,9 @@ function wireTabs() {
     const m = location.hash.match(/^#event=(.+)$/);
     if (m) { renderEventPage(decodeURIComponent(m[1])); showView('event'); return true; }
     if (location.hash === '#events') { showView('events'); return true; }
+    const src = location.hash.match(/^#source=(.+)$/);
+    if (src) { renderSourcePage(decodeURIComponent(src[1])); showView('source'); return true; }
+    if (location.hash === '#marketing') { showView('marketing'); return true; }
     return false;
   };
   window.addEventListener('hashchange', route);
@@ -3976,6 +3983,202 @@ const EVENT_TYPE_INK = {
 // The Marketing tab. What each way of winning customers cost, month by month,
 // against the leads, deals and paying customers it produced. Spend is
 // QuickBooks, leads and deals are HubSpot, paying customers are Stripe.
+// The top of the Marketing tab: headline figures, every source ranked side by
+// side, and each source's funnel. Each source opens its own page.
+const sourceHref = cat => `#source=${encodeURIComponent(cat)}`;
+function renderMarketingTop(r) {
+  if (!$('mkt-kpis')) return;
+  const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
+  const int = v => (v === null || v === undefined ? '–' : fmt.int(v));
+  const sp = v => (v === null || v === undefined ? '–' : (v < 0 ? '−' : '+') + fmt.pct(Math.abs(v), 0));
+  const signed = v => (v === null || v === undefined ? '–' : (v < 0 ? '−' : '+') + fmt.money(Math.abs(v)));
+  const tone = v => (v === null || v === undefined ? '' : v < 0 ? 'neg' : 'pos');
+  const cls = v => (v === null || v === undefined ? '' : v < 0 ? 'notviable' : 'held');
+  const kpi = (k, v, sub = '', c = '') => `<div class="ev-kpi ${c}"><span class="ev-kpi-label">${k}</span>`
+    + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
+
+  $('mkt-kpis').innerHTML =
+    kpi('Marketing spend', money(r.spendAll), `${r.months.length} months`)
+    + kpi('Deals won', int(r.wonAll), `${money(r.blendedPerWon)} each, every channel`)
+    + kpi('Paying customers', int(r.customersAll), `${money(r.blendedPerCustomer)} each`)
+    + kpi('Contribution returned', money(r.contributionAll), 'from customers who started in these months')
+    + kpi('ROI on paid channels', sp(r.paidRoi), `${money(r.paidSpend)} spent`, tone(r.paidRoi))
+    + kpi('Still coming in', `${money(r.mrrNowAll)}`, 'MRR from these customers', 'pos');
+
+  // The ranking.
+  const technical = Boolean($('mkt-view-technical') && $('mkt-view-technical').checked);
+  const sortBy = ($('mkt-sort') && $('mkt-sort').value) || 'roi12';
+  const rows = r.totals.filter(t => t.spend || t.leads || t.won || t.customers);
+  const key = {
+    roi12: t => (t.roi12 === null ? -Infinity : t.roi12),
+    roi: t => (t.roi === null ? -Infinity : t.roi),
+    spend: t => t.spend,
+    contribution: t => t.contribution,
+    customers: t => t.customers,
+  }[sortBy];
+  const ordered = sortBy === 'az' ? [...rows].sort((a, b) => a.category.localeCompare(b.category))
+    : [...rows].sort((a, b) => key(b) - key(a) || b.contribution - a.contribution);
+  const maxReturn = Math.max(1, ...rows.map(t => t.contribution + t.projected12), ...rows.map(t => t.spend));
+  const bar = t => `<span class="mkt-bar"><span class="mkt-bar-spend" style="width:${(t.spend / maxReturn * 100).toFixed(1)}%"></span>`
+    + `<span class="mkt-bar-back" style="width:${(t.contribution / maxReturn * 100).toFixed(1)}%"></span>`
+    + `<span class="mkt-bar-ahead" style="left:${(t.contribution / maxReturn * 100).toFixed(1)}%;width:${(t.projected12 / maxReturn * 100).toFixed(1)}%"></span></span>`;
+  $('mkt-rank').innerHTML =
+    `<div class="table-scroll"><table class="data-table rank-table${technical ? ' is-technical' : ''}"><thead><tr>`
+    + `<th>Source</th><th class="n">Spend</th><th class="n">Customers</th>`
+    + (technical ? `<th class="n">Leads</th><th class="n">Deals won</th><th class="n">Billed</th>` : '')
+    + `<th class="rank-bar-col">Spend against return</th><th class="n">ROI</th></tr></thead><tbody>`
+    + ordered.map(t => `<tr><td><a href="${sourceHref(t.category)}">${t.category}</a><br><span class="muted">`
+        + `${t.hasSpend ? (t.spendKind || 'mixed').split(':')[0] : 'no direct spend'}</span></td>`
+      + `<td class="n">${t.hasSpend ? `${money(t.spend)}<br><span class="muted">`
+          + `${t.costPerLead ? `${money(t.costPerLead)} a lead<br>` : ''}`
+          + `${t.costPerWon ? `${money(t.costPerWon)} a deal<br>` : ''}`
+          + `${t.costPerCustomer ? `${money(t.costPerCustomer)} a customer` : ''}</span>` : '<span class="muted">–</span>'}</td>`
+      + `<td class="n">${int(t.customers)}${t.liveNow ? `<br><span class="muted">${int(t.liveNow)} live</span>` : ''}</td>`
+      + (technical ? `<td class="n">${t.leads ? int(t.leads) : t.leadsAllTime ? `${int(t.leadsAllTime)}<br><span class="muted">all time</span>` : '–'}</td>`
+        + `<td class="n">${int(t.won)}</td><td class="n">${money(t.recurring + t.oneTime)}<br>`
+        + `<span class="muted">${money(t.collected)} collected</span></td>` : '')
+      + `<td class="rank-bar-col"><div class="rank-net">${bar(t)}<span class="rank-bar-value">${money(t.contribution)}</span></div>`
+        + `<span class="muted">+ ${money(t.projected12)} in the next 12 months, projected</span></td>`
+      + `<td class="n">${t.hasSpend ? `<span class="${cls(t.roi)}">${sp(t.roi)}</span><span class="muted"> to date</span><br>`
+          + `<span class="${cls(t.roi12)}">${sp(t.roi12)}</span><span class="muted"> with 12 more months</span>` : '<span class="muted">no spend</span>'}</td>`
+      + `</tr>`).join('')
+    + `</tbody></table></div>`
+    + `<div class="mkt-key"><span><i class="mkt-key-spend"></i>Spend</span><span><i class="mkt-key-back"></i>Contribution so far</span>`
+    + `<span><i class="mkt-key-ahead"></i>Next 12 months, projected</span></div>`;
+  // Said from the figures: the paid sources by return to date, how much of
+  // the youngest one's customers arrived in the last four months, and which
+  // rest on so few customers that one more or less moves them.
+  const paidRows = r.totals.filter(t => t.hasSpend).sort((a, b) => b.roi - a.roi);
+  const recentShare = t => {
+    const c = r.detail[t.category].customers;
+    const cut = r.months[Math.max(0, r.months.length - 4)];
+    return c.length ? c.filter(x => x.firstPaid >= cut).length / c.length : 0;
+  };
+  const youngest = [...paidRows].sort((a, b) => recentShare(b) - recentShare(a))[0];
+  const thin = paidRows.filter(t => t.customers < 10);
+  $('mkt-rank-finding').innerHTML =
+    '<strong>On what has come back so far: '
+    + paidRows.map(t => `${t.category.toLowerCase()} ${sp(t.roi)}`).join(', ') + '.</strong> '
+    + (youngest && recentShare(youngest) >= 0.5
+      ? `${fmt.pct(recentShare(youngest), 0)} of ${youngest.category.toLowerCase()}’s paying customers started in the last four `
+        + `months, so its return is still arriving; with twelve more months of the customers it already has it is projected at `
+        + `${sp(youngest.roi12)}. ` : '')
+    + (thin.length ? thin.map(t => `The ${t.category.toLowerCase()} figure rests on ${fmt.int(t.customers)} customer${t.customers === 1 ? '' : 's'}`).join('; ')
+      + ', so one customer more or less moves it a long way. ' : '')
+    + 'Sources with no direct spend show their return without an ROI.';
+
+  // Funnels, one card per source with leads or deals.
+  const step = (label, n, rate) => `<div class="mkt-step"><span class="mkt-step-n">${int(n)}</span>`
+    + `<span class="mkt-step-label">${label}</span>${rate !== null && rate !== undefined
+      ? `<span class="mkt-step-rate">${rate > 1 ? '–' : fmt.pct(rate, rate < 0.1 ? 1 : 0)}</span>` : ''}</div>`;
+  const funnelRows = r.totals.filter(t => t.leads || t.created || t.won);
+  $('mkt-funnels').innerHTML = funnelRows.map(t => {
+    const top = Math.max(t.leads || 0, t.created || 0, t.won || 0, t.customers || 0, 1);
+    const w = n => `${Math.max(4, (n || 0) / top * 100).toFixed(1)}%`;
+    return `<a class="mkt-funnel" href="${sourceHref(t.category)}"><h4>${t.category}</h4>`
+      + `<div class="mkt-funnel-bars">`
+      + (t.leads ? `<span style="width:${w(t.leads)}" class="f1"></span>` : '')
+      + `<span style="width:${w(t.created)}" class="f2"></span><span style="width:${w(t.won)}" class="f3"></span>`
+      + `<span style="width:${w(t.customers)}" class="f4"></span></div>`
+      + `<div class="mkt-steps">${t.leads ? step('leads', t.leads, null) : ''}${step('deals opened', t.created, null)}`
+      + step('won', t.won, t.openedToWon) + step('paying', t.customers, t.wonToCustomer) + `</div></a>`;
+  }).join('');
+  $('mkt-funnel-note').textContent =
+    'Leads are HubSpot contacts by how they first arrived; deals opened and won are by the deal’s own lead '
+    + 'source; paying customers are Stripe customers by their tag. The rate under won is won over opened, and under '
+    + 'paying is paying customers over won deals. The three are tagged by different people at different times, so '
+    + 'a source can show more paying customers than won deals, which is shown as a dash rather than a rate over '
+    + '100%. Bulk-loaded deals (March, April and July 2026) make deals opened high for Events and Untagged.';
+}
+
+// One source on its own page.
+function renderSourcePage(cat) {
+  const box = $('source-page');
+  if (!box) return;
+  const r = marketingReport(data);
+  const t = r ? r.totals.find(x => x.category === cat) : null;
+  if (!t) {
+    box.innerHTML = `<a href="#marketing" class="ev-back">All sources</a><p class="empty">No source called "${cat}".</p>`;
+    return;
+  }
+  const d = r.detail[cat];
+  const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
+  const int = v => (v === null || v === undefined ? '–' : fmt.int(v));
+  const sp = v => (v === null || v === undefined ? '–' : (v < 0 ? '−' : '+') + fmt.pct(Math.abs(v), 0));
+  const tone = v => (v === null || v === undefined ? '' : v < 0 ? 'neg' : 'pos');
+  const kpi = (k, v, sub = '', c = '') => `<div class="ev-kpi ${c}"><span class="ev-kpi-label">${k}</span>`
+    + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
+  const fact = (k, v, sub = '') => `<div class="ev-fact"><span class="ev-fact-label">${k}</span>`
+    + `<span class="ev-fact-value">${v}</span>${sub ? `<span class="ev-fact-sub">${sub}</span>` : ''}</div>`;
+  const labels = d.monthly.map(x => fmt.monthLabel(x.month));
+  const span = `${labels[0]} to ${labels[labels.length - 1]}`;
+  const kpis = (t.hasSpend ? kpi('Spend', money(t.spend), (t.spendKind || '').split(':')[0]) : kpi('Spend', 'None', 'no direct spend'))
+    + kpi('Leads', t.leads ? int(t.leads) : t.leadsAllTime ? int(t.leadsAllTime) : '–', t.leads ? (t.costPerLead ? `${money(t.costPerLead)} each` : '') : t.leadsAllTime ? 'all time' : 'not counted')
+    + kpi('Deals won', int(t.won), t.costPerWon ? `${money(t.costPerWon)} each` : `${int(t.created)} opened`)
+    + kpi('Paying customers', int(t.customers), `${int(t.liveNow)} still live · ${money(t.mrrNow)} MRR`)
+    + kpi('Contribution so far', money(t.contribution), `${money(t.collected)} collected`)
+    + (t.hasSpend ? kpi('ROI to date', sp(t.roi), '', tone(t.roi)) + kpi('ROI with 12 more months', sp(t.roi12), 'projected', tone(t.roi12))
+      : kpi('Next 12 months', money(t.projected12), 'projected contribution', 'pos'));
+  const funnel = fact('Leads', t.leads ? int(t.leads) : '–', t.leads ? 'contacts by first arrival' : '')
+    + fact('Deals opened', int(t.created))
+    + fact('Deals won', int(t.won), t.openedToWon !== null ? `${fmt.pct(t.openedToWon, 0)} of opened` : '')
+    + fact('Paying customers', int(t.customers), t.wonToCustomer !== null && t.wonToCustomer <= 1 ? `${fmt.pct(t.wonToCustomer, 0)} of won` : '')
+    + fact('Billed so far', money(t.recurring + t.oneTime), `${money(t.recurring)} recurring, ${money(t.oneTime)} one-time`);
+  const custRows = d.customers.map(x => `<tr><td><span class="ev-dot ${x.live ? 'live' : 'gone'}"></span>${x.name}`
+    + `${x.source ? `<br><span class="muted">${x.source}</span>` : ''}</td><td>${fmt.monthLabel(x.firstPaid)}</td>`
+    + `<td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.billed)}</td><td class="n">${money(x.collected)}</td>`
+    + `<td class="n">${money(x.contribution)}</td></tr>`).join('');
+  const paidSocial = cat === 'Paid social';
+  box.innerHTML =
+    `<a href="#marketing" class="ev-back">All sources</a>`
+    + `<header class="ev-hero"><h2>${cat}</h2><div class="ev-chips"><span class="ev-chip">${span}</span>`
+    + `<span class="ev-chip">${t.hasSpend ? (t.spendKind || 'mixed') : 'No direct spend'}</span></div></header>`
+    + `<div class="ev-kpis">${kpis}</div>`
+    + `<section class="ev-panel"><h3>${t.hasSpend ? 'Money back against spend' : 'Money back'}</h3><div class="plot" id="source-curve"></div>`
+    + `<p class="ev-note">${t.hasSpend ? 'Spend and the contribution from the customers this source brought, each added up month by month. '
+      + 'The gap closing is the source paying for itself.' : 'Contribution from the customers this source brought, added up month by month.'}</p></section>`
+    + `<section class="ev-panel"><h3>Month by month</h3><div class="plot" id="source-monthly"></div></section>`
+    + (paidSocial ? `<section class="ev-panel"><h3>What a lead costs</h3><div class="plot" id="source-cpl"></div>`
+      + `<p class="ev-note">Meta spend divided by the contacts HubSpot records as arriving through paid social that month, `
+      + `and the leads each $1,000 bought.</p></section>` : '')
+    + `<section class="ev-panel"><h3>Funnel</h3><div class="ev-facts">${funnel}</div></section>`
+    + `<section class="ev-panel"><h3>Customers</h3>`
+    + (custRows ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>First paid</th>`
+      + `<th class="n">MRR now</th><th class="n">Billed</th><th class="n">Collected</th><th class="n">Contribution</th></tr></thead>`
+      + `<tbody>${custRows}</tbody></table></div>` : '<p class="empty">No paying customer in these months.</p>')
+    + `</section>`;
+
+  multiLineChart($('source-curve'), {
+    labels, yMin: 0, yFormat: v => fmt.money(v), yTitle: 'Added up from the first month',
+    series: [
+      ...(t.hasSpend ? [{ label: 'Spend', colour: INK.negative, values: d.monthly.map(x => x.cumSpend) }] : []),
+      { label: 'Contribution back', colour: INK.positive, values: d.monthly.map(x => x.cumContribution) },
+    ],
+    describe: i => `<strong>${labels[i]}</strong>` + (t.hasSpend ? `<span>Spent ${money(d.monthly[i].cumSpend)}</span>` : '')
+      + `<span>Back ${money(d.monthly[i].cumContribution)}</span>`,
+  });
+  multiLineChart($('source-monthly'), {
+    labels, yMin: 0, yTitle: 'Count in the month',
+    series: [
+      ...(t.leads ? [{ label: 'Leads', colour: INK.tertiary, values: d.monthly.map(x => x.leads) }] : []),
+      { label: 'Deals won', colour: INK.primary, values: d.monthly.map(x => x.won) },
+      { label: 'Paying customers', colour: INK.positive, values: d.monthly.map(x => x.customers) },
+    ],
+    describe: i => `<strong>${labels[i]}</strong>` + (t.leads ? `<span>${int(d.monthly[i].leads)} leads</span>` : '')
+      + `<span>${int(d.monthly[i].won)} won</span><span>${int(d.monthly[i].customers)} paying</span>`
+      + (t.hasSpend ? `<span>Spend ${money(d.monthly[i].spend)}</span>` : ''),
+  });
+  if (paidSocial && $('source-cpl')) {
+    const cpl = d.monthly.map(x => (x.spend > 0 && x.leads ? x.spend / x.leads : null));
+    multiLineChart($('source-cpl'), {
+      labels, yMin: 0, yFormat: v => fmt.money(v), yTitle: 'Spend per paid-social lead',
+      series: [{ label: 'Cost per lead', colour: INK.primary, values: cpl }],
+      describe: i => `<strong>${labels[i]}</strong><span>${money(cpl[i])} a lead</span>`
+        + `<span>${d.monthly[i].spend > 0 ? `${(d.monthly[i].leads / d.monthly[i].spend * 1000).toFixed(1)} leads per $1,000` : 'no spend'}</span>`,
+    });
+  }
+}
+
 const MARKETING_INK = {
   'Paid social': INK.primary,
   'Events': INK.secondary,
@@ -3991,6 +4194,13 @@ function renderMarketing() {
   if (!r) {
     $('chart-mkt-spend').innerHTML = '<p class="empty">No months to show yet.</p>';
     return;
+  }
+  renderMarketingTop(r);
+  for (const id of ['mkt-sort', 'mkt-view-simple', 'mkt-view-technical']) {
+    if ($(id) && !$(id).dataset.ready) {
+      $(id).addEventListener('change', () => renderMarketingTop(marketingReport(data)));
+      $(id).dataset.ready = '1';
+    }
   }
   const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
   const int = v => (v === null || v === undefined ? '–' : fmt.int(v));
