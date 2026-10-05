@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-05T13:15:23",
+  "pushed_at": "2026-10-05T15:25:45",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -9,7 +9,7 @@
     {
       "tab": "CAC Monthly",
       "file": "cac_monthly.json",
-      "rows": 33
+      "rows": 34
     },
     {
       "tab": "Serve Monthly",
@@ -49,7 +49,7 @@
     {
       "tab": "Event Costs",
       "file": "event_costs.json",
-      "rows": 36
+      "rows": 42
     },
     {
       "tab": "Lead Counts",
@@ -58,6 +58,6 @@
     }
   ],
   "row_format": "arrays",
-  "pipeline_version": "v130",
+  "pipeline_version": "v133",
   "push_version": "gh-v5"
 }
