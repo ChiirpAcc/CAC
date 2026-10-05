@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-05T12:56:54",
+  "pushed_at": "2026-10-05T13:15:23",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -27,6 +27,11 @@
       "rows": 119
     },
     {
+      "tab": "Customer Waterfall",
+      "file": "customer_waterfall.json",
+      "rows": 51241
+    },
+    {
       "tab": "Cash Detail",
       "file": "cash_detail.json",
       "rows": 46548
@@ -51,5 +56,8 @@
       "file": "lead_counts.json",
       "rows": 89
     }
-  ]
+  ],
+  "row_format": "arrays",
+  "pipeline_version": "v130",
+  "push_version": "gh-v5"
 }
