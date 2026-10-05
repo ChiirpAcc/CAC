@@ -1137,3 +1137,8 @@ figcaption { margin-bottom: .9rem; }
   .rank-table .rank-bar-col { min-width: 140px; }
   .view-toggle { margin-left: 0; }
 }
+
+/* The Marketing summary: wrap headers so the table fits a laptop screen. */
+.data-table.mkt-summary th { white-space: normal; vertical-align: bottom; }
+.data-table.mkt-summary td { white-space: normal; }
+.data-table.mkt-summary td.n { white-space: nowrap; }

@@ -4001,8 +4001,9 @@ function renderMarketing() {
   const meta = cat('Paid social');
   const ev = cat('Events');
 
+  const asOf = (([y, m, d]) => `${Number(d)} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m) - 1]} ${y}`)(r.snapshotAsOf.split('-'));
   $('mkt-source').textContent = `Spend is QuickBooks; leads and deals are HubSpot as read on `
-    + `${r.snapshotAsOf}; paying customers are Stripe. ${span}.`;
+    + `${asOf}; paying customers are Stripe. ${span}.`;
 
   $('mkt-finding').innerHTML =
     `<strong>${money(r.spendAll)} of marketing spend over ${r.months.length} months against `
@@ -4071,6 +4072,7 @@ function renderMarketing() {
       + `<span class="muted">Entered by hand or imported: ${int(r.byMonth[i].leads.Offline)}</span>`,
   });
   const cats = r.totals.filter(t => t.won || t.spend).map(t => t.category);
+  $('mkt-month-table').className = 'data-table mkt-summary';
   $('mkt-month-table').innerHTML =
     '<thead><tr><th>Month</th>' + cats.map(c => `<th class="n">${c}</th>`).join('')
     + '<th class="n">Spend</th></tr></thead><tbody>'
@@ -4084,17 +4086,19 @@ function renderMarketing() {
   if ($('mkt-summary')) {
     const sp = v => (v === null || v === undefined ? '–' : (v < 0 ? '−' : '+') + fmt.pct(Math.abs(v), 0));
     const rows = r.totals.filter(t => t.spend || t.leads || t.won || t.customers);
+    $('mkt-summary').className = 'data-table mkt-summary';
     $('mkt-summary').innerHTML =
-      '<thead><tr><th>Source</th><th>Spend</th><th class="n">Leads</th><th class="n">Deals won</th>'
-      + '<th class="n">Paying customers</th><th class="n">Paid so far</th><th class="n">Contribution</th>'
+      '<thead><tr><th>Source</th><th class="n">Spend</th><th class="n">Leads</th><th class="n">Deals won</th>'
+      + '<th class="n">Paying customers</th><th class="n">Billed so far</th><th class="n">Cash collected</th><th class="n">Contribution</th>'
       + '<th class="n">Net of spend</th><th class="n">ROI</th><th class="n">Still paying</th></tr></thead><tbody>'
       + rows.map(t => `<tr><td><strong>${t.category}</strong></td>`
-        + `<td>${t.hasSpend ? `${money(t.spend)}<br><span class="muted">${t.spendKind || 'Mixed'}</span>`
-            : '<span class="muted">No direct spend</span>'}</td>`
-        + `<td class="n">${t.leads ? int(t.leads) : '–'}</td><td class="n">${int(t.won)}</td>`
+        + `<td class="n">${t.hasSpend ? `${money(t.spend)}<br><span class="muted">${(t.spendKind || 'mixed').split(':')[0].toLowerCase()}</span>`
+            : '<span class="muted">none</span>'}</td>`
+        + `<td class="n">${t.leads ? int(t.leads) : t.leadsAllTime ? `${int(t.leadsAllTime)}<br><span class="muted">all time</span>` : '–'}</td><td class="n">${int(t.won)}</td>`
         + `<td class="n">${int(t.customers)}</td>`
-        + `<td class="n">${money(t.recurring + t.oneTime)}<br><span class="muted">${money(t.recurring)} recurring, `
+        + `<td class="n">${money(t.recurring + t.oneTime)}<br><span class="muted">${money(t.recurring)} recurring<br>`
           + `${money(t.oneTime)} one-time</span></td>`
+        + `<td class="n">${money(t.collected)}</td>`
         + `<td class="n">${money(t.contribution)}</td>`
         + `<td class="n"><span class="${t.net < 0 ? 'notviable' : 'held'}">${t.net < 0 ? '−' : '+'}${fmt.money(Math.abs(t.net))}</span></td>`
         + `<td class="n">${t.roi === null ? '–' : `<span class="${t.roi < 0 ? 'notviable' : 'held'}">${sp(t.roi)}</span>`}</td>`
@@ -4106,12 +4110,15 @@ function renderMarketing() {
       + `from ${qtyM(t.customers, 'paying customer')} so far, ${sp(t.roi)} on spend, with ${money(t.mrrNow)} a month still `
       + `coming in.`).join(' ');
     $('mkt-summary-note').textContent =
-      'Paid so far is everything the customers who started paying in these months have been billed since: '
+      'Billed so far is everything the customers who started paying in these months have been billed since: '
       + 'recurring is the subscription and its usage, one-time is set-up, one-off and pass-through charges. '
       + 'Contribution is that revenue less platform, people and variable cost, chart 49’s basis, and ROI is '
       + 'contribution less spend, over spend. It is a to-date figure: a channel whose customers started recently '
       + 'has had little time to pay back, so still paying shows the monthly revenue that keeps arriving. Spend that '
-      + 'recurs is paid every month whether or not a customer arrives; one-time spend is paid once per event.';
+      + 'recurs is paid every month whether or not a customer arrives; one-time spend is paid once per event. '
+      + 'Events count only the customers the Events tab credits; a customer tagged to an event they were already '
+      + 'paying before is counted as untagged here. Webinar leads are every earned lead in the Lead Counts tab, '
+      + 'which carries no dates for webinars.';
   }
 
   $('mkt-note').textContent =

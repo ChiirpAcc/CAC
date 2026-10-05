@@ -4735,6 +4735,13 @@ export function marketingReport(data, roi = eventRoi(data)) {
   const first = firstPaymentMonths(data);
   const catOf = new Map();
   for (const r of data.customers) if (r.leadSource) catOf.set(r.id, customerCategory(r));
+  // Events count the customers the Events tab credits, no more: a customer
+  // tagged to an event they were already paying before was not brought by it,
+  // so they are read here as untagged, as the Events tab keeps them out.
+  if (roi) {
+    const credited = new Set(roi.events.filter(e => !e.upcoming).flatMap(e => e.broughtIds));
+    for (const [id, c] of catOf) if (c === 'Events' && !credited.has(id)) catOf.set(id, 'Untagged');
+  }
   const starterCat = new Map();
   for (const [id, m] of first) {
     if (m <= data.historyStarts || !at.has(m)) continue;
@@ -4768,7 +4775,14 @@ export function marketingReport(data, roi = eventRoi(data)) {
     const leads = sum(cat, 'leads');
     const customers = sum(cat, 'customers');
     const ret = returns[cat];
-    return { category: cat, spend, leads, created: sum(cat, 'created'), won, customers,
+    // Webinars have earned leads in the Lead Counts tab but no dates, so the
+    // count is every one so far rather than these months'.
+    const leadsAllTime = cat === 'Webinars'
+      ? (data.leadCounts || []).filter(r => r.medium === 'webinar' || /webinar/i.test(r.source))
+        .reduce((t, r) => t + (r.earned || 0), 0) || null
+      : null;
+    return {
+      leadsAllTime, category: cat, spend, leads, created: sum(cat, 'created'), won, customers,
       costPerLead: per(spend, leads), costPerWon: per(spend, won), costPerCustomer: per(spend, customers),
       hasSpend: spend > 0, spendKind: SPEND_KIND[cat] || null, ...ret,
       net: ret.contribution - spend, roi: spend > 0 ? (ret.contribution - spend) / spend : null };
