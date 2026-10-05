@@ -475,6 +475,10 @@ def check_lead_counts(doc):
     if bad_split:
         report("warning", "Lead Counts", f"before plus after the event does not equal the total for "
                f"{len(bad_split)} dated events: {', '.join(map(str, bad_split[:8]))}.")
+    fewer_companies = [r.get("source") for r in rows if n(r.get("with a company")) < n(r.get("with a stripe id"))]
+    if fewer_companies:
+        report("warning", "Lead Counts", f"fewer companies than customers for {len(fewer_companies)} sources, so the "
+               f"company resolution did not run: {', '.join(map(str, fewer_companies[:8]))}.")
     events = [r for r in rows if str(r.get("medium") or "") == "event"]
     if len(events) < 5:
         report("warning", "Lead Counts", f"only {len(events)} of {len(rows)} sources are events; the medium "
@@ -484,6 +488,23 @@ def check_lead_counts(doc):
            f"{len(rows)} sources, {len(events)} of them events. Mostly a loaded list, so read by earned leads: "
            + (", ".join(f"{r.get('source')} ({n(r.get('list')):,.0f} of {n(r.get('total')):,.0f})" for r in listy)
               or "none") + ".")
+
+
+def check_event_costs(doc):
+    """v133 marks costs that are not final. The site works out no cost per lead on
+    them, so the push should say how many there are."""
+    if not doc:
+        return
+    rows = doc.get("rows") or []
+    states = {}
+    for r in rows:
+        src = str(r.get("cost_source") or "").lower()
+        state = "not yet" if "not yet" in src else "pending" if "pending" in src else "settling" if "settling" in src else None
+        if state:
+            states.setdefault(state, []).append(str(r.get("event")))
+    if states:
+        report("note", "Event Costs", "costs not final, so no cost per lead is shown for them: "
+               + "; ".join(f"{k} ({', '.join(v)})" for k, v in states.items()) + ".")
 
 
 def main():
@@ -523,6 +544,8 @@ def main():
         check_missing_customers(customers)
         lead_counts = present.get("Lead Counts")
         check_lead_counts(load(lead_counts["file"]) if lead_counts else None)
+        event_costs = present.get("Event Costs")
+        check_event_costs(load(event_costs["file"]) if event_costs else None)
         check_ledger_closed(load("qb_expenses.json"))
 
         # The base count is the one number that needs no interpretation, so a

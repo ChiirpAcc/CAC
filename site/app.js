@@ -4242,8 +4242,19 @@ function renderEventPage(label) {
   const custRows = (e.customerRows || []).map(x => `<tr><td><span class="ev-dot ${x.live ? 'live' : 'gone'}"></span>${x.name}`
     + `${x.winback ? ' <span class="ev-chip">won back</span>' : ''}</td>`
     + `<td>${x.firstPaid ? fmt.monthLabel(x.firstPaid) : '–'}</td>`
-    + `<td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
+    + `<td class="n">${money(x.signedMrr)}</td><td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
     + `<td class="n">${money(x.contribution)}</td><td>${x.leadDate || '–'}</td><td>${x.leadSetAt || '–'}</td></tr>`).join('');
+  // Expected against actual: what won deals were signed at, against what the
+  // same customers pay now. Only customers with a won deal carry a signed figure.
+  const signed2 = (e.customerRows || []).filter(x => x.signedMrr !== null);
+  const signedTotal = signed2.reduce((t, x) => t + x.signedMrr, 0);
+  const nowTotal = signed2.reduce((t, x) => t + x.mrrNow, 0);
+  const signedLine = signed2.length
+    ? `<p class="ev-note"><strong>Signed against now.</strong> ${fmt.int(signed2.length)} of these customers have a won `
+      + `deal, signed at ${money(signedTotal)} a month; the same customers pay ${money(nowTotal)} a month now`
+      + `${signedTotal ? `, ${(nowTotal >= signedTotal ? '+' : '−') + fmt.pct(Math.abs(nowTotal / signedTotal - 1), 0)}` : ''}. `
+      + `The gap is a discount, a downgrade or a customer who has left.</p>`
+    : '';
 
   box.innerHTML =
     `<a href="#events" class="ev-back">All events</a>`
@@ -4261,8 +4272,8 @@ function renderEventPage(label) {
     + (tagFacts ? `<section class="ev-panel"><h3>How the tags were made</h3><div class="ev-facts">${tagFacts}</div></section>` : '')
     + `<section class="ev-panel"><h3>Customers credited</h3>`
     + (custRows
-      ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>First paid</th>`
-        + `<th class="n">MRR now</th><th class="n">Collected</th><th class="n">Contribution</th>`
+      ? signedLine + `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>First paid</th>`
+        + `<th class="n">Signed MRR</th><th class="n">MRR now</th><th class="n">Collected</th><th class="n">Contribution</th>`
         + `<th>HubSpot record</th><th>Tag written</th></tr></thead><tbody>${custRows}</tbody></table></div>`
         + (e.alreadyPaying ? `<p class="ev-note">${int(e.alreadyPaying)} more carry the tag but were paying before the `
           + `event, so they are not credited.</p>` : '')
@@ -4389,6 +4400,7 @@ function renderEvents() {
   // than the chosen age is set aside, not ranked low.
   const costed = e.events.filter(eventHasReturn);
   const t = e.totals;
+  const stateWords = { settling: 'cost still settling', pending: 'no cost found yet', 'not yet': 'event still ahead' };
   const paybackBy = new Map(r.payback.map(p => [p.label, p]));
   const paybackWords = p => (!p ? 'no projection'
     : p.status === 'paid' ? `paid for itself in month ${p.paidAt}`
@@ -4436,29 +4448,55 @@ function renderEvents() {
         : sortBy === 'oldest' ? (a, b) => a.month.localeCompare(b.month) || a.label.localeCompare(b.label)
         : (a, b) => b.month.localeCompare(a.month) || a.label.localeCompare(b.label));
     const link = x => `<a href="${eventHref(x.label)}">${x.label}</a>`;
-    barList($('chart-events'), {
-      items: order.map(x => (x.reached ? {
-          label: link(x),
-          sub: `${fmt.monthLabel(x.month)} · ${qty(x.paid, 'customer')} · cost ${money(x.spend)}`
-            + ` · net ${signed(x.netAtK)} · ${roiWords(x)}`,
-          value: showRoi ? x.roiAtK : x.netAtK,
-          colour: x.netAtK >= 0 ? INK.positive : INK.negative,
-          title: `${x.label}: cost ${money(x.spend)}, contribution ${span} `
-            + `${money(x.contributionAtK)}, contribution to date ${money(x.contribution)}`,
-        } : {
-          label: link(x),
-          sub: `${fmt.monthLabel(x.month)} · ${qty(x.age, 'month')} old, not yet ${k}`
-            + ` · ${paybackWords(paybackBy.get(x.label))}`,
-          value: null,
-          muted: true,
-        })),
-      format: showRoi ? signedPct : signed,
-      legendItems: [
-        { label: `Contribution ${span} has covered the cost`, colour: INK.positive },
-        { label: 'Not yet', colour: INK.negative },
-        ...(allTime ? [] : [{ label: `Faded: under ${k} months old, not ranked`, colour: 'var(--ink-soft)', faint: true }]),
-      ],
-    });
+    // A ranked table rather than a bar list: one row per event with its
+    // customers, earned leads, cost, return and ROI side by side, and the net
+    // drawn as a bar in its own column on one shared scale.
+    const leadsBy = new Map(((eventLeads(data, e) || {}).events || []).map(l => [l.label, l]));
+    const reachedNets = order.filter(x => x.reached).map(x => x.netAtK);
+    const negMax = Math.max(0, ...reachedNets.map(v => -v));
+    const posMax = Math.max(0, ...reachedNets.map(v => v));
+    const range = negMax + posMax || 1;
+    const zero = (negMax / range) * 100;
+    const bar = v => {
+      const w = (Math.abs(v) / range) * 100;
+      const left = v >= 0 ? zero : zero - w;
+      return `<div class="rank-bar"><span class="bar-zero" style="left:${zero.toFixed(1)}%"></span>`
+        + `<span class="bar-fill" style="left:${left.toFixed(1)}%;width:${Math.max(w, 0.6).toFixed(1)}%;`
+        + `background:${v >= 0 ? INK.positive : INK.negative}"></span></div>`;
+    };
+    const cls = v => (v === null || v === undefined ? '' : v < 0 ? 'notviable' : 'held');
+    $('chart-events').innerHTML =
+      `<div class="table-scroll"><table class="data-table rank-table"><thead><tr>`
+      + `<th>Event</th><th class="n">Customers</th><th class="n">Earned leads</th><th class="n">Cost</th>`
+      + `<th class="n">Contribution ${allTime ? 'to date' : `by month ${k}`}</th>`
+      + `<th class="rank-bar-col">Net of cost</th>`
+      + `<th class="n">ROI ${allTime ? 'to date' : `at ${k} months`}</th><th class="n">12-month ROI</th>`
+      + `</tr></thead><tbody>`
+      + order.map(x => {
+        const lead = leadsBy.get(x.label);
+        const pb = paybackBy.get(x.label);
+        const ev = `<td><a href="${eventHref(x.label)}">${x.label}</a><br><span class="muted">`
+          + `${fmt.monthLabel(x.month)}${x.type ? ` · ${x.type}` : ''}</span></td>`
+          + `<td class="n">${fmt.int(x.paid)}${x.liveNow ? `<br><span class="muted">${fmt.int(x.liveNow)} live</span>` : ''}</td>`
+          + `<td class="n">${lead && lead.leads !== null ? fmt.int(lead.leads) : '–'}</td>`
+          + `<td class="n">${money(x.spend)}</td>`;
+        const roi12 = `<td class="n"><span class="${cls(x.roi12)}">${x.roi12 === null ? '–' : signedPct(x.roi12)}</span>`
+          + `${x.roi12Projected && x.roi12 !== null ? '<br><span class="muted">projected</span>' : ''}</td>`;
+        if (!x.reached) {
+          return `<tr class="rank-young">${ev}<td class="n">–</td>`
+            + `<td class="rank-bar-col"><span class="muted">${qty(x.age, 'month')} old, not yet ${k}; `
+            + `${paybackWords(pb)}</span></td><td class="n">–</td>${roi12}</tr>`;
+        }
+        return `<tr>${ev}<td class="n">${money(x.contributionAtK)}</td>`
+          + `<td class="rank-bar-col">${bar(x.netAtK)}<span class="rank-bar-value ${cls(x.netAtK)}">`
+          + `${signed(x.netAtK)}</span></td>`
+          + `<td class="n"><span class="${cls(x.roiAtK)}">${signedPct(x.roiAtK)}</span></td>${roi12}</tr>`;
+      }).join('')
+      + `</tbody></table></div>`
+      + `<p class="note">Customers are those credited to the event; earned leads are from the Lead Counts tab. `
+      + `Contribution and ROI are read ${allTime ? 'on everything to date' : `${k} months after each event`}; `
+      + `12-month ROI is actual for events a year old and projected for younger ones.`
+      + (allTime ? '' : ` Faded rows are younger than ${qty(k, 'month')} and are not ranked.`) + `</p>`;
     const winners = judged.filter(x => x.netAtK >= 0);
     // With nobody paid back, the least-negative net is just the cheapest
     // event, often one with no customer; name the closest by share instead.
@@ -4540,6 +4578,7 @@ function renderEvents() {
       ? `<span title="${(c.sponsorBasis || '').replace(/"/g, '&quot;')}">${money(x.spend)}</span>`
         + `<br><span class="muted">${money(c.sponsor)} fee${c.feeFrom ? ` (${c.feeFrom})` : ''}, `
         + `${money(c.travel)} travel</span>`
+        + (c.costState ? `<br><span class="event-chip">${stateWords[c.costState]}</span>` : '')
       : x.upcoming ? '<span class="muted">after the data</span>' : '<span class="muted">no cost row</span>';
     return `<tr><td><a href="${eventHref(x.label)}">${x.label}</a> ${chip(x.plan2027)}`
       + `${x.type ? `<br><span class="muted">${x.type}${x.organiser ? ' · ' + x.organiser : ''}</span>` : ''}`
@@ -4641,16 +4680,20 @@ function renderEvents() {
           + `form or meeting names a different event.`
         : 'No event in the Lead Counts tab has both a cost and an earned lead.';
       $('event-leads-table').innerHTML =
-        '<thead><tr><th>Event</th><th class="n">Earned leads</th><th class="n">From a list</th>'
+        '<thead><tr><th>Event</th><th class="n">Earned leads</th><th class="n">Companies</th>'
+        + '<th class="n">With a Stripe id</th><th class="n">From a list</th>'
         + '<th class="n">Before / after the event</th><th class="n">Confirmed</th><th class="n">Contradicted</th>'
         + '<th class="n">Cost per earned lead</th><th class="n">Customers credited</th></tr></thead><tbody>'
         + el.events.map(x => `<tr><td>${x.label}${x.eventDate ? `<br><span class="muted">${x.eventDate}</span>` : ''}</td>`
           + `<td class="n">${x.leads === null ? '–' : fmt.int(x.leads)}</td>`
+          + `<td class="n">${x.withCompany === null ? '–' : fmt.int(x.withCompany)}</td>`
+          + `<td class="n">${x.withStripe === null ? '–' : fmt.int(x.withStripe)}${x.companyToCustomer !== null
+              ? `<br><span class="muted">${pct(x.companyToCustomer)} of companies</span>` : ''}</td>`
           + `<td class="n">${x.list ? `${fmt.int(x.list)}<br><span class="muted">${pct(x.listShare)} of all</span>` : fmt.int(x.list || 0)}</td>`
           + `<td class="n">${x.dated ? `${fmt.int(x.before)} / ${fmt.int(x.after)}` : '<span class="muted">no date</span>'}</td>`
           + `<td class="n">${x.confirmed === null ? '–' : fmt.int(x.confirmed)}</td>`
           + `<td class="n">${x.contradicted === null ? '–' : fmt.int(x.contradicted)}</td>`
-          + `<td class="n">${money(x.costPerLead)}${x.upcoming ? `<br><span class="muted">${x.afterData
+          + `<td class="n">${money(x.costPerLead)}${x.costState ? `<br><span class="muted">${stateWords[x.costState]}</span>` : ''}${x.upcoming && !x.costState ? `<br><span class="muted">${x.afterData
             ? `after the data (${/^\d{4}-\d{2}$/.test(x.afterData) ? fmt.monthLabel(x.afterData) : x.afterData})` : 'no cost row'}</span>` : ''}</td>`
           + `<td class="n">${x.credited === null ? '–' : fmt.int(x.credited)}</td></tr>`).join('')
         + '</tbody>';
@@ -4660,7 +4703,15 @@ function renderEvents() {
         + 'would make an event look cheap for leads it did not generate. Before and after the event exist only '
         + 'where the event has a date, and after-the-event counts include lists loaded later, so they are shown, '
         + 'not divided into cost. Confirmed means an at-event form or meeting names this event; contradicted means '
-        + 'the contact’s only conversion names a different one.';
+        + 'the contact\u2019s only conversion names a different one. Companies are the businesses behind the '
+        + 'tagged contacts; with a Stripe id means the business is a customer, whether it became one before or '
+        + 'after the event. No cost per lead is worked out while an event\u2019s cost is still settling, not found '
+        + 'yet, or the event is still ahead: a booth fee without its travel is not the event\u2019s cost.'
+        + (() => {
+          const ahead = el.events.filter(x => x.costState === 'not yet' && x.total);
+          return ahead.length ? ' ' + ahead.map(x => `${x.label} has ${fmt.int(x.total)} tagged contacts before it has `
+            + `happened, so none of them came from it; they are HubSpot\u2019s last touch, not its result.`).join(' ') : '';
+        })();
     }
   }
 

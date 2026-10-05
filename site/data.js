@@ -511,6 +511,11 @@ export async function load() {
       subscriptionStatus: r.subscription_status || '',
       unpaidDue: num(r.unpaid_due) || 0,
       unpaidInvoices: num(r.unpaid_invoice_count) || 0,
+      // v133: the deal amount when won, and whether any tagged deal was won.
+      // Without a win, signed_mrr is an open or lost amount, so it is kept
+      // only where lead_won says yes.
+      leadWon: /^y/i.test(String(r.lead_won || '')),
+      signedMrr: /^y/i.test(String(r.lead_won || '')) ? num(r.signed_mrr) : null,
       // Where HubSpot says the customer came from, matched to Stripe by the
       // pipeline (v120). Blank means nobody tagged them, about four in ten
       // live customers, which is not the same as organic. leadMedium is event, webinar,
@@ -603,6 +608,12 @@ export async function load() {
           sponsor: num(r.sponsor),
           travel: num(r.travel),
           costSource: String(r.cost_source || '').trim() || null,
+          // v133: a cost the pipeline knows is not final. 'settling' is under 45
+          // days since the event, 'pending' has no cost found yet, 'not yet'
+          // is an event still ahead. Worked out by the pipeline from the date.
+          costState: /not yet/i.test(String(r.cost_source || '')) ? 'not yet'
+            : /pending/i.test(String(r.cost_source || '')) ? 'pending'
+            : /settling/i.test(String(r.cost_source || '')) ? 'settling' : null,
           note: String(r.note || '').trim() || null,
         }))
     : [];
@@ -3567,6 +3578,7 @@ export const EVENT_META = {
   'Home Service Hoorah 2026': { type: 'Partner network event', organiser: 'The Wealthy Plumber', plan2027: ON },
   'Nexstar Super Meeting 2026': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
   'HSF 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
+  'Home Service Freedom 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   'Pantheon 2026': { type: 'Conference sponsorship', organiser: 'ServiceTitan', plan2027: ON },
 };
 // A costed event with no EVENT_META entry is shown as unclassified rather
@@ -3655,7 +3667,9 @@ export function eventContributionRows(serve) {
 // Whether an event can be read for return: a cost above zero and a month. A
 // row costing nothing, or with no month, is listed but never ranked, since a
 // share of nothing recovered, or an age with no start, means nothing.
-export const eventHasReturn = e => e.spend > 0 && Boolean(e.month) && !e.upcoming;
+// A cost still settling or not found yet is not a cost to divide by.
+export const eventHasReturn = e => e.spend > 0 && Boolean(e.month) && !e.upcoming
+  && !(e.cost && e.cost.costState);
 
 export const WINBACK_GAP = 3;
 
@@ -3877,6 +3891,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
         contribution: contributionOf.has(id) ? contributionOf.get(id) : null,
         leadDate: leadDateOf.get(id) || null,
         leadSetAt: leadSetOf.get(id) || null,
+        signedMrr: (allRows.find(r => r.id === id && r.signedMrr !== null) || {}).signedMrr ?? null,
       };
     }).sort((a, b) => (b.contribution || 0) - (a.contribution || 0));
     return {
@@ -3924,9 +3939,10 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
     // that the data has reached is an event without a cost row, and a year
     // after the data's year is upcoming without being listed.
     const listed = EVENT_UPCOMING[b.source] || null;
-    // A cost row dated after the data is an event that has not happened yet
-    // in the months the site reads: costed, but upcoming.
-    const upcoming = cost ? (cost.month && cost.month > lastMonth ? cost.month : null)
+    // A cost row dated after the data, or one the pipeline marks 'not yet',
+    // is an event that has not happened in the months the site reads:
+    // costed, but upcoming.
+    const upcoming = cost ? (cost.month && (cost.month > lastMonth || cost.costState === 'not yet') ? cost.month : null)
       : listed ? (listed > lastMonth ? listed : null)
       : year && year > lastMonth.slice(0, 4) ? `${year}-01` : null;
     const fromMonth = cost ? cost.month || (cost.year ? `${cost.year}-01` : null)
@@ -3985,6 +4001,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
       e.contribution = null; e.collected = null; e.mrrNow = null;
     }
     e.label = e.cost ? e.cost.event : e.source;
+    e.costState = e.cost ? e.cost.costState || null : null;
     e.month = e.cost ? e.cost.month : e.upcoming || null;
     e.spend = cost;
     e.cashMultiple = cost && e.collected !== null ? e.collected / cost : null;
@@ -4514,15 +4531,21 @@ export function eventLeads(data, roi = eventRoi(data)) {
     const dated = Boolean(r.eventDate);
     const leads = r.earned;
     const spend = e ? e.spend : null;
+    const costState = e ? e.costState : null;
     return {
       source: r.source, label: e ? e.label : r.source, eventDate: r.eventDate, month: e ? e.month : null,
       dated, leads, total: r.total, earned: r.earned, list: r.list, before: r.before, after: r.after,
       confirmed: r.confirmed, contradicted: r.contradicted, withStripe: r.withStripe, readAs: r.readAs,
       listShare: r.total ? r.list / r.total : null,
-      spend, costPerLead: spend > 0 && leads ? spend / leads : null,
+      spend, costState,
+      costPerLead: spend > 0 && leads && !costState && !(e && e.upcoming) ? spend / leads : null,
+      // The funnel: contacts, the companies behind them, and those with a
+      // Stripe id. A Stripe id is any customer, before or after the event.
+      withCompany: r.withCompany,
+      companyToCustomer: r.withCompany ? r.withStripe / r.withCompany : null,
       credited: e ? e.paid : null,
       leadToCustomer: e && leads ? e.paid / leads : null,
-      type: e ? e.type : null, upcoming: !e || !e.cost,
+      type: e ? e.type : null, upcoming: !e || !e.cost || Boolean(e.upcoming),
       // After the data: the event has not happened in the months the site reads.
       afterData: (roi.upcomingSources.find(u => u.source === r.source) || {}).month
         || ((r.source.match(/^(20\d\d)\s*-/) || [])[1] > roi.lastMonth.slice(0, 4) ? r.source.slice(0, 4) : null)
