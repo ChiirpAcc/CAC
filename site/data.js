@@ -252,10 +252,11 @@ const TAB_FILES = {
   'QB Accounts': 'qb_accounts.json', 'Subscription Lifetimes': 'subscription_lifetimes.json',
   'New Customer Cohorts': 'signup_pricing.json', 'Serve Monthly': 'serve_monthly.json',
   'Event Costs': 'event_costs.json', 'Cash Detail': 'cash_detail.json',
-  'Lead Counts': 'lead_counts.json',
+  'Lead Counts': 'lead_counts.json', 'Marketing Monthly': 'marketing_monthly.json',
+  'Webinars': 'webinars.json',
 };
 const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Cohorts',
-  'Serve Monthly', 'Event Costs', 'Cash Detail', 'Lead Counts'];
+  'Serve Monthly', 'Event Costs', 'Cash Detail', 'Lead Counts', 'Marketing Monthly', 'Webinars'];
 
 // The pipeline calls any lead source with a year prefix an event. A few that
 // carry a year are not events by their own name: "2025 - Smart AC Webinar" is
@@ -649,6 +650,29 @@ export async function load() {
       }))
     : [];
 
+  // Leads and deals by month and marketing category, built from HubSpot by
+  // the pipeline (gh-v7). Replaces MARKETING_SNAPSHOT when present.
+  const monthOfText = v => (/^\d{4}-\d{2}/.test(String(v || '')) ? String(v).slice(0, 7) : null);
+  const marketingMonthly = byTab['Marketing Monthly']
+    ? byTab['Marketing Monthly'].rows.filter(r => monthOfText(r.month) && r.category).map(r => ({
+        month: monthOfText(r.month),
+        category: String(r.category).trim(),
+        leads: count(r.leads), dealsOpened: count(r.deals_opened), dealsWon: count(r.deals_won),
+        wonMrr: num(r.won_mrr), openedInBulk: count(r.opened_in_a_bulk_day),
+      }))
+    : null;
+  // One row per webinar: registered, attended, no-shows, and leads earned after.
+  const webinars = byTab['Webinars']
+    ? byTab['Webinars'].rows.filter(r => r.webinar).map(r => ({
+        webinar: String(r.webinar).trim(),
+        type: String(r.type || '').trim() || null,
+        date: /^\d{4}-\d{2}-\d{2}/.test(String(r.date || '')) ? String(r.date).slice(0, 10) : null,
+        registered: count(r.registered), attended: count(r.attended), noShows: count(r.no_shows),
+        earnedAfter: count(r.earned_after),
+        matchedTag: String(r.matched_tag || '').trim() || null,
+      }))
+    : null;
+
   const vocabulary = checkVocabulary(byTab['Customer Waterfall'], customers);
 
   return {
@@ -664,6 +688,8 @@ export async function load() {
     cashDetail,
     eventCosts,
     leadCounts,
+    marketingMonthly,
+    webinars,
     lifetimes,
     lifetimeRecords,
     signups,
@@ -4743,13 +4769,43 @@ const customerCategory = r => {
   return 'Other digital';
 };
 
+// A Marketing Monthly value in a category. Leads arrive as HubSpot's Original
+// Traffic Source and its drill-down ("PAID_SOCIAL / Facebook"); a contact
+// whose drill-down names a webinar or the Revenue Optimization Lab came from
+// a webinar invitation and is read as one. Deals arrive as the deal's lead
+// source, or its sub-source where one is set ("2025 - Pantheon"), and are
+// read the way the waterfall reads that value as a customer's tag.
+const ORIGINAL_SOURCE = /^([A-Z][A-Z_]+)(?:\s*\/\s*(.*))?$/;
+function marketingCategoryOf(value, mediumOf) {
+  const text = String(value || '').trim();
+  if (!text || text === 'UNTAGGED') return 'Untagged';
+  const os = text.match(ORIGINAL_SOURCE);
+  if (os && LEAD_CATEGORY[os[1]]) {
+    if (os[1] !== 'OFFLINE' && /webinar|\blab\b/i.test(os[2] || '')) return 'Webinars';
+    return LEAD_CATEGORY[os[1]];
+  }
+  if (DEAL_CATEGORY[text]) return DEAL_CATEGORY[text];
+  if (/^webinar\b/i.test(text)) return 'Webinars';
+  const medium = mediumOf.get(text) || leadMediumOf(text, /^20\d\d\s*-/.test(text) ? 'event' : null);
+  if (medium) return customerCategory({ leadSource: text, leadMedium: medium });
+  if (/facebook|instagram|meta/i.test(text)) return 'Paid social';
+  if (/google|bing|search|website|direct/i.test(text)) return 'Website and search';
+  return 'Partners and referrals';
+}
+
 export function marketingReport(data, roi = eventRoi(data)) {
   const snap = MARKETING_SNAPSHOT;
-  const months = Object.keys(snap.leads).filter(m => m >= data.historyStarts && m <= data.lastMonth).sort();
+  // The pushed tab when there is one; the 5 Oct 2026 snapshot otherwise.
+  const live = data.marketingMonthly && data.marketingMonthly.length ? data.marketingMonthly : null;
+  // The tab runs back to 2019; the window starts where the vendor split of
+  // QuickBooks advertising does, so every month has its spend by channel.
+  const splitStarts = Object.keys(MARKETING_AD_VENDORS.meta).sort()[0];
+  const months = (live ? [...new Set(live.map(r => r.month))] : Object.keys(snap.leads))
+    .filter(m => m >= data.historyStarts && m >= splitStarts && m <= data.lastMonth).sort();
   if (!months.length) return null;
   const blank = () => Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, 0]));
   const byMonth = months.map(m => ({ month: m, spend: blank(), leads: { ...blank(), Offline: 0 },
-    created: blank(), won: blank(), customers: blank(), adsTotal: 0, adsOther: 0 }));
+    created: blank(), won: blank(), wonMrr: blank(), bulk: blank(), customers: blank(), adsTotal: 0, adsOther: 0 }));
   const at = new Map(byMonth.map(x => [x.month, x]));
 
   // Spend.
@@ -4778,8 +4834,25 @@ export function marketingReport(data, roi = eventRoi(data)) {
     }
   }
 
-  // Leads and deals, from the snapshot.
-  for (const x of byMonth) {
+  // Leads and deals: the Marketing Monthly tab, or the snapshot.
+  if (live) {
+    const mediumOf = new Map();
+    for (const r of data.customers) if (r.leadSource && r.leadMedium) mediumOf.set(r.leadSource, r.leadMedium);
+    for (const r of live) {
+      const x = at.get(r.month);
+      if (!x) continue;
+      const cat = marketingCategoryOf(r.category, mediumOf);
+      // Events take their leads from the Lead Counts tab above, so an
+      // event value's contacts are not counted twice.
+      if (r.leads && cat !== 'Events') x.leads[cat] = (x.leads[cat] || 0) + r.leads;
+      if (cat === 'Offline') continue;
+      x.created[cat] += r.dealsOpened || 0;
+      x.won[cat] += r.dealsWon || 0;
+      x.wonMrr[cat] += r.wonMrr || 0;
+      x.bulk[cat] += r.openedInBulk || 0;
+    }
+  }
+  for (const x of live ? [] : byMonth) {
     (snap.leads[x.month] || []).forEach((n, i) => {
       const cat = LEAD_CATEGORY[snap.leadKeys[i]];
       x.leads[cat] = (x.leads[cat] || 0) + n;
@@ -4896,6 +4969,7 @@ export function marketingReport(data, roi = eventRoi(data)) {
     const ahead = ret.contribution + projected12[cat];
     return {
       leadsAllTime, category: cat, spend, leads, created, won, customers,
+      wonMrr: live ? sum(cat, 'wonMrr') : null, openedInBulk: live ? sum(cat, 'bulk') : null,
       projected12: projected12[cat],
       roi12: spend > 0 ? (ahead - spend) / spend : null,
       leadToWon: leads > 0 ? won / leads : null,
@@ -4926,6 +5000,7 @@ export function marketingReport(data, roi = eventRoi(data)) {
       cs += x.spend[cat] || 0;
       cr += monthlyReturn[cat][x.month] || 0;
       return { month: x.month, spend: x.spend[cat] || 0, leads: x.leads[cat] || 0, created: x.created[cat] || 0,
+        bulk: live ? x.bulk[cat] || 0 : null, wonMrr: live ? x.wonMrr[cat] || 0 : null,
         won: x.won[cat] || 0, customers: x.customers[cat] || 0, contribution: monthlyReturn[cat][x.month] || 0,
         cumSpend: cs, cumContribution: cr };
     });
@@ -4940,7 +5015,9 @@ export function marketingReport(data, roi = eventRoi(data)) {
     mrrNowAll: totals.reduce((t, x) => t + x.mrrNow, 0),
     blendedPerWon: per(spendAll, wonAll), blendedPerCustomer: per(spendAll, customersAll),
     adsCheck: byMonth.map(x => ({ month: x.month, pushed: x.adsTotal, other: x.adsOther })),
-    snapshotAsOf: snap.asOf };
+    snapshotAsOf: live ? null : snap.asOf, leadsPushedAt: live ? data.pushedAt : null,
+    bulkAll: live ? totals.reduce((t, x) => t + (x.openedInBulk || 0), 0) : null,
+    createdAll: totals.reduce((t, x) => t + x.created, 0) };
 }
 
 export function priceFloors(data, { window = 6 } = {}) {

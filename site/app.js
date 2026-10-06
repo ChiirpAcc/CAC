@@ -4211,9 +4211,11 @@ function renderMarketing() {
   const meta = cat('Paid social');
   const ev = cat('Events');
 
-  const asOf = (([y, m, d]) => `${Number(d)} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m) - 1]} ${y}`)(r.snapshotAsOf.split('-'));
-  $('mkt-source').textContent = `Spend is QuickBooks; leads and deals are HubSpot as read on `
-    + `${asOf}; paying customers are Stripe. ${span}.`;
+  const asOf = (([y, m, d]) => `${Number(d)} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m) - 1]} ${y}`)(String(r.snapshotAsOf || r.leadsPushedAt || '').slice(0, 10).split('-'));
+  $('mkt-source').textContent = r.snapshotAsOf
+    ? `Spend is QuickBooks; leads and deals are HubSpot as read on ${asOf}; paying customers are Stripe. ${span}.`
+    : `Spend is QuickBooks; leads and deals are HubSpot from the Marketing Monthly tab, pushed ${asOf}; `
+      + `paying customers are Stripe. ${span}.`;
 
   $('mkt-finding').innerHTML =
     `<strong>${money(r.spendAll)} of marketing spend over ${r.months.length} months against `
@@ -4343,7 +4345,12 @@ function renderMarketing() {
     + 'deal’s own lead source: Digital Marketing deals from before Meta (Ads) came into use in December 2025 '
     + 'may be Meta, and the large numbers of deals opened in March, April and July 2026 are bulk loads, so deals opened '
     + 'is not a demand measure. Paying customers are Stripe customers by the month of their first payment and '
-    + 'their HubSpot tag. Leads and deals are a snapshot until the pipeline pushes them.';
+    + 'their HubSpot tag. '
+    + (r.snapshotAsOf ? 'Leads and deals are a snapshot until the pipeline pushes them.'
+      : `Leads and deals are the Marketing Monthly tab. A deal's sub-source is read where it is set, so an `
+        + 'event or partner deal is counted under its own name; a contact whose original source names a webinar '
+        + `or the Revenue Optimization Lab is a webinar lead. ${fmt.int(r.bulkAll)} of the `
+        + `${fmt.int(r.createdAll)} deals opened were opened on a day of 50 or more for one source (a bulk load).`);
 }
 
 // One event on its own page: every cost behind it, where each figure came
