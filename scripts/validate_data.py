@@ -451,7 +451,9 @@ def check_missing_customers(customers):
            f"{len(missing)} Stripe customers in Subscription Lifetimes or New Customer Cohorts have no "
            f"waterfall rows ({active} still active in Stripe). {len(real)} of them paid a first invoice "
            f"of $100 or more ({share:.0%} of {signed} cohort signups); in Oct 2026 every one of those "
-           f"had been refunded or stopped paying. Paid a first invoice: {', '.join(real) or 'none'}.")
+           f"had been refunded or stopped paying. The Sigma query (q020) drops a customer whose charges are "
+           f"refunded more than half or net under $100, so a real customer paying under $100 would be "
+           f"dropped too. Paid a first invoice: {', '.join(real) or 'none'}.")
 
 
 def check_lead_counts(doc):
