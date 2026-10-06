@@ -638,6 +638,10 @@ export async function load() {
         confirmed: count(r.confirmed), contradicted: count(r.contradicted),
         withCompany: count(r['with a company']), withStripe: count(r['with a stripe id']),
         customerAfter: count(r.customer_after_event),
+        // v139: earned and created on or after the event (dated events only),
+        // and the Stripe customers carrying the tag.
+        earnedAfter: count(r.earned_after_event),
+        customersTotal: count(r.customers_total),
         readAs: String(r['read this as'] || '').trim() || null,
       }))
     : [];
@@ -4560,12 +4564,18 @@ export function eventLeads(data, roi = eventRoi(data)) {
   const events = rows.map(r => {
     const e = costFor(r.source);
     const dated = Boolean(r.eventDate);
-    const leads = r.earned;
+    // A dated event's leads are the earned contacts created on or after it:
+    // HubSpot re-tags contacts it already holds, so earned alone counts
+    // people the event re-engaged as if they were new (316 of Pantheon 2026's
+    // 338 predate it). An undated event can only be read on earned.
+    const newKnown = dated && r.earnedAfter !== null && r.earnedAfter !== undefined;
+    const leads = newKnown ? r.earnedAfter : r.earned;
     const spend = e ? e.spend : null;
     const costState = e ? e.costState : null;
     return {
       source: r.source, label: e ? e.label : r.source, eventDate: r.eventDate, month: e ? e.month : null,
-      dated, leads, total: r.total, earned: r.earned, list: r.list, before: r.before, after: r.after,
+      dated, leads, leadsBasis: newKnown ? 'new' : 'earned', total: r.total, earned: r.earned, list: r.list,
+      before: r.before, after: r.after, customersTotal: r.customersTotal,
       confirmed: r.confirmed, contradicted: r.contradicted, withStripe: r.withStripe, readAs: r.readAs,
       listShare: r.total ? r.list / r.total : null,
       spend, costState,
@@ -4581,8 +4591,8 @@ export function eventLeads(data, roi = eventRoi(data)) {
       // gives earned and after-the-event separately, never their overlap, so
       // the new earned leads are known only as a range until it does.
       existedShare: r.eventDate && r.total ? (r.before || 0) / r.total : null,
-      newEarnedLow: r.eventDate && r.total ? Math.max(0, (r.earned || 0) + (r.after || 0) - r.total) : null,
-      newEarnedHigh: r.eventDate ? Math.min(r.earned || 0, r.after || 0) : null,
+      newEarnedLow: r.eventDate && r.total ? (r.earnedAfter ?? Math.max(0, (r.earned || 0) + (r.after || 0) - r.total)) : null,
+      newEarnedHigh: r.eventDate ? (r.earnedAfter ?? Math.min(r.earned || 0, r.after || 0)) : null,
       companyToCustomer: r.withCompany ? r.withStripe / r.withCompany : null,
       credited: e ? e.paid : null,
       leadToCustomer: e && leads ? e.paid / leads : null,

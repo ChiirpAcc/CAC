@@ -4905,9 +4905,11 @@ function renderEvents() {
       const cheap = withCost[0];
       const dear = withCost[withCost.length - 1];
       $('event-leads-finding').innerHTML = cheap
-        ? `<strong>Cost per earned lead runs from ${money(cheap.costPerLead)} at ${cheap.label} to `
-          + `${money(dear.costPerLead)} at ${dear.label}.</strong> An earned lead is someone who did something: a `
-          + `booth scan, a booked meeting, a form, a rep adding them, a chat. A list loaded into HubSpot is not `
+        ? `<strong>Cost per lead runs from ${money(cheap.costPerLead)} at ${cheap.label} to `
+          + `${money(dear.costPerLead)} at ${dear.label}.</strong> A lead is someone who did something: a `
+          + `booth scan, a booked meeting, a form, a rep adding them, a chat. For an event with a date it is also `
+          + `someone new to HubSpot on or after the event, since a contact HubSpot already held is re-tagged, not `
+          + `brought; for an event without one it is every earned contact. A list loaded into HubSpot is not `
           + `counted. `
           + (big.length ? `${big.map(x => `${x.label} has ${fmt.int(x.list)}`).join(', ')} contacts that arrived `
             + `in a list, so their totals describe a file rather than the event. ` : '')
@@ -4915,12 +4917,13 @@ function renderEvents() {
           + `form or meeting names a different event.`
         : 'No event in the Lead Counts tab has both a cost and an earned lead.';
       $('event-leads-table').innerHTML =
-        '<thead><tr><th>Event</th><th class="n">Earned leads</th><th class="n">Companies</th>'
+        '<thead><tr><th>Event</th><th class="n">Leads</th><th class="n">Companies</th>'
         + '<th class="n">With a Stripe id</th><th class="n">Customers after the event</th><th class="n">From a list</th>'
         + '<th class="n">Before / after the event</th><th class="n">Confirmed</th><th class="n">Contradicted</th>'
-        + '<th class="n">Cost per earned lead</th><th class="n">Customers credited</th></tr></thead><tbody>'
+        + '<th class="n">Cost per lead</th><th class="n">Customers credited</th></tr></thead><tbody>'
         + el.events.map(x => `<tr><td>${x.label}${x.eventDate ? `<br><span class="muted">${x.eventDate}</span>` : ''}</td>`
-          + `<td class="n">${x.leads === null ? '–' : fmt.int(x.leads)}</td>`
+          + `<td class="n">${x.leads === null ? '–' : fmt.int(x.leads)}<br><span class="muted">${x.leadsBasis === 'new'
+              ? `new, of ${fmt.int(x.earned)} earned` : 'earned, undated'}</span></td>`
           + `<td class="n">${x.withCompany === null ? '–' : fmt.int(x.withCompany)}</td>`
           + `<td class="n">${x.withStripe === null ? '–' : fmt.int(x.withStripe)}${x.companyToCustomer !== null
               ? `<br><span class="muted">${pct(x.companyToCustomer)} of companies</span>` : ''}</td>`
@@ -4939,16 +4942,15 @@ function renderEvents() {
           + `<td class="n">${x.credited === null ? '–' : fmt.int(x.credited)}</td></tr>`).join('')
         + '</tbody>';
       $('event-leads-note').textContent =
-        'From the Lead Counts tab: HubSpot contacts carrying each event as their lead source. Cost per earned '
-        + 'lead divides the event’s cost on this tab by its earned leads; a total that includes a loaded list '
-        + 'would make an event look cheap for leads it did not generate. Before and after the event exist only '
-        + 'where the event has a date, and after-the-event counts include lists loaded later, so they are shown, '
-        + 'not divided into cost. Confirmed means an at-event form or meeting names this event; contradicted means '
-        + 'the contact\u2019s only conversion names a different one. HubSpot overwrites the tag on contacts it already '
+        'From the Lead Counts tab: HubSpot contacts carrying each event as their lead source. Cost per lead '
+        + 'divides the event’s cost on this tab by its leads: for an event with a date, the earned contacts created '
+        + 'on or after it (earned_after_event); for one without, every earned contact, which may include people '
+        + 'HubSpot already held. A total that includes a loaded list would make an event look cheap for leads it did '
+        + 'not generate. Confirmed means an at-event form or meeting names this event; contradicted means '
+        + 'the contact’s only conversion names a different one. HubSpot overwrites the tag on contacts it already '
         + 'holds, so for a dated event the share already in HubSpot says how much of its list is re-tagged contacts '
-        + 'rather than new ones; where that is most of it (in red), its earned leads are mostly people it re-engaged, '
-        + 'and its cost per earned lead is lower than its cost per new lead. New earned is shown as a range until the '
-        + 'push carries the overlap of earned and after the event. Companies are the businesses behind the '
+        + 'rather than new ones (in red where that is most of it). Customers after the event are the businesses whose '
+        + 'first Stripe payment came on or after it. Companies are the businesses behind the '
         + 'tagged contacts; with a Stripe id means the business is a customer, whether it became one before or '
         + 'after the event. No cost per lead is worked out while an event\u2019s cost is still settling, not found '
         + 'yet, or the event is still ahead: a booth fee without its travel is not the event\u2019s cost.'

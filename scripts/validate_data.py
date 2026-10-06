@@ -484,12 +484,22 @@ def check_lead_counts(doc):
     if fewer_companies:
         report("warning", "Lead Counts", f"fewer companies than customers for {len(fewer_companies)} sources, so the "
                f"company resolution did not run: {', '.join(map(str, fewer_companies[:8]))}.")
+    # Customers after the event are a subset of the Stripe customers carrying
+    # the tag (customers_total, v139), and new earned leads a subset of both
+    # earned and after-the-event contacts.
+    total_col = "customers_total" if any("customers_total" in r for r in rows) else "with a stripe id"
     more_after = [r.get("source") for r in rows
                   if str(r.get("customer_after_event") or "").strip() not in ("", "..")
-                  and n(r.get("customer_after_event")) > n(r.get("with a stripe id"))]
+                  and n(r.get("customer_after_event")) > n(r.get(total_col))]
     if more_after:
-        report("warning", "Lead Counts", f"customer_after_event is larger than \"with a stripe id\" for {len(more_after)} "
+        report("warning", "Lead Counts", f"customer_after_event is larger than {total_col} for {len(more_after)} "
                f"sources, which cannot both be right: {', '.join(map(str, more_after[:8]))}.")
+    bad_new = [r.get("source") for r in rows
+               if str(r.get("earned_after_event") or "").strip() not in ("", "..")
+               and n(r.get("earned_after_event")) > min(n(r.get("earned")), n(r.get("after the event")))]
+    if bad_new:
+        report("warning", "Lead Counts", f"earned_after_event is larger than earned or after the event for "
+               f"{len(bad_new)} sources: {', '.join(map(str, bad_new[:8]))}.")
     events = [r for r in rows if str(r.get("medium") or "") == "event"]
     if len(events) < 5:
         report("warning", "Lead Counts", f"only {len(events)} of {len(rows)} sources are events; the medium "
