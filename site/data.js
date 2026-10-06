@@ -4549,6 +4549,15 @@ export function eventLeads(data, roi = eventRoi(data)) {
       // The funnel: contacts, the companies behind them, and those with a
       // Stripe id. A Stripe id is any customer, before or after the event.
       withCompany: r.withCompany,
+      // How much of the tagged list was in HubSpot before the event. The tag
+      // overwrites on existing contacts (pipeline, 6 Oct 2026: 316 of Pantheon
+      // 2026's 338 predate it), so where most of the list predates the event
+      // its earned leads are mostly re-tagged contacts, not new ones. The push
+      // gives earned and after-the-event separately, never their overlap, so
+      // the new earned leads are known only as a range until it does.
+      existedShare: r.eventDate && r.total ? (r.before || 0) / r.total : null,
+      newEarnedLow: r.eventDate && r.total ? Math.max(0, (r.earned || 0) + (r.after || 0) - r.total) : null,
+      newEarnedHigh: r.eventDate ? Math.min(r.earned || 0, r.after || 0) : null,
       companyToCustomer: r.withCompany ? r.withStripe / r.withCompany : null,
       credited: e ? e.paid : null,
       leadToCustomer: e && leads ? e.paid / leads : null,

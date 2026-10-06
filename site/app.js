@@ -4921,7 +4921,11 @@ function renderEvents() {
           + `<td class="n">${x.withStripe === null ? '–' : fmt.int(x.withStripe)}${x.companyToCustomer !== null
               ? `<br><span class="muted">${pct(x.companyToCustomer)} of companies</span>` : ''}</td>`
           + `<td class="n">${x.list ? `${fmt.int(x.list)}<br><span class="muted">${pct(x.listShare)} of all</span>` : fmt.int(x.list || 0)}</td>`
-          + `<td class="n">${x.dated ? `${fmt.int(x.before)} / ${fmt.int(x.after)}` : '<span class="muted">no date</span>'}</td>`
+          + `<td class="n">${x.dated ? `${fmt.int(x.before)} / ${fmt.int(x.after)}<br><span class="${x.existedShare > 0.5 ? 'notviable' : 'muted'}">`
+              + `${pct(x.existedShare)} already in HubSpot</span>`
+              + (x.newEarnedHigh !== null ? `<br><span class="muted">${x.newEarnedLow === x.newEarnedHigh ? fmt.int(x.newEarnedHigh)
+                : `${fmt.int(x.newEarnedLow)} to ${fmt.int(x.newEarnedHigh)}`} new earned</span>` : '')
+            : '<span class="muted">no date</span>'}</td>`
           + `<td class="n">${x.confirmed === null ? '–' : fmt.int(x.confirmed)}</td>`
           + `<td class="n">${x.contradicted === null ? '–' : fmt.int(x.contradicted)}</td>`
           + `<td class="n">${money(x.costPerLead)}${x.costState ? `<br><span class="muted">${stateWords[x.costState]}</span>` : ''}${x.upcoming && !x.costState ? `<br><span class="muted">${x.afterData
@@ -4934,7 +4938,11 @@ function renderEvents() {
         + 'would make an event look cheap for leads it did not generate. Before and after the event exist only '
         + 'where the event has a date, and after-the-event counts include lists loaded later, so they are shown, '
         + 'not divided into cost. Confirmed means an at-event form or meeting names this event; contradicted means '
-        + 'the contact\u2019s only conversion names a different one. Companies are the businesses behind the '
+        + 'the contact\u2019s only conversion names a different one. HubSpot overwrites the tag on contacts it already '
+        + 'holds, so for a dated event the share already in HubSpot says how much of its list is re-tagged contacts '
+        + 'rather than new ones; where that is most of it (in red), its earned leads are mostly people it re-engaged, '
+        + 'and its cost per earned lead is lower than its cost per new lead. New earned is shown as a range until the '
+        + 'push carries the overlap of earned and after the event. Companies are the businesses behind the '
         + 'tagged contacts; with a Stripe id means the business is a customer, whether it became one before or '
         + 'after the event. No cost per lead is worked out while an event\u2019s cost is still settling, not found '
         + 'yet, or the event is still ahead: a booth fee without its travel is not the event\u2019s cost.'
