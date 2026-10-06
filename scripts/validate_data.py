@@ -530,6 +530,46 @@ def check_event_costs(doc):
                + "; ".join(f"{k} ({', '.join(v)})" for k, v in states.items()) + ".")
 
 
+def check_marketing_monthly(doc, present):
+    """The Marketing Monthly tab (gh-v7): one row per month and HubSpot value. The
+    site reads it from September 2025, where the vendor split of advertising
+    starts. A month far past today is a date nobody meant, and a bulk count above
+    the deals opened is a count of the wrong thing."""
+    if "Marketing Monthly" not in present:
+        report("note", "Marketing Monthly", "not in the push; the Marketing tab reads its 5 Oct 2026 snapshot.")
+        return
+    if not doc:
+        return
+    rows = doc.get("rows") or []
+    if not rows:
+        report("warning", "Marketing Monthly", "the tab is in the push with no rows.")
+        return
+    n = lambda v: number(v) or 0
+    bad_month = [r for r in rows if not MONTH.match(str(r.get("month") or ""))]
+    if bad_month:
+        report("warning", "Marketing Monthly", f"{len(bad_month)} row(s) have no month in YYYY-MM form.")
+    far = {}
+    for r in rows:
+        m = str(r.get("month") or "")
+        if MONTH.match(m) and m[:4] > "2030":
+            far[m] = far.get(m, 0) + n(r.get("deals_won")) + n(r.get("deals_opened")) + n(r.get("leads"))
+    if far:
+        report("warning", "Marketing Monthly", "rows dated far in the future, so a close or create date is wrong: "
+               + ", ".join(f"{m} ({c:,.0f} leads and deals)" for m, c in sorted(far.items()))
+               + ". The site leaves them out.")
+    negative = [r for r in rows if any(n(r.get(c)) < 0 for c in
+                                       ("leads", "deals_opened", "deals_won", "won_mrr", "opened_in_a_bulk_day"))]
+    if negative:
+        report("warning", "Marketing Monthly", f"{len(negative)} row(s) carry a negative count.")
+    over = [r for r in rows if n(r.get("opened_in_a_bulk_day")) > n(r.get("deals_opened"))]
+    if over:
+        report("warning", "Marketing Monthly", f"{len(over)} row(s) have more deals opened on a bulk day than deals opened.")
+    no_mrr = [r for r in rows if n(r.get("deals_won")) > 0 and not n(r.get("won_mrr"))]
+    if no_mrr:
+        report("note", "Marketing Monthly", ("one row has" if len(no_mrr) == 1 else f"{len(no_mrr)} rows have") + " won deals with no signed MRR: "
+               + ", ".join(f"{r.get('month')} {r.get('category')}" for r in no_mrr[:6]) + ".")
+
+
 def main():
     index = load("index.json")
     if index is None:
@@ -570,6 +610,8 @@ def main():
         event_costs = present.get("Event Costs")
         check_event_costs(load(event_costs["file"]) if event_costs else None)
         check_ledger_closed(load("qb_expenses.json"))
+        mm = present.get("Marketing Monthly")
+        check_marketing_monthly(load(mm["file"]) if mm else None, present)
 
         # The base count is the one number that needs no interpretation, so a
         # sharp move in it is worth a look even when nothing is malformed.

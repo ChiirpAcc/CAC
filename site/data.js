@@ -4008,6 +4008,11 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', tou
       : year && year > lastMonth.slice(0, 4) ? `${year}-01` : null;
     const fromMonth = cost ? cost.month || (cost.year ? `${cost.year}-01` : null)
       : upcoming || listed || (year ? `${year}-01` : null);
+    // The won deal names this event if it carries the same value, or one
+    // that reads as the same cost row.
+    const sameEvent = won => won === b.source || (cost && (EVENT_ALIASES[won] === cost.event
+      || (eventWords(won.replace(/^20\d\d\s*-\s*/, '')) === cost.words
+        && ((won.match(/^(20\d\d)\s*-/) || [])[1] || cost.year) === cost.year)));
     // With the switch on, a customer whose tag was written after the end of
     // the month following the event is left out, as if untagged: a later
     // memory rather than a record made at the time. No write date is kept.
@@ -4021,11 +4026,6 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', tou
       rowsIn = b.rows.filter(r => ids.has(r.id));
     }
     if (creditRule !== 'all' && fromMonth && !upcoming) {
-      // The won deal names this event if it carries the same value, or one
-      // that reads as the same cost row.
-      const sameEvent = won => won === b.source || (cost && (EVENT_ALIASES[won] === cost.event
-        || (eventWords(won.replace(/^20\d\d\s*-\s*/, '')) === cost.words
-          && ((won.match(/^(20\d\d)\s*-/) || [])[1] || cost.year) === cost.year)));
       const keep = id => {
         if (creditRule === 'won') return !wonDealOf.has(id) || sameEvent(wonDealOf.get(id));
         const fp = firstRevenueOf.get(id);
@@ -4043,6 +4043,11 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', tou
       rowsIn = rowsIn.filter(r => ids.has(r.id));
     }
     const summary = summarise(ids, rowsIn, fromMonth, Boolean(upcoming));
+    // A credited customer whose won deal names another source.
+    for (const x of summary.customerRows) {
+      const won = wonDealOf.get(x.id);
+      x.wonElsewhere = won && !sameEvent(won) ? won : null;
+    }
     if (upcoming) { summary.collected = null; summary.revenue = null; summary.mrrNow = null; }
     events.push({ source: b.source, year, cost, upcoming, listedMonth: listed, ...summary,
       // The same customers the credited count is made of: brought, and paying.
@@ -4758,8 +4763,12 @@ const LEAD_CATEGORY = {
   EMAIL_MARKETING: 'Other digital', REFERRALS: 'Other digital', OTHER_CAMPAIGNS: 'Other digital',
   OFFLINE: 'Offline',
 };
+// The Revenue Optimization Lab is a webinar series. HubSpot files its deals
+// as a partner ("LAB") and its invitations as marketing email; both are read
+// as webinars, so its leads, deals and customers sit in one place.
 const customerCategory = r => {
   if (!r.leadSource) return 'Untagged';
+  if (/^lab$/i.test(r.leadSource)) return 'Webinars';
   if (r.leadMedium === 'event') return 'Events';
   if (r.leadMedium === 'webinar') return 'Webinars';
   if (r.leadMedium === 'podcast') return 'Podcasts';
@@ -4791,6 +4800,29 @@ function marketingCategoryOf(value, mediumOf) {
   if (/facebook|instagram|meta/i.test(text)) return 'Paid social';
   if (/google|bing|search|website|direct/i.test(text)) return 'Website and search';
   return 'Partners and referrals';
+}
+
+// A Marketing Monthly value as a reader would name it. Form and meeting
+// links are grouped, since each is one URL per form or person and names
+// nothing a reader can act on; a campaign loses its numeric id.
+const ORIGINAL_SOURCE_LABEL = {
+  PAID_SOCIAL: 'Paid social', PAID_SEARCH: 'Paid search', ORGANIC_SEARCH: 'Organic search',
+  DIRECT_TRAFFIC: 'Direct', AI_REFERRALS: 'AI referral', SOCIAL_MEDIA: 'Organic social',
+  EMAIL_MARKETING: 'Marketing email', REFERRALS: 'Referral', OTHER_CAMPAIGNS: 'Other campaign', OFFLINE: 'Offline',
+};
+function marketingValueLabel(value) {
+  const text = String(value || '').trim();
+  if (text === 'UNTAGGED') return 'No lead source on the deal';
+  const os = text.match(ORIGINAL_SOURCE);
+  if (!os || !ORIGINAL_SOURCE_LABEL[os[1]]) return text;
+  const head = ORIGINAL_SOURCE_LABEL[os[1]];
+  const drill = String(os[2] || '').replace(/^\d{6,}-/, '').trim();
+  if (!drill) return head;
+  if (/hsforms\.com/i.test(drill)) return `${head}: a HubSpot form link`;
+  if (/meetings[\w-]*\.hubspot\.com/i.test(drill)) return `${head}: a HubSpot meeting link`;
+  const page = drill.match(/hs-sites[\w-]*\.com\/?(.*)$/i);
+  if (page) return `${head}: HubSpot page ${page[1] ? `/${page[1].split('/')[0]}` : ''}`.trim();
+  return `${head}: ${drill}`;
 }
 
 export function marketingReport(data, roi = eventRoi(data)) {
@@ -4835,6 +4867,7 @@ export function marketingReport(data, roi = eventRoi(data)) {
   }
 
   // Leads and deals: the Marketing Monthly tab, or the snapshot.
+  const inside = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, new Map()]));
   if (live) {
     const mediumOf = new Map();
     for (const r of data.customers) if (r.leadSource && r.leadMedium) mediumOf.set(r.leadSource, r.leadMedium);
@@ -4846,6 +4879,12 @@ export function marketingReport(data, roi = eventRoi(data)) {
       // event value's contacts are not counted twice.
       if (r.leads && cat !== 'Events') x.leads[cat] = (x.leads[cat] || 0) + r.leads;
       if (cat === 'Offline') continue;
+      // What the category is made of, value by value.
+      const label = marketingValueLabel(r.category);
+      if (!inside[cat].has(label)) inside[cat].set(label, { label, leads: 0, created: 0, won: 0, wonMrr: 0, bulk: 0 });
+      const v = inside[cat].get(label);
+      if (cat !== 'Events') v.leads += r.leads || 0;
+      v.created += r.dealsOpened || 0; v.won += r.dealsWon || 0; v.wonMrr += r.wonMrr || 0; v.bulk += r.openedInBulk || 0;
       x.created[cat] += r.dealsOpened || 0;
       x.won[cat] += r.dealsWon || 0;
       x.wonMrr[cat] += r.wonMrr || 0;
@@ -5004,7 +5043,9 @@ export function marketingReport(data, roi = eventRoi(data)) {
         won: x.won[cat] || 0, customers: x.customers[cat] || 0, contribution: monthlyReturn[cat][x.month] || 0,
         cumSpend: cs, cumContribution: cr };
     });
-    return [cat, { monthly, customers: customerRows[cat] }];
+    const parts = [...inside[cat].values()].filter(v => v.leads || v.created || v.won)
+      .sort((a, b) => b.won - a.won || b.created - a.created || b.leads - a.leads);
+    return [cat, { monthly, customers: customerRows[cat], inside: live ? parts : null }];
   }));
   const paidTotals = totals.filter(t => t.hasSpend);
   const paidSpend = paidTotals.reduce((t, x) => t + x.spend, 0);

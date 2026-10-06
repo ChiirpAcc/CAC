@@ -3986,6 +3986,23 @@ const EVENT_TYPE_INK = {
 // The top of the Marketing tab: headline figures, every source ranked side by
 // side, and each source's funnel. Each source opens its own page.
 const sourceHref = cat => `#source=${encodeURIComponent(cat)}`;
+// The months with deals opened on a bulk day, as "March, April and July
+// 2026", from the Marketing Monthly tab; null on the snapshot.
+function bulkMonthsText(r) {
+  const months = r.byMonth.filter(x => Object.values(x.bulk || {}).some(n => n > 0)).map(x => x.month);
+  if (!r.bulkAll || !months.length) return null;
+  const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+    'October', 'November', 'December'];
+  const byYear = new Map();
+  for (const m of months) {
+    const [y, mo] = m.split('-');
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y).push(names[Number(mo) - 1]);
+  }
+  const list = a => (a.length < 2 ? a[0] : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+  return [...byYear].map(([y, a]) => `${list(a)} ${y}`).join('; ');
+}
+
 function renderMarketingTop(r) {
   if (!$('mkt-kpis')) return;
   const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
@@ -4035,7 +4052,8 @@ function renderMarketingTop(r) {
           + `${t.costPerCustomer ? `${money(t.costPerCustomer)} a customer` : ''}</span>` : '<span class="muted">–</span>'}</td>`
       + `<td class="n">${int(t.customers)}${t.liveNow ? `<br><span class="muted">${int(t.liveNow)} live</span>` : ''}</td>`
       + (technical ? `<td class="n">${t.leads ? int(t.leads) : t.leadsAllTime ? `${int(t.leadsAllTime)}<br><span class="muted">all time</span>` : '–'}</td>`
-        + `<td class="n">${int(t.won)}</td><td class="n">${money(t.recurring + t.oneTime)}<br>`
+        + `<td class="n">${int(t.won)}${t.wonMrr ? `<br><span class="muted">${money(t.wonMrr)} a month signed</span>` : ''}</td>`
+        + `<td class="n">${money(t.recurring + t.oneTime)}<br>`
         + `<span class="muted">${money(t.collected)} collected</span></td>` : '')
       + `<td class="rank-bar-col"><div class="rank-net">${bar(t)}<span class="rank-bar-value">${money(t.contribution)}</span></div>`
         + `<span class="muted">+ ${money(t.projected12)} in the next 12 months, projected</span></td>`
@@ -4068,9 +4086,10 @@ function renderMarketingTop(r) {
     + 'Sources with no direct spend show their return without an ROI.';
 
   // Funnels, one card per source with leads or deals.
-  const step = (label, n, rate) => `<div class="mkt-step"><span class="mkt-step-n">${int(n)}</span>`
+  const step = (label, n, rate, extra = '') => `<div class="mkt-step"><span class="mkt-step-n">${int(n)}</span>`
     + `<span class="mkt-step-label">${label}</span>${rate !== null && rate !== undefined
-      ? `<span class="mkt-step-rate">${rate > 1 ? '–' : fmt.pct(rate, rate < 0.1 ? 1 : 0)}</span>` : ''}</div>`;
+      ? `<span class="mkt-step-rate">${rate > 1 ? '–' : fmt.pct(rate, rate < 0.1 ? 1 : 0)}</span>` : ''}`
+    + `${extra ? `<span class="mkt-step-label">${extra}</span>` : ''}</div>`;
   const funnelRows = r.totals.filter(t => t.leads || t.created || t.won);
   $('mkt-funnels').innerHTML = funnelRows.map(t => {
     const top = Math.max(t.leads || 0, t.created || 0, t.won || 0, t.customers || 0, 1);
@@ -4080,15 +4099,22 @@ function renderMarketingTop(r) {
       + (t.leads ? `<span style="width:${w(t.leads)}" class="f1"></span>` : '')
       + `<span style="width:${w(t.created)}" class="f2"></span><span style="width:${w(t.won)}" class="f3"></span>`
       + `<span style="width:${w(t.customers)}" class="f4"></span></div>`
-      + `<div class="mkt-steps">${t.leads ? step('leads', t.leads, null) : ''}${step('deals opened', t.created, null)}`
-      + step('won', t.won, t.openedToWon) + step('paying', t.customers, t.wonToCustomer) + `</div></a>`;
+      + `<div class="mkt-steps">${t.leads ? step('leads', t.leads, null) : ''}`
+      + step('deals opened', t.created, null, t.openedInBulk ? `${int(t.openedInBulk)} in bulk loads` : '')
+      + step('won', t.won, t.openedToWon, t.wonMrr ? `${money(t.wonMrr)}/mo signed` : '')
+      + step('paying', t.customers, t.wonToCustomer) + `</div></a>`;
   }).join('');
   $('mkt-funnel-note').textContent =
     'Leads are HubSpot contacts by how they first arrived; deals opened and won are by the deal’s own lead '
     + 'source; paying customers are Stripe customers by their tag. The rate under won is won over opened, and under '
     + 'paying is paying customers over won deals. The three are tagged by different people at different times, so '
     + 'a source can show more paying customers than won deals, which is shown as a dash rather than a rate over '
-    + '100%. Bulk-loaded deals (March, April and July 2026) make deals opened high for Events and Untagged.';
+    + '100%. '
+    + (bulkMonthsText(r)
+      ? `${fmt.int(r.bulkAll)} of the ${fmt.int(r.createdAll)} deals opened were opened on a day of 50 or more for one `
+        + `source (${bulkMonthsText(r)}), which is a bulk load rather than demand, and is shown under deals opened. `
+        + 'Signed is the monthly amount on the won deals.'
+      : 'Bulk-loaded deals (March, April and July 2026) make deals opened high for Events and Untagged.');
 }
 
 // One source on its own page.
@@ -4120,8 +4146,9 @@ function renderSourcePage(cat) {
     + (t.hasSpend ? kpi('ROI to date', sp(t.roi), '', tone(t.roi)) + kpi('ROI with 12 more months', sp(t.roi12), 'projected', tone(t.roi12))
       : kpi('Next 12 months', money(t.projected12), 'projected contribution', 'pos'));
   const funnel = fact('Leads', t.leads ? int(t.leads) : '–', t.leads ? 'contacts by first arrival' : '')
-    + fact('Deals opened', int(t.created))
-    + fact('Deals won', int(t.won), t.openedToWon !== null ? `${fmt.pct(t.openedToWon, 0)} of opened` : '')
+    + fact('Deals opened', int(t.created), t.openedInBulk ? `${int(t.openedInBulk)} in bulk loads` : '')
+    + fact('Deals won', int(t.won), [t.openedToWon !== null ? `${fmt.pct(t.openedToWon, 0)} of opened` : '',
+      t.wonMrr ? `${money(t.wonMrr)} a month signed` : ''].filter(Boolean).join(' · '))
     + fact('Paying customers', int(t.customers), t.wonToCustomer !== null && t.wonToCustomer <= 1 ? `${fmt.pct(t.wonToCustomer, 0)} of won` : '')
     + fact('Billed so far', money(t.recurring + t.oneTime), `${money(t.recurring)} recurring, ${money(t.oneTime)} one-time`);
   const custRows = d.customers.map(x => `<tr><td><span class="ev-dot ${x.live ? 'live' : 'gone'}"></span>${x.name}`
@@ -4129,6 +4156,40 @@ function renderSourcePage(cat) {
     + `<td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.billed)}</td><td class="n">${money(x.collected)}</td>`
     + `<td class="n">${money(x.contribution)}</td></tr>`).join('');
   const paidSocial = cat === 'Paid social';
+  // What the source is made of: each HubSpot value behind it.
+  const parts = d.inside || [];
+  const shown = parts.slice(0, 20);
+  const rest = parts.slice(20);
+  const restSum = f => rest.reduce((n, v) => n + v[f], 0);
+  const partRow = v => `<tr><td>${v.label}</td><td class="n">${v.leads ? int(v.leads) : '–'}</td>`
+    + `<td class="n">${v.created ? int(v.created) : '–'}${v.bulk ? `<br><span class="muted">${int(v.bulk)} bulk</span>` : ''}</td>`
+    + `<td class="n">${v.won ? int(v.won) : '–'}</td><td class="n">${v.wonMrr ? money(v.wonMrr) : '–'}</td></tr>`;
+  const insidePanel = parts.length
+    ? `<section class="ev-panel"><h3>What it is made of</h3><div class="table-scroll"><table class="data-table ev-table">`
+      + `<thead><tr><th>HubSpot value</th><th class="n">Leads</th><th class="n">Deals opened</th><th class="n">Deals won</th>`
+      + `<th class="n">Signed a month</th></tr></thead><tbody>${shown.map(partRow).join('')}`
+      + (rest.length ? partRow({ label: `${fmt.int(rest.length)} more`, leads: restSum('leads'), created: restSum('created'),
+        bulk: restSum('bulk'), won: restSum('won'), wonMrr: restSum('wonMrr') }) : '')
+      + `</tbody></table></div><p class="ev-note">Leads are contacts by how HubSpot says they first arrived, with the `
+      + `drill-down after the colon; deals are by the deal’s lead source, or its sub-source where one is set. `
+      + `Form and meeting links are grouped.${cat === 'Webinars' ? ' The Revenue Optimization Lab is a webinar series, '
+        + 'so its invitations and its "LAB" deals are counted here.' : ''}</p></section>`
+    : '';
+  // One row per webinar, once the pipeline pushes the Webinars tab.
+  const webinarRows = cat === 'Webinars' && data.webinars ? [...data.webinars]
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))) : [];
+  const webinarPanel = webinarRows.length
+    ? `<section class="ev-panel"><h3>Each webinar</h3><div class="table-scroll"><table class="data-table ev-table">`
+      + `<thead><tr><th>Webinar</th><th>Date</th><th class="n">Registered</th><th class="n">Attended</th>`
+      + `<th class="n">No-shows</th><th class="n">Leads after</th></tr></thead><tbody>`
+      + webinarRows.map(w => `<tr><td>${w.webinar}${w.type ? `<br><span class="muted">${w.type}</span>` : ''}</td>`
+        + `<td>${w.date || '–'}</td><td class="n">${int(w.registered)}</td>`
+        + `<td class="n">${int(w.attended)}${w.registered && w.attended !== null
+          ? `<br><span class="muted">${fmt.pct(w.attended / w.registered, 0)}</span>` : ''}</td>`
+        + `<td class="n">${int(w.noShows)}</td><td class="n">${int(w.earnedAfter)}</td></tr>`).join('')
+      + `</tbody></table></div><p class="ev-note">From HubSpot marketing events. Leads after are contacts earned after `
+      + `the webinar whose lead source matches it.</p></section>`
+    : '';
   box.innerHTML =
     `<a href="#marketing" class="ev-back">All sources</a>`
     + `<header class="ev-hero"><h2>${cat}</h2><div class="ev-chips"><span class="ev-chip">${span}</span>`
@@ -4142,6 +4203,7 @@ function renderSourcePage(cat) {
       + `<p class="ev-note">Meta spend divided by the contacts HubSpot records as arriving through paid social that month, `
       + `and the leads each $1,000 bought.</p></section>` : '')
     + `<section class="ev-panel"><h3>Funnel</h3><div class="ev-facts">${funnel}</div></section>`
+    + webinarPanel + insidePanel
     + `<section class="ev-panel"><h3>Customers</h3>`
     + (custRows ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>First paid</th>`
       + `<th class="n">MRR now</th><th class="n">Billed</th><th class="n">Collected</th><th class="n">Contribution</th></tr></thead>`
@@ -4329,8 +4391,9 @@ function renderMarketing() {
       + 'has had little time to pay back, so still paying shows the monthly revenue that keeps arriving. Spend that '
       + 'recurs is paid every month whether or not a customer arrives; one-time spend is paid once per event. '
       + 'Events count only the customers the Events tab credits; a customer tagged to an event they were already '
-      + 'paying before is counted as untagged here. Webinar leads are every earned lead in the Lead Counts tab, '
-      + 'which carries no dates for webinars.';
+      + 'paying before is counted as untagged here. '
+      + (r.snapshotAsOf ? 'Webinar leads are every earned lead in the Lead Counts tab, which carries no dates for webinars.'
+        : 'Webinar leads are contacts whose first arrival names a webinar or the Revenue Optimization Lab.');
   }
 
   $('mkt-note').textContent =
@@ -4343,8 +4406,8 @@ function renderMarketing() {
     + 'source field is set on almost no digital lead; event leads are the earned leads in the Lead Counts tab. '
     + 'Contacts entered by hand or imported (Offline Sources) are left out of the lead lines. Deals are by the '
     + 'deal’s own lead source: Digital Marketing deals from before Meta (Ads) came into use in December 2025 '
-    + 'may be Meta, and the large numbers of deals opened in March, April and July 2026 are bulk loads, so deals opened '
-    + 'is not a demand measure. Paying customers are Stripe customers by the month of their first payment and '
+    + `may be Meta, and the large numbers of deals opened in ${bulkMonthsText(r) || 'March, April and July 2026'} are bulk loads, `
+    + 'so deals opened is not a demand measure. Paying customers are Stripe customers by the month of their first payment and '
     + 'their HubSpot tag. '
     + (r.snapshotAsOf ? 'Leads and deals are a snapshot until the pipeline pushes them.'
       : `Leads and deals are the Marketing Monthly tab. A deal's sub-source is read where it is set, so an `
@@ -4465,7 +4528,8 @@ function renderEventPage(label) {
     : '';
 
   const custRows = (e.customerRows || []).map(x => `<tr><td><span class="ev-dot ${x.live ? 'live' : 'gone'}"></span>${x.name}`
-    + `${x.winback ? ' <span class="ev-chip">won back</span>' : ''}</td>`
+    + `${x.winback ? ' <span class="ev-chip">won back</span>' : ''}`
+    + `${x.wonElsewhere ? `<br><span class="muted">won on another deal: ${x.wonElsewhere}</span>` : ''}</td>`
     + `<td>${x.firstPaid ? fmt.monthLabel(x.firstPaid) : '–'}</td>`
     + `<td class="n">${money(x.signedMrr)}</td><td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
     + `<td class="n">${money(x.contribution)}</td><td>${x.leadDate || '–'}</td><td>${x.leadSetAt || '–'}</td></tr>`).join('');
@@ -4502,6 +4566,9 @@ function renderEventPage(label) {
         + `<th>HubSpot record</th><th>Tag written</th></tr></thead><tbody>${custRows}</tbody></table></div>`
         + (e.alreadyPaying ? `<p class="ev-note">${int(e.alreadyPaying)} more carry the tag but were paying before the `
           + `event, so they are not credited.</p>` : '')
+        + ((e.customerRows || []).some(x => x.wonElsewhere)
+          ? `<p class="ev-note">A customer marked won on another deal had this event’s deal lost and was won through `
+            + `another source. Set "Credit an event with" to "Only customers no other source's deal won" to leave them out.</p>` : '')
       : '<p class="empty">No tagged customer has started paying since this event.</p>')
     + `</section>`;
 
