@@ -523,6 +523,10 @@ export async function load() {
       leadSource: String(r.lead_source || '').trim() || null,
       leadMedium: leadMediumOf(r.lead_source, r.lead_medium),
       leadMediumRaw: String(r.lead_medium || '').trim() || null,
+      // v138: the first value the lead source ever held, and when. The tag
+      // HubSpot shows is the last event a contact touched; this is the first.
+      leadSourceFirst: String(r.lead_source_first || '').trim() || null,
+      leadSourceFirstAt: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_source_first_at || '')) ? String(r.lead_source_first_at).slice(0, 10) : null,
       // When the HubSpot record carrying the source was created, and when the
       // source field was first given a value (v128). Blank stays null.
       leadDate: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_date || '')) ? String(r.lead_date).slice(0, 10) : null,
@@ -633,6 +637,7 @@ export async function load() {
         before: count(r['before the event']), after: count(r['after the event']),
         confirmed: count(r.confirmed), contradicted: count(r.contradicted),
         withCompany: count(r['with a company']), withStripe: count(r['with a stripe id']),
+        customerAfter: count(r.customer_after_event),
         readAs: String(r['read this as'] || '').trim() || null,
       }))
     : [];
@@ -3518,6 +3523,7 @@ export const EVENT_ALIASES = {
   '2025 - Certain Path Fall Expo': 'CertainPath Fall Expo 2025',
   '2026 - Nuve Home Contractor Trades Event': 'Nuve 2026',
   '2026 - Home Service Hoorah': 'Home Service Hoorah 2026',
+  '2025 - Home and Commercial Services Marketing Summit': 'Home and Commercial Svcs Marketing Summit',
 };
 
 // What kind of event each one is, who runs it, and where it stands in the
@@ -3680,7 +3686,11 @@ export const WINBACK_GAP = 3;
 // payment within that many months of the event, counting its month as one.
 export const CREDIT_RULES = ['all', 'record', 'within3', 'within6'];
 
-export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = {}) {
+// 'last' reads the tag HubSpot shows now, which is the last event a contact
+// touched; 'first' reads the first value the field ever held (v138).
+export const TOUCHES = ['last', 'first'];
+
+export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', touch = 'last' } = {}) {
   const costs = [...(data.eventCosts || []).map(c => ({ ...c, extra: false })),
     ...EVENT_EXTRA_COSTS.filter(x => !onTab(x, data.eventCosts || [])).map(x => ({ ...x, extra: true }))];
   const tagged = data.customers.filter(r => r.leadSource);
@@ -3744,10 +3754,23 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
   const leadDateOf = new Map();
   const leadSetOf = new Map();
   const bulkOf = new Map();
+  // A first-touch value is given the medium the pipeline gives that same
+  // value as a current tag; one never seen as a current tag is an event if
+  // it carries a year, as the pipeline's own rule has it.
+  const rawMediumOf = new Map();
+  for (const r of data.customers) if (r.leadSource && r.leadMediumRaw) rawMediumOf.set(r.leadSource, r.leadMediumRaw);
+  const firstTouch = touch === 'first';
   for (const r of data.customers) {
-    if (r.leadSource) { sourceOf.set(r.id, r.leadSource); mediumOf.set(r.id, r.leadMedium); }
+    const src = firstTouch ? r.leadSourceFirst || r.leadSource : r.leadSource;
+    if (src) {
+      sourceOf.set(r.id, src);
+      mediumOf.set(r.id, firstTouch && src !== r.leadSource
+        ? leadMediumOf(src, rawMediumOf.get(src) || (/^20\d\d\s*-/.test(src) ? 'event' : null))
+        : r.leadMedium);
+    }
     if (r.leadDate) leadDateOf.set(r.id, r.leadDate);
-    if (r.leadSetAt) leadSetOf.set(r.id, r.leadSetAt);
+    const setAt = firstTouch ? r.leadSourceFirstAt : r.leadSetAt;
+    if (setAt) leadSetOf.set(r.id, setAt);
     if (r.leadBulk) bulkOf.set(r.id, r.leadBulk);
   }
   // How a tag was made, for the customers an event is credited with.
@@ -4075,6 +4098,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all' } = 
     droppedLate: droppedLate.size,
     creditRule,
     droppedRule: droppedRule.size,
+    touch,
     totals: {
       spend: costed.reduce((s, e) => s + e.spend, 0),
       collected: costed.reduce((s, e) => s + e.collected, 0),
@@ -4549,6 +4573,7 @@ export function eventLeads(data, roi = eventRoi(data)) {
       // The funnel: contacts, the companies behind them, and those with a
       // Stripe id. A Stripe id is any customer, before or after the event.
       withCompany: r.withCompany,
+      customerAfter: r.customerAfter,
       // How much of the tagged list was in HubSpot before the event. The tag
       // overwrites on existing contacts (pipeline, 6 Oct 2026: 316 of Pantheon
       // 2026's 338 predate it), so where most of the list predates the event

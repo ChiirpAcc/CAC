@@ -4355,7 +4355,8 @@ function renderEventPage(label) {
   if (!box) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
   const creditRule = ($('events-credit') && $('events-credit').value) || 'all';
-  const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule });
+  const touch = ($('events-touch') && $('events-touch').value) || 'last';
+  const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule, touch });
   const e = r ? r.roi.events.find(x => x.label === label) : null;
   if (!e) {
     box.innerHTML = `<p><a href="#events" class="ev-back">All events</a></p>`
@@ -4527,11 +4528,14 @@ function renderEvents() {
   if (!$('chart-events')) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
   const creditRule = ($('events-credit') && $('events-credit').value) || 'all';
-  const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule });
-  const cr = $('events-credit');
-  if (cr && !cr.dataset.ready) {
-    cr.addEventListener('change', () => renderEvents());
-    cr.dataset.ready = '1';
+  const touch = ($('events-touch') && $('events-touch').value) || 'last';
+  const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule, touch });
+  for (const id of ['events-credit', 'events-touch']) {
+    const el = $(id);
+    if (el && !el.dataset.ready) {
+      el.addEventListener('change', () => renderEvents());
+      el.dataset.ready = '1';
+    }
   }
   if (!r) {
     $('chart-events').innerHTML = '<p class="empty">No event costs or lead sources in this push.</p>';
@@ -4912,7 +4916,7 @@ function renderEvents() {
         : 'No event in the Lead Counts tab has both a cost and an earned lead.';
       $('event-leads-table').innerHTML =
         '<thead><tr><th>Event</th><th class="n">Earned leads</th><th class="n">Companies</th>'
-        + '<th class="n">With a Stripe id</th><th class="n">From a list</th>'
+        + '<th class="n">With a Stripe id</th><th class="n">Customers after the event</th><th class="n">From a list</th>'
         + '<th class="n">Before / after the event</th><th class="n">Confirmed</th><th class="n">Contradicted</th>'
         + '<th class="n">Cost per earned lead</th><th class="n">Customers credited</th></tr></thead><tbody>'
         + el.events.map(x => `<tr><td>${x.label}${x.eventDate ? `<br><span class="muted">${x.eventDate}</span>` : ''}</td>`
@@ -4920,6 +4924,8 @@ function renderEvents() {
           + `<td class="n">${x.withCompany === null ? '–' : fmt.int(x.withCompany)}</td>`
           + `<td class="n">${x.withStripe === null ? '–' : fmt.int(x.withStripe)}${x.companyToCustomer !== null
               ? `<br><span class="muted">${pct(x.companyToCustomer)} of companies</span>` : ''}</td>`
+          + `<td class="n">${x.customerAfter === null || x.customerAfter === undefined ? '–' : fmt.int(x.customerAfter)}${x.customerAfter && x.withCompany
+              ? `<br><span class="muted">${pct(x.customerAfter / x.withCompany)} of companies</span>` : ''}</td>`
           + `<td class="n">${x.list ? `${fmt.int(x.list)}<br><span class="muted">${pct(x.listShare)} of all</span>` : fmt.int(x.list || 0)}</td>`
           + `<td class="n">${x.dated ? `${fmt.int(x.before)} / ${fmt.int(x.after)}<br><span class="${x.existedShare > 0.5 ? 'notviable' : 'muted'}">`
               + `${pct(x.existedShare)} already in HubSpot</span>`
@@ -5281,8 +5287,10 @@ function renderEvents() {
     }).join('')
     + '</tbody>';
   $('event-checks-note').textContent =
-    `${qty(applied, 'fee is', 'fees are')} changed from what the Event Costs tab carries`
-    + (settledOnTab ? `, ${fmt.int(settledOnTab)} more ${settledOnTab === 1 ? 'is' : 'are'} already corrected on the tab,` : '')
+    (applied
+      ? `${qty(applied, 'fee is', 'fees are')} changed from what the Event Costs tab carries`
+        + (settledOnTab ? `, ${fmt.int(settledOnTab)} more ${settledOnTab === 1 ? 'is' : 'are'} already corrected on the tab,` : '')
+      : settledOnTab ? `All ${fmt.int(settledOnTab)} changed fees are now on the Event Costs tab itself,` : 'No fee is changed,')
     + ` and ${qty(kept, 'is', 'are')} kept, each on the evidence shown: the November 2025 Event ROI sheet `
     + 'and the QuickBooks export traced to each bill. A change applies only while the tab still carries '
     + 'the value it replaces, so once the tab is updated, or says anything else, the tab wins and the fee '

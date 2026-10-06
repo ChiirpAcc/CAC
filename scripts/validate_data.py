@@ -346,6 +346,11 @@ def check_lead_source(customers):
         report("warning", "Customer Waterfall",
                f"{conflicts} rows carry a lead_source different from the same customer's other "
                f"rows. A customer keeps one source.")
+    if "lead_source_first" in cols:
+        firsts = [r for r in customers["rows"] if str(r.get("lead_source_first") or "").strip()]
+        if firsts and not any(str(r.get("lead_source_first_at") or "").strip() for r in firsts):
+            report("warning", "Customer Waterfall", "lead_source_first is filled but lead_source_first_at is blank on "
+                   "every row, so first-touch tags cannot be dated.")
     set_at = [r for r in customers["rows"] if str(r.get("lead_source") or "").strip()]
     if "lead_set_at" in cols and set_at and not any(str(r.get("lead_set_at") or "").strip() for r in set_at):
         # A note, not a warning: the pipeline is not being changed (Oct 2026),
@@ -479,6 +484,12 @@ def check_lead_counts(doc):
     if fewer_companies:
         report("warning", "Lead Counts", f"fewer companies than customers for {len(fewer_companies)} sources, so the "
                f"company resolution did not run: {', '.join(map(str, fewer_companies[:8]))}.")
+    more_after = [r.get("source") for r in rows
+                  if str(r.get("customer_after_event") or "").strip() not in ("", "..")
+                  and n(r.get("customer_after_event")) > n(r.get("with a stripe id"))]
+    if more_after:
+        report("warning", "Lead Counts", f"customer_after_event is larger than \"with a stripe id\" for {len(more_after)} "
+               f"sources, which cannot both be right: {', '.join(map(str, more_after[:8]))}.")
     events = [r for r in rows if str(r.get("medium") or "") == "event"]
     if len(events) < 5:
         report("warning", "Lead Counts", f"only {len(events)} of {len(rows)} sources are events; the medium "
