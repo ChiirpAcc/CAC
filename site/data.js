@@ -527,6 +527,9 @@ export async function load() {
       // HubSpot shows is the last event a contact touched; this is the first.
       leadSourceFirst: String(r.lead_source_first || '').trim() || null,
       leadSourceFirstAt: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_source_first_at || '')) ? String(r.lead_source_first_at).slice(0, 10) : null,
+      // The lead source on the deal that won this customer (Oct 2026). Blank
+      // where no won deal is linked, about seven in eight customers.
+      wonDealSource: String(r.won_deal_source || '').trim() || null,
       // When the HubSpot record carrying the source was created, and when the
       // source field was first given a value (v128). Blank stays null.
       leadDate: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_date || '')) ? String(r.lead_date).slice(0, 10) : null,
@@ -3688,7 +3691,10 @@ export const WINBACK_GAP = 3;
 // to exist by the end of the month after the event, so a contact created and
 // tagged months later is left out. 'within3' and 'within6' need the first
 // payment within that many months of the event, counting its month as one.
-export const CREDIT_RULES = ['all', 'record', 'within3', 'within6'];
+// 'won' leaves out a customer whose won deal names another source: the
+// event's deal was lost and something else won them, so the event keeps the
+// lead and not the revenue. A customer with no won deal linked stays in.
+export const CREDIT_RULES = ['all', 'record', 'within3', 'within6', 'won'];
 
 // 'last' reads the tag HubSpot shows now, which is the last event a contact
 // touched; 'first' reads the first value the field ever held (v138).
@@ -3763,6 +3769,8 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', tou
   // it carries a year, as the pipeline's own rule has it.
   const rawMediumOf = new Map();
   for (const r of data.customers) if (r.leadSource && r.leadMediumRaw) rawMediumOf.set(r.leadSource, r.leadMediumRaw);
+  const wonDealOf = new Map();
+  for (const r of data.customers) if (r.wonDealSource) wonDealOf.set(r.id, r.wonDealSource);
   const firstTouch = touch === 'first';
   for (const r of data.customers) {
     const src = firstTouch ? r.leadSourceFirst || r.leadSource : r.leadSource;
@@ -3987,7 +3995,13 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', tou
       rowsIn = b.rows.filter(r => ids.has(r.id));
     }
     if (creditRule !== 'all' && fromMonth && !upcoming) {
+      // The won deal names this event if it carries the same value, or one
+      // that reads as the same cost row.
+      const sameEvent = won => won === b.source || (cost && (EVENT_ALIASES[won] === cost.event
+        || (eventWords(won.replace(/^20\d\d\s*-\s*/, '')) === cost.words
+          && ((won.match(/^(20\d\d)\s*-/) || [])[1] || cost.year) === cost.year)));
       const keep = id => {
+        if (creditRule === 'won') return !wonDealOf.has(id) || sameEvent(wonDealOf.get(id));
         const fp = firstRevenueOf.get(id);
         if (!fp || fp < fromMonth) return true; // never paid, already paying or a win-back: decided below
         if (creditRule === 'record') {
