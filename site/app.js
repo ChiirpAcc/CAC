@@ -4470,9 +4470,11 @@ function renderEventPage(label) {
       + `2027: ${e.plan2027.startsWith('On') ? 'on the calendar' : e.plan2027.startsWith('Dropped') ? 'dropped' : 'not listed'}</span>` : '');
   const kpis = e.upcoming
     ? kpi('Status', 'Upcoming', `happens ${fmt.monthLabel(e.upcoming)}`)
-    : kpi('Cost', money(e.spend))
+    : (e.costState === 'absent'
+      ? kpi('Cost', 'Not found', 'a fee was expected; no amount yet')
+      : kpi('Cost', money(e.spend)))
       + kpi('Contribution', money(e.contribution), `${money(e.collected)} collected`)
-      + kpi('Net so far', signed(e.net), '', tone(e.net))
+      + kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), '', e.costState === 'absent' ? '' : tone(e.net))
       + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', '', pb ? tone(pb.roiToDate) : '')
       + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12Projected ? 'projected' : 'actual', pb ? tone(pb.roi12) : '')
       + kpi('Customers', int(e.paid), `${int(e.liveNow)} still live · ${money(e.mrrNow)} MRR`
@@ -4496,7 +4498,7 @@ function renderEventPage(label) {
     : c.feeFrom === 'QuickBooks' ? 'Agrees with QuickBooks'
     : c.feeFrom === 'added here' ? 'Added here until the Event Costs tab carries it' : 'As the Event Costs tab carries it';
   const costFacts = c
-    ? fact('Fee used', money(c.sponsor), feeFrom)
+    ? fact('Fee used', c.costState === 'absent' ? 'Not found' : money(c.sponsor), c.costState === 'absent' ? 'expected, no amount found yet' : feeFrom)
       + (c.tabSponsor !== c.sponsor ? fact('Tab carries', money(c.tabSponsor), 'replaced by the fee used') : '')
       + fact('Travel', money(c.travel), c.travel === null ? 'not known yet'
         : c.extra && c.costSource === 'modelled' ? 'modelled estimate' : 'airfare, ground, lodging, meals')
