@@ -771,11 +771,11 @@
     <div class="chart-control">
       <label for="events-credit">Credit an event with</label>
       <select id="events-credit">
+        <option value="won" selected>Every tagged customer who paid after it, unless another source's deal won them</option>
         <option value="all">Every tagged customer who paid after it</option>
         <option value="record">Only contacts in HubSpot by the month after it</option>
         <option value="within3">Only customers who first paid within 3 months</option>
         <option value="within6">Only customers who first paid within 6 months</option>
-        <option value="won">Only customers no other source's deal won</option>
         <option value="direct">Only direct customers: the event's own deal won them</option>
       </select>
       <output id="events-credit-note"></output>

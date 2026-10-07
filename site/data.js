@@ -3755,12 +3755,15 @@ export const WINBACK_GAP = 3;
 // 'direct' keeps only customers the pipeline grades direct: the event's own
 // deal won them. An event with no date can have none.
 export const CREDIT_RULES = ['all', 'record', 'within3', 'within6', 'won', 'direct'];
+// The rule every figure uses unless a reader picks another (7 Oct 2026): it
+// removes only the customers another source's deal is recorded as winning.
+export const DEFAULT_CREDIT_RULE = 'won';
 
 // 'last' reads the tag HubSpot shows now, which is the last event a contact
 // touched; 'first' reads the first value the field ever held (v138).
 export const TOUCHES = ['last', 'first'];
 
-export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', touch = 'last' } = {}) {
+export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CREDIT_RULE, touch = 'last' } = {}) {
   const costs = [...(data.eventCosts || []).map(c => ({ ...c, extra: false })),
     ...EVENT_EXTRA_COSTS.filter(x => !onTab(x, data.eventCosts || [])).map(x => ({ ...x, extra: true }))];
   const tagged = data.customers.filter(r => r.leadSource);
@@ -4996,7 +4999,18 @@ export function marketingReport(data, roi = eventRoi(data)) {
   // so they are read here as untagged, as the Events tab keeps them out.
   if (roi) {
     const credited = new Set(roi.events.filter(e => !e.upcoming).flatMap(e => e.broughtIds));
-    for (const [id, c] of catOf) if (c === 'Events' && !credited.has(id)) catOf.set(id, 'Untagged');
+    // One whose event deal was lost and another source's deal won goes to
+    // that source instead.
+    const mediumOfSource = new Map();
+    for (const r of data.customers) if (r.leadSource && r.leadMedium) mediumOfSource.set(r.leadSource, r.leadMedium);
+    const wonOf = new Map(data.customers.filter(r => r.wonDealSource).map(r => [r.id, r.wonDealSource]));
+    for (const [id, c] of catOf) {
+      if (c !== 'Events' || credited.has(id)) continue;
+      const won = wonOf.get(id);
+      const via = won ? customerCategory({ leadSource: won, leadMedium: mediumOfSource.get(won)
+        || leadMediumOf(won, /^20\d\d\s*-/.test(won) ? 'event' : null) }) : null;
+      catOf.set(id, via && via !== 'Events' ? via : 'Untagged');
+    }
   }
   const starterCat = new Map();
   for (const [id, m] of first) {

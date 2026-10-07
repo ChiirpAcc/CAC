@@ -14,7 +14,7 @@ import {
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
-  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn,
+  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4427,7 +4427,7 @@ function renderEventPage(label) {
   const box = $('event-page');
   if (!box) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
-  const creditRule = ($('events-credit') && $('events-credit').value) || 'all';
+  const creditRule = ($('events-credit') && $('events-credit').value) || DEFAULT_CREDIT_RULE;
   const touch = ($('events-touch') && $('events-touch').value) || 'last';
   const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule, touch });
   const e = r ? r.roi.events.find(x => x.label === label) : null;
@@ -4629,7 +4629,7 @@ function renderEventPage(label) {
 function renderEvents() {
   if (!$('chart-events')) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
-  const creditRule = ($('events-credit') && $('events-credit').value) || 'all';
+  const creditRule = ($('events-credit') && $('events-credit').value) || DEFAULT_CREDIT_RULE;
   const touch = ($('events-touch') && $('events-touch').value) || 'last';
   const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule, touch });
   for (const id of ['events-credit', 'events-touch']) {
@@ -4647,7 +4647,10 @@ function renderEvents() {
   if ($('events-credit-note')) {
     $('events-credit-note').textContent = creditRule === 'all'
       ? 'Every tagged customer who first paid in or after the event’s month.'
-      : `${fmt.int(e.droppedRule)} tagged customer${e.droppedRule === 1 ? '' : 's'} left out by this rule.`;
+      : creditRule === 'won'
+        ? `The default. Every tagged customer who first paid in or after the event’s month, except `
+          + `${fmt.int(e.droppedRule)} whose event deal was lost and who were won through another source.`
+        : `${fmt.int(e.droppedRule)} tagged customer${e.droppedRule === 1 ? '' : 's'} left out by this rule.`;
   }
   const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
   const signed = v => (v === null || v === undefined ? '–'
