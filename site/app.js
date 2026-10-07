@@ -4105,8 +4105,8 @@ function renderMarketingTop(r) {
       + step('paying', t.customers, t.wonToCustomer) + `</div></a>`;
   }).join('');
   $('mkt-funnel-note').textContent =
-    'Leads are HubSpot contacts by how they first arrived; deals opened and won are by the deal’s own lead '
-    + 'source; paying customers are Stripe customers by their tag. The rate under won is won over opened, and under '
+    'Leads are HubSpot contacts by how they first arrived; deals opened and won are by the deal’s lead '
+    + 'source, or its sub-source where one is set; paying customers are Stripe customers by their tag. The rate under won is won over opened, and under '
     + 'paying is paying customers over won deals. The three are tagged by different people at different times, so '
     + 'a source can show more paying customers than won deals, which is shown as a dash rather than a rate over '
     + '100%. '
@@ -5096,6 +5096,10 @@ function renderEvents() {
   // ---------------------------------------------------------------- how the tags were made
   const hsfNow = e.events.find(x => x.label === 'HSF 2025');
   if ($('event-hsf-now') && hsfNow) $('event-hsf-now').textContent = fmt.int(hsfNow.paid);
+  const hsfLeads = (data.leadCounts || []).find(x => x.source === '2025 - Home Service Freedom');
+  if ($('event-hsf-list') && hsfLeads && hsfLeads.total) {
+    $('event-hsf-list').textContent = `${fmt.int(hsfLeads.total)} tagged contacts, ${fmt.int(hsfLeads.list)} of them from a list`;
+  }
   if ($('event-hsf-made') && hsfNow && hsfNow.tags) {
     const h = hsfNow.tags;
     $('event-hsf-made').textContent = `of the ${fmt.int(hsfNow.paid)} customers who keep the tag, `
