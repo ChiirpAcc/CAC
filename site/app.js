@@ -4020,7 +4020,9 @@ function renderMarketingTop(r) {
     + kpi('Paying customers', int(r.customersAll), `${money(r.blendedPerCustomer)} each`)
     + kpi('Contribution returned', money(r.contributionAll), 'from customers who started in these months')
     + kpi('ROI on paid channels', sp(r.paidRoi), `${money(r.paidSpend)} spent`, tone(r.paidRoi))
-    + kpi('Still coming in', `${money(r.mrrNowAll)}`, 'MRR from these customers', 'pos');
+    + kpi('Still coming in', `${money(r.mrrNowAll)}`, r.pausedNowAll
+      ? `MRR from these customers, plus ${money(r.pausedMrrAll)} paused by coupons on ${fmt.int(r.pausedNowAll)}`
+      : 'MRR from these customers', 'pos');
 
   // The ranking.
   const technical = Boolean($('mkt-view-technical') && $('mkt-view-technical').checked);
@@ -4376,7 +4378,8 @@ function renderMarketing() {
         + `<td class="n">${money(t.contribution)}</td>`
         + `<td class="n"><span class="${t.net < 0 ? 'notviable' : 'held'}">${t.net < 0 ? '−' : '+'}${fmt.money(Math.abs(t.net))}</span></td>`
         + `<td class="n">${t.roi === null ? '–' : `<span class="${t.roi < 0 ? 'notviable' : 'held'}">${sp(t.roi)}</span>`}</td>`
-        + `<td class="n">${int(t.liveNow)}<br><span class="muted">${money(t.mrrNow)} MRR</span></td></tr>`).join('')
+        + `<td class="n">${int(t.liveNow)}<br><span class="muted">${money(t.mrrNow)} MRR</span>`
+        + `${t.pausedNow ? `<br><span class="muted">${fmt.int(t.pausedNow)} on a coupon, ${money(t.pausedMrr)} paused</span>` : ''}</td></tr>`).join('')
       + '</tbody>';
     const paidCats = r.totals.filter(t => t.hasSpend);
     $('mkt-summary-finding').innerHTML = paidCats.map(t => `<strong>${t.category}</strong> cost ${money(t.spend)} `
@@ -4387,7 +4390,9 @@ function renderMarketing() {
       'Billed so far is everything the customers who started paying in these months have been billed since: '
       + 'recurring is the subscription and its usage, one-time is set-up, one-off and pass-through charges. '
       + 'Contribution is that revenue less platform, people and variable cost, chart 49’s basis, and ROI is '
-      + 'contribution less spend, over spend. It is a to-date figure: a channel whose customers started recently '
+      + 'contribution less spend, over spend. A month a coupon made free counts as cost with no revenue, which it was, '
+      + 'and is not a departure; the projection skips free months, and MRR a coupon is holding back is shown as paused. '
+      + 'It is a to-date figure: a channel whose customers started recently '
       + 'has had little time to pay back, so still paying shows the monthly revenue that keeps arriving. Spend that '
       + 'recurs is paid every month whether or not a customer arrives; one-time spend is paid once per event. '
       + 'Events count only the customers the Events tab credits; a customer tagged to an event they were already '
@@ -4470,7 +4475,8 @@ function renderEventPage(label) {
       + kpi('Net so far', signed(e.net), '', tone(e.net))
       + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', '', pb ? tone(pb.roiToDate) : '')
       + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12Projected ? 'projected' : 'actual', pb ? tone(pb.roi12) : '')
-      + kpi('Customers', int(e.paid), `${int(e.liveNow)} still live · ${money(e.mrrNow)} MRR`)
+      + kpi('Customers', int(e.paid), `${int(e.liveNow)} still live · ${money(e.mrrNow)} MRR`
+        + (e.pausedNow ? ` · ${fmt.int(e.pausedNow)} on a coupon, ${money(e.pausedMrr)} paused` : ''))
       + (e.paid && e.evidence ? kpi('Direct customers', int(e.evidence.direct),
         e.evidence.direct ? `${money(e.spend / e.evidence.direct)} each${evDated ? '' : ', undated'}` : evDated ? 'none closed by its own deal' : 'undated, cannot be tested') : '')
       + kpi('Pays for itself', payWords, paySub, pb && (pb.status === 'paid' || pb.status === 'projected') ? 'pos' : '');

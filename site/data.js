@@ -488,6 +488,11 @@ export async function load() {
       eventType: r.event_type || '',
       active: LIVE_EVENTS.has(r.event_type),
       eopMrr: num(r.eop_mrr),
+      // A coupon: Stripe's invoice discounts in the month. A month whose
+      // discount took the whole charge, with no MRR and no cash, is a free
+      // month: the customer is live and paused, not leaving and not paying.
+      discount: num(r.invoice_discounts) || 0,
+      freeMonth: (num(r.invoice_discounts) || 0) > 0 && !((num(r.net_cash) || 0) > 0) && !((num(r.eop_mrr) || 0) > 0),
       // The subscription booked when a customer joins, and the cash that
       // actually arrived. new_mrr is the only price measure that exists for
       // every month in the window; starting_mrr is richer but only populated
@@ -3960,6 +3965,8 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     let collected = 0;
     let revenue = 0;
     let mrrNow = 0;
+    let pausedNow = 0;
+    let pausedMrr = 0;
     const liveNow = new Set();
     const cashByMonth = new Map();
     for (const r of rows) {
@@ -3972,6 +3979,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       if (r.month === lastMonth && r.active) {
         liveNow.add(r.id);
         mrrNow += r.eopMrr || 0;
+        if (r.freeMonth) { pausedNow += 1; pausedMrr += r.discount || 0; }
       }
     }
     let contribution = 0;
@@ -4015,6 +4023,9 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       neverPaid: [...ids].filter(id => never.has(id)).length,
       liveNow: liveNow.size,
       mrrNow,
+      // Live customers on a free month now, and the price the coupon is holding back.
+      pausedNow,
+      pausedMrr,
       collected,
       revenue,
       // Nobody counted means nothing returned, which is zero rather than
@@ -4276,6 +4287,7 @@ export const CHANNEL_SPEND = {
 export function eventReports(data, options = {}) {
   const roi = eventRoi(data, options);
   if (!roi) return null;
+  const freeMonthKeys = new Set(data.customers.filter(r => r.freeMonth).map(r => `${r.id}|${r.month}`));
   const lastMonth = roi.lastMonth;
   const serve = accountServeCost(data);
   const byIdMonth = new Map();
@@ -4395,6 +4407,7 @@ export function eventReports(data, options = {}) {
       if (paidAt === null && running >= e.spend) paidAt = k;
     }
     const live = e.broughtIds.filter(id => liveIn.get(id) && liveIn.get(id).has(lastMonth));
+    const freeIn = freeMonthKeys;
     // The median of each customer's last three months, so one large invoice
     // cannot set the pace for two years. Only months from their first
     // payment: a customer live at $0 for three months who has just started
@@ -4403,7 +4416,8 @@ export function eventReports(data, options = {}) {
     const rates = live.map(id => {
       const months = byIdMonth.get(id);
       const from = firstPaid.get(id) || lastMonth;
-      const keys = [...(months ? months.keys() : [])].filter(m => m >= from).sort().slice(-3);
+      // Free months on a coupon are left out: the price comes back after them.
+      const keys = [...(months ? months.keys() : [])].filter(m => m >= from && !freeIn.has(`${id}|${m}`)).sort().slice(-3);
       const vals = keys.map(m => months.get(m)).sort((x, y) => x - y);
       const mid = vals.length >> 1;
       const rate = !vals.length ? 0 : vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
@@ -5068,14 +5082,17 @@ export function marketingReport(data, roi = eventRoi(data)) {
   }
   const projected12 = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, 0]));
   const customerRows = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, []]));
+  const freeKeys = new Set(data.customers.filter(r => r.freeMonth).map(r => `${r.id}|${r.month}`));
+  const paused = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, { n: 0, mrr: 0 }]));
   for (const [id, cat] of starterCat) {
     const now = nowRow.get(id);
     const live = Boolean(now && now.active);
+    if (live && now.freeMonth) { paused[cat].n += 1; paused[cat].mrr += now.discount || 0; }
     let rate = 0;
     if (live) {
       const months = contribMonths.get(id) || new Map();
-      const vals = [...months.keys()].filter(m => m >= first.get(id)).sort().slice(-3).map(m => months.get(m))
-        .sort((a, b) => a - b);
+      const vals = [...months.keys()].filter(m => m >= first.get(id) && !freeKeys.has(`${id}|${m}`)).sort().slice(-3)
+        .map(m => months.get(m)).sort((a, b) => a - b);
       const mid = vals.length >> 1;
       rate = !vals.length ? 0 : vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
       if (base && rate > 0) {
@@ -5109,6 +5126,7 @@ export function marketingReport(data, roi = eventRoi(data)) {
     return {
       leadsAllTime, category: cat, spend, leads, created, won, customers,
       wonMrr: live ? sum(cat, 'wonMrr') : null, openedInBulk: live ? sum(cat, 'bulk') : null,
+      pausedNow: paused[cat].n, pausedMrr: paused[cat].mrr,
       projected12: projected12[cat],
       roi12: spend > 0 ? (ahead - spend) / spend : null,
       leadToWon: leads > 0 ? won / leads : null,
@@ -5154,6 +5172,8 @@ export function marketingReport(data, roi = eventRoi(data)) {
     paidRoi: paidSpend ? (paidContribution - paidSpend) / paidSpend : null, paidSpend, paidContribution,
     contributionAll: totals.reduce((t, x) => t + x.contribution, 0),
     mrrNowAll: totals.reduce((t, x) => t + x.mrrNow, 0),
+    pausedNowAll: totals.reduce((t, x) => t + x.pausedNow, 0),
+    pausedMrrAll: totals.reduce((t, x) => t + x.pausedMrr, 0),
     blendedPerWon: per(spendAll, wonAll), blendedPerCustomer: per(spendAll, customersAll),
     adsCheck: byMonth.map(x => ({ month: x.month, pushed: x.adsTotal, other: x.adsOther })),
     snapshotAsOf: live ? null : snap.asOf, leadsPushedAt: live ? data.marketingMonthlyPushedAt || data.pushedAt : null,
