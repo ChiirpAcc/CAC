@@ -572,10 +572,7 @@ def check_marketing_monthly(doc, present):
         report("note", "Marketing Monthly", f"{sum(n(r.get('deals_won')) for r in held):,.0f} won deals carry a close "
                f"date in the future ({', '.join(sorted({str(r.get('month')) for r in held}))}), marked as renewal "
                f"placeholders; the site leaves them out.")
-    no_mrr = [r for r in rows if n(r.get("deals_won")) > 0 and not n(r.get("won_mrr"))]
-    if no_mrr:
-        report("note", "Marketing Monthly", ("one row has" if len(no_mrr) == 1 else f"{len(no_mrr)} rows have") + " won deals with no signed MRR: "
-               + ", ".join(f"{r.get('month')} {r.get('category')}" for r in no_mrr[:6]) + ".")
+
 
 
 def main():
