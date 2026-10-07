@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-06T17:01:49",
+  "pushed_at": "2026-10-07T13:26:25",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -34,7 +34,7 @@
     {
       "tab": "Cash Detail",
       "file": "cash_detail.json",
-      "rows": 46549
+      "rows": 46540
     },
     {
       "tab": "Subscription Lifetimes",
@@ -55,9 +55,16 @@
       "tab": "Lead Counts",
       "file": "lead_counts.json",
       "rows": 89
+    },
+    {
+      "tab": "Marketing Monthly",
+      "file": "marketing_monthly.json",
+      "rows": 937
     }
   ],
+  "missing_required": [],
+  "failed": [],
   "row_format": "arrays",
-  "pipeline_version": "v143",
-  "push_version": "gh-v8"
+  "pipeline_version": "v147",
+  "push_version": "gh-v10"
 }
