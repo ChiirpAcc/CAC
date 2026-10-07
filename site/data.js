@@ -627,7 +627,10 @@ export async function load() {
           // v133: a cost the pipeline knows is not final. 'settling' is under 45
           // days since the event, 'pending' has no cost found yet, 'not yet'
           // is an event still ahead. Worked out by the pipeline from the date.
+          // v152: 'absent' is a fee that was expected and not found, which is
+          // unknown rather than free.
           costState: /not yet/i.test(String(r.cost_source || '')) ? 'not yet'
+            : /absent/i.test(String(r.cost_source || '')) ? 'absent'
             : /pending/i.test(String(r.cost_source || '')) ? 'pending'
             : /settling/i.test(String(r.cost_source || '')) ? 'settling' : null,
           note: String(r.note || '').trim() || null,
@@ -3638,7 +3641,12 @@ export const EVENT_META = {
   'Nuve 2026': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
   'Grosso University 2026': { type: 'Partner network event', organiser: 'Grosso University', plan2027: ON },
   // Due on the tab within the next pushes.
-  'Home Service Hoorah 2026': { type: 'Partner network event', organiser: 'The Wealthy Plumber', plan2027: ON },
+  // A separate event from the Wealthy Plumber Hoorah (pipeline v152): the booth
+  // was billed by Gulf Coast Business Coaching.
+  'Home Service Hoorah 2026': { type: 'Conference sponsorship', organiser: 'Gulf Coast Business Coaching', plan2027: ON },
+  // Captured through a co-marketing webinar with Jered Williams in June and
+  // July 2026; no date and no fee found yet (pipeline v152).
+  'Wealthy Plumber 2026': { type: 'Not yet classified', organiser: 'The Wealthy Plumber' },
   'Nexstar Super Meeting 2026': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
   'HSF 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   'Home Service Freedom 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },

@@ -4723,7 +4723,8 @@ function renderEvents() {
   // than the chosen age is set aside, not ranked low.
   const costed = e.events.filter(eventHasReturn);
   const t = e.totals;
-  const stateWords = { settling: 'cost still settling', pending: 'no cost found yet', 'not yet': 'event still ahead' };
+  const stateWords = { settling: 'cost still settling', pending: 'no cost found yet', 'not yet': 'event still ahead',
+    absent: 'fee expected, not found' };
   const paybackBy = new Map(r.payback.map(p => [p.label, p]));
   const paybackWords = p => (!p ? 'no projection'
     : p.status === 'paid' ? `paid for itself in month ${p.paidAt}`
