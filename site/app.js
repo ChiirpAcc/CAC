@@ -6340,6 +6340,10 @@ function renderStatic() {
   }
   $('stamp').textContent =
     (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
+    + (data.unfinishedPush
+      ? `That push did not finish: its index was not written, so the tabs are read from the list of the last `
+        + `finished push (${data.unfinishedPush.indexPushedAt.replace('T', ' ')}${data.unfinishedPush.indexVersion
+          ? `, ${data.unfinishedPush.indexVersion}` : ''}), and any tab it did not reach is the earlier copy. ` : '')
     + `Months ${data.historyStarts} to ${data.lastMonth}, `
     + `${monthDiff(data.historyStarts, data.lastMonth) + 1} months, `
     + `reaching back as far as the finance tabs go.`

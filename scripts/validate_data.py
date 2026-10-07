@@ -536,7 +536,10 @@ def check_marketing_monthly(doc, present):
     starts. A month far past today is a date nobody meant, and a bulk count above
     the deals opened is a count of the wrong thing."""
     if "Marketing Monthly" not in present:
-        report("note", "Marketing Monthly", "not in the push; the Marketing tab reads its 5 Oct 2026 snapshot.")
+        stale = load("marketing_monthly.json")
+        report("note", "Marketing Monthly", "not in the push; the Marketing tab reads "
+               + (f"the copy pushed {stale.get('pushed_at')} ({stale.get('pipeline_version')})." if stale
+                  else "its 5 Oct 2026 snapshot."))
         return
     if not doc:
         return
@@ -577,6 +580,20 @@ def main():
         return finish()
 
     present = {entry["tab"]: entry for entry in index.get("files", [])}
+
+    # A push writes the tabs first and the index last. Tabs newer than the
+    # index mean a push stopped part way.
+    newer = {}
+    for entry in index.get("files", []):
+        doc = load(entry["file"])
+        if doc and str(doc.get("pushed_at") or "") > str(index.get("pushed_at") or ""):
+            newer[entry["tab"]] = (doc.get("pushed_at"), doc.get("pipeline_version"))
+    if newer:
+        when = sorted({v for v in newer.values()})
+        report("warning", "index.json", f"{len(newer)} tabs were pushed after the index "
+               f"({', '.join(f'{a} {b}' for a, b in when)} against {index.get('pushed_at')} "
+               f"{index.get('pipeline_version')}), so a push stopped before writing the index; "
+               f"tabs it did not reach are the earlier copies.")
 
     for tab, spec in REQUIRED_TABS.items():
         if tab not in present:

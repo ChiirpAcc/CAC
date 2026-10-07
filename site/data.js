@@ -674,9 +674,15 @@ export async function load() {
     : null;
 
   const vocabulary = checkVocabulary(byTab['Customer Waterfall'], customers);
+  const newestPush = Object.values(byTab).map(d => d && d.pushed_at).filter(Boolean).sort().pop() || null;
 
   return {
-    pushedAt: index.pushed_at || null,
+    // A push writes the tabs first and the index last, so one that stops
+    // part way (7 Oct 2026, v147) leaves newer tabs under an older index. The
+    // date shown is the newest tab's, and the gap is said.
+    pushedAt: newestPush || index.pushed_at || null,
+    unfinishedPush: newestPush && index.pushed_at && newestPush > index.pushed_at
+      ? { indexPushedAt: index.pushed_at, indexVersion: index.pipeline_version || null } : null,
     ledgerThrough,
     hasLeadSource: (byTab['Customer Waterfall'].columns || []).includes('lead_source'),
     pipelineVersion: byTab['Customer Waterfall'].pipeline_version || null,
@@ -689,6 +695,7 @@ export async function load() {
     eventCosts,
     leadCounts,
     marketingMonthly,
+    marketingMonthlyPushedAt: byTab['Marketing Monthly'] ? byTab['Marketing Monthly'].pushed_at || null : null,
     webinars,
     lifetimes,
     lifetimeRecords,
@@ -5056,7 +5063,7 @@ export function marketingReport(data, roi = eventRoi(data)) {
     mrrNowAll: totals.reduce((t, x) => t + x.mrrNow, 0),
     blendedPerWon: per(spendAll, wonAll), blendedPerCustomer: per(spendAll, customersAll),
     adsCheck: byMonth.map(x => ({ month: x.month, pushed: x.adsTotal, other: x.adsOther })),
-    snapshotAsOf: live ? null : snap.asOf, leadsPushedAt: live ? data.pushedAt : null,
+    snapshotAsOf: live ? null : snap.asOf, leadsPushedAt: live ? data.marketingMonthlyPushedAt || data.pushedAt : null,
     bulkAll: live ? totals.reduce((t, x) => t + (x.openedInBulk || 0), 0) : null,
     createdAll: totals.reduce((t, x) => t + x.created, 0) };
 }
