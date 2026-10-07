@@ -756,8 +756,11 @@
         travel, with disputed fees settled on the evidence below and a fee that
         paid for several events split across them. The customers are the ones
         HubSpot tags with that event as their lead source, matched to Stripe,
-        counted only if their first payment came in or after the event's month.
-        Tagged customers only, so every count is a floor.</p>
+        counted only if their first payment came in or after the event's month.</p>
+      <p><strong>Every event number here is a floor.</strong> Nothing sets the lead
+        source automatically: about one deal in five carries one, and the share swings
+        with whoever was typing. A customer an event brought who was never tagged is
+        invisible on this tab and stays invisible.</p>
     </header>
     <p class="finding" id="events-coverage"></p>
     <div class="chart-control">
@@ -773,6 +776,7 @@
         <option value="within3">Only customers who first paid within 3 months</option>
         <option value="within6">Only customers who first paid within 6 months</option>
         <option value="won">Only customers no other source's deal won</option>
+        <option value="direct">Only direct customers: the event's own deal won them</option>
       </select>
       <output id="events-credit-note"></output>
     </div>
@@ -850,6 +854,13 @@
         customers are unaffected, because the imported contacts were almost all people who never became
         customers: <span id="event-hsf-made">most of the customers who keep the tag have a record made
         around the event or before it</span>.</p>
+      <p class="finding" id="event-hsf-dated"><strong>HSF 2025 has a date, 7 October 2026 (pipeline v148).</strong>
+        The event ran 2 to 5 September 2025, from a Drive folder made at the time. Of the won deals tagged to it,
+        61 were created before the event, spread over nineteen months with none in the six weeks before it, 29
+        during it and 11 after: an existing customer base carrying the tag, not an attendee list. HSF holds 101
+        of the 180 event-tagged wins in the whole file. This tab already leaves out a customer who was paying
+        before the event, which removes most of that older base; what is left is graded below.
+        <span id="event-hsf-evidence"></span></p>
       <p class="finding" id="event-tags-finding"></p>
       <div class="plot" id="chart-event-tags"></div>
       <div class="table-scroll">

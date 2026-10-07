@@ -531,6 +531,14 @@ export async function load() {
       // The lead source on the deal that won this customer (Oct 2026). Blank
       // where no won deal is linked, about seven in eight customers.
       wonDealSource: String(r.won_deal_source || '').trim() || null,
+      // The pipeline's grade of an event tag (v147, rules v148): direct is the
+      // won deal naming the event, with the record made on or after it or
+      // within 45 days before; indirect is the tag naming it while the won
+      // deal names something else or the record is older; tag only is no won
+      // deal. Blank for anything that is not an event, or an event with no
+      // date to test against. Lag is months from the event to first payment.
+      eventCredit: (v => (['direct', 'indirect', 'tag only'].includes(v) ? v : null))(String(r.event_credit || '').trim().toLowerCase()),
+      eventLag: String(r.event_lag_months ?? '').trim() === '' ? null : num(r.event_lag_months),
       // When the HubSpot record carrying the source was created, and when the
       // source field was first given a value (v128). Blank stays null.
       leadDate: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_date || '')) ? String(r.lead_date).slice(0, 10) : null,
@@ -646,6 +654,9 @@ export async function load() {
         // and the Stripe customers carrying the tag.
         earnedAfter: count(r.earned_after_event),
         customersTotal: count(r.customers_total),
+        // v148: contacts counted from a HubSpot first-touch campaign where
+        // nobody typed a lead source.
+        fromCampaign: count(r.from_campaign_not_a_tag),
         readAs: String(r['read this as'] || '').trim() || null,
       }))
     : [];
@@ -681,6 +692,10 @@ export async function load() {
     // part way (7 Oct 2026, v147) leaves newer tabs under an older index. The
     // date shown is the newest tab's, and the gap is said.
     pushedAt: newestPush || index.pushed_at || null,
+    pushGaps: {
+      missingRequired: Array.isArray(index.missing_required) ? index.missing_required : [],
+      failed: Array.isArray(index.failed) ? index.failed.map(f => (typeof f === 'string' ? f : f && (f.tab || f.name) ? `${f.tab || f.name}${f.reason ? ` (${f.reason})` : ''}` : JSON.stringify(f))) : [],
+    },
     unfinishedPush: newestPush && index.pushed_at && newestPush > index.pushed_at
       ? { indexPushedAt: index.pushed_at, indexVersion: index.pipeline_version || null } : null,
     ledgerThrough,
@@ -3727,7 +3742,9 @@ export const WINBACK_GAP = 3;
 // 'won' leaves out a customer whose won deal names another source: the
 // event's deal was lost and something else won them, so the event keeps the
 // lead and not the revenue. A customer with no won deal linked stays in.
-export const CREDIT_RULES = ['all', 'record', 'within3', 'within6', 'won'];
+// 'direct' keeps only customers the pipeline grades direct: the event's own
+// deal won them. An event with no date can have none.
+export const CREDIT_RULES = ['all', 'record', 'within3', 'within6', 'won', 'direct'];
 
 // 'last' reads the tag HubSpot shows now, which is the last event a contact
 // touched; 'first' reads the first value the field ever held (v138).
@@ -3804,6 +3821,17 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', tou
   for (const r of data.customers) if (r.leadSource && r.leadMediumRaw) rawMediumOf.set(r.leadSource, r.leadMediumRaw);
   const wonDealOf = new Map();
   for (const r of data.customers) if (r.wonDealSource) wonDealOf.set(r.id, r.wonDealSource);
+  // The pipeline grades a customer against their current tag, so the grade
+  // applies only where the event read is that tag.
+  const creditOf = new Map();
+  const lagOf = new Map();
+  const tagOf = new Map();
+  for (const r of data.customers) {
+    if (r.leadSource) tagOf.set(r.id, r.leadSource);
+    if (r.eventCredit) creditOf.set(r.id, r.eventCredit);
+    if (r.eventLag !== null && r.eventLag !== undefined) lagOf.set(r.id, r.eventLag);
+  }
+  const datedSources = new Map((data.leadCounts || []).filter(x => x.eventDate).map(x => [x.source, x.eventDate]));
   const firstTouch = touch === 'first';
   for (const r of data.customers) {
     const src = firstTouch ? r.leadSourceFirst || r.leadSource : r.leadSource;
@@ -4035,6 +4063,12 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', tou
     if (creditRule !== 'all' && fromMonth && !upcoming) {
       const keep = id => {
         if (creditRule === 'won') return !wonDealOf.has(id) || sameEvent(wonDealOf.get(id));
+        if (creditRule === 'direct') {
+          // Already paying and never paid are decided below, as for every rule.
+          const fp = firstRevenueOf.get(id);
+          if (!fp || (fp < fromMonth && !isWinback(id, fromMonth))) return true;
+          return tagOf.get(id) === b.source && creditOf.get(id) === 'direct';
+        }
         const fp = firstRevenueOf.get(id);
         if (!fp || fp < fromMonth) return true; // never paid, already paying or a win-back: decided below
         if (creditRule === 'record') {
@@ -4050,11 +4084,31 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', tou
       rowsIn = rowsIn.filter(r => ids.has(r.id));
     }
     const summary = summarise(ids, rowsIn, fromMonth, Boolean(upcoming));
-    // A credited customer whose won deal names another source.
+    // A credited customer whose won deal names another source, and the
+    // pipeline's grade of the tag with the months to first payment.
     for (const x of summary.customerRows) {
       const won = wonDealOf.get(x.id);
       x.wonElsewhere = won && !sameEvent(won) ? won : null;
+      const graded = tagOf.get(x.id) === b.source;
+      x.credit = graded ? creditOf.get(x.id) || null : null;
+      x.lag = graded && lagOf.has(x.id) ? lagOf.get(x.id) : null;
     }
+    // Split over the credited customers who have paid, the count the tab shows.
+    const paying = summary.customerRows.filter(x => x.firstPaid);
+    const lags = paying.map(x => x.lag).filter(v => v !== null).sort((a, z) => a - z);
+    const mid = lags.length >> 1;
+    summary.evidence = {
+      direct: paying.filter(x => x.credit === 'direct').length,
+      indirect: paying.filter(x => x.credit === 'indirect').length,
+      tagOnly: paying.filter(x => x.credit === 'tag only').length,
+      ungraded: paying.filter(x => !x.credit).length,
+      lag: lags.length ? { n: lags.length, min: lags[0], max: lags[lags.length - 1],
+        median: lags.length % 2 ? lags[mid] : (lags[mid - 1] + lags[mid]) / 2 } : null,
+    };
+    summary.eventDate = datedSources.get(b.source) || null;
+    // Dated where Lead Counts carries a date, or where the pipeline measured a
+    // lag for any customer, which it can only do against a date.
+    summary.evidence.dated = Boolean(summary.eventDate) || summary.customerRows.some(x => x.lag !== null);
     if (upcoming) { summary.collected = null; summary.revenue = null; summary.mrrNow = null; }
     events.push({ source: b.source, year, cost, upcoming, listedMonth: listed, ...summary,
       // The same customers the credited count is made of: brought, and paying.
@@ -4067,6 +4121,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = 'all', tou
   for (const c of costRows) {
     if (used.has(c.event)) continue;
     events.push({ source: null, year: c.year, cost: c, broughtIds: [], customerRows: [], tags: null, tagged: 0, alreadyPaying: 0,
+      evidence: { direct: 0, indirect: 0, tagOnly: 0, ungraded: 0, lag: null }, eventDate: null,
       alreadyPayingMrrNow: 0, customers: 0, paid: 0, neverPaid: 0,
       winbacks: 0, liveNow: 0, mrrNow: 0, collected: 0, revenue: 0, contribution: 0,
       firstRevenueMonths: [] });
@@ -4629,6 +4684,7 @@ export function eventLeads(data, roi = eventRoi(data)) {
       dated, leads, leadsBasis: newKnown ? 'new' : 'earned', total: r.total, earned: r.earned, list: r.list,
       before: r.before, after: r.after, customersTotal: r.customersTotal,
       confirmed: r.confirmed, contradicted: r.contradicted, withStripe: r.withStripe, readAs: r.readAs,
+      fromCampaign: r.fromCampaign ?? null,
       listShare: r.total ? r.list / r.total : null,
       spend, costState,
       costPerLead: spend > 0 && leads && !costState && !(e && e.upcoming) ? spend / leads : null,

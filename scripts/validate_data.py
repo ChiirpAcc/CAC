@@ -530,6 +530,34 @@ def check_event_costs(doc):
                + "; ".join(f"{k} ({', '.join(v)})" for k, v in states.items()) + ".")
 
 
+def check_event_credit(customers):
+    """event_credit (v147, rules v148): how the event-tagged customers grade. A
+    direct grade with no lag means an event graded without a date, which the
+    pipeline says cannot happen."""
+    if not customers or "event_credit" not in (customers.get("columns") or []):
+        return
+    seen = {}
+    for r in customers.get("rows") or []:
+        cid = r.get("customer_id")
+        if cid and cid not in seen:
+            seen[cid] = r
+    grades = {}
+    undated_direct = 0
+    for r in seen.values():
+        g = str(r.get("event_credit") or "").strip().lower()
+        if g:
+            grades[g] = grades.get(g, 0) + 1
+            if g == "direct" and str(r.get("event_lag_months") or "").strip() == "":
+                undated_direct += 1
+    if grades:
+        report("note", "Customer Waterfall", "event credit: "
+               + ", ".join(f"{k} {v:,}" for k, v in sorted(grades.items())) + ".")
+    if undated_direct:
+        report("warning", "Customer Waterfall", f"{undated_direct:,} customers are graded direct with no "
+               f"event_lag_months, so they were graded without an event date; v148 says an undated event is "
+               f"capped at indirect.")
+
+
 def check_marketing_monthly(doc, present):
     """The Marketing Monthly tab (gh-v7): one row per month and HubSpot value. The
     site reads it from September 2025, where the vendor split of advertising
@@ -583,6 +611,13 @@ def main():
 
     present = {entry["tab"]: entry for entry in index.get("files", [])}
 
+    # gh-v10 writes the index even when a tab fails, and names the gaps.
+    for field, level in (("failed", "error"), ("missing_required", "error")):
+        gaps = index.get(field) or []
+        if gaps:
+            report(level, "index.json", f"the push lists {field.replace('_', ' ')}: "
+                   + ", ".join(str(g) for g in gaps) + ".")
+
     # A push writes the tabs first and the index last. Tabs newer than the
     # index mean a push stopped part way.
     newer = {}
@@ -624,6 +659,7 @@ def main():
         check_departures_are_booked(waterfall, customers)
         check_lead_source(customers)
         check_missing_customers(customers)
+        check_event_credit(customers)
         lead_counts = present.get("Lead Counts")
         check_lead_counts(load(lead_counts["file"]) if lead_counts else None)
         event_costs = present.get("Event Costs")

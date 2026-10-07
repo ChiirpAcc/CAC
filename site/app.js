@@ -4457,9 +4457,10 @@ function renderEventPage(label) {
   const paySub = !pb ? '' : pb.status === 'paid' ? 'paid for itself' : pb.status === 'projected'
     ? 'projected' : `${pct(pb.recovered)} recovered so far`;
 
+  const evDated = Boolean(e.eventDate || (e.evidence && e.evidence.dated) || (lead && lead.dated));
   // Hero and headline figures.
   const chips = [e.month ? fmt.monthLabel(e.month) : e.upcoming ? `Happens ${fmt.monthLabel(e.upcoming)}` : 'Undated',
-    e.type, e.organiser].filter(Boolean).map(x => `<span class="ev-chip">${x}</span>`).join('')
+    e.type, e.organiser, e.paid && !evDated ? 'Undated' : null].filter(Boolean).map(x => `<span class="ev-chip">${x}</span>`).join('')
     + (e.plan2027 ? `<span class="ev-chip ${e.plan2027.startsWith('On') ? 'on' : e.plan2027.startsWith('Dropped') ? 'off' : ''}">`
       + `2027: ${e.plan2027.startsWith('On') ? 'on the calendar' : e.plan2027.startsWith('Dropped') ? 'dropped' : 'not listed'}</span>` : '');
   const kpis = e.upcoming
@@ -4470,6 +4471,8 @@ function renderEventPage(label) {
       + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', '', pb ? tone(pb.roiToDate) : '')
       + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12Projected ? 'projected' : 'actual', pb ? tone(pb.roi12) : '')
       + kpi('Customers', int(e.paid), `${int(e.liveNow)} still live · ${money(e.mrrNow)} MRR`)
+      + (e.paid && e.evidence ? kpi('Direct customers', int(e.evidence.direct),
+        e.evidence.direct ? `${money(e.spend / e.evidence.direct)} each${evDated ? '' : ', undated'}` : evDated ? 'none closed by its own deal' : 'undated, cannot be tested') : '')
       + kpi('Pays for itself', payWords, paySub, pb && (pb.status === 'paid' || pb.status === 'projected') ? 'pos' : '');
 
   // Cost: a bar of what the total is made of, then the sources.
@@ -4508,6 +4511,22 @@ function renderEventPage(label) {
       + fact('Confirmed', int(lead.confirmed), 'an at-event form names it')
       + fact('Contradicted', int(lead.contradicted), 'only conversion names another')
       + fact('Cost per earned lead', money(lead.costPerLead))
+      + (lead.fromCampaign ? fact('From a campaign, not a tag', int(lead.fromCampaign), 'real leads nobody recorded a source for') : '')
+    : '';
+  // How strong the evidence behind each credited customer is.
+  const ev = e.evidence;
+  const lagWords = ev && ev.lag ? (ev.lag.min === ev.lag.max ? `${ev.lag.median} month${ev.lag.median === 1 ? '' : 's'}`
+    : `median ${ev.lag.median}, range ${ev.lag.min} to ${ev.lag.max}`) : null;
+  const lagSub = ev && ev.lag ? `${fmt.int(ev.lag.n)} customer${ev.lag.n === 1 ? '' : 's'} with a lag`
+    + (ev.lag.min < 0 ? '; below zero is a first payment before the event, a win-back' : '') : '';
+  const evidenceFacts = ev && e.paid
+    ? fact('Direct', int(ev.direct), 'the event’s own won deal closed them')
+      + fact('Indirect', int(ev.indirect), 'touched by the event; something else closed them')
+      + fact('Tag only', int(ev.tagOnly), 'no won deal; the tag is the only evidence')
+      + (ev.ungraded ? fact('Not graded', int(ev.ungraded), 'the tag read is not the current one') : '')
+      + fact('Event date', e.eventDate || (lead && lead.eventDate) || (evDated ? 'held by the pipeline' : 'none'),
+        evDated ? 'from a campaign or the Event Dates tab' : 'without one, the grades cannot be checked against the event')
+      + (lagWords ? fact('Months to first payment', lagWords, lagSub) : '')
     : '';
   const t = e.tags;
   const dated = t && t.setPrompt + t.setLater > 0;
@@ -4535,7 +4554,10 @@ function renderEventPage(label) {
     + `${x.wonElsewhere ? `<br><span class="muted">won on another deal: ${x.wonElsewhere}</span>` : ''}</td>`
     + `<td>${x.firstPaid ? fmt.monthLabel(x.firstPaid) : '–'}</td>`
     + `<td class="n">${money(x.signedMrr)}</td><td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
-    + `<td class="n">${money(x.contribution)}</td><td>${x.leadDate || '–'}</td><td>${x.leadSetAt || '–'}</td></tr>`).join('');
+    + `<td class="n">${money(x.contribution)}</td>`
+    + `<td>${x.credit || '–'}${x.lag !== null && x.lag !== undefined ? `<br><span class="muted">${x.lag === 0 ? 'the event month'
+      : `${Math.abs(x.lag)} month${Math.abs(x.lag) === 1 ? '' : 's'} ${x.lag < 0 ? 'before' : 'after'}`}</span>` : ''}</td>`
+    + `<td>${x.leadDate || '–'}</td><td>${x.leadSetAt || '–'}</td></tr>`).join('');
   // Expected against actual: what won deals were signed at, against what the
   // same customers pay now. Only customers with a won deal carry a signed figure.
   const signed2 = (e.customerRows || []).filter(x => x.signedMrr !== null);
@@ -4561,12 +4583,15 @@ function renderEventPage(label) {
     + `<section class="ev-panel"><h3>What it cost</h3>${costBar}<div class="ev-facts">${costFacts}</div>${costNotes}</section>`
     + (leadFacts ? `<section class="ev-panel"><h3>Leads</h3><div class="ev-facts">${leadFacts}</div>`
       + (lead && lead.readAs ? `<p class="ev-note">${lead.readAs}</p>` : '') + `</section>` : '')
+    + (evidenceFacts ? `<section class="ev-panel"><h3>How strong the evidence is</h3><div class="ev-facts">${evidenceFacts}</div>`
+      + `<p class="ev-note">Every figure here is a floor: nothing sets the lead source automatically, so a customer this event `
+      + `brought who was never tagged is not counted at all.</p></section>` : '')
     + (tagFacts ? `<section class="ev-panel"><h3>How the tags were made</h3><div class="ev-facts">${tagFacts}</div></section>` : '')
     + `<section class="ev-panel"><h3>Customers credited</h3>`
     + (custRows
       ? signedLine + `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>First paid</th>`
         + `<th class="n">Signed MRR</th><th class="n">MRR now</th><th class="n">Collected</th><th class="n">Contribution</th>`
-        + `<th>HubSpot record</th><th>Tag written</th></tr></thead><tbody>${custRows}</tbody></table></div>`
+        + `<th>Evidence</th><th>HubSpot record</th><th>Tag written</th></tr></thead><tbody>${custRows}</tbody></table></div>`
         + (e.alreadyPaying ? `<p class="ev-note">${int(e.alreadyPaying)} more carry the tag but were paying before the `
           + `event, so they are not credited.</p>` : '')
         + ((e.customerRows || []).some(x => x.wonElsewhere)
@@ -4765,12 +4790,25 @@ function renderEvents() {
         + `background:${v >= 0 ? INK.positive : INK.negative}"></span></span>`;
     };
     const cls = v => (v === null || v === undefined ? '' : v < 0 ? 'notviable' : 'held');
+    const isDated = (x, lead) => Boolean(x.eventDate || (x.evidence && x.evidence.dated) || (lead && lead.dated));
     const costCell = (x, lead) => {
       const perLead = lead && lead.costPerLead !== null ? lead.costPerLead : null;
       const perCustomer = x.paid ? x.spend / x.paid : null;
+      const direct = x.evidence ? x.evidence.direct : 0;
+      const perDirect = direct ? x.spend / direct : null;
       return `<td class="n">${money(x.spend)}<br><span class="muted">`
         + `${perLead === null ? 'no leads counted' : `${money(perLead)} a lead`}<br>`
-        + `${perCustomer === null ? 'no customer yet' : `${money(perCustomer)} a customer`}</span></td>`;
+        + `${perCustomer === null ? 'no customer yet'
+          : `${perDirect === null ? (isDated(x, lead) ? 'no direct customer' : 'undated, no direct test') : `${money(perDirect)} a direct customer`}<br>`
+            + `${money(perCustomer)} a tagged customer`}</span></td>`;
+    };
+    // The pipeline's grade of the credited customers: direct, indirect, tag only.
+    const splitWords = x => {
+      const v = x.evidence;
+      if (!v || !x.paid) return '';
+      const parts = [v.direct ? `${fmt.int(v.direct)} direct` : '', v.indirect ? `${fmt.int(v.indirect)} indirect` : '',
+        v.tagOnly ? `${fmt.int(v.tagOnly)} tag only` : '', v.ungraded ? `${fmt.int(v.ungraded)} not graded` : ''].filter(Boolean);
+      return parts.join(' · ');
     };
     const roiCell = x => {
       const twelve = `<span class="${cls(x.roi12)}">${x.roi12 === null ? '–' : signedPct(x.roi12)}</span>`
@@ -4791,7 +4829,9 @@ function renderEvents() {
         const head = `<td><a href="${eventHref(x.label)}">${x.label}</a><br><span class="muted">`
           + `${fmt.monthLabel(x.month)}${technical && x.type ? ` · ${x.type}` : ''}</span></td>`
           + costCell(x, lead)
-          + `<td class="n">${fmt.int(x.paid)}${x.liveNow ? `<br><span class="muted">${fmt.int(x.liveNow)} live</span>` : ''}</td>`
+          + `<td class="n">${fmt.int(x.paid)}${x.liveNow ? `<br><span class="muted">${fmt.int(x.liveNow)} live</span>` : ''}`
+          + `${splitWords(x) ? `<br><span class="muted">${splitWords(x)}</span>` : ''}`
+          + `${x.paid && !isDated(x, lead) ? '<br><span class="muted">undated</span>' : ''}</td>`
           + (technical ? `<td class="n">${lead && lead.leads !== null ? fmt.int(lead.leads) : '–'}</td>`
             + `<td class="n">${x.reached ? money(x.contributionAtK) : '–'}</td>` : '');
         const net = x.reached
@@ -4802,7 +4842,13 @@ function renderEvents() {
       }).join('')
       + `</tbody></table></div>`
       + `<p class="note">Cost per lead divides the event\u2019s cost by its earned leads from the Lead Counts tab, and is `
-      + `left out while a cost is still settling; cost per customer divides it by the customers it is credited with. `
+      + `left out while a cost is still settling. Cost per direct customer divides it by the customers the event\u2019s own `
+      + `won deal closed; cost per tagged customer by every customer credited, and the gap between the two is how much rests `
+      + `on the tag alone. Direct, indirect and tag only are the pipeline\u2019s grade of each credited customer: direct is a `
+      + `won deal naming the event with the HubSpot record made on or after it or within 45 days before; indirect is a won `
+      + `deal naming something else, or a record older than that; tag only is no won deal. An event marked undated has `
+      + `no date to test a grade against, so its split is weaker evidence than a dated event’s, and should not be `
+      + `ranked against one on the split alone. `
       + `Net and ${technical ? 'the first ROI' : 'its bar'} are read ${allTime ? 'on everything to date' : `${k} months after each event`}; `
       + `12-month ROI is actual for events a year old and projected for younger ones.`
       + (allTime ? '' : ` Faded rows are younger than ${qty(k, 'month')} and are not ranked.`) + `</p>`;
@@ -5000,7 +5046,8 @@ function renderEvents() {
         + '<th class="n">Cost per lead</th><th class="n">Customers credited</th></tr></thead><tbody>'
         + el.events.map(x => `<tr><td>${x.label}${x.eventDate ? `<br><span class="muted">${x.eventDate}</span>` : ''}</td>`
           + `<td class="n">${x.leads === null ? '–' : fmt.int(x.leads)}<br><span class="muted">${x.leadsBasis === 'new'
-              ? `new, of ${fmt.int(x.earned)} earned` : 'earned, undated'}</span></td>`
+              ? `new, of ${fmt.int(x.earned)} earned` : 'earned, undated'}</span>`
+          + `${x.fromCampaign ? `<br><span class="muted">${fmt.int(x.fromCampaign)} from a campaign, not a tag</span>` : ''}</td>`
           + `<td class="n">${x.withCompany === null ? '–' : fmt.int(x.withCompany)}</td>`
           + `<td class="n">${x.withStripe === null ? '–' : fmt.int(x.withStripe)}${x.companyToCustomer !== null
               ? `<br><span class="muted">${pct(x.companyToCustomer)} of companies</span>` : ''}</td>`
@@ -5096,6 +5143,11 @@ function renderEvents() {
   // ---------------------------------------------------------------- how the tags were made
   const hsfNow = e.events.find(x => x.label === 'HSF 2025');
   if ($('event-hsf-now') && hsfNow) $('event-hsf-now').textContent = fmt.int(hsfNow.paid);
+  if ($('event-hsf-evidence') && hsfNow && hsfNow.evidence) {
+    const v = hsfNow.evidence;
+    $('event-hsf-evidence').textContent = `Of the ${fmt.int(hsfNow.paid)} customers credited to it now, ${fmt.int(v.direct)} `
+      + `are direct, ${fmt.int(v.indirect)} indirect and ${fmt.int(v.tagOnly)} tag only.`;
+  }
   const hsfLeads = (data.leadCounts || []).find(x => x.source === '2025 - Home Service Freedom');
   if ($('event-hsf-list') && hsfLeads && hsfLeads.total) {
     $('event-hsf-list').textContent = `${fmt.int(hsfLeads.total)} tagged contacts, ${fmt.int(hsfLeads.list)} of them from a list`;
@@ -6347,6 +6399,10 @@ function renderStatic() {
   }
   $('stamp').textContent =
     (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
+    + (data.pushGaps && (data.pushGaps.failed.length || data.pushGaps.missingRequired.length)
+      ? `That push names its own gaps: ${[data.pushGaps.failed.length ? `failed ${data.pushGaps.failed.join(', ')}` : '',
+        data.pushGaps.missingRequired.length ? `required but missing ${data.pushGaps.missingRequired.join(', ')}` : '']
+        .filter(Boolean).join('; ')}. ` : '')
     + (data.unfinishedPush
       ? `That push did not finish: its index was not written, so the tabs are read from the list of the last `
         + `finished push (${data.unfinishedPush.indexPushedAt.replace('T', ' ')}${data.unfinishedPush.indexVersion
