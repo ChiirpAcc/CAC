@@ -336,12 +336,15 @@ def check_lead_source(customers):
                f"lead_medium carries values outside the four mediums: {', '.join(bad)}.")
     event_no_year = sorted({s for c, s in source_of.items()
                             if medium_of[c] == "event" and not YEAR_PREFIX.match(s)})
+    # v149 keeps a year-prefixed podcast or webinar out of event, by a deny list.
     year_not_event = sorted({s for c, s in source_of.items()
-                             if medium_of[c] != "event" and YEAR_PREFIX.match(s)})
+                             if medium_of[c] != "event" and YEAR_PREFIX.match(s)
+                             and not re.search(r"podcast|webinar", s, re.I)})
     if event_no_year or year_not_event:
         report("warning", "Customer Waterfall",
                f"the year-prefix rule does not hold: {len(event_no_year)} event values without a "
-               f"year, {len(year_not_event)} year-prefixed values not marked event.")
+               f"year ({', '.join(event_no_year[:4])}), {len(year_not_event)} year-prefixed values not "
+               f"marked event ({', '.join(year_not_event[:4])}).")
     if conflicts:
         report("warning", "Customer Waterfall",
                f"{conflicts} rows carry a lead_source different from the same customer's other "
@@ -543,12 +546,26 @@ def check_event_credit(customers):
             seen[cid] = r
     grades = {}
     undated_direct = 0
+    direct_before = 0
+    lag_not_event = {}
     for r in seen.values():
         g = str(r.get("event_credit") or "").strip().lower()
+        lag = number(r.get("event_lag_months"))
         if g:
             grades[g] = grades.get(g, 0) + 1
-            if g == "direct" and str(r.get("event_lag_months") or "").strip() == "":
+            if g == "direct" and lag is None:
                 undated_direct += 1
+            if g == "direct" and lag is not None and lag < 0:
+                direct_before += 1
+        if lag is not None and str(r.get("lead_medium") or "").strip().lower() != "event":
+            src = str(r.get("lead_source") or "untagged")
+            lag_not_event[src] = lag_not_event.get(src, 0) + 1
+    if direct_before:
+        report("warning", "Customer Waterfall", f"{direct_before:,} customers are graded direct with a negative "
+               f"event_lag_months, so they paid before the event; v149 grades those indirect.")
+    if lag_not_event:
+        report("warning", "Customer Waterfall", "event_lag_months is filled on customers whose source is not an "
+               "event: " + ", ".join(f"{k} {v:,}" for k, v in sorted(lag_not_event.items(), key=lambda x: -x[1])[:6]) + ".")
     if grades:
         report("note", "Customer Waterfall", "event credit: "
                + ", ".join(f"{k} {v:,}" for k, v in sorted(grades.items())) + ".")

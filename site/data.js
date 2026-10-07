@@ -3575,6 +3575,8 @@ export const EVENT_ALIASES = {
   '2026 - Certain Path Spring Expo': 'CertainPath Spring Expo 2026',
   '2026 - EGIA Epic Tradeshow': 'EGIA Epic 2026',
   'Blue Sky Mastermind (Tradesformation) (contact)': 'Blue Sky Mastermind (Tradesformation) 2025',
+  // v149 canonicalises the stored value to the label.
+  '2025 - Blue Sky Mastermind (Tradesformation)': 'Blue Sky Mastermind (Tradesformation) 2025',
   '2025 - Certain Path Fall Expo': 'CertainPath Fall Expo 2025',
   '2026 - Nuve Home Contractor Trades Event': 'Nuve 2026',
   '2026 - Home Service Hoorah': 'Home Service Hoorah 2026',
@@ -4675,7 +4677,9 @@ export function eventLeads(data, roi = eventRoi(data)) {
     // HubSpot re-tags contacts it already holds, so earned alone counts
     // people the event re-engaged as if they were new (316 of Pantheon 2026's
     // 338 predate it). An undated event can only be read on earned.
-    const newKnown = dated && r.earnedAfter !== null && r.earnedAfter !== undefined;
+    // An event still to come has no "after" yet, so it is read on earned.
+    const ahead = dated && r.eventDate > new Date().toISOString().slice(0, 10);
+    const newKnown = dated && !ahead && r.earnedAfter !== null && r.earnedAfter !== undefined;
     const leads = newKnown ? r.earnedAfter : r.earned;
     const spend = e ? e.spend : null;
     const costState = e ? e.costState : null;
