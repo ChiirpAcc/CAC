@@ -4413,7 +4413,10 @@ function renderMarketing() {
       : `Leads and deals are the Marketing Monthly tab. A deal's sub-source is read where it is set, so an `
         + 'event or partner deal is counted under its own name; a contact whose original source names a webinar '
         + `or the Revenue Optimization Lab is a webinar lead. ${fmt.int(r.bulkAll)} of the `
-        + `${fmt.int(r.createdAll)} deals opened were opened on a day of 50 or more for one source (a bulk load).`);
+        + `${fmt.int(r.createdAll)} deals opened were opened on a day of 50 or more for one source (a bulk load).`
+        + (r.placeholders && r.placeholders.won
+          ? ` ${fmt.int(r.placeholders.won)} won deals with a close date in the future, which the pipeline reads as `
+            + `renewal placeholders (${fmt.money(r.placeholders.wonMrr)} a month signed), are left out.` : ''));
 }
 
 // One event on its own page: every cost behind it, where each figure came

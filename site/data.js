@@ -4792,8 +4792,13 @@ const customerCategory = r => {
 // source, or its sub-source where one is set ("2025 - Pantheon"), and are
 // read the way the waterfall reads that value as a customer's tag.
 const ORIGINAL_SOURCE = /^([A-Z][A-Z_]+)(?:\s*\/\s*(.*))?$/;
+// Won deals whose close date is in the future: the pipeline's v147 marks
+// them as probable renewal placeholders rather than dating them in 3000.
+// They are not new business and are left out of every count.
+const MARKETING_PLACEHOLDER = /close date in the future|placeholder/i;
 function marketingCategoryOf(value, mediumOf) {
   const text = String(value || '').trim();
+  if (MARKETING_PLACEHOLDER.test(text)) return null;
   if (!text || text === 'UNTAGGED') return 'Untagged';
   const os = text.match(ORIGINAL_SOURCE);
   if (os && LEAD_CATEGORY[os[1]]) {
@@ -4875,6 +4880,7 @@ export function marketingReport(data, roi = eventRoi(data)) {
 
   // Leads and deals: the Marketing Monthly tab, or the snapshot.
   const inside = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, new Map()]));
+  const placeholders = { won: 0, wonMrr: 0 };
   if (live) {
     const mediumOf = new Map();
     for (const r of data.customers) if (r.leadSource && r.leadMedium) mediumOf.set(r.leadSource, r.leadMedium);
@@ -4882,6 +4888,11 @@ export function marketingReport(data, roi = eventRoi(data)) {
       const x = at.get(r.month);
       if (!x) continue;
       const cat = marketingCategoryOf(r.category, mediumOf);
+      if (!cat) {
+        placeholders.won += r.dealsWon || 0;
+        placeholders.wonMrr += r.wonMrr || 0;
+        continue;
+      }
       // Events take their leads from the Lead Counts tab above, so an
       // event value's contacts are not counted twice.
       if (r.leads && cat !== 'Events') x.leads[cat] = (x.leads[cat] || 0) + r.leads;
@@ -5065,7 +5076,7 @@ export function marketingReport(data, roi = eventRoi(data)) {
     adsCheck: byMonth.map(x => ({ month: x.month, pushed: x.adsTotal, other: x.adsOther })),
     snapshotAsOf: live ? null : snap.asOf, leadsPushedAt: live ? data.marketingMonthlyPushedAt || data.pushedAt : null,
     bulkAll: live ? totals.reduce((t, x) => t + (x.openedInBulk || 0), 0) : null,
-    createdAll: totals.reduce((t, x) => t + x.created, 0) };
+    createdAll: totals.reduce((t, x) => t + x.created, 0), placeholders };
 }
 
 export function priceFloors(data, { window = 6 } = {}) {

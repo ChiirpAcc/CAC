@@ -567,6 +567,11 @@ def check_marketing_monthly(doc, present):
     over = [r for r in rows if n(r.get("opened_in_a_bulk_day")) > n(r.get("deals_opened"))]
     if over:
         report("warning", "Marketing Monthly", f"{len(over)} row(s) have more deals opened on a bulk day than deals opened.")
+    held = [r for r in rows if re.search(r"close date in the future|placeholder", str(r.get("category") or ""), re.I)]
+    if held:
+        report("note", "Marketing Monthly", f"{sum(n(r.get('deals_won')) for r in held):,.0f} won deals carry a close "
+               f"date in the future ({', '.join(sorted({str(r.get('month')) for r in held}))}), marked as renewal "
+               f"placeholders; the site leaves them out.")
     no_mrr = [r for r in rows if n(r.get("deals_won")) > 0 and not n(r.get("won_mrr"))]
     if no_mrr:
         report("note", "Marketing Monthly", ("one row has" if len(no_mrr) == 1 else f"{len(no_mrr)} rows have") + " won deals with no signed MRR: "
