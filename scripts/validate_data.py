@@ -533,6 +533,42 @@ def check_event_costs(doc):
                + "; ".join(f"{k} ({', '.join(v)})" for k, v in states.items()) + ".")
 
 
+def check_waterfall_complete(summary, customers):
+    """The customer waterfall must add up to the summary built from the same
+    payments. On 8 Oct 2026 (v154) the S2 side was missing: 1,493 customers
+    against 3,120, and every chart read half the book. A gap this size is an
+    error, never a note."""
+    if not summary or not customers:
+        return
+    cols = customers.get("columns") or []
+    if "month" not in cols or "eop_mrr" not in cols:
+        return
+    mi, ei = cols.index("month"), cols.index("eop_mrr")
+    by_month = {}
+    for r in customers.get("rows") or []:
+        v = number(r[ei]) if isinstance(r, list) else number(r.get("eop_mrr"))
+        m = r[mi] if isinstance(r, list) else r.get("month")
+        if v is not None:
+            by_month[m] = by_month.get(m, 0) + v
+    rows = [r for r in summary.get("rows") or [] if MONTH.match(str(r.get("month", "")))]
+    rows.sort(key=lambda r: r["month"])
+    gaps = []
+    for r in rows[-6:]:
+        want = number(r.get("eop_mrr"))
+        got = by_month.get(r["month"])
+        if want and got is not None and abs(got - want) / want > 0.10:
+            gaps.append(f"{r['month']} summary ${want:,.0f} against waterfall ${got:,.0f}")
+    if gaps:
+        report("error", "Customer Waterfall", "the waterfall does not add up to Waterfall Summary, so customers "
+               "are missing from it and every customer chart reads part of the book: " + "; ".join(gaps) + ".")
+    if "source" in cols:
+        si = cols.index("source")
+        envs = {r[si] if isinstance(r, list) else r.get("source") for r in customers.get("rows") or []}
+        if len(envs) < 2:
+            report("error", "Customer Waterfall", f"only one Stripe environment is present ({', '.join(map(str, envs))}); "
+                   "both S1 and S2 are expected.")
+
+
 def check_event_credit(customers):
     """event_credit (v147, rules v148): how the event-tagged customers grade. A
     direct grade with no lag means an event graded without a date, which the
@@ -683,6 +719,7 @@ def main():
         check_departures_are_booked(waterfall, customers)
         check_lead_source(customers)
         check_missing_customers(customers)
+        check_waterfall_complete(waterfall, load("customer_waterfall.json"))
         check_event_credit(customers)
         lead_counts = present.get("Lead Counts")
         check_lead_counts(load(lead_counts["file"]) if lead_counts else None)
