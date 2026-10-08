@@ -1170,3 +1170,12 @@ figcaption { margin-bottom: .9rem; }
 .mkt-step-n { font-weight: 650; font-variant-numeric: tabular-nums; }
 .mkt-step-label { font-size: 0.72rem; color: var(--ink-soft); }
 .mkt-step-rate { font-size: 0.72rem; color: var(--series-1); }
+
+/* Confidence labels: how far a result can be trusted, with the reasons. */
+.conf-chip { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.05rem 0.45rem; border-radius: 999px;
+  border: 1px solid currentColor; white-space: nowrap; vertical-align: 0.1em; cursor: help; }
+.conf-high { color: var(--series-pos); }
+.conf-medium { color: var(--depends); }
+.conf-low { color: var(--series-neg); }
+.conf-reasons { margin: 0.4rem 0 0.6rem 1.1rem; padding: 0; }
+.conf-reasons li { margin: 0.15rem 0; }

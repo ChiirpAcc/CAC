@@ -4927,6 +4927,64 @@ function marketingValueLabel(value) {
   return `${head}: ${drill}`;
 }
 
+// How much to trust an event's result, from the evidence behind it. Each
+// reason lowers the level it names; the event takes the lowest. The reasons
+// are shown with the label, so it is never a verdict without its grounds.
+export function eventConfidence(e, age = null) {
+  const low = [];
+  const medium = [];
+  const c = e.cost;
+  if (c && c.costState === 'absent') low.push(c.travel ? 'a fee was expected and not found, so the cost shown is travel only, a floor'
+    : 'a fee was expected and not found');
+  else if (c && c.costState === 'pending') low.push('no cost found yet');
+  else if (!c || c.cost === null || c.cost === undefined) low.push('no cost recorded');
+  else if (c.costState === 'settling') low.push('cost still settling');
+  else if (c.costState === 'not yet' || e.upcoming) low.push('the event is still ahead');
+  else if (c.costSource && /modelled/i.test(c.costSource)) medium.push('part of the cost is modelled');
+  const n = e.paid || 0;
+  if (!e.upcoming) {
+    if (n === 0) low.push('no tagged customer; untagged ones are invisible, so the result may be understated');
+    else if (n < 3) low.push(`rests on ${n} customer${n === 1 ? '' : 's'}`);
+    else if (n < 8) medium.push(`rests on ${n} customers`);
+  }
+  const v = e.evidence;
+  if (n && v && !v.dated) medium.push('no event date, so the grades cannot be checked against it');
+  else if (n && v && v.direct / n < 0.5) medium.push(`${v.direct} of ${n} customers closed by the event's own deal`);
+  if (age !== null && age < 6 && !e.upcoming) medium.push('under six months old, so the return is mostly projection');
+  const level = low.length ? 'low' : medium.length ? 'medium' : 'high';
+  return { level, reasons: [...low, ...medium] };
+}
+
+// The same for a marketing source.
+const GENERIC_LABELS = new Set(['Partnerships', 'Referrals', 'Partner', 'No lead source on the deal', 'Other',
+  'Digital Marketing', 'Webinar', 'Podcast']);
+export function sourceConfidence(t, detail, months) {
+  const low = [];
+  const medium = [];
+  const n = t.customers || 0;
+  if (t.category === 'Untagged') low.push('no source recorded on these customers');
+  if (t.eventsDirect && t.customers && t.eventsDirect.direct / t.eventsDirect.credited < 0.6) {
+    medium.push(`${t.eventsDirect.direct} of ${t.eventsDirect.credited} event customers closed by the event's own deal; the others depend on a tag`);
+  }
+  if (n < 10) low.push(`rests on ${n} paying customer${n === 1 ? '' : 's'}`);
+  else if (n < 30) medium.push(`rests on ${n} paying customers`);
+  if (t.won >= 3 * Math.max(n, 1) && n < 10) low.push(`${t.won} won deals against ${n} paying customers, a tagging gap`);
+  const cut = months[Math.max(0, months.length - 4)];
+  const recent = (detail.customers || []).filter(x => x.firstPaid >= cut).length;
+  if (n >= 4 && recent / n >= 0.5) medium.push(`${recent} of ${n} customers started in the last four months`);
+  const parts = detail.inside || [];
+  if (t.category === 'Webinars' && parts.some(v => v.label === 'LAB' || /lab/i.test(v.label))) {
+    medium.push('counts the Revenue Optimization Lab, which HubSpot files as a partner, as webinars');
+  }
+  const generic = parts.filter(v => GENERIC_LABELS.has(v.label)).reduce((a, v) => a + v.won, 0);
+  if (t.category !== 'Untagged' && t.won >= 10 && generic / t.won >= 0.4) medium.push(`${Math.round(generic / t.won * 100)}% of won deals carry a generic label`);
+  if (t.hasSpend && (t.category === 'Paid social' || t.category === 'Podcasts')) {
+    medium.push('spend split from a one-off QuickBooks export, Sep 2025 to Aug 2026');
+  }
+  const level = low.length ? 'low' : medium.length ? 'medium' : 'high';
+  return { level, reasons: [...low, ...medium] };
+}
+
 export function marketingReport(data, roi = eventRoi(data)) {
   const snap = MARKETING_SNAPSHOT;
   // The pushed tab when there is one; the 5 Oct 2026 snapshot otherwise.
@@ -5170,6 +5228,13 @@ export function marketingReport(data, roi = eventRoi(data)) {
       .sort((a, b) => b.won - a.won || b.created - a.created || b.leads - a.leads);
     return [cat, { monthly, customers: customerRows[cat], inside: live ? parts : null }];
   }));
+  if (roi) {
+    const ev = totals.find(t => t.category === 'Events');
+    const credited = roi.events.filter(e => !e.upcoming && e.evidence);
+    if (ev) ev.eventsDirect = { direct: credited.reduce((a, e) => a + e.evidence.direct, 0),
+      credited: credited.reduce((a, e) => a + (e.paid || 0), 0) };
+  }
+  for (const t of totals) t.confidence = sourceConfidence(t, detail[t.category], months);
   const paidTotals = totals.filter(t => t.hasSpend);
   const paidSpend = paidTotals.reduce((t, x) => t + x.spend, 0);
   const paidContribution = paidTotals.reduce((t, x) => t + x.contribution, 0);

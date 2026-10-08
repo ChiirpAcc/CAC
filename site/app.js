@@ -14,7 +14,7 @@ import {
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
-  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE,
+  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4046,7 +4046,7 @@ function renderMarketingTop(r) {
     + `<th>Source</th><th class="n">Spend</th><th class="n">Customers</th>`
     + (technical ? `<th class="n">Leads</th><th class="n">Deals won</th><th class="n">Billed</th>` : '')
     + `<th class="rank-bar-col">Spend against return</th><th class="n">ROI</th></tr></thead><tbody>`
-    + ordered.map(t => `<tr><td><a href="${sourceHref(t.category)}">${t.category}</a><br><span class="muted">`
+    + ordered.map(t => `<tr><td><a href="${sourceHref(t.category)}">${t.category}</a> ${confidenceChip(t.confidence)}<br><span class="muted">`
         + `${t.hasSpend ? (t.spendKind || 'mixed').split(':')[0] : 'no direct spend'}</span></td>`
       + `<td class="n">${t.hasSpend ? `${money(t.spend)}<br><span class="muted">`
           + `${t.costPerLead ? `${money(t.costPerLead)} a lead<br>` : ''}`
@@ -4194,7 +4194,7 @@ function renderSourcePage(cat) {
     : '';
   box.innerHTML =
     `<a href="#marketing" class="ev-back">All sources</a>`
-    + `<header class="ev-hero"><h2>${cat}</h2><div class="ev-chips"><span class="ev-chip">${span}</span>`
+    + `<header class="ev-hero"><h2>${cat}</h2><div class="ev-chips">${confidenceChip(t.confidence)}<span class="ev-chip">${span}</span>`
     + `<span class="ev-chip">${t.hasSpend ? (t.spendKind || 'mixed') : 'No direct spend'}</span></div></header>`
     + `<div class="ev-kpis">${kpis}</div>`
     + `<section class="ev-panel"><h3>${t.hasSpend ? 'Money back against spend' : 'Money back'}</h3><div class="plot" id="source-curve"></div>`
@@ -4205,7 +4205,7 @@ function renderSourcePage(cat) {
       + `<p class="ev-note">Meta spend divided by the contacts HubSpot records as arriving through paid social that month, `
       + `and the leads each $1,000 bought.</p></section>` : '')
     + `<section class="ev-panel"><h3>Funnel</h3><div class="ev-facts">${funnel}</div></section>`
-    + webinarPanel + insidePanel
+    + confidencePanel(t.confidence, 'this source') + webinarPanel + insidePanel
     + `<section class="ev-panel"><h3>Customers</h3>`
     + (custRows ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>First paid</th>`
       + `<th class="n">MRR now</th><th class="n">Billed</th><th class="n">Collected</th><th class="n">Contribution</th></tr></thead>`
@@ -4241,6 +4241,24 @@ function renderSourcePage(cat) {
         + `<span>${d.monthly[i].spend > 0 ? `${(d.monthly[i].leads / d.monthly[i].spend * 1000).toFixed(1)} leads per $1,000` : 'no spend'}</span>`,
     });
   }
+}
+
+// A confidence label with its reasons on hover and for screen readers.
+const CONFIDENCE_WORDS = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' };
+function confidenceChip(conf) {
+  if (!conf) return '';
+  const why = conf.reasons.length ? conf.reasons.join('; ') : 'nothing found that lowers it';
+  return `<span class="conf-chip conf-${conf.level}" title="${why.replace(/"/g, '&quot;')}">${CONFIDENCE_WORDS[conf.level]}</span>`;
+}
+function confidencePanel(conf, subject) {
+  if (!conf) return '';
+  return `<section class="ev-panel"><h3>How far to trust ${subject}</h3><p>${confidenceChip(conf)}</p>`
+    + (conf.reasons.length ? `<ul class="conf-reasons">${conf.reasons.map(r => `<li>${r}</li>`).join('')}</ul>`
+      : '<p class="ev-note">Nothing in the evidence lowers it: a final cost, enough customers, a date, and most customers closed by its own deal.</p>')
+    + `<p class="ev-note">Low is any one of: a cost that is not final, or a result resting on fewer than three customers (ten for a `
+    + `source). Medium is any one of: three to seven customers (ten to twenty-nine for a source), no event date, fewer than half `
+    + `closed by the event’s own deal, under six months old, most customers new in the last four months, or most deals under `
+    + `a generic label.</p></section>`;
 }
 
 const MARKETING_INK = {
@@ -4366,7 +4384,7 @@ function renderMarketing() {
     $('mkt-summary').innerHTML =
       '<thead><tr><th>Source</th><th class="n">Spend</th><th class="n">Leads</th><th class="n">Deals won</th>'
       + '<th class="n">Paying customers</th><th class="n">Billed so far</th><th class="n">Cash collected</th><th class="n">Contribution</th>'
-      + '<th class="n">Net of spend</th><th class="n">ROI</th><th class="n">Still paying</th></tr></thead><tbody>'
+      + '<th class="n">Net of spend</th><th class="n">ROI</th><th class="n">Still paying</th><th>Confidence</th></tr></thead><tbody>'
       + rows.map(t => `<tr><td><strong>${t.category}</strong></td>`
         + `<td class="n">${t.hasSpend ? `${money(t.spend)}<br><span class="muted">${(t.spendKind || 'mixed').split(':')[0].toLowerCase()}</span>`
             : '<span class="muted">none</span>'}</td>`
@@ -4379,7 +4397,8 @@ function renderMarketing() {
         + `<td class="n"><span class="${t.net < 0 ? 'notviable' : 'held'}">${t.net < 0 ? '−' : '+'}${fmt.money(Math.abs(t.net))}</span></td>`
         + `<td class="n">${t.roi === null ? '–' : `<span class="${t.roi < 0 ? 'notviable' : 'held'}">${sp(t.roi)}</span>`}</td>`
         + `<td class="n">${int(t.liveNow)}<br><span class="muted">${money(t.mrrNow)} MRR</span>`
-        + `${t.pausedNow ? `<br><span class="muted">${fmt.int(t.pausedNow)} on a coupon, ${money(t.pausedMrr)} paused</span>` : ''}</td></tr>`).join('')
+        + `${t.pausedNow ? `<br><span class="muted">${fmt.int(t.pausedNow)} on a coupon, ${money(t.pausedMrr)} paused</span>` : ''}</td>`
+        + `<td>${confidenceChip(t.confidence)}</td></tr>`).join('')
       + '</tbody>';
     const paidCats = r.totals.filter(t => t.hasSpend);
     $('mkt-summary-finding').innerHTML = paidCats.map(t => `<strong>${t.category}</strong> cost ${money(t.spend)} `
@@ -4463,15 +4482,18 @@ function renderEventPage(label) {
     ? 'projected' : `${pct(pb.recovered)} recovered so far`;
 
   const evDated = Boolean(e.eventDate || (e.evidence && e.evidence.dated) || (lead && lead.dated));
+  const evConf = eventConfidence(e, rc ? rc.age : null);
   // Hero and headline figures.
   const chips = [e.month ? fmt.monthLabel(e.month) : e.upcoming ? `Happens ${fmt.monthLabel(e.upcoming)}` : 'Undated',
     e.type, e.organiser, e.paid && !evDated ? 'Undated' : null].filter(Boolean).map(x => `<span class="ev-chip">${x}</span>`).join('')
+    + confidenceChip(evConf)
     + (e.plan2027 ? `<span class="ev-chip ${e.plan2027.startsWith('On') ? 'on' : e.plan2027.startsWith('Dropped') ? 'off' : ''}">`
       + `2027: ${e.plan2027.startsWith('On') ? 'on the calendar' : e.plan2027.startsWith('Dropped') ? 'dropped' : 'not listed'}</span>` : '');
   const kpis = e.upcoming
     ? kpi('Status', 'Upcoming', `happens ${fmt.monthLabel(e.upcoming)}`)
     : (e.costState === 'absent'
-      ? kpi('Cost', 'Not found', 'a fee was expected; no amount yet')
+      ? kpi('Cost', c && c.travel ? `${money(c.travel)} +` : 'Not found',
+        c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')
       : kpi('Cost', money(e.spend)))
       + kpi('Contribution', money(e.contribution), `${money(e.collected)} collected`)
       + kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), '', e.costState === 'absent' ? '' : tone(e.net))
@@ -4591,6 +4613,7 @@ function renderEventPage(label) {
     + `<section class="ev-panel"><h3>What it cost</h3>${costBar}<div class="ev-facts">${costFacts}</div>${costNotes}</section>`
     + (leadFacts ? `<section class="ev-panel"><h3>Leads</h3><div class="ev-facts">${leadFacts}</div>`
       + (lead && lead.readAs ? `<p class="ev-note">${lead.readAs}</p>` : '') + `</section>` : '')
+    + confidencePanel(evConf, 'this result')
     + (evidenceFacts ? `<section class="ev-panel"><h3>How strong the evidence is</h3><div class="ev-facts">${evidenceFacts}</div>`
       + `<p class="ev-note">Every figure here is a floor: nothing sets the lead source automatically, so a customer this event `
       + `brought who was never tagged is not counted at all.</p></section>` : '')
@@ -4838,7 +4861,7 @@ function renderEvents() {
       + `</tr></thead><tbody>`
       + order.map(x => {
         const lead = leadsBy.get(x.label);
-        const head = `<td><a href="${eventHref(x.label)}">${x.label}</a><br><span class="muted">`
+        const head = `<td><a href="${eventHref(x.label)}">${x.label}</a> ${confidenceChip(eventConfidence(x, x.age))}<br><span class="muted">`
           + `${fmt.monthLabel(x.month)}${technical && x.type ? ` · ${x.type}` : ''}</span></td>`
           + costCell(x, lead)
           + `<td class="n">${fmt.int(x.paid)}${x.liveNow ? `<br><span class="muted">${fmt.int(x.liveNow)} live</span>` : ''}`
