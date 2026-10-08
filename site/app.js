@@ -6410,7 +6410,9 @@ function renderStatic() {
       : '';
   }
   $('stamp').textContent =
-    (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}. ` : '')
+    (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}${data.pipelineVersion || data.pullVersion
+      ? ` (${[data.pipelineVersion ? `pipeline ${data.pipelineVersion}` : '', data.pullVersion ? `HubSpot pull ${data.pullVersion}` : '']
+        .filter(Boolean).join(', ')})` : ''}. ` : '')
     + (data.pushGaps && (data.pushGaps.failed.length || data.pushGaps.missingRequired.length)
       ? `That push names its own gaps: ${[data.pushGaps.failed.length ? `failed ${data.pushGaps.failed.join(', ')}` : '',
         data.pushGaps.missingRequired.length ? `required but missing ${data.pushGaps.missingRequired.join(', ')}` : '']

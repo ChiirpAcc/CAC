@@ -700,6 +700,8 @@ export async function load() {
     // part way (7 Oct 2026, v147) leaves newer tabs under an older index. The
     // date shown is the newest tab's, and the gap is said.
     pushedAt: newestPush || index.pushed_at || null,
+    // gh-v11: the HubSpot pull's own version, so a stale pull shows.
+    pullVersion: index.pull_version || null,
     pushGaps: {
       missingRequired: Array.isArray(index.missing_required) ? index.missing_required : [],
       failed: Array.isArray(index.failed) ? index.failed.map(f => (typeof f === 'string' ? f : f && (f.tab || f.name) ? `${f.tab || f.name}${f.reason ? ` (${f.reason})` : ''}` : JSON.stringify(f))) : [],

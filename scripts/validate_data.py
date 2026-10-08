@@ -628,6 +628,13 @@ def main():
 
     present = {entry["tab"]: entry for entry in index.get("files", [])}
 
+    # gh-v11 stamps the HubSpot pull's version beside the pipeline's.
+    if index.get("pull_version"):
+        report("note", "index.json", f"pipeline {index.get('pipeline_version')}, HubSpot pull {index.get('pull_version')}, "
+               f"push {index.get('push_version')}.")
+    elif int((re.search(r"(\d+)$", str(index.get("push_version") or "")) or [0, 0])[1]) >= 11:
+        report("warning", "index.json", "no pull_version, so a stale HubSpot pull cannot be told from a fresh one.")
+
     # gh-v10 writes the index even when a tab fails, and names the gaps.
     for field, level in (("failed", "error"), ("missing_required", "error")):
         gaps = index.get(field) or []
