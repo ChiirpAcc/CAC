@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-08T12:14:22",
+  "pushed_at": "2026-10-08T12:55:59",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -29,7 +29,7 @@
     {
       "tab": "Customer Waterfall",
       "file": "customer_waterfall.json",
-      "rows": 29906
+      "rows": 51241
     },
     {
       "tab": "Cash Detail",
@@ -66,6 +66,6 @@
   "failed": [],
   "pull_version": "hs-v48",
   "row_format": "arrays",
-  "pipeline_version": "v154",
+  "pipeline_version": "v155",
   "push_version": "gh-v11"
 }
