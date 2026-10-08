@@ -529,8 +529,8 @@ export async function load() {
       leadSource: String(r.lead_source || '').trim() || null,
       leadMedium: leadMediumOf(r.lead_source, r.lead_medium),
       leadMediumRaw: String(r.lead_medium || '').trim() || null,
-      // v138: the first value the lead source ever held, and when. The tag
-      // HubSpot shows is the last event a contact touched; this is the first.
+      // v138: the first value the HubSpot lead source property ever held, and
+      // when. lead_source itself is the pipeline's resolved source (v156).
       leadSourceFirst: String(r.lead_source_first || '').trim() || null,
       leadSourceFirstAt: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_source_first_at || '')) ? String(r.lead_source_first_at).slice(0, 10) : null,
       // The lead source on the deal that won this customer (Oct 2026). Blank
@@ -3766,8 +3766,11 @@ export const CREDIT_RULES = ['all', 'record', 'within3', 'within6', 'won', 'dire
 // removes only the customers another source's deal is recorded as winning.
 export const DEFAULT_CREDIT_RULE = 'won';
 
-// 'last' reads the tag HubSpot shows now, which is the last event a contact
-// touched; 'first' reads the first value the field ever held (v138).
+// 'last' reads lead_source, which since v156 is the pipeline's resolved
+// source: the earliest attributable one at the company, a deal tag before a
+// contact tag before a campaign, dated no earlier than the event it names.
+// 'first' reads lead_source_first, the first value the HubSpot property ever
+// held (v138). They can disagree. The key stays 'last' so saved links work.
 export const TOUCHES = ['last', 'first'];
 
 export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CREDIT_RULE, touch = 'last' } = {}) {

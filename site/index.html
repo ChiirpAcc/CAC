@@ -755,8 +755,10 @@
       <p>One row per event. Cost is the Event Costs tab, sponsorship plus
         travel, with disputed fees settled on the evidence below and a fee that
         paid for several events split across them. The customers are the ones
-        HubSpot tags with that event as their lead source, matched to Stripe,
-        counted only if their first payment came in or after the event's month.</p>
+        whose lead source names that event, matched to Stripe. The lead source is
+        the earliest relationship at the company, a deal tag before a contact tag
+        before a campaign, and never dated before the event it names. A customer
+        counts only if their first payment came in or after the event's month.</p>
       <p><strong>Every event number here is a floor.</strong> Nothing sets the lead
         source automatically: about one deal in five carries one, and the share swings
         with whoever was typing. A customer an event brought who was never tagged is
@@ -783,8 +785,8 @@
     <div class="chart-control">
       <label for="events-touch">Read the lead source as</label>
       <select id="events-touch">
-        <option value="last">Last touch: the tag HubSpot shows now</option>
-        <option value="first">First touch: the first value it ever held</option>
+        <option value="last">Resolved source: the earliest relationship at the company</option>
+        <option value="first">First value HubSpot recorded for the field</option>
       </select>
     </div>
 
