@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-09T12:35:41",
+  "pushed_at": "2026-10-09T13:07:24",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -49,7 +49,7 @@
     {
       "tab": "Event Costs",
       "file": "event_costs.json",
-      "rows": 45
+      "rows": 44
     },
     {
       "tab": "Lead Counts",
@@ -69,8 +69,8 @@
   ],
   "missing_required": [],
   "failed": [],
-  "pull_version": "hs-v57",
+  "pull_version": "hs-v58",
   "row_format": "arrays",
-  "pipeline_version": "v162",
+  "pipeline_version": "v163",
   "push_version": "gh-v12"
 }
