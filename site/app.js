@@ -4205,7 +4205,7 @@ function renderSourcePage(cat) {
       + `<p class="ev-note">Meta spend divided by the contacts HubSpot records as arriving through paid social that month, `
       + `and the leads each $1,000 bought.</p></section>` : '')
     + `<section class="ev-panel"><h3>Funnel</h3><div class="ev-facts">${funnel}</div></section>`
-    + confidencePanel(t.confidence, 'this source') + webinarPanel + insidePanel
+    + confidencePanel(t.confidence, 'this source', 'Nothing in the inputs lowers it: the source is recorded on its customers and deals, and its spend comes from the ledger.') + webinarPanel + insidePanel
     + `<section class="ev-panel"><h3>Customers</h3>`
     + (custRows ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>First paid</th>`
       + `<th class="n">MRR now</th><th class="n">Billed</th><th class="n">Collected</th><th class="n">Contribution</th></tr></thead>`
@@ -4250,15 +4250,16 @@ function confidenceChip(conf) {
   const why = conf.reasons.length ? conf.reasons.join('; ') : 'nothing found that lowers it';
   return `<span class="conf-chip conf-${conf.level}" title="${why.replace(/"/g, '&quot;')}">${CONFIDENCE_WORDS[conf.level]}</span>`;
 }
-function confidencePanel(conf, subject) {
+function confidencePanel(conf, subject, clean) {
   if (!conf) return '';
-  return `<section class="ev-panel"><h3>How far to trust ${subject}</h3><p>${confidenceChip(conf)}</p>`
+  return `<section class="ev-panel"><h3>How sound the data behind ${subject} is</h3><p>${confidenceChip(conf)}</p>`
     + (conf.reasons.length ? `<ul class="conf-reasons">${conf.reasons.map(r => `<li>${r}</li>`).join('')}</ul>`
-      : '<p class="ev-note">Nothing in the evidence lowers it: a final cost, enough customers, a date, and most customers closed by its own deal.</p>')
-    + `<p class="ev-note">Low is any one of: a cost that is not final, or a result resting on fewer than three customers (ten for a `
-    + `source). Medium is any one of: three to seven customers (ten to twenty-nine for a source), no event date, fewer than half `
-    + `closed by the event’s own deal, under six months old, most customers new in the last four months, or most deals under `
-    + `a generic label.</p></section>`;
+      : `<p class="ev-note">${clean || 'Nothing in the inputs lowers it.'}</p>`)
+    + `<p class="ev-note">This rates the data going in, not how far the result has had time to run: a week-old event can read `
+    + `high, and a small number of customers does not lower it. Low is any one of: a fee expected and not found, no cost, no `
+    + `source recorded, or deals and customers tagged differently. Medium is any one of: a modelled cost, travel not known, no `
+    + `event date, most customers resting on a tag with no won deal, most deals under a generic label, or spend from the `
+    + `one-off QuickBooks export.</p></section>`;
 }
 
 const MARKETING_INK = {
@@ -4485,7 +4486,7 @@ function renderEventPage(label) {
     ? 'projected' : `${pct(pb.recovered)} recovered so far`;
 
   const evDated = Boolean(e.eventDate || (e.evidence && e.evidence.dated) || (lead && lead.dated));
-  const evConf = eventConfidence(e, rc ? rc.age : null);
+  const evConf = eventConfidence(e);
   // Hero and headline figures.
   const chips = [e.month ? fmt.monthLabel(e.month) : e.upcoming ? `Happens ${fmt.monthLabel(e.upcoming)}` : 'Undated',
     e.type, e.organiser, e.paid && !evDated ? 'Undated' : null].filter(Boolean).map(x => `<span class="ev-chip">${x}</span>`).join('')
@@ -4616,7 +4617,9 @@ function renderEventPage(label) {
     + `<section class="ev-panel"><h3>What it cost</h3>${costBar}<div class="ev-facts">${costFacts}</div>${costNotes}</section>`
     + (leadFacts ? `<section class="ev-panel"><h3>Leads</h3><div class="ev-facts">${leadFacts}</div>`
       + (lead && lead.readAs ? `<p class="ev-note">${lead.readAs}</p>` : '') + `</section>` : '')
-    + confidencePanel(evConf, 'this result')
+    + confidencePanel(evConf, 'this result', e.paid
+      ? 'Nothing in the inputs lowers it: the cost is recorded, the event is dated, and most of its customers were closed by its own deals.'
+      : 'Nothing in the inputs lowers it: the cost is recorded. No customer is credited to it yet, so there is no attribution to check.')
     + (evidenceFacts ? `<section class="ev-panel"><h3>How strong the evidence is</h3><div class="ev-facts">${evidenceFacts}</div>`
       + `<p class="ev-note">Every figure here is a floor: nothing sets the lead source automatically, so a customer this event `
       + `brought who was never tagged is not counted at all.</p></section>` : '')
@@ -4864,7 +4867,7 @@ function renderEvents() {
       + `</tr></thead><tbody>`
       + order.map(x => {
         const lead = leadsBy.get(x.label);
-        const head = `<td><a href="${eventHref(x.label)}">${x.label}</a> ${confidenceChip(eventConfidence(x, x.age))}<br><span class="muted">`
+        const head = `<td><a href="${eventHref(x.label)}">${x.label}</a> ${confidenceChip(eventConfidence(x))}<br><span class="muted">`
           + `${fmt.monthLabel(x.month)}${technical && x.type ? ` · ${x.type}` : ''}</span></td>`
           + costCell(x, lead)
           + `<td class="n">${fmt.int(x.paid)}${x.liveNow ? `<br><span class="muted">${fmt.int(x.liveNow)} live</span>` : ''}`
