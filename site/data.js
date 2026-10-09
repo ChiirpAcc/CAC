@@ -270,6 +270,14 @@ const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Co
 // "Blue Sky Mastermind (Tradesformation) (contact)", with no year, so the
 // pipeline reads it as the partner. It is the 2025 event, and is read as one.
 const LEAD_SOURCE_EVENT_VALUES = new Set(['Blue Sky Mastermind (Tradesformation) (contact)']);
+
+// Two names HubSpot holds for one event. The 2026 Wealthy Plumber event and
+// Home Service Hoorah 2026 are the same event (Josh, 9 Oct 2026), so the
+// first is read as the second wherever a source is read, and its cost row is
+// dropped as a duplicate.
+const SOURCE_MERGE = { '2026 - Wealthy Plumber': '2026 - Home Service Hoorah' };
+const EVENT_ROWS_MERGED = new Set(['Wealthy Plumber 2026']);
+const mergeSource = v => { const t = String(v || '').trim(); return SOURCE_MERGE[t] || t || null; };
 function leadMediumOf(source, medium) {
   const name = String(source || '').trim();
   const raw = String(medium || '').trim() || null;
@@ -526,16 +534,16 @@ export async function load() {
       // pipeline (v120). Blank means nobody tagged them, about four in ten
       // live customers, which is not the same as organic. leadMedium is event, webinar,
       // digital or partner or referral; an event value carries a year prefix.
-      leadSource: String(r.lead_source || '').trim() || null,
-      leadMedium: leadMediumOf(r.lead_source, r.lead_medium),
+      leadSource: mergeSource(r.lead_source),
+      leadMedium: leadMediumOf(mergeSource(r.lead_source), r.lead_medium),
       leadMediumRaw: String(r.lead_medium || '').trim() || null,
       // v138: the first value the HubSpot lead source property ever held, and
       // when. lead_source itself is the pipeline's resolved source (v156).
-      leadSourceFirst: String(r.lead_source_first || '').trim() || null,
+      leadSourceFirst: mergeSource(r.lead_source_first),
       leadSourceFirstAt: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_source_first_at || '')) ? String(r.lead_source_first_at).slice(0, 10) : null,
       // The lead source on the deal that won this customer (Oct 2026). Blank
       // where no won deal is linked, about seven in eight customers.
-      wonDealSource: String(r.won_deal_source || '').trim() || null,
+      wonDealSource: mergeSource(r.won_deal_source),
       // The pipeline's grade of an event tag (v147, rules v148): direct is the
       // won deal naming the event, with the record made on or after it or
       // within 45 days before; indirect is the tag naming it while the won
@@ -668,6 +676,19 @@ export async function load() {
         readAs: String(r['read this as'] || '').trim() || null,
       }))
     : [];
+  // A row under a merged name is added into its target's row, keeping the
+  // target's date and medium.
+  for (const [from, to] of Object.entries(SOURCE_MERGE)) {
+    const src = leadCounts.find(x => x.source === from);
+    if (!src) continue;
+    const dst = leadCounts.find(x => x.source === to);
+    if (!dst) { src.source = to; continue; }
+    for (const k of Object.keys(src)) {
+      if (typeof src[k] === 'number' && k !== 'eventDate') dst[k] = (dst[k] || 0) + src[k];
+    }
+    dst.readAs = [dst.readAs, `includes ${from}, the same event`].filter(Boolean).join('; ');
+    leadCounts.splice(leadCounts.indexOf(src), 1);
+  }
 
   // Leads and deals by month and marketing category, built from HubSpot by
   // the pipeline (gh-v7). Replaces MARKETING_SNAPSHOT when present.
@@ -3650,12 +3671,9 @@ export const EVENT_META = {
   'Nuve 2026': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
   'Grosso University 2026': { type: 'Partner network event', organiser: 'Grosso University', plan2027: ON },
   // Due on the tab within the next pushes.
-  // A separate event from the Wealthy Plumber Hoorah (pipeline v152): the booth
-  // was billed by Gulf Coast Business Coaching.
-  'Home Service Hoorah 2026': { type: 'Conference sponsorship', organiser: 'Gulf Coast Business Coaching', plan2027: ON },
-  // Captured through a co-marketing webinar with Jered Williams in June and
-  // July 2026; no date and no fee found yet (pipeline v152).
-  'Wealthy Plumber 2026': { type: 'Not yet classified', organiser: 'The Wealthy Plumber' },
+  // The Wealthy Plumber's 2026 event (Josh, 9 Oct 2026); its 2026 Wealthy
+  // Plumber campaign contacts are read as this event (SOURCE_MERGE).
+  'Home Service Hoorah 2026': { type: 'Partner network event', organiser: 'The Wealthy Plumber', plan2027: ON },
   'Nexstar Super Meeting 2026': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
   'HSF 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   'Home Service Freedom 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
@@ -3776,7 +3794,7 @@ export const DEFAULT_CREDIT_RULE = 'won';
 export const TOUCHES = ['last', 'first'];
 
 export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CREDIT_RULE, touch = 'last' } = {}) {
-  const costs = [...(data.eventCosts || []).map(c => ({ ...c, extra: false })),
+  const costs = [...(data.eventCosts || []).filter(c => !EVENT_ROWS_MERGED.has(c.event)).map(c => ({ ...c, extra: false })),
     ...EVENT_EXTRA_COSTS.filter(x => !onTab(x, data.eventCosts || [])).map(x => ({ ...x, extra: true }))];
   const tagged = data.customers.filter(r => r.leadSource);
   if (!tagged.length && !costs.length) return null;
