@@ -356,6 +356,75 @@ export async function load() {
       : prior.length % 2 ? prior[mid] : (prior[mid - 1] + prior[mid]) / 2;
     if (median === null || ledgerTotals.get(m) >= median * 0.5) ledgerThrough = m;
   });
+
+  // An ended month QuickBooks has not closed yet is estimated rather than
+  // left out, so the page runs to the last month Stripe has (decided 9 Oct
+  // 2026: September closes on the 15th). Each account is the larger of what
+  // is already posted and its median over the three months before; the cost
+  // tab built from the ledger (Serve Monthly) takes the same medians. Revenue
+  // stays Stripe's actual. The month is named as estimated wherever it shows,
+  // and the estimate stops the moment the real close arrives, because that
+  // month then passes the test above on its own.
+  let estimatedMonth = null;
+  const summaryHas = new Set(byTab['Waterfall Summary'].rows.map(r => r.month));
+  const nextMonth = ledgerThrough ? monthAdd(ledgerThrough, 1) : null;
+  if (nextMonth && nextMonth < CURRENT_MONTH && summaryHas.has(nextMonth)) {
+    estimatedMonth = nextMonth;
+    const prior = [3, 2, 1].map(k => monthAdd(nextMonth, -k));
+    const median3 = vals => { const v = [...vals].sort((x, y) => x - y); return v.length ? v[1] ?? v[0] : 0; };
+    const qb = byTab['QB Expenses'];
+    const byAccount = new Map();
+    for (const r of qb.rows) {
+      if (r.month !== nextMonth && !prior.includes(r.month)) continue;
+      const key = `${r.account}|${r.section}|${r.bucket}`;
+      if (!byAccount.has(key)) byAccount.set(key, { template: r, posted: 0, by: new Map() });
+      const a = byAccount.get(key);
+      const v = num(r.amount) || 0;
+      if (r.month === nextMonth) a.posted += v;
+      else a.by.set(r.month, (a.by.get(r.month) || 0) + v);
+      if (r.month >= a.template.month) a.template = r;
+    }
+    const estimatedRows = [];
+    for (const a of byAccount.values()) {
+      const typical = median3(prior.map(m => a.by.get(m) || 0));
+      const amount = Math.abs(a.posted) >= Math.abs(typical) ? a.posted : typical;
+      if (!amount) continue;
+      estimatedRows.push({ ...a.template, month: nextMonth, amount, estimated: true });
+    }
+    qb.rows = [...qb.rows.filter(r => r.month !== nextMonth), ...estimatedRows];
+    ledgerTotals.set(nextMonth, estimatedRows.reduce((t, r) => t + r.amount, 0));
+    ledgerThrough = nextMonth;
+
+    const serveTab = byTab['Serve Monthly'];
+    const row = serveTab && serveTab.rows.find(r => r.month === nextMonth);
+    const priorRows = serveTab ? prior.map(m => serveTab.rows.find(r => r.month === m)).filter(Boolean) : [];
+    if (row && priorRows.length === 3) {
+      const derived = new Set(['month', 'active_logos', 'mrr', 'arpa', 'cogs_per_logo', 'opex_per_logo', 'total_cost',
+        'total_per_logo', 'gross_contribution_per_logo', 'gross_margin', 'net_contribution_per_logo', 'net_margin']);
+      for (const k of Object.keys(row)) {
+        if (derived.has(k)) continue;
+        const vals = priorRows.map(r => num(r[k])).filter(v => v !== null);
+        if (vals.length === 3) row[k] = median3(vals);
+      }
+      const n = num(row.active_logos);
+      const arpa = num(row.arpa);
+      const cogs = num(row.cogs_total) || 0;
+      const opex = num(row.opex_total) || 0;
+      row.total_cost = cogs + opex;
+      if (n) {
+        row.cogs_per_logo = cogs / n;
+        row.opex_per_logo = opex / n;
+        row.total_per_logo = row.total_cost / n;
+        if (arpa !== null) {
+          row.gross_contribution_per_logo = arpa - row.cogs_per_logo;
+          row.net_contribution_per_logo = arpa - row.total_per_logo;
+          row.gross_margin = arpa ? row.gross_contribution_per_logo / arpa : null;
+          row.net_margin = arpa ? row.net_contribution_per_logo / arpa : null;
+        }
+      }
+      row.estimated = true;
+    }
+  }
   // The last complete month is the earlier of the ledger's last full month and
   // the last month the Waterfall Summary carries, and the window runs back from
   // it to the first month of the ledger, at most MONTHS_OF_HISTORY months.
@@ -432,6 +501,7 @@ export async function load() {
       month: r.month,
       amount: num(r.amount),
       bucket: r.bucket,
+      estimated: Boolean(r.estimated),
     }));
 
   // Acquisition cost is built from the expense lines rather than read from
@@ -723,6 +793,8 @@ export async function load() {
     pushedAt: newestPush || index.pushed_at || null,
     // gh-v11: the HubSpot pull's own version, so a stale pull shows.
     pullVersion: index.pull_version || null,
+    // An ended month QuickBooks has not closed, carried on estimated costs.
+    estimatedMonth,
     pushGaps: {
       missingRequired: Array.isArray(index.missing_required) ? index.missing_required : [],
       failed: Array.isArray(index.failed) ? index.failed.map(f => (typeof f === 'string' ? f : f && (f.tab || f.name) ? `${f.tab || f.name}${f.reason ? ` (${f.reason})` : ''}` : JSON.stringify(f))) : [],
@@ -5009,9 +5081,13 @@ export function marketingReport(data, roi = eventRoi(data)) {
   const live = data.marketingMonthly && data.marketingMonthly.length ? data.marketingMonthly : null;
   // The tab runs back to 2019; the window starts where the vendor split of
   // QuickBooks advertising does, so every month has its spend by channel.
-  const splitStarts = Object.keys(MARKETING_AD_VENDORS.meta).sort()[0];
+  // It also ends where the split ends: a month past it would carry paid
+  // social's leads with none of its spend.
+  const splitMonths = Object.keys(MARKETING_AD_VENDORS.meta).sort();
+  const splitStarts = splitMonths[0];
+  const splitEnds = splitMonths[splitMonths.length - 1];
   const months = (live ? [...new Set(live.map(r => r.month))] : Object.keys(snap.leads))
-    .filter(m => m >= data.historyStarts && m >= splitStarts && m <= data.lastMonth).sort();
+    .filter(m => m >= data.historyStarts && m >= splitStarts && m <= splitEnds && m <= data.lastMonth).sort();
   if (!months.length) return null;
   const blank = () => Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, 0]));
   const byMonth = months.map(m => ({ month: m, spend: blank(), leads: { ...blank(), Offline: 0 },

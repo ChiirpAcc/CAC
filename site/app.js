@@ -4843,7 +4843,7 @@ function renderEvents() {
       const direct = x.evidence ? x.evidence.direct : 0;
       const perDirect = direct ? x.spend / direct : null;
       return `<td class="n">${money(x.spend)}<br><span class="muted">`
-        + `${perLead !== null ? `${money(perLead)} a lead` : lead && lead.leads ? `${fmt.int(lead.leads)} leads so far` : 'no leads counted'}<br>`
+        + `${perLead !== null ? `${money(perLead)} a lead` : lead && lead.leads ? `${fmt.int(lead.leads)} lead${lead.leads === 1 ? '' : 's'} so far` : 'no leads counted'}<br>`
         + `${perCustomer === null ? 'no customer yet'
           : `${perDirect === null ? (isDated(x, lead) ? 'no direct customer' : 'undated, no direct test') : `${money(perDirect)} a direct customer`}<br>`
             + `${money(perCustomer)} a tagged customer`}</span></td>`;
@@ -6473,6 +6473,9 @@ function renderStatic() {
     + `Months ${data.historyStarts} to ${data.lastMonth}, `
     + `${monthDiff(data.historyStarts, data.lastMonth) + 1} months, `
     + `reaching back as far as the finance tabs go.`
+    + (data.estimatedMonth ? ` ${data.estimatedMonth} is on estimated costs: QuickBooks has not closed it, so each cost `
+      + `account is the larger of what is posted and its median over the three months before, and revenue is Stripe\u2019s `
+      + `actual. The real figures replace it when the month closes.` : '')
     + (censored
         ? ` ${fmt.int(censored)} customers existed before the data window opens at `
           + `${cohorts.windowStart} and have no knowable cohort, so they are excluded from `
