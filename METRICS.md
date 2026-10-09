@@ -1,5 +1,7 @@
 # The metric set
 
+The Every chart tab follows this order since 9 Oct 2026: Definitions, then 1 Is a customer worth what they cost (1, 2, 3, 17, 33), 2 Winning customers (26, 27, 7, 13, 14, 16, 10), 3 Keeping customers (4, 5, 6, 8, 9, 11, 12, 31, 44, 45, 46, 18, 19), 4 Why churn moves (20 to 25), 5 What customers pay (28, 32, 43), 6 What it costs to keep them (39, 49, 29, 40, 41, 42, 37, 38), 7 Where it goes next (34, 35, 36, 47, 48). Each section names the definition every chart in it uses. Chart numbers are unchanged.
+
 What the business is measured on beyond LTV:CAC, each one defined once, with
 the chart that draws it and the function that computes it. Written for the
 Q4 2026 unit economics work: the metric list the price-increase round and the

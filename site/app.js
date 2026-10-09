@@ -4017,7 +4017,7 @@ function renderMarketingTop(r) {
   $('mkt-kpis').innerHTML =
     kpi('Marketing spend', money(r.spendAll), `${r.months.length} months`)
     + kpi('Deals won', int(r.wonAll), `${money(r.blendedPerWon)} each, every channel`)
-    + kpi('Paying customers', int(r.customersAll), `${money(r.blendedPerCustomer)} each`)
+    + kpi('Paying customers', int(r.customersAll), `${money(r.blendedPerCustomer)} of direct spend each`)
     + kpi('Contribution returned', money(r.contributionAll), 'from customers who started in these months')
     + kpi('ROI on paid channels', sp(r.paidRoi), `${money(r.paidSpend)} spent`, tone(r.paidRoi))
     + kpi('Still coming in', `${money(r.mrrNowAll)}`, r.pausedNowAll
@@ -4051,7 +4051,7 @@ function renderMarketingTop(r) {
       + `<td class="n">${t.hasSpend ? `${money(t.spend)}<br><span class="muted">`
           + `${t.costPerLead ? `${money(t.costPerLead)} a lead<br>` : ''}`
           + `${t.costPerWon ? `${money(t.costPerWon)} a deal<br>` : ''}`
-          + `${t.costPerCustomer ? `${money(t.costPerCustomer)} a customer` : ''}</span>` : '<span class="muted">–</span>'}</td>`
+          + `${t.costPerCustomer ? `${money(t.costPerCustomer)} a paying customer` : ''}</span>` : '<span class="muted">–</span>'}</td>`
       + `<td class="n">${int(t.customers)}${t.liveNow ? `<br><span class="muted">${int(t.liveNow)} live</span>` : ''}</td>`
       + (technical ? `<td class="n">${t.leads ? int(t.leads) : t.leadsAllTime ? `${int(t.leadsAllTime)}<br><span class="muted">all time</span>` : '–'}</td>`
         + `<td class="n">${int(t.won)}${t.wonMrr ? `<br><span class="muted">${money(t.wonMrr)} a month signed</span>` : ''}</td>`
@@ -4323,7 +4323,7 @@ function renderMarketing() {
   $('mkt-table').innerHTML =
     '<thead><tr><th>Category</th><th class="n">Spend</th><th class="n">Leads</th><th class="n">Deals opened</th>'
     + '<th class="n">Deals won</th><th class="n">Paying customers</th><th class="n">Per lead</th>'
-    + '<th class="n">Per won deal</th><th class="n">Per paying customer</th></tr></thead><tbody>'
+    + '<th class="n">Per won deal</th><th class="n">Direct spend per paying customer</th></tr></thead><tbody>'
     + r.totals.map(t => `<tr${t.hasSpend ? '' : ' class="muted"'}><td>${t.category}</td>`
       + `<td class="n">${t.hasSpend ? money(t.spend) : '–'}</td><td class="n">${t.leads ? int(t.leads) : '–'}</td>`
       + `<td class="n">${int(t.created)}</td><td class="n">${int(t.won)}</td><td class="n">${int(t.customers)}</td>`
@@ -4421,7 +4421,10 @@ function renderMarketing() {
   }
 
   $('mkt-note').textContent =
-    'Spend: Meta and podcast sponsorships are split out of QuickBooks 6100-05 Advertising by vendor; '
+    'Every cost per lead, deal or customer on this tab is direct channel spend only: ads, sponsorships and event fees, '
+    + 'with no payroll. It is not the cost per new logo on the Every chart tab (charts 26 and 27), which counts every '
+    + 'acquisition line including sales payroll and is several times higher. '
+    + 'Spend: Meta and podcast sponsorships are split out of QuickBooks 6100-05 Advertising by vendor; '
     + 'everything else in it, ClickFunnels landing pages and $34 of Google Ads included, is other advertising, so the categories add '
     + 'back to the ledger. Event spend is the Events tab’s cost for each event, in its month, including '
     + 'travel; event fees booked under advertising are counted there once. Webinars, website, search and '
@@ -5490,7 +5493,7 @@ function renderEvents() {
   $('event-channels-table').innerHTML =
     '<thead><tr><th>How they arrived</th><th class="n">New customers</th><th class="n">Live now</th>'
     + `<th class="n">Spend, ${fmt.monthLabel(CHANNEL_SPEND.from)} to ${fmt.monthLabel(CHANNEL_SPEND.to)}</th>`
-    + '<th class="n">Per new customer then</th>'
+    + '<th class="n">Direct spend per new customer</th>'
     + '<th class="n">Median first MRR</th><th class="n">Paid a month</th>'
     + '<th class="n">Still here at 6 months</th><th class="n">At 12 months</th></tr></thead><tbody>'
     + ch.map(c => `<tr${c.key === 'untagged' ? ' class="muted"' : ''}><td>${label[c.key] || c.key}</td>`
@@ -8215,8 +8218,8 @@ function renderAnnotations() {
   ]);
 
   annotate('chart-new-vs-churn', [
-    `<strong>Pooled, there is almost nothing here.</strong> Over the ${cap.points.length} months the capacity series covers the correlation is ${sign2(rc2.arrivals)}, under 1% of the variation. The chart above, drawn on the months where a full forward window has elapsed, gives its own figure in the finding.`,
-    `But that conceals the shape. With CS capacity held constant the association is ${sign2(rc2.arrivalsGivenCapacity)}, and the previous chart shows it was real early and has since gone.`,
+    `<strong>Pooled, there is almost nothing here.</strong> Over the ${cap.points.length} months the capacity series covers the correlation is ${sign2(rc2.arrivals)}, under 1% of the variation. This chart, drawn on the months where a full forward window has elapsed, gives its own figure in the finding.`,
+    `But that conceals the shape. With CS capacity held constant the association is ${sign2(rc2.arrivalsGivenCapacity)}, and chart 21 shows it was real early and has since gone.`,
     `Either way it rests on around two dozen monthly observations, which is far too few for a correlation to carry weight on its own.`,
   ], [
     'Both series drift over the period, and two drifting series correlate whether or not they are related. No trend line is drawn for that reason.',
