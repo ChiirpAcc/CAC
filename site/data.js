@@ -3590,6 +3590,8 @@ export const EVENT_ALIASES = {
   '2025 - Certain Path Fall Expo': 'CertainPath Fall Expo 2025',
   '2026 - Nuve Home Contractor Trades Event': 'Nuve 2026',
   '2026 - Home Service Hoorah': 'Home Service Hoorah 2026',
+  // HubSpot's tag and the cost row name it differently (pipeline v162).
+  '2026 - The Dirty Dozen': 'Dirty Dozen Retreat 2026',
   '2025 - Home and Commercial Services Marketing Summit': 'Home and Commercial Svcs Marketing Summit',
 };
 
