@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-09T13:27:27",
+  "pushed_at": "2026-10-09T15:00:38",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -65,12 +65,17 @@
       "tab": "Webinars",
       "file": "webinars.json",
       "rows": 41
+    },
+    {
+      "tab": "Setters",
+      "file": "setters.json",
+      "rows": 53
     }
   ],
   "missing_required": [],
   "failed": [],
-  "pull_version": "hs-v58",
+  "pull_version": "hs-v67",
   "row_format": "arrays",
-  "pipeline_version": "v163",
-  "push_version": "gh-v12"
+  "pipeline_version": "v166",
+  "push_version": "gh-v13"
 }
