@@ -4762,6 +4762,11 @@ function renderEvents() {
   // them has not had. The event month counts as month one. An event younger
   // than the chosen age is set aside, not ranked low.
   const costed = e.events.filter(eventHasReturn);
+  // Events with a cost row that cannot be scored yet: a cost still settling,
+  // a fee not found, or a month after the data. Listed under the ranking, not
+  // left out of it, newest first.
+  const waiting = e.events.filter(x => x.cost && x.month && !eventHasReturn(x) && (x.costState || x.upcoming))
+    .sort((a, b) => b.month.localeCompare(a.month) || a.label.localeCompare(b.label));
   const t = e.totals;
   const stateWords = { settling: 'cost still settling', pending: 'no cost found yet', 'not yet': 'event still ahead',
     absent: 'fee expected, not found' };
@@ -4838,7 +4843,7 @@ function renderEvents() {
       const direct = x.evidence ? x.evidence.direct : 0;
       const perDirect = direct ? x.spend / direct : null;
       return `<td class="n">${money(x.spend)}<br><span class="muted">`
-        + `${perLead === null ? 'no leads counted' : `${money(perLead)} a lead`}<br>`
+        + `${perLead !== null ? `${money(perLead)} a lead` : lead && lead.leads ? `${fmt.int(lead.leads)} leads so far` : 'no leads counted'}<br>`
         + `${perCustomer === null ? 'no customer yet'
           : `${perDirect === null ? (isDated(x, lead) ? 'no direct customer' : 'undated, no direct test') : `${money(perDirect)} a direct customer`}<br>`
             + `${money(perCustomer)} a tagged customer`}</span></td>`;
@@ -4881,6 +4886,18 @@ function renderEvents() {
           : `<td class="rank-bar-col"><span class="muted">${qty(x.age, 'month')} old, not yet ${k}; ${paybackWords(paybackBy.get(x.label))}</span></td>`;
         return `<tr${x.reached ? '' : ' class="rank-young"'}>${head}${net}${roiCell(x)}</tr>`;
       }).join('')
+      + (waiting.length ? `<tr class="rank-group"><td colspan="${technical ? 6 : 4}">Not scored yet</td></tr>` : '')
+      + waiting.map(x => {
+        const lead = leadsBy.get(x.label);
+        const why = [x.month > data.lastMonth ? `after the data, which runs to ${fmt.monthLabel(data.lastMonth)}` : '',
+          x.costState ? stateWords[x.costState] : ''].filter(Boolean).join('; ');
+        return `<tr class="rank-young"><td><a href="${eventHref(x.label)}">${x.label}</a> ${confidenceChip(eventConfidence(x))}`
+          + `<br><span class="muted">${fmt.monthLabel(x.month)}${technical && x.type ? ` · ${x.type}` : ''}</span></td>`
+          + costCell(x, lead)
+          + `<td class="n">${fmt.int(x.paid || 0)}${x.liveNow ? `<br><span class="muted">${fmt.int(x.liveNow)} live</span>` : ''}</td>`
+          + (technical ? `<td class="n">${lead && lead.leads !== null ? fmt.int(lead.leads) : '–'}</td><td class="n">–</td>` : '')
+          + `<td class="rank-bar-col"><span class="muted">Not scored yet: ${why}.</span></td><td class="n">–</td></tr>`;
+      }).join('')
       + `</tbody></table></div>`
       + `<p class="note">Cost per lead divides the event\u2019s cost by its earned leads from the Lead Counts tab, and is `
       + `left out while a cost is still settling. Cost per direct customer divides it by the customers the event\u2019s own `
@@ -4892,7 +4909,10 @@ function renderEvents() {
       + `ranked against one on the split alone. `
       + `Net and ${technical ? 'the first ROI' : 'its bar'} are read ${allTime ? 'on everything to date' : `${k} months after each event`}; `
       + `12-month ROI is actual for events a year old and projected for younger ones.`
-      + (allTime ? '' : ` Faded rows are younger than ${qty(k, 'month')} and are not ranked.`) + `</p>`;
+      + (allTime ? '' : ` Faded rows are younger than ${qty(k, 'month')} and are not ranked.`)
+      + (waiting.length ? ` Under "Not scored yet" are events whose cost is still settling or not found, or which fall after the `
+        + `last month of data (${fmt.monthLabel(data.lastMonth)}, the last month QuickBooks has closed); they are scored once that clears.` : '')
+      + `</p>`;
     const winners = judged.filter(x => x.netAtK >= 0);
     // With nobody paid back, the least-negative net is just the cheapest
     // event, often one with no customer; name the closest by share instead.

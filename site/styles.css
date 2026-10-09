@@ -1199,3 +1199,6 @@ figcaption { margin-bottom: .9rem; }
 .defs-charts { color: var(--ink-soft); }
 html { scroll-behavior: smooth; }
 .section-break, .defs { scroll-margin-top: 1rem; }
+
+/* A labelled group row inside a ranking table. */
+.rank-group td { padding-top: 0.9rem; font-size: 0.78rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); border-bottom: 1px solid var(--rule); }
