@@ -278,7 +278,9 @@ const LEAD_SOURCE_EVENT_VALUES = new Set(['Blue Sky Mastermind (Tradesformation)
 // Home Service Hoorah 2026 are the same event (Josh, 9 Oct 2026), so the
 // first is read as the second wherever a source is read, and its cost row is
 // dropped as a duplicate.
-const SOURCE_MERGE = { '2026 - Wealthy Plumber': '2026 - Home Service Hoorah' };
+const SOURCE_MERGE = { '2026 - Wealthy Plumber': '2026 - Home Service Hoorah',
+  // A misspelt option holding one contact.
+  '2026 - HSF Freedom': '2026 - Home Service Freedom' };
 const EVENT_ROWS_MERGED = new Set(['Wealthy Plumber 2026']);
 const mergeSource = v => { const t = String(v || '').trim(); return SOURCE_MERGE[t] || t || null; };
 function leadMediumOf(source, medium) {
@@ -3752,6 +3754,11 @@ export const EVENT_META = {
   'Nexstar Super Meeting 2026': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
   'HSF 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   'Home Service Freedom 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
+  // From the Event Hub, upcoming (9 Oct 2026).
+  'CertainPath Connect 2026': { type: 'Partner network event', organiser: 'CertainPath' },
+  'Build it to Sell it 2026': { type: 'Not yet classified' },
+  'Table of Titans 2027': { type: 'Small room', organiser: 'Table of Titans' },
+  'EGIA Epic 2027': { type: 'Conference sponsorship', organiser: 'EGIA' },
   'Pantheon 2026': { type: 'Conference sponsorship', organiser: 'ServiceTitan', plan2027: ON },
 };
 // A costed event with no EVENT_META entry is shown as unclassified rather
@@ -3815,6 +3822,19 @@ export const EVENT_EXTRA_COSTS = [
   { event: 'Grosso University 2026', month: '2026-08', sponsor: null, travel: 5740,
     costSource: 'modelled', note: 'Travel of $5,740 is modelled: the partnerships team\'s estimate on its '
       + 'Live Tracking sheet, Aug 2026.' },
+  // Upcoming events on the CHIIRP Event Hub (read 9 Oct 2026) that the Event
+  // Costs tab does not carry yet. A blank booth fee is one the Event Hub has
+  // no value for; travel is counted when the event happens.
+  { event: 'CertainPath Connect 2026', month: '2026-10', sponsor: null, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'Event Hub: CertainPath Connect / Partner Jam, 14 to 16 Oct 2026, Hilton Cancun. '
+      + 'No booth fee entered; $2,628 of hotels already booked.' },
+  { event: 'Build it to Sell it 2026', month: '2026-12', sponsor: null, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'Event Hub: 7 to 9 Dec 2026, The Diplomat Beach Resort, Hollywood FL. No fee entered; unpaid.' },
+  { event: 'Table of Titans 2027', month: '2027-01', sponsor: 7995, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'Event Hub: Table of Titans (Tony Hoty Mastermind), 13 to 15 Jan 2027, The Don Cesar, '
+      + 'St. Pete Beach FL. Fee $7,995, unpaid.' },
+  { event: 'EGIA Epic 2027', month: '2027-02', sponsor: null, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'Event Hub: EGIA EPIC 2027, 25 to 26 Feb 2027, Mandalay Bay, Las Vegas. No fee entered; unpaid.' },
 ];
 // The tab carries an extra event if any row has its name, or its words and a
 // month within one of it, so "Grosso University Aug 2026" in September still
