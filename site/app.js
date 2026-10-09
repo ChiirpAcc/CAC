@@ -4863,14 +4863,7 @@ function renderEvents() {
       const now = x.reached ? `<span class="${cls(x.roiAtK)}">${signedPct(x.roiAtK)}</span>` : '–';
       return `<td class="n">${now}<span class="muted"> ${allTime ? 'to date' : `at ${k} mo`}</span><br>${twelve}<span class="muted"> at 12 mo</span></td>`;
     };
-    $('chart-events').innerHTML =
-      `<div class="table-scroll"><table class="data-table rank-table${technical ? ' is-technical' : ''}"><thead><tr>`
-      + `<th>Event</th><th class="n">Cost</th><th class="n">Customers</th>`
-      + (technical ? `<th class="n">Earned leads</th><th class="n">Contribution ${allTime ? 'to date' : `by month ${k}`}</th>` : '')
-      + `<th class="rank-bar-col">Net of cost ${allTime ? 'to date' : `at ${k} months`}</th>`
-      + `<th class="n">${technical ? 'ROI' : '12-month ROI'}</th>`
-      + `</tr></thead><tbody>`
-      + order.map(x => {
+    const scoredRow = x => {
         const lead = leadsBy.get(x.label);
         const head = `<td><a href="${eventHref(x.label)}">${x.label}</a> ${confidenceChip(eventConfidence(x))}<br><span class="muted">`
           + `${fmt.monthLabel(x.month)}${technical && x.type ? ` · ${x.type}` : ''}</span></td>`
@@ -4885,9 +4878,8 @@ function renderEvents() {
             + `<span class="rank-bar-value ${cls(x.netAtK)}">${signed(x.netAtK)}</span></div></td>`
           : `<td class="rank-bar-col"><span class="muted">${qty(x.age, 'month')} old, not yet ${k}; ${paybackWords(paybackBy.get(x.label))}</span></td>`;
         return `<tr${x.reached ? '' : ' class="rank-young"'}>${head}${net}${roiCell(x)}</tr>`;
-      }).join('')
-      + (waiting.length ? `<tr class="rank-group"><td colspan="${technical ? 6 : 4}">Not scored yet</td></tr>` : '')
-      + waiting.map(x => {
+    };
+    const waitingRow = x => {
         const lead = leadsBy.get(x.label);
         const why = [x.month > data.lastMonth ? `after the data, which runs to ${fmt.monthLabel(data.lastMonth)}` : '',
           x.costState ? stateWords[x.costState] : ''].filter(Boolean).join('; ');
@@ -4897,7 +4889,28 @@ function renderEvents() {
           + `<td class="n">${fmt.int(x.paid || 0)}${x.liveNow ? `<br><span class="muted">${fmt.int(x.liveNow)} live</span>` : ''}</td>`
           + (technical ? `<td class="n">${lead && lead.leads !== null ? fmt.int(lead.leads) : '–'}</td><td class="n">–</td>` : '')
           + `<td class="rank-bar-col"><span class="muted">Not scored yet: ${why}.</span></td><td class="n">–</td></tr>`;
-      }).join('')
+    };
+    // A date or name sort puts every event in that order, the unscored ones
+    // faded in place; a result sort ranks the scored ones and lists the rest
+    // after them, since they have no result to rank on.
+    const byKey = sortBy === 'az' || sortBy === 'oldest' || sortBy === 'newest';
+    const cmp = sortBy === 'az' ? (a, b) => a.label.localeCompare(b.label)
+      : sortBy === 'oldest' ? (a, b) => a.month.localeCompare(b.month) || a.label.localeCompare(b.label)
+      : (a, b) => b.month.localeCompare(a.month) || a.label.localeCompare(b.label);
+    const body = byKey
+      ? [...order.map(x => ({ x, row: scoredRow })), ...waiting.map(x => ({ x, row: waitingRow }))]
+        .sort((a, b) => cmp(a.x, b.x)).map(r => r.row(r.x)).join('')
+      : order.map(scoredRow).join('')
+        + (waiting.length ? `<tr class="rank-group"><td colspan="${technical ? 6 : 4}">Not scored yet</td></tr>` : '')
+        + waiting.map(waitingRow).join('');
+    $('chart-events').innerHTML =
+      `<div class="table-scroll"><table class="data-table rank-table${technical ? ' is-technical' : ''}"><thead><tr>`
+      + `<th>Event</th><th class="n">Cost</th><th class="n">Customers</th>`
+      + (technical ? `<th class="n">Earned leads</th><th class="n">Contribution ${allTime ? 'to date' : `by month ${k}`}</th>` : '')
+      + `<th class="rank-bar-col">Net of cost ${allTime ? 'to date' : `at ${k} months`}</th>`
+      + `<th class="n">${technical ? 'ROI' : '12-month ROI'}</th>`
+      + `</tr></thead><tbody>`
+      + body
       + `</tbody></table></div>`
       + `<p class="note">Cost per lead divides the event\u2019s cost by its earned leads from the Lead Counts tab, and is `
       + `left out while a cost is still settling. Cost per direct customer divides it by the customers the event\u2019s own `
@@ -4910,7 +4923,7 @@ function renderEvents() {
       + `Net and ${technical ? 'the first ROI' : 'its bar'} are read ${allTime ? 'on everything to date' : `${k} months after each event`}; `
       + `12-month ROI is actual for events a year old and projected for younger ones.`
       + (allTime ? '' : ` Faded rows are younger than ${qty(k, 'month')} and are not ranked.`)
-      + (waiting.length ? ` Under "Not scored yet" are events whose cost is still settling or not found, or which fall after the `
+      + (waiting.length ? ` Rows reading "Not scored yet" are events whose cost is still settling or not found, or which fall after the `
         + `last month of data (${fmt.monthLabel(data.lastMonth)}, the last month QuickBooks has closed); they are scored once that clears.` : '')
       + `</p>`;
     const winners = judged.filter(x => x.netAtK >= 0);
