@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-08T17:00:21",
+  "pushed_at": "2026-10-09T12:10:25",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -59,7 +59,12 @@
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 935
+      "rows": 937
+    },
+    {
+      "tab": "Webinars",
+      "file": "webinars.json",
+      "rows": 41
     }
   ],
   "missing_required": [],
