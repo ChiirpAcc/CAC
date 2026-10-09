@@ -220,10 +220,13 @@ function widen(doc, name) {
   // costs nothing and stops this throwing if that ever changes.
   if (!('rows' in doc)) return doc;
 
-  const columns = doc.columns;
-  if (!Array.isArray(columns) || !columns.length) {
+  if (!Array.isArray(doc.columns) || !doc.columns.length) {
     throw new Error(`${name}: row_format is "arrays" but columns is missing`);
   }
+  // hs-v67 stamps its version onto the last column's name
+  // ("opened_in_a_bulk_day [hs-v67]"). The stamp belongs to the push, not the
+  // column, so it is dropped and the column read by its own name.
+  const columns = doc.columns.map(c => String(c).replace(/\s*\[[a-z]+-v\d+\]\s*$/i, ''));
 
   const rows = (doc.rows || []).map((row, index) => {
     if (!Array.isArray(row)) return row;

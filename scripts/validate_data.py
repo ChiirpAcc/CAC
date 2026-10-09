@@ -90,7 +90,8 @@ def widen(doc, name="?"):
     # of its own, so there is nothing to widen.
     if "rows" not in doc:
         return doc
-    columns = doc.get("columns") or []
+    # hs-v67 stamps its version onto the last column's name; drop it.
+    columns = [re.sub(r"\s*\[[a-z]+-v\d+\]\s*$", "", str(c), flags=re.I) for c in (doc.get("columns") or [])]
     if not columns:
         raise ValueError(f'{name}: row_format is "arrays" but columns is missing')
     rows = []
