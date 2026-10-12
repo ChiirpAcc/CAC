@@ -1202,3 +1202,6 @@ html { scroll-behavior: smooth; }
 
 /* A labelled group row inside a ranking table. */
 .rank-group td { padding-top: 0.9rem; font-size: 0.78rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); border-bottom: 1px solid var(--rule); }
+
+/* A rate resting on fewer than ten: shown, but faded. */
+.rate-thin { color: var(--ink-soft); }

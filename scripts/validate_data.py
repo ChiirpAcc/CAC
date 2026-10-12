@@ -612,6 +612,55 @@ def check_event_credit(customers):
                f"capped at indirect.")
 
 
+def check_event_leads(doc, setters):
+    """Event Leads (hs-v82): one row per contact tagged to an event. Its yes/no
+    columns must hold yes, no or blank; a dated event's rows must say whether
+    they arrived after it; won is blank only where there is no deal. The
+    Setters tab is this file totalled, so the two must agree."""
+    if not doc:
+        return
+    rows = doc.get("rows") or []
+    if not rows:
+        report("warning", "Event Leads", "the tab is in the push with no rows.")
+        return
+    yn = lambda v: str(v if v is not None else "").strip().lower()
+    bad_after = [r for r in rows if yn(r.get("after_the_event")) not in ("yes", "no", "")]
+    undecided = [r for r in rows if str(r.get("event_date") or "").strip() and yn(r.get("after_the_event")) == ""]
+    won_no_deal = [r for r in rows if yn(r.get("won")) in ("yes", "no") and not str(r.get("deal_created") or "").strip()]
+    if bad_after:
+        report("warning", "Event Leads", f"{len(bad_after)} rows have an after_the_event value other than yes, no or blank.")
+    if undecided:
+        report("warning", "Event Leads", f"{len(undecided)} rows have an event date but no after_the_event.")
+    if won_no_deal:
+        report("warning", "Event Leads", f"{len(won_no_deal)} rows say won yes or no with no deal_created.")
+    after = [r for r in rows if yn(r.get("after_the_event")) == "yes"]
+    booked = [r for r in after if str(r.get("booked_by") or "").strip()]
+    report("note", "Event Leads", f"{len(rows):,} tagged contacts across "
+           f"{len({r.get('source') for r in rows})} events; {len(after):,} arrived after their event, "
+           f"{sum(1 for r in rows if yn(r.get('after_the_event')) == 'no'):,} before it; setter recorded on "
+           f"{len(booked):,} of the {len(after):,}.")
+    # v169's Setters covers every source and counts leads, not sets, so it is
+    # only compared when it still carries the old shape.
+    if setters and setters.get("rows") and "set" in (setters.get("columns") or []):
+        mine = {}
+        for r in rows:
+            who = str(r.get("booked_by") or "").strip()
+            if not who:
+                continue
+            k = (who, r.get("source"))
+            v = mine.setdefault(k, [0, 0, 0])
+            v[0] += 1
+            v[1] += 1 if str(r.get("deal_created") or "").strip() else 0
+            v[2] += 1 if yn(r.get("won")) == "yes" else 0
+        off = [r for r in setters["rows"] if str(r.get("setter") or "").strip()
+               and mine.get((str(r.get("setter")).strip(), r.get("source"))) != [number(r.get("set")) or 0,
+                                                                                 number(r.get("sits")) or 0,
+                                                                                 number(r.get("wins")) or 0]]
+        if off:
+            report("warning", "Setters", f"{len(off)} setter and event rows disagree with Event Leads, which is the "
+                   f"source of truth, e.g. {off[0].get('setter')} / {off[0].get('source')}.")
+
+
 def check_marketing_monthly(doc, present):
     """The Marketing Monthly tab (gh-v7): one row per month and HubSpot value. The
     site reads it from September 2025, where the vendor split of advertising
@@ -727,6 +776,9 @@ def main():
         event_costs = present.get("Event Costs")
         check_event_costs(load(event_costs["file"]) if event_costs else None)
         check_ledger_closed(load("qb_expenses.json"))
+        el = present.get("Event Leads")
+        st = present.get("Setters")
+        check_event_leads(load(el["file"]) if el else None, load(st["file"]) if st else None)
         mm = present.get("Marketing Monthly")
         check_marketing_monthly(load(mm["file"]) if mm else None, present)
 

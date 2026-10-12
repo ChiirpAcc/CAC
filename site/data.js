@@ -256,10 +256,10 @@ const TAB_FILES = {
   'New Customer Cohorts': 'signup_pricing.json', 'Serve Monthly': 'serve_monthly.json',
   'Event Costs': 'event_costs.json', 'Cash Detail': 'cash_detail.json',
   'Lead Counts': 'lead_counts.json', 'Marketing Monthly': 'marketing_monthly.json',
-  'Webinars': 'webinars.json',
+  'Webinars': 'webinars.json', 'Event Leads': 'event_leads.json', 'Setters': 'setters.json',
 };
 const OPTIONAL_TABS = ['QB Accounts', 'Subscription Lifetimes', 'New Customer Cohorts',
-  'Serve Monthly', 'Event Costs', 'Cash Detail', 'Lead Counts', 'Marketing Monthly', 'Webinars'];
+  'Serve Monthly', 'Event Costs', 'Cash Detail', 'Lead Counts', 'Marketing Monthly', 'Webinars', 'Event Leads', 'Setters'];
 
 // The pipeline calls any lead source with a year prefix an event. A few that
 // carry a year are not events by their own name: "2025 - Smart AC Webinar" is
@@ -788,6 +788,40 @@ export async function load() {
       }))
     : null;
 
+  // One row per contact tagged to an event (pull hs-v82). A blank is never a
+  // zero: a blank booked_by is a lead nobody recorded booking, a blank
+  // demoed_by with no deal is no deal, a blank event date is an undated
+  // event. Each is kept as null and named on the page.
+  const yesNo = v => { const t = String(v ?? '').trim().toLowerCase(); return t === 'yes' || t === 'true' ? true : t === 'no' || t === 'false' ? false : null; };
+  const isoDay = v => (/^\d{4}-\d{2}-\d{2}/.test(String(v || '')) ? String(v).slice(0, 10) : null);
+  const person = v => String(v ?? '').trim() || null;
+  const eventLeadRows = byTab['Event Leads']
+    ? byTab['Event Leads'].rows.filter(r => r.source).map(r => ({
+        source: mergeSource(r.source),
+        eventDate: isoDay(r.event_date),
+        contactId: String(r.contact_id ?? '').trim() || null,
+        company: String(r.company ?? '').trim() || null,
+        created: isoDay(r.created),
+        afterEvent: yesNo(r.after_the_event),
+        bookedBy: person(r.booked_by),
+        demoedBy: person(r.demoed_by),
+        dealCreated: isoDay(r.deal_created),
+        won: yesNo(r.won),
+        wonMrr: num(r.won_mrr),
+        readAs: String(r['read this as'] ?? '').trim() || null,
+      }))
+    : null;
+  // The same leads totalled per setter per event by the pipeline; kept to
+  // check against the rows, which are the source of truth.
+  const setterRows = byTab['Setters']
+    ? byTab['Setters'].rows.filter(r => r.setter || r.source).map(r => ({
+        setter: person(r.setter), source: mergeSource(r.source),
+        leads: count(r.leads ?? r.set), sits: count(r.sits), wins: count(r.wins), wonMrr: num(r.won_mrr),
+        taggedBefore: count(r.tagged_before_the_event),
+        readAs: String(r['read this as'] ?? '').trim() || null,
+      }))
+    : null;
+
   const vocabulary = checkVocabulary(byTab['Customer Waterfall'], customers);
   const newestPush = Object.values(byTab).map(d => d && d.pushed_at).filter(Boolean).sort().pop() || null;
 
@@ -820,6 +854,8 @@ export async function load() {
     marketingMonthly,
     marketingMonthlyPushedAt: byTab['Marketing Monthly'] ? byTab['Marketing Monthly'].pushed_at || null : null,
     webinars,
+    eventLeadRows,
+    setterRows,
     lifetimes,
     lifetimeRecords,
     signups,
@@ -5001,12 +5037,49 @@ const ORIGINAL_SOURCE = /^([A-Z][A-Z_]+)(?:\s*\/\s*(.*))?$/;
 // them as probable renewal placeholders rather than dating them in 3000.
 // They are not new business and are left out of every count.
 const MARKETING_PLACEHOLDER = /close date in the future|placeholder/i;
-function marketingCategoryOf(value, mediumOf) {
+// A campaign named for an event or a webinar belongs to it, whatever channel
+// HubSpot recorded it under: the 2026 Wealthy Plumber campaign's contacts
+// arrived as "other campaign" and "marketing email", and are the event's
+// (Hoorah 2026). Campaign drill-downs are matched on their words to the event
+// sources in Lead Counts (and the event's year), and to the Webinars tab's
+// titles.
+function campaignContext(data) {
+  const norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const events = [];
+  for (const r of data.leadCounts || []) {
+    if (leadMediumOf(r.source, r.medium) !== 'event') continue;
+    events.push({ source: r.source, words: eventWords(r.source.replace(/^20\d\d\s*-\s*/, '')),
+      year: (r.source.match(/^(20\d\d)/) || [])[1] || null, fromCampaign: r.fromCampaign || 0 });
+  }
+  const webinars = (data.webinars || []).map(w => norm(w.webinar)).filter(t => t.length > 12);
+  return { events, webinars, norm };
+}
+function campaignTarget(drill, month, ctx) {
+  if (!ctx || !drill) return null;
+  const d = String(drill).replace(/^\d{6,}-/, '').trim();
+  const merged = Object.entries(SOURCE_MERGE).find(([from]) => from.toLowerCase() === d.toLowerCase());
+  const named = merged ? merged[1] : d;
+  const words = eventWords(named.replace(/^20\d\d\s*-\s*/, ''));
+  const year = (named.match(/^(20\d\d)/) || [])[1] || String(month || '').slice(0, 4);
+  const ev = words && ctx.events.find(e => e.words === words && (!e.year || e.year === year));
+  if (ev) return { category: 'Events', source: ev.source, fromCampaign: ev.fromCampaign };
+  const dn = ctx.norm(d);
+  if (dn.length > 12 && ctx.webinars.some(w => w.startsWith(dn.slice(0, 40)) || dn.startsWith(w.slice(0, 40)))) {
+    return { category: 'Webinars' };
+  }
+  return null;
+}
+
+function marketingCategoryOf(value, mediumOf, month = null, ctx = null) {
   const text = String(value || '').trim();
   if (MARKETING_PLACEHOLDER.test(text)) return null;
   if (!text || text === 'UNTAGGED') return 'Untagged';
   const os = text.match(ORIGINAL_SOURCE);
   if (os && LEAD_CATEGORY[os[1]]) {
+    if (os[1] !== 'OFFLINE') {
+      const target = campaignTarget(os[2], month, ctx);
+      if (target) return target.category;
+    }
     if (os[1] !== 'OFFLINE' && /webinar|\blab\b/i.test(os[2] || '')) return 'Webinars';
     return LEAD_CATEGORY[os[1]];
   }
@@ -5098,6 +5171,139 @@ export function sourceConfidence(t, detail) {
   return { level, reasons: [...low, ...medium] };
 }
 
+// Where an event lead stands, read in order; the first that matches wins
+// (pipeline brief, hs-v82). A deal existing is the sit: HubSpot does not
+// create one without a demo, and no field records a demo otherwise.
+export const LEAD_STATES = [
+  { key: 'earlier', label: 'Tagged, arrived earlier', note: 'tagged to the event but in HubSpot before it; the event did not produce it' },
+  { key: 'undated', label: 'Undated event', note: 'the event has no date, so before and after cannot be told apart' },
+  { key: 'unworked', label: 'Lead, no booking recorded', note: 'no setter recorded and no deal; silence is no record, not no effort' },
+  { key: 'booked', label: 'Booked, no sit', note: 'a setter is recorded and no deal followed' },
+  { key: 'lost', label: 'Sat and lost', note: 'a deal exists and did not win' },
+  { key: 'sat', label: 'Sat, still open', note: 'a deal exists and has not closed' },
+  { key: 'won', label: 'Won', note: 'a deal exists and won' },
+];
+export function leadState(r) {
+  if (r.afterEvent === false) return 'earlier';
+  if (!r.eventDate || r.afterEvent === null) return 'undated';
+  const deal = Boolean(r.dealCreated);
+  if (!deal) return r.bookedBy ? 'booked' : 'unworked';
+  if (r.won === true) return 'won';
+  if (r.won === false) return 'lost';
+  return 'sat';
+}
+
+// Per event: the leads it produced and how far they went. A rate is kept
+// with its numerator and denominator, and marked thin under ten, so a rate
+// on four leads cannot pass for a measurement.
+const ratio = (n, d) => ({ n, d, rate: d ? n / d : null, thin: d < 10 });
+export function eventFunnel(data, roi = eventRoi(data)) {
+  const rows = data.eventLeadRows;
+  if (!rows || !rows.length) return null;
+  // A source is matched to its event the way Lead Counts is (cost rows,
+  // aliases), so an event with no paying customer still finds its row.
+  // Webinars and podcasts carry a year prefix and are not events.
+  const el = eventLeads(data, roi);
+  const evByLabel = new Map((roi ? roi.events : []).map(e => [e.label, e]));
+  const labelOf = new Map(((el || {}).events || []).map(l => [l.source, evByLabel.get(l.label) || { label: l.label }]));
+  for (const e of roi ? roi.events : []) if (e.source && !labelOf.has(e.source)) labelOf.set(e.source, e);
+  const bySource = new Map();
+  for (const r of rows) {
+    if (leadMediumOf(r.source, 'event') !== 'event') continue;
+    if (!bySource.has(r.source)) bySource.set(r.source, []);
+    bySource.get(r.source).push({ ...r, state: leadState(r) });
+  }
+  const events = [...bySource].map(([source, list]) => {
+    const e = labelOf.get(source) || null;
+    const dated = list.some(r => r.eventDate);
+    const produced = list.filter(r => r.afterEvent === true);
+    const base = dated ? produced : list;
+    const booked = base.filter(r => r.bookedBy).length;
+    const sat = base.filter(r => r.dealCreated).length;
+    const won = base.filter(r => r.won === true).length;
+    const byState = Object.fromEntries(LEAD_STATES.map(s => [s.key, list.filter(r => r.state === s.key).length]));
+    return {
+      source, label: e ? e.label : source.replace(/^(20\d\d)\s*-\s*(.*)$/, '$2 $1'), event: e && e.cost ? e : null,
+      month: e && e.cost ? e.cost.month : null,
+      dated, eventDate: (list.find(r => r.eventDate) || {}).eventDate || null,
+      tagged: list.length, produced: dated ? produced.length : null, earlier: dated ? byState.earlier : null,
+      base: base.length, booked: ratio(booked, base.length), sat: ratio(sat, base.length), won: ratio(won, base.length),
+      satToWon: ratio(won, sat), bookedToSat: ratio(base.filter(r => r.bookedBy && r.dealCreated).length, booked),
+      wonDealAmount: base.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0),
+      byState, leads: list,
+    };
+  }).sort((a, b) => String(b.month || b.eventDate || '').localeCompare(String(a.month || a.eventDate || '')) || a.label.localeCompare(b.label));
+  const kept = rows.filter(r => leadMediumOf(r.source, 'event') === 'event');
+  const recent = kept.filter(r => r.afterEvent === true);
+  return {
+    events,
+    totals: { tagged: kept.length, produced: recent.length, earlier: kept.filter(r => r.afterEvent === false).length,
+      undated: kept.filter(r => !r.eventDate).length, booked: recent.filter(r => r.bookedBy).length,
+      sat: recent.filter(r => r.dealCreated).length, won: recent.filter(r => r.won === true).length },
+    // How often the setter field is filled, on leads the events produced.
+    setterFill: ratio(recent.filter(r => r.bookedBy).length, recent.length),
+  };
+}
+
+// Setters and deal owners, from the event lead rows. booked_by is who got
+// the demo agreed; demoed_by is the deal's owner, the closest the data has
+// to who ran it (there is no AE field). Leads with no setter recorded are
+// one line of their own, never spread across the people.
+// A HubSpot person the pull could not name arrives as a bare user id.
+export const personName = who => (who === null || who === undefined ? null
+  : /^\d{6,}$/.test(String(who)) ? `HubSpot user ${who}` : String(who));
+
+export function salesReport(data) {
+  const rows = (data.eventLeadRows || []).filter(r => leadMediumOf(r.source, 'event') === 'event');
+  if (!rows.length) return null;
+  const counted = rows.filter(r => r.afterEvent !== false); // leads an event produced, or undated
+  const group = (key, list) => {
+    const m = new Map();
+    for (const r of list) {
+      const k = r[key] || null;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(r);
+    }
+    return m;
+  };
+  const setters = [...group('bookedBy', counted)].map(([who, list]) => {
+    const sat = list.filter(r => r.dealCreated).length;
+    const won = list.filter(r => r.won === true).length;
+    const events = [...group('source', list)].map(([source, l]) => ({ source, leads: l.length,
+      sat: l.filter(r => r.dealCreated).length, won: l.filter(r => r.won === true).length }))
+      .sort((a, b) => b.leads - a.leads);
+    return { who, recorded: who !== null, booked: list.length, sat: ratio(sat, list.length), won: ratio(won, list.length),
+      satToWon: ratio(won, sat), wonDealAmount: list.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0), events };
+  }).sort((a, b) => (b.recorded - a.recorded) || b.booked - a.booked);
+  const withDeal = counted.filter(r => r.dealCreated);
+  const owners = [...group('demoedBy', withDeal)].map(([who, list]) => {
+    const won = list.filter(r => r.won === true).length;
+    const closed = list.filter(r => r.won !== null).length;
+    return { who, recorded: who !== null, deals: list.length, won: ratio(won, list.length), closed,
+      closeRate: ratio(won, closed), wonDealAmount: list.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0),
+      bookedByOthers: list.filter(r => r.bookedBy && r.bookedBy !== who).length };
+  }).sort((a, b) => (b.recorded - a.recorded) || b.deals - a.deals);
+  // The Setters tab, as the pipeline built it: every source, per person.
+  let people = null;
+  if (data.setterRows && data.setterRows.length) {
+    const m = new Map();
+    for (const r of data.setterRows) {
+      const k = r.setter || null;
+      if (!m.has(k)) m.set(k, { who: k, leads: 0, sits: 0, wins: 0, wonMrr: 0, taggedBefore: 0, sources: [] });
+      const p = m.get(k);
+      p.leads += r.leads || 0; p.sits += r.sits || 0; p.wins += r.wins || 0; p.wonMrr += r.wonMrr || 0;
+      p.taggedBefore += r.taggedBefore || 0;
+      if (r.leads || r.sits) p.sources.push(r);
+    }
+    people = [...m.values()].map(p => ({ ...p, recorded: p.who !== null, sitRate: ratio(p.sits, p.leads),
+      closeRate: ratio(p.wins, p.sits), sources: p.sources.sort((a, b) => (b.leads || 0) - (a.leads || 0)) }))
+      .sort((a, b) => (b.recorded - a.recorded) || b.leads - a.leads);
+  }
+  return { setters, owners, counted: counted.length, people,
+    setterFill: ratio(counted.filter(r => r.bookedBy).length, counted.length),
+    ownerFill: ratio(withDeal.filter(r => r.demoedBy).length, withDeal.length) };
+}
+
 export function marketingReport(data, roi = eventRoi(data)) {
   const snap = MARKETING_SNAPSHOT;
   // The pushed tab when there is one; the 5 Oct 2026 snapshot otherwise.
@@ -5149,10 +5355,23 @@ export function marketingReport(data, roi = eventRoi(data)) {
   if (live) {
     const mediumOf = new Map();
     for (const r of data.customers) if (r.leadSource && r.leadMedium) mediumOf.set(r.leadSource, r.leadMedium);
+    const ctx = campaignContext(data);
     for (const r of live) {
       const x = at.get(r.month);
       if (!x) continue;
-      const cat = marketingCategoryOf(r.category, mediumOf);
+      const cat = marketingCategoryOf(r.category, mediumOf, r.month, ctx);
+      // Contacts an event's campaign captured are the event's leads. Lead
+      // Counts does not hold them (no typed tag), so they are added here,
+      // unless its campaign count already does.
+      const osm = String(r.category || '').match(ORIGINAL_SOURCE);
+      const camp = osm && osm[1] !== 'OFFLINE' ? campaignTarget(osm[2], r.month, ctx) : null;
+      if (camp && camp.category === 'Events' && r.leads && !camp.fromCampaign) {
+        x.leads.Events = (x.leads.Events || 0) + r.leads;
+        const lbl = `Campaign for ${camp.source}`;
+        if (!inside.Events.has(lbl)) inside.Events.set(lbl, { label: lbl, leads: 0, created: 0, won: 0, wonMrr: 0, bulk: 0 });
+        inside.Events.get(lbl).leads += r.leads;
+        continue;
+      }
       if (!cat) {
         placeholders.won += r.dealsWon || 0;
         placeholders.wonMrr += r.wonMrr || 0;

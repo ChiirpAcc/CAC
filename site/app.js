@@ -15,6 +15,7 @@ import {
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
+  eventFunnel, salesReport, LEAD_STATES, personName,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -1142,6 +1143,7 @@ function showView(which) {
   if ($('view-marketing')) $('view-marketing').hidden = which !== 'marketing';
   if ($('view-event')) $('view-event').hidden = which !== 'event';
   if ($('view-source')) $('view-source').hidden = which !== 'source';
+  if ($('view-sales')) $('view-sales').hidden = which !== 'sales';
   // Leaving an event's page drops its address, so the same event can be
   // opened again from the list.
   if (which !== 'source' && /^#source=/.test(location.hash)) {
@@ -1152,7 +1154,8 @@ function showView(which) {
   }
   for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'],
                           ['tab-events', which === 'events' || which === 'event'],
-                          ['tab-marketing', which === 'marketing' || which === 'source']]) {
+                          ['tab-marketing', which === 'marketing' || which === 'source'],
+                          ['tab-sales', which === 'sales']]) {
     if (!$(id)) continue;
     $(id).setAttribute('aria-selected', String(on));
     $(id).classList.toggle('is-on', on);
@@ -1165,6 +1168,7 @@ function wireTabs() {
   if ($('tab-list')) $('tab-list').addEventListener('click', () => showView('list'));
   if ($('tab-events')) $('tab-events').addEventListener('click', () => showView('events'));
   if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => showView('marketing'));
+  if ($('tab-sales')) $('tab-sales').addEventListener('click', () => showView('sales'));
   // An event's own page is #event=<name>; #events returns to the list.
   const route = () => {
     const m = location.hash.match(/^#event=(.+)$/);
@@ -1173,6 +1177,7 @@ function wireTabs() {
     const src = location.hash.match(/^#source=(.+)$/);
     if (src) { renderSourcePage(decodeURIComponent(src[1])); showView('source'); return true; }
     if (location.hash === '#marketing') { showView('marketing'); return true; }
+    if (location.hash === '#sales') { showView('sales'); return true; }
     return false;
   };
   window.addEventListener('hashchange', route);
@@ -4205,6 +4210,7 @@ function renderSourcePage(cat) {
       + `<p class="ev-note">Meta spend divided by the contacts HubSpot records as arriving through paid social that month, `
       + `and the leads each $1,000 bought.</p></section>` : '')
     + `<section class="ev-panel"><h3>Funnel</h3><div class="ev-facts">${funnel}</div></section>`
+    + (cat === 'Events' ? eventsOnSourcePage() : '')
     + confidencePanel(t.confidence, 'this source', 'Nothing in the inputs lowers it: the source is recorded on its customers and deals, and its spend comes from the ledger.') + webinarPanel + insidePanel
     + `<section class="ev-panel"><h3>Customers</h3>`
     + (custRows ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>First paid</th>`
@@ -4241,6 +4247,130 @@ function renderSourcePage(cat) {
         + `<span>${d.monthly[i].spend > 0 ? `${(d.monthly[i].leads / d.monthly[i].spend * 1000).toFixed(1)} leads per $1,000` : 'no spend'}</span>`,
     });
   }
+}
+
+// A rate with what it rests on: "40% (2 of 5)", faded under ten, because a
+// rate on four leads moves twenty-five points on one customer.
+function rateCell(r, { cell = true } = {}) {
+  const inner = !r || !r.d ? '<span class="muted">–</span>'
+    : `<span class="${r.thin ? 'rate-thin' : ''}">${fmt.pct(r.rate, 0)}</span>`
+      + `<br><span class="muted">${fmt.int(r.n)} of ${fmt.int(r.d)}</span>`;
+  return cell ? `<td class="n">${inner}</td>` : inner;
+}
+const STATE_LABEL = Object.fromEntries(LEAD_STATES.map(s => [s.key, s.label]));
+
+// Events tab: the leads each event produced and how far they went.
+function renderEventAttribution() {
+  if (!$('event-attribution-table')) return;
+  const f = eventFunnel(data);
+  const fig = $('fig-event-attribution');
+  if (!f) {
+    $('event-attribution-finding').innerHTML = 'The Event Leads tab is not in this push, so there is nothing to attribute yet. '
+      + 'That is a gap in the push, not a zero.';
+    $('event-attribution-table').innerHTML = '';
+    return;
+  }
+  if (fig) fig.hidden = false;
+  const money = v => (v ? fmt.money(v) : '–');
+  const t = f.totals;
+  $('event-attribution-finding').innerHTML =
+    `<strong>Events produced ${fmt.int(t.produced)} leads that arrived on or after the event; another ${fmt.int(t.earlier)} `
+    + `carry an event tag but were in HubSpot before it.</strong> Of the leads produced, ${fmt.int(t.booked)} have a setter `
+    + `recorded, ${fmt.int(t.sat)} reached a deal and ${fmt.int(t.won)} won. The setter field is filled on `
+    + `${fmt.pct(f.setterFill.rate || 0, 0)} of them, so most leads carry no booking record: that is a gap in the record, `
+    + `not leads nobody worked.`;
+  $('event-attribution-table').innerHTML =
+    '<thead><tr><th>Event</th><th class="n">Leads produced</th><th class="n">Tagged, arrived earlier</th>'
+    + '<th class="n">Booked</th><th class="n">Sat (a deal)</th><th class="n">Won</th><th class="n">Sat to won</th>'
+    + '<th class="n">Won deal amount</th></tr></thead><tbody>'
+    + f.events.map(e => `<tr><td>${e.event ? `<a href="${eventHref(e.label)}">${e.label}</a>` : e.label}`
+      + `<br><span class="muted">${e.dated ? (e.eventDate || '') : 'undated: every tagged contact, before or after'}</span></td>`
+      + `<td class="n">${e.dated ? fmt.int(e.produced) : `${fmt.int(e.tagged)}<br><span class="muted">all tagged</span>`}</td>`
+      + `<td class="n">${e.dated ? (e.earlier ? `<span class="${e.earlier > e.produced ? 'notviable' : ''}">${fmt.int(e.earlier)}</span>` : '0') : '–'}</td>`
+      + rateCell(e.booked) + rateCell(e.sat) + rateCell(e.won) + rateCell(e.satToWon)
+      + `<td class="n">${money(e.wonDealAmount)}${e.wonDealAmount ? '<br><span class="muted">deal amount, est.</span>' : ''}</td></tr>`).join('')
+    + '</tbody>';
+  $('event-attribution-note').textContent =
+    'From the Event Leads tab, one row per contact tagged to an event. Leads produced are contacts created on or after the '
+    + 'event; tagged, arrived earlier are contacts tagged to it that HubSpot already held, which is back-tagging and is not '
+    + 'counted as the event\u2019s. An undated event cannot be split, so it shows every tagged contact and is not comparable '
+    + 'with a dated one. Booked is a setter recorded; sat is a deal existing, since HubSpot creates a deal only once a demo '
+    + 'is sat; won is the deal winning. Each rate shows what it rests on and is faded under ten. Won deal amount is what the '
+    + 'deal said, not what Stripe billed; revenue per event is on the ranking above.';
+}
+
+// The Sales tab: setters and deal owners, from the same lead rows.
+function renderSales() {
+  if (!$('sales-setters')) return;
+  const r = salesReport(data);
+  const f = eventFunnel(data);
+  if (!r) {
+    $('sales-kpis').innerHTML = '';
+    $('sales-finding').innerHTML = 'The Event Leads tab is not in this push, so there is nothing to show yet. That is a gap '
+      + 'in the push, not a zero.';
+    for (const id of ['sales-setters', 'sales-owners', 'sales-matrix']) $(id).innerHTML = '';
+    return;
+  }
+  const money = v => (v ? fmt.money(v) : '–');
+  const kpi = (k, v, sub = '') => `<div class="ev-kpi"><span class="ev-kpi-label">${k}</span>`
+    + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
+  const named = r.setters.filter(x => x.recorded);
+  const unrec = r.setters.find(x => !x.recorded);
+  $('sales-kpis').innerHTML =
+    kpi('Event leads', fmt.int(r.counted), 'produced by an event, or from an undated one')
+    + kpi('Setter recorded', fmt.pct(r.setterFill.rate || 0, 0), `${fmt.int(r.setterFill.n)} of ${fmt.int(r.setterFill.d)} leads`)
+    + kpi('Reached a deal', f ? fmt.int(f.totals.sat) : '–', 'of the leads events produced')
+    + kpi('Deal owner recorded', fmt.pct(r.ownerFill.rate || 0, 0), `${fmt.int(r.ownerFill.n)} of ${fmt.int(r.ownerFill.d)} deals`);
+  $('sales-finding').innerHTML =
+    `<strong>${fmt.int(named.length)} setters are recorded against ${fmt.int(r.setterFill.n)} of ${fmt.int(r.setterFill.d)} `
+    + `event leads.</strong> The other ${fmt.int(unrec ? unrec.booked : 0)} have no setter recorded and are shown as their own `
+    + `line rather than spread across anyone, since a blank means no record, not no work. Every rate shows what it rests on; `
+    + `most rest on fewer than ten leads, so read them as counts, not measurements.`;
+  const evName = src => String(src).replace(/^(20\d\d)\s*-\s*(.*)$/, '$2 $1');
+  $('sales-setters').innerHTML =
+    '<thead><tr><th>Setter (booked the demo)</th><th class="n">Leads booked</th><th class="n">Sat (a deal)</th>'
+    + '<th class="n">Won</th><th class="n">Sat to won</th><th class="n">Won deal amount</th><th>Events, most leads first</th></tr></thead><tbody>'
+    + r.setters.map(x => `<tr${x.recorded ? '' : ' class="muted"'}><td>${x.recorded ? personName(x.who) : 'Not recorded'}</td>`
+      + `<td class="n">${fmt.int(x.booked)}</td>` + rateCell(x.sat) + rateCell(x.won) + rateCell(x.satToWon)
+      + `<td class="n">${money(x.wonDealAmount)}</td>`
+      + `<td>${x.events.slice(0, 4).map(e => `${evName(e.source)} <span class="muted">${e.leads}/${e.sat}/${e.won}</span>`).join('<br>')}`
+      + `${x.events.length > 4 ? `<br><span class="muted">${x.events.length - 4} more</span>` : ''}</td></tr>`).join('')
+    + '</tbody>';
+  $('sales-owners').innerHTML =
+    '<thead><tr><th>Deal owner (ran the demo, by proxy)</th><th class="n">Deals</th><th class="n">Won</th>'
+    + '<th class="n">Close rate, closed deals</th><th class="n">Still open</th><th class="n">Won deal amount</th>'
+    + '<th class="n">Booked by a setter</th></tr></thead><tbody>'
+    + r.owners.map(x => `<tr${x.recorded ? '' : ' class="muted"'}><td>${x.recorded ? personName(x.who) : 'No owner on the deal'}</td>`
+      + `<td class="n">${fmt.int(x.deals)}</td>` + rateCell(x.won) + rateCell(x.closeRate)
+      + `<td class="n">${fmt.int(x.deals - x.closed)}</td><td class="n">${money(x.wonDealAmount)}</td>`
+      + `<td class="n">${fmt.int(x.bookedByOthers)}</td></tr>`).join('')
+    + '</tbody>';
+  // Setter by event: leads booked / sat / won in each cell.
+  const evs = f ? f.events.filter(e => e.booked.n > 0) : [];
+  $('sales-matrix').innerHTML = !named.length || !evs.length ? ''
+    : '<thead><tr><th>Setter</th>' + evs.map(e => `<th class="n">${e.label}</th>`).join('') + '</tr></thead><tbody>'
+      + named.map(x => {
+        const by = new Map(x.events.map(e => [e.source, e]));
+        return `<tr><td>${personName(x.who)}</td>` + evs.map(e => { const c = by.get(e.source); return `<td class="n">${c ? `${c.leads}<span class="muted">/${c.sat}/${c.won}</span>` : '<span class="muted">–</span>'}</td>`; }).join('') + '</tr>';
+      }).join('') + '</tbody>';
+  $('sales-people').innerHTML = !r.people ? ''
+    : '<thead><tr><th>Person</th><th class="n">Leads</th><th class="n">Sits</th><th class="n">Wins</th><th class="n">Sit rate</th>'
+      + '<th class="n">Close rate</th><th class="n">Won deal amount</th><th>Sources, most leads first</th></tr></thead><tbody>'
+      + r.people.map(p => `<tr${p.recorded ? '' : ' class="muted"'}><td>${p.recorded ? personName(p.who) : 'Not recorded'}</td>`
+        + `<td class="n">${fmt.int(p.leads)}</td><td class="n">${fmt.int(p.sits)}</td><td class="n">${fmt.int(p.wins)}</td>`
+        + rateCell(p.sitRate) + rateCell(p.closeRate) + `<td class="n">${money(p.wonMrr)}</td>`
+        + `<td>${p.sources.slice(0, 4).map(x => `${evName(x.source)} <span class="muted">${x.leads || 0}/${x.sits || 0}/${x.wins || 0}</span>`).join('<br>')}`
+        + `${p.sources.length > 4 ? `<br><span class="muted">${p.sources.length - 4} more</span>` : ''}</td></tr>`).join('')
+      + '</tbody>';
+  $('sales-note').textContent =
+    'From the Event Leads tab. The setter is who got the lead to agree to a demo (the contact\u2019s setter field, or the '
+    + 'deal\u2019s). The deal owner stands in for who ran the demo: HubSpot creates a deal only once a demo is sat, and there '
+    + 'is no account executive field, so this is the closest the data has, not the same thing. Leads counted are those an '
+    + 'event produced (created on or after it) and those from undated events; contacts tagged to an event they predate are '
+    + 'left out. Rates show their numerator and denominator and fade under ten. Won deal amount is what the deal said, not '
+    + 'what Stripe billed, and is for comparing, not adding up as revenue. In the matrix, each cell reads leads/sat/won.'
+    + ' The last table is the pipeline\u2019s Setters tab as it arrives: every lead source, not only events, per person, '
+    + 'with sources reading leads/sits/wins. A person the pull could not name shows as their HubSpot user number.';
 }
 
 // A confidence label with its reasons on hover and for screen readers.
@@ -4451,6 +4581,80 @@ function renderMarketing() {
 // from, the leads, the customers it is credited with and what they have paid.
 // Reached from any event name on the Events tab as #event=<name>.
 const eventHref = label => `#event=${encodeURIComponent(label)}`;
+// The Events source page: one row per event, from the Events tab's own
+// figures, so the two never disagree.
+function eventsOnSourcePage() {
+  const roi = eventRoi(data);
+  if (!roi) return '';
+  const el = eventLeads(data, roi);
+  const leadsBy = new Map(((el || {}).events || []).map(l => [l.label, l]));
+  const fun = eventFunnel(data, roi);
+  const funBy = new Map(((fun || {}).events || []).map(f => [f.label, f]));
+  // Contacts an event's campaign captured, from Marketing Monthly.
+  const mk = marketingReport(data, roi);
+  const campaignBy = new Map(((mk && mk.detail.Events.inside) || []).filter(v => /^Campaign for /.test(v.label))
+    .map(v => [v.label.replace(/^Campaign for /, ''), v.leads]));
+  const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
+  const rows = [...roi.events].filter(e => e.cost || e.paid)
+    .sort((a, b) => String((b.cost && b.cost.month) || '').localeCompare(String((a.cost && a.cost.month) || '')) || a.label.localeCompare(b.label));
+  return `<section class="ev-panel"><h3>Each event</h3><div class="table-scroll"><table class="data-table ev-table">`
+    + `<thead><tr><th>Event</th><th class="n">Cost</th><th class="n">Leads</th>`
+    + (fun ? '<th class="n">Booked</th><th class="n">Sat</th><th class="n">Won</th>' : '')
+    + `<th class="n">Paying customers</th><th class="n">Contribution</th><th>Confidence</th></tr></thead><tbody>`
+    + rows.map(e => {
+      const l = leadsBy.get(e.label);
+      const f = funBy.get(e.label);
+      return `<tr><td><a href="${eventHref(e.label)}">${e.label}</a><br><span class="muted">${e.cost && e.cost.month ? fmt.monthLabel(e.cost.month) : ''}`
+        + `${e.upcoming || e.costState ? ' · not scored yet' : ''}</span></td>`
+        + `<td class="n">${money(e.spend)}</td>`
+        + `<td class="n">${l && l.leads !== null ? fmt.int(l.leads) : '–'}${l && l.fromCampaign ? `<br><span class="muted">${fmt.int(l.fromCampaign)} from a campaign</span>` : ''}`
+        + `${!(l && l.fromCampaign) && e.source && campaignBy.get(e.source) ? `<br><span class="muted">+${fmt.int(campaignBy.get(e.source))} via its campaign</span>` : ''}</td>`
+        + (fun ? (f ? rateCell(f.booked) + rateCell(f.sat) + rateCell(f.won) : '<td class="n">–</td><td class="n">–</td><td class="n">–</td>') : '')
+        + `<td class="n">${fmt.int(e.paid || 0)}</td><td class="n">${e.contribution === null || e.contribution === undefined ? '–' : money(e.contribution)}</td>`
+        + `<td>${confidenceChip(eventConfidence(e))}</td></tr>`;
+    }).join('')
+    + `</tbody></table></div><p class="ev-note">The same figures as the Events tab, newest first. Leads are earned leads `
+    + `(for a dated event, those new on or after it)${fun ? '; booked, sat and won come from the Event Leads tab, with what each rate rests on' : ''}. `
+    + `Paying customers and contribution use the Events tab’s credit rule.</p></section>`;
+}
+
+// One event's leads from the Event Leads tab: the funnel, then each lead.
+function eventLeadsPanel(e) {
+  const f = eventFunnel(data);
+  const ev = f && f.events.find(x => x.source === e.source || x.label === e.label);
+  if (!ev) return '';
+  const states = LEAD_STATES.filter(s => ev.byState[s.key]).map(s => `<div class="ev-fact"><span class="ev-fact-label">${s.label}</span>`
+    + `<span class="ev-fact-value">${fmt.int(ev.byState[s.key])}</span><span class="ev-fact-sub">${s.note}</span></div>`).join('');
+  const order = ['won', 'lost', 'sat', 'booked', 'unworked', 'undated', 'earlier'];
+  // With no company on the rows, a list of every lead says nothing; the
+  // deals are listed, and the rest are in the counts above.
+  const withCompany = ev.leads.some(r => r.company);
+  const rows = [...ev.leads].filter(r => withCompany || r.dealCreated || r.bookedBy)
+    .sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state) || String(b.created).localeCompare(String(a.created)));
+  const shown = rows.slice(0, 60);
+  return `<section class="ev-panel"><h3>Leads and how far they went</h3>`
+    + `<p class="ev-note">${ev.dated ? `${fmt.int(ev.produced)} leads arrived on or after the event; ${fmt.int(ev.earlier)} more `
+      + `carry its tag but were in HubSpot before it.` : `The event has no date, so its ${fmt.int(ev.tagged)} tagged contacts `
+      + `cannot be split into before and after.`} Of the ${fmt.int(ev.base)} counted, booked `
+      + `${rateCell(ev.booked, { cell: false }).replace('<br>', ' ')}, sat ${rateCell(ev.sat, { cell: false }).replace('<br>', ' ')}, `
+      + `won ${rateCell(ev.won, { cell: false }).replace('<br>', ' ')}.</p>`
+    + `<div class="ev-facts">${states}</div>`
+    + (rows.length ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr>${withCompany ? '<th>Company</th>' : ''}`
+    + `<th>Arrived</th><th>Deal opened</th><th>Where it stands</th>`
+    + `<th>Setter</th><th>Deal owner</th><th class="n">Deal amount</th></tr></thead><tbody>`
+    + shown.map(r => `<tr${r.state === 'earlier' ? ' class="muted"' : ''}>${withCompany ? `<td>${r.company || '<span class="muted">no company</span>'}</td>` : ''}`
+      + `<td>${r.created || '–'}</td><td>${r.dealCreated || '–'}</td><td>${STATE_LABEL[r.state]}</td>`
+      + `<td>${personName(r.bookedBy) || '<span class="muted">not recorded</span>'}</td>`
+      + `<td>${personName(r.demoedBy) || (r.dealCreated ? '<span class="muted">no owner</span>' : '<span class="muted">no deal</span>')}</td>`
+      + `<td class="n">${r.won === true && r.wonMrr ? fmt.money(r.wonMrr) : '–'}</td></tr>`).join('')
+    + `</tbody></table></div>` : '')
+    + (rows.length > shown.length ? `<p class="ev-note">${fmt.int(rows.length - shown.length)} more not listed.</p>` : '')
+    + (!withCompany ? `<p class="ev-note">The leads carry no company name in this push, so the list shows the deals: each `
+      + `lead that reached a deal or has a setter recorded. The rest are counted above.</p>` : '')
+    + `<p class="ev-note">Deal amount is what the deal said, an estimate, not what Stripe billed. A blank setter means no `
+    + `record, not no work.</p></section>`;
+}
+
 function renderEventPage(label) {
   const box = $('event-page');
   if (!box) return;
@@ -4617,6 +4821,7 @@ function renderEventPage(label) {
     + `<section class="ev-panel"><h3>What it cost</h3>${costBar}<div class="ev-facts">${costFacts}</div>${costNotes}</section>`
     + (leadFacts ? `<section class="ev-panel"><h3>Leads</h3><div class="ev-facts">${leadFacts}</div>`
       + (lead && lead.readAs ? `<p class="ev-note">${lead.readAs}</p>` : '') + `</section>` : '')
+    + eventLeadsPanel(e)
     + confidencePanel(evConf, 'this result', e.paid
       ? 'Nothing in the inputs lowers it: the cost is recorded, the event is dated, and most of its customers were closed by its own deals.'
       : 'Nothing in the inputs lowers it: the cost is recorded. No customer is credited to it yet, so there is no attribution to check.')
@@ -6366,7 +6571,9 @@ function boot() {
     renderOngoing();
     renderAccountServe();
     renderEvents();
+    renderEventAttribution();
     renderMarketing();
+    renderSales();
     renderFloors();
     renderUpgradeList();
     renderCampaign();

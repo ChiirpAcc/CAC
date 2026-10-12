@@ -42,6 +42,7 @@
     <button id="tab-list" role="tab" aria-selected="false" aria-controls="view-list">Upgrade list</button>
     <button id="tab-events" role="tab" aria-selected="false" aria-controls="view-events">Events</button>
     <button id="tab-marketing" role="tab" aria-selected="false" aria-controls="view-marketing">Marketing</button>
+    <button id="tab-sales" role="tab" aria-selected="false" aria-controls="view-sales">Sales</button>
   </nav>
 
   <div id="view-all">
@@ -924,6 +925,15 @@
       <p class="note" id="event-leads-note"></p>
     </figure>
 
+    <figure class="card wide" id="fig-event-attribution">
+      <figcaption><h3>Which leads each event produced, and how far they went</h3></figcaption>
+      <p class="finding" id="event-attribution-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="event-attribution-table"></table>
+      </div>
+      <p class="note" id="event-attribution-note"></p>
+    </figure>
+
     <figure class="card wide" id="fig-event-tags">
       <figcaption><h3>How the tags behind each event were made</h3></figcaption>
       <p class="finding" id="event-hsf-correction"><strong>HSF 2025's list import, 5 October 2026
@@ -1095,6 +1105,33 @@
         <table class="data-table" id="mkt-summary"></table>
       </div>
       <p class="note" id="mkt-summary-note"></p>
+    </figure>
+  </section>
+
+  <section id="view-sales" class="wrap" hidden>
+    <header class="story-head">
+      <h2>Setters and deal owners, on the leads events produced</h2>
+      <p>Who booked each event lead, who owned the deal that followed, and how far it went. A blank is shown as not
+        recorded, never as none, and every rate carries what it rests on.</p>
+    </header>
+    <div class="ev-kpis" id="sales-kpis"></div>
+    <p class="finding" id="sales-finding"></p>
+    <figure class="card wide">
+      <figcaption><h3>Setters: leads booked, sat and won</h3></figcaption>
+      <div class="table-scroll"><table class="data-table" id="sales-setters"></table></div>
+    </figure>
+    <figure class="card wide">
+      <figcaption><h3>Deal owners: deals, wins and close rate</h3></figcaption>
+      <div class="table-scroll"><table class="data-table" id="sales-owners"></table></div>
+    </figure>
+    <figure class="card wide">
+      <figcaption><h3>Every source, per person: the pipeline’s Setters tab</h3></figcaption>
+      <div class="table-scroll"><table class="data-table" id="sales-people"></table></div>
+    </figure>
+    <figure class="card wide">
+      <figcaption><h3>Each setter by event: leads / sat / won</h3></figcaption>
+      <div class="table-scroll"><table class="data-table" id="sales-matrix"></table></div>
+      <p class="note" id="sales-note"></p>
     </figure>
   </section>
 
