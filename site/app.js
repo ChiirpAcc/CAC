@@ -16,7 +16,7 @@ import {
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
-  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
+  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4665,6 +4665,24 @@ function eventUpsellPanel(e, roi) {
     + `<td class="n"><span class="${r.added > 0 ? 'pos' : r.added < 0 ? 'neg' : ''}">${r.added > 0 ? '+' : r.added < 0 ? '−' : ''}${money(Math.abs(r.added))}</span></td>`
     + `<td class="n">${r.added > 0 ? money(r.expected) : '–'}</td>`
     + `<td class="n">${r.added > 0 ? money(r.extraContribution) : '–'}</td></tr>`).join('');
+  const extra = (x.unmatched.length ? `<p class="ev-note"><strong>Came through the upsell form or link, not matched to a Stripe `
+      + `customer:</strong> ${x.unmatched.map(u => u.company).join('; ')}. Watched once the lead carries a Stripe id.</p>` : '')
+    + (x.former.length ? `<p class="ev-note"><strong>Former customers who came through it:</strong> `
+      + x.former.map(f => `${extLink(f.url, f.name || f.id)} (last paid ${fmt.monthLabel(f.lastPaid)})`).join('; ')
+      + `. If they return they are a win-back, credited as a new customer from the event\u2019s month, not an upsell.</p>` : '');
+  if (x.watching) {
+    return `<section class="ev-panel"><h3>Upsells</h3>`
+      + `<p class="ev-note"><strong>${fmt.int(x.existing)} existing customer${x.existing === 1 ? '' : 's'}, paying ${money(x.baseMrr)} a month `
+      + `going into the event, came through its own form or link${x.upsellForm ? `, ${fmt.int(x.upsellForm)} through the upsell form or link` : ''}.</strong> `
+      + `No month after the event has closed yet, so they are being watched: what they paid before, and keep paying, is not the `
+      + `event\u2019s; only an increase over this baseline in the ${WIN_WINDOW_MONTHS} months after it will be credited, as an upsell.</p>`
+      + (x.rows.length ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>Came through</th>`
+        + `<th class="n">MRR going in</th></tr></thead><tbody>`
+        + x.rows.map(r => `<tr><td>${extLink(r.url, r.name || r.id)}</td><td>${r.conversion.replace(/^Meetings Link:\s*/i, 'meetings link ').slice(0, 60)}`
+          + `${r.upsellForm ? '<br><span class="pos">upsell form or link</span>' : ''}</td><td class="n">${money(r.baseMrr)}<br><span class="muted">`
+          + `${fmt.monthLabel(r.baseMonth)}</span></td></tr>`).join('') + `</tbody></table></div>` : '')
+      + extra + `</section>`;
+  }
   return `<section class="ev-panel"><h3>Upsells</h3>`
     + `<p class="ev-note"><strong>${fmt.int(x.existing)} existing customer${x.existing === 1 ? '' : 's'} came through the event\u2019s own `
     + `form or link${x.upsellForm ? `, ${fmt.int(x.upsellForm)} through an upsell form` : ''}.</strong> `
@@ -4680,7 +4698,7 @@ function eventUpsellPanel(e, roi) {
     + `through a form or meetings link named for the event; a tag alone is not enough. The increase is measured from the `
     + `month before the event to ${WIN_WINDOW_MONTHS} months after it, and only the part above the book\u2019s usual expansion is `
     + `credited. It is shown beside the event\u2019s return, not added to it. Companies are matched to Stripe by name until the `
-    + `leads carry a Stripe id.</p></section>`;
+    + `leads carry a Stripe id.</p>` + extra + `</section>`;
 }
 
 // One event's leads from the Event Leads tab: the funnel, then each lead.
@@ -4690,10 +4708,10 @@ function eventLeadsPanel(e) {
   if (!ev) return '';
   // Contacts outside the attribution window are left off the page: they are
   // not the event's, and only their number is said.
-  const outside = new Set(['earlier', 'predates', 'list']);
+  const outside = new Set(['earlier', 'predates', 'list']); // upsell leads stay listed, labelled
   const states = LEAD_STATES.filter(s => ev.byState[s.key] && !outside.has(s.key)).map(s => `<div class="ev-fact"><span class="ev-fact-label">${s.label}</span>`
     + `<span class="ev-fact-value">${fmt.int(ev.byState[s.key])}</span><span class="ev-fact-sub">${s.note}</span></div>`).join('');
-  const order = ['won', 'wonLate', 'lost', 'sat', 'booked', 'unworked', 'undated', 'predates', 'earlier'];
+  const order = ['won', 'wonLate', 'wonElsewhere', 'lost', 'sat', 'booked', 'unworked', 'upsell', 'undated', 'predates', 'earlier'];
   // With no company on the rows, a list of every lead says nothing; the
   // deals are listed, and the rest are in the counts above.
   const withCompany = ev.leads.some(r => r.company);
@@ -4705,15 +4723,25 @@ function eventLeadsPanel(e) {
   // credited with it; the customers credited here with no lead row are listed
   // after the table, so who won what is on one page.
   const credited = new Map((e.customerRows || []).map(x => [x.id, x]));
+  const stripeLinkOf = new Map();
+  for (const c of data.customers) if (c.stripeLink && credited.has(c.id)) stripeLinkOf.set(c.id, c.stripeLink);
   const seen = new Set();
   const becameCell = r => {
     const m = r.company ? byCompany(r.company) : null;
     if (!m || !m.firstPaid) return '';
     seen.add(m.id);
-    const won = m.wonDealSource && !credited.has(m.id) ? `, won through ${m.wonDealSource}` : '';
+    if (r.customerAt === 'paying') return `<br><span class="muted">already a customer since ${fmt.monthLabel(m.firstPaid)}; `
+      + `what they pay is not the event\u2019s, only an increase (see Upsells)</span>`;
+    if (r.customerAt === 'former') return `<br><span class="muted">a former customer (first paid ${fmt.monthLabel(m.firstPaid)}); `
+      + `${m.mrrNow ? `paying ${fmt.money(m.mrrNow)}/mo again` : 'not paying now'}</span>`;
+    const evMonth = (r.eventDate || '').slice(0, 7);
+    const why = credited.has(m.id) ? 'credited to this event'
+      : m.wonDealSource && !conversionNamesEvent({ source: r.source, conversion: m.wonDealSource }) ? `not credited: won through ${m.wonDealSource}`
+      : evMonth && monthDiff(evMonth, m.firstPaid) > WIN_WINDOW_MONTHS ? `not credited: first paid ${monthDiff(evMonth, m.firstPaid)} months after, outside the ${WIN_WINDOW_MONTHS}-month window`
+      : m.leadSource && !conversionNamesEvent({ source: r.source, conversion: m.leadSource }) ? `not credited: Stripe\u2019s customer is tagged ${m.leadSource}`
+      : 'not credited to it';
     return `<br><span class="${credited.has(m.id) ? 'pos' : 'muted'}">became a customer ${fmt.monthLabel(m.firstPaid)}`
-      + `${m.mrrNow ? `, ${fmt.money(m.mrrNow)}/mo now` : m.live ? ', $0 this month' : ', since left'}${won}; `
-      + `${credited.has(m.id) ? 'credited to this event' : 'not credited to it'}</span>`;
+      + `${m.mrrNow ? `, ${fmt.money(m.mrrNow)}/mo now` : m.live ? ', $0 this month' : ', since left'}; ${why}</span>`;
   };
   const sg = ev.signals;
   const signalFacts = sg ? `<div class="ev-facts">`
@@ -4758,13 +4786,20 @@ function eventLeadsPanel(e) {
         + `from the company name where exactly one Stripe customer carries it, and open in that customer\u2019s own Stripe account.</p>` : '')
     + (rows.length > shown.length ? `<p class="ev-note">${fmt.int(rows.length - shown.length)} more not listed.</p>` : '')
     + (() => {
-      shown.forEach(r => becameCell(r));
+      rows.forEach(r => becameCell(r)); // every lead row, not only the 60 listed
       const missing = [...credited.values()].filter(x => !seen.has(x.id));
-      return missing.length ? `<p class="ev-note"><strong>Credited to this event with no lead row: </strong>`
-        + missing.map(x => `${x.name || x.id} (first paid ${x.firstPaid ? fmt.monthLabel(x.firstPaid) : '–'}, `
-          + `${x.mrrNow ? `${fmt.money(x.mrrNow)}/mo now` : x.live ? '$0 this month' : 'since left'})`).join('; ')
-        + `. Their event tag is on the company or a deal, not on a contact tagged to the event, or their contact`
-        + ` carries another event; the customers table below has their figures.</p>` : '';
+      if (!missing.length) return '';
+      const url = id => `https://dashboard.stripe.com/customers/${id}`;
+      return `<p class="ev-note"><strong>Credited to this event with no lead row.</strong> Stripe revenue credits these `
+        + `customers to the event through a tag on their company or deal; no contact tagged to the event leads to them, `
+        + `so the push carries no lead or deal row for them yet.</p>`
+        + `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>Tagged</th>`
+        + `<th>First paid</th><th class="n">MRR now</th><th class="n">Collected</th><th>Evidence</th><th>Stripe customer</th></tr></thead><tbody>`
+        + missing.map(x => `<tr><td>${x.name || x.id}</td><td>${x.leadDate || '–'}</td>`
+          + `<td>${x.firstPaid ? fmt.monthLabel(x.firstPaid) : '–'}</td>`
+          + `<td class="n">${x.mrrNow ? fmt.money(x.mrrNow) : x.live ? '$0' : 'left'}</td><td class="n">${fmt.money(x.collected || 0)}</td>`
+          + `<td>${x.credit || '–'}</td><td>${extLink(stripeLinkOf.get(x.id) || url(x.id), x.id)}</td></tr>`).join('')
+        + `</tbody></table></div>`;
     })()
     + (!withCompany ? `<p class="ev-note">The leads carry no company name in this push, so the list shows the deals: each `
       + `lead that reached a deal or has a setter recorded. The rest are counted above.</p>` : '')

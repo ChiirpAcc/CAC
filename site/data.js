@@ -5230,6 +5230,8 @@ export const LEAD_STATES = [
   { key: 'earlier', label: 'Tagged, arrived earlier', note: 'in HubSpot before the event with no deal near it; the event did not produce it' },
   { key: 'predates', label: 'Tagged, deal not near the event', note: 'in HubSpot before the event, with a deal opened well before it or long after; not counted' },
   { key: 'list', label: 'Loaded from a list', note: 'a file loaded into HubSpot, not someone who did something; not counted, as in Lead Counts' },
+  { key: 'wonElsewhere', label: 'Won, credited elsewhere', note: 'the deal says won, but in Stripe the customer was won through another source, so the win is not the event\u2019s' },
+  { key: 'upsell', label: 'Upsell lead', note: 'already a paying customer, or came through the event\u2019s upsell form or link; watched as an upsell, not counted as a new lead' },
   { key: 'undated', label: 'Undated event', note: 'the event has no date, so before and after cannot be told apart' },
   { key: 'unworked', label: 'Lead, no booking recorded', note: 'no setter recorded and no deal; silence is no record, not no effort' },
   { key: 'booked', label: 'Booked, no sit', note: 'a setter is recorded and no deal followed' },
@@ -5320,21 +5322,41 @@ export function eventFunnel(data, roi = eventRoi(data)) {
   const labelOf = new Map(((el || {}).events || []).map(l => [l.source, evByLabel.get(l.label) || { label: l.label }]));
   for (const e of roi ? roi.events : []) if (e.source && !labelOf.has(e.source)) labelOf.set(e.source, e);
   const bySource = new Map();
+  const byCompany = stripeByCompany(data);
   for (const r of rows) {
     if (leadMediumOf(r.source, 'event') !== 'event') continue;
     if (!bySource.has(r.source)) bySource.set(r.source, []);
-    bySource.get(r.source).push({ ...r, state: leadState(r) });
+    const row = { ...r, state: leadState(r) };
+    // A lead from a company already paying going into the event, or one that
+    // came through the event's upsell form or link, is an upsell lead (Josh,
+    // 12 Oct 2026): what that customer paid before, and keeps paying, is not
+    // the event's, so it stays out of the new-customer funnel and its wins.
+    const counts = !['earlier', 'predates', 'list'].includes(row.state);
+    const x = counts && r.company ? byCompany(r.company) : null;
+    const going = x && r.eventDate ? mrrGoingInto(x, r.eventDate.slice(0, 7)) : null;
+    row.customerAt = going && going.mrr > 0 ? 'paying' : x && x.firstPaid && r.eventDate && x.firstPaid < r.eventDate.slice(0, 7) ? 'former' : null;
+    row.upsellIntent = /upsell/i.test(r.conversion || '');
+    if (counts && (row.customerAt === 'paying' || (row.upsellIntent && row.customerAt !== 'former'))) row.state = 'upsell';
+    // Stripe decides a win: a deal marked won whose customer Stripe records as
+    // won through another source is not the event's win (ABC Plumbing,
+    // Pantheon 2025: won through Powerhouse Consulting).
+    if (row.state === 'won' && x && x.wonDealSource
+      && !conversionNamesEvent({ source: r.source, conversion: mergeSource(x.wonDealSource) })) {
+      row.state = 'wonElsewhere';
+      row.wonThrough = x.wonDealSource;
+    }
+    bySource.get(r.source).push(row);
   }
   const events = [...bySource].map(([source, list]) => {
     const e = labelOf.get(source) || null;
     const dated = list.some(r => r.eventDate);
-    const produced = list.filter(r => r.afterEvent === true && !loadedFromList(r));
-    const again = list.filter(r => reengaged(r));
-    const base = dated ? [...produced, ...again] : list.filter(r => !loadedFromList(r));
+    const produced = list.filter(r => r.afterEvent === true && !loadedFromList(r) && r.state !== 'upsell');
+    const again = list.filter(r => reengaged(r) && r.state !== 'upsell');
+    const base = dated ? [...produced, ...again] : list.filter(r => !loadedFromList(r) && r.state !== 'upsell');
     const loaded = list.filter(r => r.afterEvent !== false && loadedFromList(r));
     const booked = base.filter(r => r.bookedBy).length;
     const sat = base.filter(r => r.dealCreated).length;
-    const won = base.filter(winInWindow).length;
+    const won = base.filter(r => winInWindow(r) && r.state !== 'wonElsewhere').length;
     const byState = Object.fromEntries(LEAD_STATES.map(s => [s.key, list.filter(r => r.state === s.key).length]));
     return {
       source, label: e ? e.label : source.replace(/^(20\d\d)\s*-\s*(.*)$/, '$2 $1'), event: e && e.cost ? e : null,
@@ -5344,7 +5366,7 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       earlier: dated ? byState.earlier + byState.predates : null,
       base: base.length, booked: ratio(booked, base.length), sat: ratio(sat, base.length), won: ratio(won, base.length),
       satToWon: ratio(won, sat), bookedToSat: ratio(base.filter(r => r.bookedBy && r.dealCreated).length, booked),
-      wonDealAmount: base.filter(winInWindow).reduce((t, r) => t + (r.wonMrr || 0), 0),
+      wonDealAmount: base.filter(r => winInWindow(r) && r.state !== 'wonElsewhere').reduce((t, r) => t + (r.wonMrr || 0), 0),
       byState, leads: list,
       // Loaded from a list after the event (or at an undated one): not
       // counted, but their deals are said so nothing is hidden.
@@ -5364,16 +5386,19 @@ export function eventFunnel(data, roi = eventRoi(data)) {
         none: base.filter(r => !r.conversion).length },
     };
   }).sort((a, b) => String(b.month || b.eventDate || '').localeCompare(String(a.month || a.eventDate || '')) || a.label.localeCompare(b.label));
-  const kept = rows.filter(r => leadMediumOf(r.source, 'event') === 'event');
-  const recent = kept.filter(r => (r.afterEvent === true && !loadedFromList(r)) || reengaged(r));
+  // Totals from the classified rows, so upsell leads stay out of them too.
+  const kept = events.flatMap(e => e.leads);
+  const isUpsell = r => r.state === 'upsell';
+  const recent = kept.filter(r => !isUpsell(r) && ((r.afterEvent === true && !loadedFromList(r)) || reengaged(r)));
   return {
     events,
-    totals: { tagged: kept.length, produced: kept.filter(r => r.afterEvent === true && !loadedFromList(r)).length,
+    totals: { tagged: kept.length, produced: kept.filter(r => !isUpsell(r) && r.afterEvent === true && !loadedFromList(r)).length,
+      upsell: kept.filter(isUpsell).length,
       loaded: kept.filter(r => r.afterEvent !== false && loadedFromList(r)).length,
-      reengaged: kept.filter(r => reengaged(r)).length,
+      reengaged: kept.filter(r => !isUpsell(r) && reengaged(r)).length,
       earlier: kept.filter(r => r.afterEvent === false && !reengaged(r)).length,
       undated: kept.filter(r => !r.eventDate).length, booked: recent.filter(r => r.bookedBy).length,
-      sat: recent.filter(r => r.dealCreated).length, won: recent.filter(winInWindow).length },
+      sat: recent.filter(r => r.dealCreated).length, won: recent.filter(r => winInWindow(r) && r.state !== 'wonElsewhere').length },
     // How often the setter field is filled, on leads the events produced.
     setterFill: ratio(recent.filter(r => r.bookedBy).length, recent.length),
   };
@@ -5436,20 +5461,31 @@ export function eventUpsells(data, roi = eventRoi(data)) {
     if (!ev.eventDate) continue;
     const month = ev.eventDate.slice(0, 7);
     const seen = new Map();
+    const unmatched = [];
+    const former = [];
     for (const r of ev.leads) {
-      if (!r.company || !r.conversion || !conversionNamesEvent(r)) continue;
+      if (!r.company || !r.conversion || !(conversionNamesEvent(r) || r.upsellIntent)) continue;
+      if (['earlier', 'predates', 'list'].includes(r.state)) continue;
       const m = by(r.company);
-      if (!m || seen.has(m.id)) continue;
+      if (!m) { if (r.upsellIntent) unmatched.push({ company: r.company, conversion: r.conversion }); continue; }
+      if (seen.has(m.id)) continue;
       const months = rowsOf.get(m.id);
-      const before = months && months.get(monthAdd(month, -1));
-      if (!before || !before.active || !(before.eopMrr > 0)) continue;
-      const end = [monthAdd(month, WIN_WINDOW_MONTHS), last].sort()[0];
-      if (!end || end < month) continue;
+      const going = mrrGoingInto(m, month);
+      if (!going || !(going.mrr > 0)) {
+        if (m.firstPaid && m.firstPaid < month && !former.some(f => f.id === m.id)) {
+          former.push({ id: m.id, name: m.name, url: m.url, conversion: r.conversion, lastPaid: m.last, mrrNow: m.mrrNow });
+        }
+        continue;
+      }
+      const baseMrr = going.mrr;
+      // An event newer than the data is watched from its baseline: nothing
+      // after it has closed yet, so the change is not measured.
+      const watching = last < month;
+      const end = watching ? going.month : [monthAdd(month, WIN_WINDOW_MONTHS), last].sort()[0];
       let endRow = null;
-      for (let k = monthDiff(month, end); k >= 0 && !endRow; k -= 1) endRow = months.get(monthAdd(month, k)) || null;
-      const baseMrr = before.eopMrr;
-      const endMrr = endRow && endRow.active ? endRow.eopMrr || 0 : 0;
-      const elapsed = monthDiff(month, end) + 1;
+      if (!watching) for (let k = monthDiff(month, end); k >= 0 && !endRow; k -= 1) endRow = months.get(monthAdd(month, k)) || null;
+      const endMrr = watching ? baseMrr : endRow && endRow.active ? endRow.eopMrr || 0 : 0;
+      const elapsed = watching ? 0 : monthDiff(month, end) + 1;
       const expected = baseMrr * rate * elapsed;
       // Contribution on the MRR above the pre-event level, month by month,
       // at the share that month's contribution is of its revenue.
@@ -5464,13 +5500,13 @@ export function eventUpsells(data, roi = eventRoi(data)) {
         const cr = contribOf.get(m.id) && contribOf.get(m.id).get(mo);
         if (cr && cr.revenue > 0) extraContribution += add * (cr.contribution / cr.revenue);
       }
-      seen.set(m.id, { id: m.id, name: m.name, url: m.url, how: m.how, conversion: r.conversion,
+      seen.set(m.id, { id: m.id, name: m.name, url: m.url, how: m.how, conversion: r.conversion, watching, baseMonth: going.month,
         upsellForm: /upsell/i.test(r.conversion), baseMrr, endMrr, endMonth: endRow ? endRow.month : end,
         added: endMrr - baseMrr, expected, extra, extraContribution, elapsed,
         windowDone: monthDiff(month, last) >= WIN_WINDOW_MONTHS });
     }
-    const list = [...seen.values()].sort((a, b) => b.added - a.added);
-    if (!list.length) continue;
+    const list = [...seen.values()].sort((a, b) => b.added - a.added || b.baseMrr - a.baseMrr);
+    if (!list.length && !unmatched.length && !former.length) continue;
     const grew = list.filter(x => x.added > 0);
     const added = grew.reduce((t, x) => t + x.added, 0);
     const expected = grew.reduce((t, x) => t + x.expected, 0);
@@ -5480,7 +5516,8 @@ export function eventUpsells(data, roi = eventRoi(data)) {
     events.push({ label: ev.label, source: ev.source, month, existing: list.length,
       upsellForm: list.filter(x => x.upsellForm).length, grew: grew.length,
       fell: list.filter(x => x.added < 0).length, added, expected, credited,
-      windowDone: monthDiff(month, last) >= WIN_WINDOW_MONTHS, rows: list });
+      windowDone: monthDiff(month, last) >= WIN_WINDOW_MONTHS, watching: last < month,
+      baseMrr: list.reduce((t, x) => t + x.baseMrr, 0), rows: list, unmatched, former });
   }
   const out = { rate, events, byLabel: new Map(events.map(e => [e.label, e])) };
   upsellCache.set(data, { roi, out });
@@ -5505,7 +5542,22 @@ export const stripeCustomerUrl = r => r.stripeUrl || (r.stripeId ? `https://dash
 // name is never matched to a longer one.
 const FRANCHISE = /^(mr|mister) (electric|rooter|handyman|sparky)|^one hour|^aire serv|^benjamin franklin|^roto rooter|^ars |^service experts|^horizon services/;
 
+const stripeMatchCache = new WeakMap();
 export function stripeByCompany(data) {
+  if (stripeMatchCache.has(data)) return stripeMatchCache.get(data);
+  const fn = buildStripeMatch(data);
+  stripeMatchCache.set(data, fn);
+  return fn;
+}
+// A matched customer's MRR going into a month: the month before it, or the
+// latest month the data holds when the event is newer than the data.
+export function mrrGoingInto(x, month) {
+  if (!x || !x.mrrBy) return null;
+  let best = null;
+  for (const m of x.mrrBy.keys()) if (m < month && (!best || m > best)) best = m;
+  return best ? { month: best, mrr: x.mrrBy.get(best) } : null;
+}
+function buildStripeMatch(data) {
   const norm = t => String(t || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ')
     .replace(/\b(llc|lp|inc|co|company|corp|ltd|the|dba|pty)\b/g, ' ').trim().replace(/\s+/g, ' ');
   // One summary per Stripe customer: first month paid, MRR in its latest
@@ -5515,7 +5567,10 @@ export function stripeByCompany(data) {
     if (!c.id) continue;
     let x = sum.get(c.id);
     if (!x) sum.set(c.id, x = { id: c.id, name: c.name, url: c.stripeLink || `https://dashboard.stripe.com/customers/${c.id}`,
-      firstPaid: null, last: null, mrrNow: 0, live: false, wonDealSource: c.wonDealSource || null });
+      firstPaid: null, last: null, mrrNow: 0, live: false, wonDealSource: c.wonDealSource || null, mrrBy: new Map(),
+      leadSource: c.leadSource || null });
+    if (!x.leadSource && c.leadSource) x.leadSource = c.leadSource;
+    x.mrrBy.set(c.month, c.active ? c.eopMrr || 0 : 0);
     if (c.name && !x.name) x.name = c.name;
     if (c.stripeLink) x.url = c.stripeLink;
     if (!x.wonDealSource && c.wonDealSource) x.wonDealSource = c.wonDealSource;
