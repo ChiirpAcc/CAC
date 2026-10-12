@@ -4308,6 +4308,61 @@ function renderEventAttribution() {
     + 'with a dated one. Booked is a setter recorded; sat is a deal existing, since HubSpot creates a deal only once a demo '
     + 'is sat; won is the deal winning. Each rate shows what it rests on and is faded under ten. Won deal amount is what the '
     + 'deal said, not what Stripe billed; revenue per event is on the ranking above.';
+  renderEventChecks(f);
+}
+
+// The exceptions the attribution rules could not settle, across every event,
+// so nobody has to read each event's page (ATTRIBUTION.md, section 3).
+function renderEventChecks(f) {
+  if (!$('event-checks-list')) return;
+  const roi = eventRoi(data);
+  const by = stripeByCompany(data);
+  const up = eventUpsells(data, roi);
+  const items = [];
+  const add = (event, what, detail, fix) => items.push({ event, what, detail, fix });
+  for (const e of roi.events) {
+    if (e.upcoming) continue;
+    const fe = f.events.find(x => x.label === e.label || x.source === e.source);
+    // Credited customers no lead row reaches.
+    const seen = new Set();
+    if (fe) for (const r of fe.leads) { const m = r.company && by(r.company); if (m) seen.add(m.id); }
+    // A customer whose won deal names the event is settled by rule; only one
+    // resting on the tag, or graded indirect, with no lead row needs a look.
+    const missing = [...new Map((e.customerRows || []).filter(x => !seen.has(x.id) && x.credit !== 'direct')
+      .map(x => [x.name || x.id, x])).values()];
+    if (missing.length) add(e.label, `${fmt.int(missing.length)} credited customer${missing.length === 1 ? '' : 's'} with no lead row and no deal naming it`,
+      missing.map(x => `${x.name} (${x.credit || 'ungraded'})`).join('; '),
+      'Open the event page and check the evidence; if the tag is wrong, remove it in HubSpot. Event deals (brief 23) would settle it.');
+    if (!fe) continue;
+    const elsewhere = fe.leads.filter(r => r.state === 'wonElsewhere');
+    if (elsewhere.length) add(e.label, `${fmt.int(elsewhere.length)} deal${elsewhere.length === 1 ? '' : 's'} won in HubSpot, credited elsewhere in Stripe`,
+      [...new Set(elsewhere.map(r => `${r.company || 'no company'} (won through ${r.wonThrough})`))].join('; '),
+      'Nothing to do unless the Stripe source is wrong; then fix the won deal\u2019s source in HubSpot.');
+    if (fe.loaded && fe.loaded.won) add(e.label, `A list loaded after it produced ${fmt.int(fe.loaded.won)} win${fe.loaded.won === 1 ? '' : 's'}`,
+      `${fmt.int(fe.loaded.n)} contacts loaded; not counted as the event\u2019s leads`,
+      'If it was the organiser\u2019s attendee list, load it under its own source next time (ATTRIBUTION.md 2.9).');
+    if (!fe.dated) add(e.label, 'No event date', `${fmt.int(fe.tagged)} tagged contacts cannot be split into before and after`,
+      'Add the date to the Event Dates tab.');
+  }
+  for (const u of (up ? up.events : [])) {
+    if (u.unmatched.length) add(u.label, `${fmt.int(u.unmatched.length)} upsell lead${u.unmatched.length === 1 ? '' : 's'} not matched to Stripe`,
+      u.unmatched.map(x => x.company).join('; '), 'Watched once the lead carries a Stripe id (brief 22).');
+  }
+  for (const e of roi.events) {
+    if (!e.upcoming && e.cost && (e.cost.costState === 'absent' || e.cost.costState === 'pending')) {
+      add(e.label, e.cost.costState === 'absent' ? 'A fee was expected and not found' : 'No cost found yet', '', 'Add the fee to the Event Costs tab.');
+    }
+  }
+  $('event-checks-finding').innerHTML = items.length
+    ? `<strong>${fmt.int(items.length)} thing${items.length === 1 ? '' : 's'} the rules could not settle, across `
+      + `${fmt.int(new Set(items.map(i => i.event)).size)} event${new Set(items.map(i => i.event)).size === 1 ? '' : 's'}.</strong> `
+      + 'Everything else is attributed by rule.'
+    : '<strong>Nothing needs a look.</strong> Every event is attributed by rule.';
+  $('event-checks-list').innerHTML = items.length
+    ? '<thead><tr><th>Event</th><th>What was found</th><th>Who</th><th>What fixes it</th></tr></thead><tbody>'
+      + items.map(i => `<tr><td><a href="${eventHref(i.event)}">${i.event}</a></td><td>${i.what}</td>`
+        + `<td>${i.detail || '–'}</td><td>${i.fix}</td></tr>`).join('') + '</tbody>'
+    : '';
 }
 
 // The Sales tab: setters and deal owners, from the same lead rows.

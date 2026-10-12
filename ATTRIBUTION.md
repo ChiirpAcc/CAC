@@ -1,0 +1,165 @@
+# Event attribution: the rules and the workflow
+
+How the site decides which leads, wins and revenue belong to an event, and what
+people and the pipeline must do so that it decides correctly without anyone
+reading event pages one by one. Written 12 Oct 2026. The code is in
+`site/data.js` (`eventFunnel`, `eventRoi`, `eventUpsells`); the definitions
+are in `LINEAGE.md`.
+
+Two principles hold throughout.
+
+- **Stripe decides money.** Revenue, first payment and "won" all come from
+  Stripe. HubSpot says who touched the event; it never says what they paid.
+- **A tag is a claim, not evidence.** A contact or company carrying an event's
+  tag is where the search starts. It counts only with something dated that
+  ties it to the event.
+
+## 1. The rules (applied to every event automatically)
+
+### 1.1 Which contacts count as the event's leads
+
+Each contact tagged to an event falls into exactly one state.
+
+| State | Rule | Counted? |
+|---|---|---|
+| New lead | Created on or after the event date, and arrived by doing something: a form, meetings link, booth scan, chat or rep. | Yes |
+| Re-engaged | Already in HubSpot, and a deal opened within 90 days after the event, or in the 45 days before it through the event's own form or link. | Yes |
+| Upsell lead | The company was paying going into the event, or the contact came through the event's upsell form or link. | No; watched as an upsell (1.4) |
+| Loaded from a list | Arrived in a file (`arrived_as` list), however soon after the event the file was loaded. | No |
+| Arrived earlier | In HubSpot before the event with no deal near it: the tag was added later. | No |
+| Undated event | The event has no date, so before and after cannot be told apart. | Shown apart, flagged |
+
+The site's new-lead count must agree with Lead Counts' `earned_after_event`
+for every dated event. The validator checks this on every push.
+
+### 1.2 Which wins count
+
+- The deal is marked won **and** Stripe's customer was not won through another
+  source. A deal won in HubSpot whose Stripe customer was won through another
+  channel shows as "Won, credited elsewhere".
+- The deal opened within 6 months of the event (`WIN_WINDOW_MONTHS`).
+
+### 1.3 Which revenue counts (customer credit, default rule `won6`)
+
+A tagged Stripe customer is credited to the event only if all of these hold.
+
+1. **New:** not paying in the months before the event. A former customer who
+   had paid nothing for 3 months is a win-back and counts from the event month.
+2. **On time:** first paid between the event month and 6 months after.
+3. **Not won elsewhere:** no won deal naming another source.
+4. **Evidence beyond the tag:** either a won deal names the event, or the tag
+   was written by the end of the month after the event **and** not on a day a
+   list was loaded into that source (20 or more contacts arriving as a list on
+   one day).
+
+What a credited customer paid is counted from Stripe, from the event month on.
+An existing customer's pre-event revenue, and the rate they keep paying, is
+never the event's.
+
+### 1.4 Upsells
+
+- An existing customer (paying the month before the event) whose contact came
+  through the event's own form or meetings link, or its upsell form or link.
+- Measured from their MRR going into the event to their MRR 6 months after.
+- Only the increase above the book's usual expansion (1.8% a month in v172) is
+  credited, with the contribution on it at the account's own margin.
+- Shown beside the event's return ("with upsells"), never folded into it.
+- Watched from the event day, even before a month after it has closed.
+
+### 1.5 Evidence grades, shown on every credited customer
+
+- **Direct:** the event's own won deal closed them.
+- **Indirect:** touched by the event; something else closed them.
+- **Tag only:** no won deal; the tag is the only link (and must pass rule 1.3.4).
+
+## 2. What people must do in HubSpot
+
+These are what make the rules above find the right answer. Without them, every
+figure is a floor.
+
+**Before the event**
+1. Add the event to the Event Dates tab and the Event Costs tab: name, date,
+   expected fee.
+2. Create one lead source value, spelled `YYYY - Event Name`, and use only it.
+3. Create the event's own meetings link and form, named for the event (for
+   example `2027-pantheon-round-robin`), and a separate upsell link or form
+   with "upsell" in its name for existing customers.
+
+**At the event and within a week**
+4. Scans and booth meetings go in through those links and forms, never as a
+   list.
+5. The lead source is set when the contact is captured. Do not tag existing
+   contacts afterwards, and never tag a loaded file with the event.
+6. Record the setter on every booked meeting.
+7. Open the deal when the demo is sat. Set its `sub_lead_source` to the event,
+   or let the workflow copy it from the contact (see 4.1).
+
+**After the event**
+8. Close deals promptly, won or lost, so a win can be dated.
+9. If an attendee list arrives from the organiser, load it under its own
+   source (for example `2027 - Pantheon attendee list`), not the event's tag.
+   Follow-up wins from it are then visible and kept apart, and only a won deal
+   naming the event credits them to it.
+
+## 3. Every push
+
+1. Wait for `data/index.json` to change: it is written last. Do not push site
+   commits while a data push is running.
+2. Check the index: `failed` and `missing_required` must be empty, and
+   `pipeline_version` and `pull_version` as announced.
+3. Run `py -3 scripts/validate_data.py`. Errors block; warnings to read:
+   - an event whose new leads disagree with Lead Counts;
+   - setters with more sits than leads;
+   - Lead Counts' conversion columns not summing to the total;
+   - lists loaded after an event that later won (named in the notes).
+4. Open the Events tab and read **Attribution checks: what to look at after a
+   push**. It is the only thing to read. It lists what the rules could not
+   settle, each with what fixes it:
+   - a credited customer resting on the tag (or graded indirect) with no lead
+     row and no deal naming the event;
+   - a deal won in HubSpot whose Stripe customer was won through another source;
+   - a list loaded after an event that later produced wins;
+   - an upsell lead not matched to a Stripe customer;
+   - an event with no date, or with a fee expected and not found.
+
+   An empty list means every event is attributed by rule.
+5. Anything new goes in `BRIEF_TO_PIPELINE.md` as a numbered item: what is
+   wrong, and what is needed.
+
+## 4. Monthly
+
+1. The Event Hub and Ramp cost run (`EVENT_COSTS_MONTHLY.md`), then the
+   QuickBooks close. September 2026 is estimated until the 15th.
+2. Update fees that are still settling on the Event Costs tab.
+3. Events whose 6-month window closed this month: their wins and upsells are
+   final. Read their pages once.
+
+### 4.1 The one HubSpot change that would fix most of this
+
+A workflow: when a deal is created and `sub_lead_source` is empty, copy it from
+the contact. Only about 21% of deals carry a tag, and setters about 18%. This
+is the only change that creates attribution rather than grading what exists.
+
+## 5. What the pipeline still owes (brief items)
+
+| Item | What | Why |
+|---|---|---|
+| 22 | `stripe_customer_id` on each Event Leads row | Leads are matched to Stripe by company name; a short HubSpot name fails to match a long Stripe one. |
+| 23 | One row per event-tagged deal, with `deal_link` and `closed_at` | Customers credited through a deal or company tag have no lead row and no HubSpot link. |
+| 19 | `won_date` and `first_paid` per lead | Wins are dated by when the deal opened until then. |
+| 16 | `contact_link` on Event Leads | Only the company is linked today. |
+
+## 6. Settings, and when to revisit them
+
+| Setting | Value | Where |
+|---|---|---|
+| Win window | 6 months after the event month | `WIN_WINDOW_MONTHS` |
+| Re-engaged | deal within 90 days after, or 45 before through the event's own form or link | `REENGAGE_AFTER_DAYS`, `REENGAGE_BEFORE_DAYS` |
+| List-import day | 20 or more list arrivals into one source on one day | `listDayOf` |
+| Tag on time | written by the end of the month after the event | rule 1.3.4 |
+| Book expansion | measured each push from the last 12 months | `bookExpansionRate` |
+
+Open judgement call: a customer from an organiser's attendee list who later
+books through a general link, where a rep put the event on the winning deal.
+This counts today, because a person named the event on the deal. If attendee
+lists are loaded under their own source (2.9), the call makes itself.
