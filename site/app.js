@@ -15,7 +15,7 @@ import {
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
-  eventFunnel, salesReport, LEAD_STATES, personName,
+  eventFunnel, salesReport, LEAD_STATES, personName, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4274,26 +4274,29 @@ function renderEventAttribution() {
   const money = v => (v ? fmt.money(v) : '–');
   const t = f.totals;
   $('event-attribution-finding').innerHTML =
-    `<strong>Events produced ${fmt.int(t.produced)} leads that arrived on or after the event; another ${fmt.int(t.earlier)} `
-    + `carry an event tag but were in HubSpot before it.</strong> Of the leads produced, ${fmt.int(t.booked)} have a setter `
+    `<strong>Events produced ${fmt.int(t.produced)} new leads and re-engaged ${fmt.int(t.reengaged)} existing contacts `
+    + `whose deal opened around the event; another ${fmt.int(t.earlier)} carry an event tag but were in HubSpot before it `
+    + `with no deal near it, and are not counted.</strong> Of the leads counted, ${fmt.int(t.booked)} have a setter `
     + `recorded, ${fmt.int(t.sat)} reached a deal and ${fmt.int(t.won)} won. The setter field is filled on `
     + `${fmt.pct(f.setterFill.rate || 0, 0)} of them, so most leads carry no booking record: that is a gap in the record, `
     + `not leads nobody worked.`;
   $('event-attribution-table').innerHTML =
-    '<thead><tr><th>Event</th><th class="n">Leads produced</th><th class="n">Tagged, arrived earlier</th>'
+    '<thead><tr><th>Event</th><th class="n">New leads</th><th class="n">Re-engaged</th><th class="n">Tagged, not counted</th>'
     + '<th class="n">Booked</th><th class="n">Sat (a deal)</th><th class="n">Won</th><th class="n">Sat to won</th>'
     + '<th class="n">Won deal amount</th></tr></thead><tbody>'
     + f.events.map(e => `<tr><td>${e.event ? `<a href="${eventHref(e.label)}">${e.label}</a>` : e.label}`
       + `<br><span class="muted">${e.dated ? (e.eventDate || '') : 'undated: every tagged contact, before or after'}</span></td>`
       + `<td class="n">${e.dated ? fmt.int(e.produced) : `${fmt.int(e.tagged)}<br><span class="muted">all tagged</span>`}</td>`
+      + `<td class="n">${e.dated ? fmt.int(e.reengaged) : '–'}</td>`
       + `<td class="n">${e.dated ? (e.earlier ? `<span class="${e.earlier > e.produced ? 'notviable' : ''}">${fmt.int(e.earlier)}</span>` : '0') : '–'}</td>`
       + rateCell(e.booked) + rateCell(e.sat) + rateCell(e.won) + rateCell(e.satToWon)
       + `<td class="n">${money(e.wonDealAmount)}${e.wonDealAmount ? '<br><span class="muted">deal amount, est.</span>' : ''}</td></tr>`).join('')
     + '</tbody>';
   $('event-attribution-note').textContent =
-    'From the Event Leads tab, one row per contact tagged to an event. Leads produced are contacts created on or after the '
-    + 'event; tagged, arrived earlier are contacts tagged to it that HubSpot already held, which is back-tagging and is not '
-    + 'counted as the event\u2019s. An undated event cannot be split, so it shows every tagged contact and is not comparable '
+    'From the Event Leads tab, one row per contact tagged to an event. New leads are contacts created on or after the '
+    + `event. Re-engaged are contacts HubSpot already held whose deal opened from ${REENGAGE_BEFORE_DAYS} days before the `
+    + `event to ${REENGAGE_AFTER_DAYS} days after: an existing contact the event converted. Tagged, not counted are contacts `
+    + 'already held with no deal, or a deal opened well before the event or long after: back-tagging, not the event\u2019s. An undated event cannot be split, so it shows every tagged contact and is not comparable '
     + 'with a dated one. Booked is a setter recorded; sat is a deal existing, since HubSpot creates a deal only once a demo '
     + 'is sat; won is the deal winning. Each rate shows what it rests on and is faded under ten. Won deal amount is what the '
     + 'deal said, not what Stripe billed; revenue per event is on the ranking above.';
@@ -4625,7 +4628,7 @@ function eventLeadsPanel(e) {
   if (!ev) return '';
   const states = LEAD_STATES.filter(s => ev.byState[s.key]).map(s => `<div class="ev-fact"><span class="ev-fact-label">${s.label}</span>`
     + `<span class="ev-fact-value">${fmt.int(ev.byState[s.key])}</span><span class="ev-fact-sub">${s.note}</span></div>`).join('');
-  const order = ['won', 'lost', 'sat', 'booked', 'unworked', 'undated', 'earlier'];
+  const order = ['won', 'lost', 'sat', 'booked', 'unworked', 'undated', 'predates', 'earlier'];
   // With no company on the rows, a list of every lead says nothing; the
   // deals are listed, and the rest are in the counts above.
   const withCompany = ev.leads.some(r => r.company);
@@ -4633,8 +4636,9 @@ function eventLeadsPanel(e) {
     .sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state) || String(b.created).localeCompare(String(a.created)));
   const shown = rows.slice(0, 60);
   return `<section class="ev-panel"><h3>Leads and how far they went</h3>`
-    + `<p class="ev-note">${ev.dated ? `${fmt.int(ev.produced)} leads arrived on or after the event; ${fmt.int(ev.earlier)} more `
-      + `carry its tag but were in HubSpot before it.` : `The event has no date, so its ${fmt.int(ev.tagged)} tagged contacts `
+    + `<p class="ev-note">${ev.dated ? `${fmt.int(ev.produced)} new leads arrived on or after the event, and ${fmt.int(ev.reengaged)} `
+      + `existing contacts had a deal open within ${REENGAGE_BEFORE_DAYS} days before it or ${REENGAGE_AFTER_DAYS} after, so it `
+      + `re-engaged them. ${fmt.int(ev.earlier)} more carry its tag with no deal near it and are not counted.` : `The event has no date, so its ${fmt.int(ev.tagged)} tagged contacts `
       + `cannot be split into before and after.`} Of the ${fmt.int(ev.base)} counted, booked `
       + `${rateCell(ev.booked, { cell: false }).replace('<br>', ' ')}, sat ${rateCell(ev.sat, { cell: false }).replace('<br>', ' ')}, `
       + `won ${rateCell(ev.won, { cell: false }).replace('<br>', ' ')}.</p>`
@@ -4642,8 +4646,8 @@ function eventLeadsPanel(e) {
     + (rows.length ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr>${withCompany ? '<th>Company</th>' : ''}`
     + `<th>Arrived</th><th>Deal opened</th><th>Where it stands</th>`
     + `<th>Setter</th><th>Deal owner</th><th class="n">Deal amount</th></tr></thead><tbody>`
-    + shown.map(r => `<tr${r.state === 'earlier' ? ' class="muted"' : ''}>${withCompany ? `<td>${r.company || '<span class="muted">no company</span>'}</td>` : ''}`
-      + `<td>${r.created || '–'}</td><td>${r.dealCreated || '–'}</td><td>${STATE_LABEL[r.state]}</td>`
+    + shown.map(r => `<tr${r.state === 'earlier' || r.state === 'predates' ? ' class="muted"' : ''}>${withCompany ? `<td>${r.company || '<span class="muted">no company</span>'}</td>` : ''}`
+      + `<td>${r.created || '–'}</td><td>${r.dealCreated || '–'}</td><td>${STATE_LABEL[r.state]}${reengaged(r) ? '<br><span class="muted">re-engaged</span>' : ''}</td>`
       + `<td>${personName(r.bookedBy) || '<span class="muted">not recorded</span>'}</td>`
       + `<td>${personName(r.demoedBy) || (r.dealCreated ? '<span class="muted">no owner</span>' : '<span class="muted">no deal</span>')}</td>`
       + `<td class="n">${r.won === true && r.wonMrr ? fmt.money(r.wonMrr) : '–'}</td></tr>`).join('')

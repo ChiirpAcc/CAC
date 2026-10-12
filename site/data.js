@@ -5175,7 +5175,8 @@ export function sourceConfidence(t, detail) {
 // (pipeline brief, hs-v82). A deal existing is the sit: HubSpot does not
 // create one without a demo, and no field records a demo otherwise.
 export const LEAD_STATES = [
-  { key: 'earlier', label: 'Tagged, arrived earlier', note: 'tagged to the event but in HubSpot before it; the event did not produce it' },
+  { key: 'earlier', label: 'Tagged, arrived earlier', note: 'in HubSpot before the event with no deal near it; the event did not produce it' },
+  { key: 'predates', label: 'Tagged, deal not near the event', note: 'in HubSpot before the event, with a deal opened well before it or long after; not counted' },
   { key: 'undated', label: 'Undated event', note: 'the event has no date, so before and after cannot be told apart' },
   { key: 'unworked', label: 'Lead, no booking recorded', note: 'no setter recorded and no deal; silence is no record, not no effort' },
   { key: 'booked', label: 'Booked, no sit', note: 'a setter is recorded and no deal followed' },
@@ -5183,9 +5184,20 @@ export const LEAD_STATES = [
   { key: 'sat', label: 'Sat, still open', note: 'a deal exists and has not closed' },
   { key: 'won', label: 'Won', note: 'a deal exists and won' },
 ];
+// An existing contact whose deal opened close to the event is one the event
+// re-engaged, and counts (decided 12 Oct 2026): from 45 days before it, the
+// pipeline's pre-event window for a direct grade, to 90 days after. A deal
+// opened before that window, or long after, is not the event's.
+export const REENGAGE_BEFORE_DAYS = 45;
+export const REENGAGE_AFTER_DAYS = 90;
+export function reengaged(r) {
+  if (r.afterEvent !== false || !r.dealCreated || !r.eventDate) return false;
+  const days = (Date.parse(r.dealCreated) - Date.parse(r.eventDate)) / 86400000;
+  return days >= -REENGAGE_BEFORE_DAYS && days <= REENGAGE_AFTER_DAYS;
+}
 export function leadState(r) {
-  if (r.afterEvent === false) return 'earlier';
-  if (!r.eventDate || r.afterEvent === null) return 'undated';
+  if (r.afterEvent === false && !reengaged(r)) return r.dealCreated ? 'predates' : 'earlier';
+  if (r.afterEvent !== false && (!r.eventDate || r.afterEvent === null)) return 'undated';
   const deal = Boolean(r.dealCreated);
   if (!deal) return r.bookedBy ? 'booked' : 'unworked';
   if (r.won === true) return 'won';
@@ -5217,7 +5229,8 @@ export function eventFunnel(data, roi = eventRoi(data)) {
     const e = labelOf.get(source) || null;
     const dated = list.some(r => r.eventDate);
     const produced = list.filter(r => r.afterEvent === true);
-    const base = dated ? produced : list;
+    const again = list.filter(r => reengaged(r));
+    const base = dated ? [...produced, ...again] : list;
     const booked = base.filter(r => r.bookedBy).length;
     const sat = base.filter(r => r.dealCreated).length;
     const won = base.filter(r => r.won === true).length;
@@ -5226,7 +5239,8 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       source, label: e ? e.label : source.replace(/^(20\d\d)\s*-\s*(.*)$/, '$2 $1'), event: e && e.cost ? e : null,
       month: e && e.cost ? e.cost.month : null,
       dated, eventDate: (list.find(r => r.eventDate) || {}).eventDate || null,
-      tagged: list.length, produced: dated ? produced.length : null, earlier: dated ? byState.earlier : null,
+      tagged: list.length, produced: dated ? produced.length : null, reengaged: dated ? again.length : null,
+      earlier: dated ? byState.earlier + byState.predates : null,
       base: base.length, booked: ratio(booked, base.length), sat: ratio(sat, base.length), won: ratio(won, base.length),
       satToWon: ratio(won, sat), bookedToSat: ratio(base.filter(r => r.bookedBy && r.dealCreated).length, booked),
       wonDealAmount: base.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0),
@@ -5234,10 +5248,12 @@ export function eventFunnel(data, roi = eventRoi(data)) {
     };
   }).sort((a, b) => String(b.month || b.eventDate || '').localeCompare(String(a.month || a.eventDate || '')) || a.label.localeCompare(b.label));
   const kept = rows.filter(r => leadMediumOf(r.source, 'event') === 'event');
-  const recent = kept.filter(r => r.afterEvent === true);
+  const recent = kept.filter(r => r.afterEvent === true || reengaged(r));
   return {
     events,
-    totals: { tagged: kept.length, produced: recent.length, earlier: kept.filter(r => r.afterEvent === false).length,
+    totals: { tagged: kept.length, produced: kept.filter(r => r.afterEvent === true).length,
+      reengaged: kept.filter(r => reengaged(r)).length,
+      earlier: kept.filter(r => r.afterEvent === false && !reengaged(r)).length,
       undated: kept.filter(r => !r.eventDate).length, booked: recent.filter(r => r.bookedBy).length,
       sat: recent.filter(r => r.dealCreated).length, won: recent.filter(r => r.won === true).length },
     // How often the setter field is filled, on leads the events produced.
@@ -5256,7 +5272,7 @@ export const personName = who => (who === null || who === undefined ? null
 export function salesReport(data) {
   const rows = (data.eventLeadRows || []).filter(r => leadMediumOf(r.source, 'event') === 'event');
   if (!rows.length) return null;
-  const counted = rows.filter(r => r.afterEvent !== false); // leads an event produced, or undated
+  const counted = rows.filter(r => r.afterEvent !== false || reengaged(r)); // produced, re-engaged or undated
   const group = (key, list) => {
     const m = new Map();
     for (const r of list) {
