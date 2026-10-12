@@ -565,6 +565,9 @@ export async function load() {
     .map(r => ({
       id: r.customer_id,
       name: r.company_name || null,
+      // v170: the customer in its own Stripe account; only the pipeline knows
+      // which of the two environments a customer is in.
+      stripeLink: /^https:\/\/dashboard\.stripe\.com\//.test(String(r.stripe_link || '')) ? String(r.stripe_link) : null,
       source: r.source || null,
       canonicalId: r.canonical_id || null,
       month: r.month,
@@ -804,6 +807,16 @@ export async function load() {
         stripeId: (String(r.stripe_customer_id ?? r.stripe_id ?? '').match(/cus_[A-Za-z0-9]+/) || [])[0] || null,
         stripeUrl: /^https:\/\/dashboard\.stripe\.com\//.test(String(r.stripe_url ?? '')) ? String(r.stripe_url) : null,
         company: String(r.company ?? '').trim() || null,
+        // hs-v87: the company's HubSpot record, how the contact converted
+        // (HubSpot's own type, not a match on words), where HubSpot says the
+        // record first came from (set once, never by a rep), and how many deals
+        // the company already had when the lead arrived.
+        companyId: String(r.company_id ?? '').trim() || null,
+        companyLink: /^https:\/\/app[\w-]*\.hubspot\.com\//.test(String(r.company_link || '')) ? String(r.company_link) : null,
+        contactLink: /^https:\/\/app[\w-]*\.hubspot\.com\//.test(String(r.contact_link || '')) ? String(r.contact_link) : null,
+        conversionType: String(r.conversion_type ?? '').trim() || null,
+        originalSource: String(r.original_source ?? '').trim() || null,
+        dealsBefore: num(r.deals_before),
         created: isoDay(r.created),
         afterEvent: yesNo(r.after_the_event),
         // hs-v84: how the contact arrived (list, form fill, booked a meeting,
@@ -5239,6 +5252,14 @@ export function conversionNamesEvent(r) {
     && conv.has(words[0]) && conv.has(words[1])) return true;
   return !CONVERSION_COMMON.has(words[0]) && words[0].length >= 4 && conv.has(words[0]);
 };
+// HubSpot's original source is set once, when the record is made. Offline
+// (imports, scans, typed in), direct traffic (a booth QR code, a meetings
+// page) and referrals are how an event's contacts arrive; search, social,
+// email and campaigns mean the record began with marketing.
+export const ORIGINAL_ELSEWHERE = new Set(['ORGANIC_SEARCH', 'PAID_SEARCH', 'PAID_SOCIAL', 'SOCIAL_MEDIA',
+  'EMAIL_MARKETING', 'OTHER_CAMPAIGNS']);
+export const cameFromElsewhere = r => ORIGINAL_ELSEWHERE.has(r.originalSource);
+
 export function reengaged(r) {
   if (r.afterEvent !== false || !r.dealCreated || !r.eventDate) return false;
   const days = (Date.parse(r.dealCreated) - Date.parse(r.eventDate)) / 86400000;
@@ -5295,6 +5316,13 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       satToWon: ratio(won, sat), bookedToSat: ratio(base.filter(r => r.bookedBy && r.dealCreated).length, booked),
       wonDealAmount: base.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0),
       byState, leads: list,
+      // Three signals a reader weighs, never merged into one score: already
+      // in HubSpot before the event (re-engaged), first came in through
+      // marketing rather than the event, and a company already a prospect.
+      signals: { before: dated ? again.length : null,
+        elsewhere: base.filter(r => cameFromElsewhere(r)).length,
+        prospect: base.filter(r => r.dealsBefore > 0).length,
+        known: base.filter(r => r.dealsBefore !== null).length },
       // How the counted leads came in: through the event's own link or form,
       // through something else, or with no conversion recorded.
       conv: { own: base.filter(r => r.conversion && conversionNamesEvent(r)).length,
@@ -5328,6 +5356,25 @@ const HUBSPOT_APP = 'https://app-na2.hubspot.com/contacts/23947290/record';
 export const hubspotContactUrl = id => (id && /^\d+$/.test(id) ? `${HUBSPOT_APP}/0-1/${id}` : null);
 export const hubspotDealUrl = id => (id && /^\d+$/.test(id) ? `${HUBSPOT_APP}/0-3/${id}` : null);
 export const stripeCustomerUrl = r => r.stripeUrl || (r.stripeId ? `https://dashboard.stripe.com/customers/${r.stripeId}` : null);
+// A lead's company as a Stripe customer, matched on the company name where
+// exactly one customer carries it (eleven "George" companies is why).
+export function stripeByCompany(data) {
+  const norm = t => String(t || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(llc|inc|co|corp|ltd|the)\b/g, ' ').trim().replace(/\s+/g, ' ');
+  const by = new Map();
+  for (const c of data.customers || []) {
+    const k = norm(c.name);
+    if (!k) continue;
+    if (!by.has(k)) by.set(k, new Map());
+    by.get(k).set(c.id, c);
+  }
+  return company => {
+    const hit = by.get(norm(company));
+    if (!hit || hit.size !== 1) return null;
+    const c = [...hit.values()][0];
+    return { id: c.id, url: c.stripeLink || `https://dashboard.stripe.com/customers/${c.id}`, exact: Boolean(c.stripeLink) };
+  };
+}
 
 export const personName = who => (who === null || who === undefined ? null
   : /^\d{6,}$/.test(String(who)) ? `HubSpot user ${who}` : String(who));

@@ -15,7 +15,8 @@ import {
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
-  eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
+  eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
+  stripeByCompany, cameFromElsewhere, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4622,15 +4623,24 @@ function eventsOnSourcePage() {
     + `Paying customers and contribution use the Events tab’s credit rule.</p></section>`;
 }
 
+// HubSpot's original source in plain words.
+const ORIGINAL_WORDS = { OFFLINE: 'offline: import, scan or typed in', DIRECT_TRAFFIC: 'direct: a link or QR code',
+  REFERRALS: 'a referring site', ORGANIC_SEARCH: 'organic search', PAID_SEARCH: 'paid search', PAID_SOCIAL: 'paid social',
+  SOCIAL_MEDIA: 'social media', EMAIL_MARKETING: 'marketing email', OTHER_CAMPAIGNS: 'another campaign' };
+
 // A lead's HubSpot contact and deal, and its Stripe customer, as links.
 const extLink = (url, text) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
 function idLinks(r) {
   const parts = [];
+  if (r.contactLink) parts.push(extLink(r.contactLink, 'contact'));
+  if (r.companyLink) parts.push(extLink(r.companyLink, `company ${r.companyId || ''}`.trim()));
   if (hubspotContactUrl(r.contactId)) parts.push(extLink(hubspotContactUrl(r.contactId), `contact ${r.contactId}`));
   if (hubspotDealUrl(r.dealId)) parts.push(extLink(hubspotDealUrl(r.dealId), `deal ${r.dealId}`));
   return parts.length ? parts.join('<br>') : '<span class="muted">–</span>';
 }
-function stripeCell(r) {
+function stripeCell(r, byCompany) {
+  const m = !r.stripeId && !r.stripeUrl && byCompany && r.company ? byCompany(r.company) : null;
+  if (m) return extLink(m.url, m.id) + (m.exact ? '' : '<br><span class="muted">matched on name</span>');
   const url = stripeCustomerUrl(r);
   return url && r.stripeId ? extLink(url, r.stripeId) : url ? extLink(url, 'customer') : '<span class="muted">–</span>';
 }
@@ -4652,6 +4662,17 @@ function eventLeadsPanel(e) {
   const rows = [...ev.leads].filter(r => !outside.has(r.state) && (withCompany || r.dealCreated || r.bookedBy))
     .sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state) || String(b.created).localeCompare(String(a.created)));
   const shown = rows.slice(0, 60);
+  const byCompany = stripeByCompany(data);
+  const sg = ev.signals;
+  const signalFacts = sg ? `<div class="ev-facts">`
+    + (sg.before !== null ? `<div class="ev-fact"><span class="ev-fact-label">In HubSpot before the event</span><span class="ev-fact-value">${fmt.int(sg.before)}</span>`
+      + `<span class="ev-fact-sub">of the ${fmt.int(ev.base)} counted; re-engaged by it</span></div>` : '')
+    + `<div class="ev-fact"><span class="ev-fact-label">Began with marketing</span><span class="ev-fact-value">${fmt.int(sg.elsewhere)}</span>`
+      + `<span class="ev-fact-sub">HubSpot first saw them through search, social, email or a campaign</span></div>`
+    + `<div class="ev-fact"><span class="ev-fact-label">Already a prospect</span><span class="ev-fact-value">${sg.known ? fmt.int(sg.prospect) : '–'}</span>`
+      + `<span class="ev-fact-sub">their company had a deal before they arrived</span></div></div>`
+    + `<p class="ev-note">Three signals that the event touched a business rather than found it. None decides it alone, and `
+      + `they are not merged into a score: a contact can be new to HubSpot while their company was already in the pipeline.</p>` : '';
   return `<section class="ev-panel"><h3>Leads and how far they went</h3>`
     + `<p class="ev-note">${ev.dated ? `${fmt.int(ev.produced)} new leads arrived on or after the event, and ${fmt.int(ev.reengaged)} `
       + `existing contacts had a deal open within ${REENGAGE_AFTER_DAYS} days after it, or in the ${REENGAGE_BEFORE_DAYS} days `
@@ -4661,20 +4682,25 @@ function eventLeadsPanel(e) {
       + `${rateCell(ev.booked, { cell: false }).replace('<br>', ' ')}, sat ${rateCell(ev.sat, { cell: false }).replace('<br>', ' ')}, `
       + `won ${rateCell(ev.won, { cell: false }).replace('<br>', ' ')}.</p>`
     + `<div class="ev-facts">${states}</div>`
+    + signalFacts
     + (rows.length ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr>${withCompany ? '<th>Company</th>' : ''}`
     + `<th>Arrived</th><th>How</th><th>Deal opened</th><th>Where it stands</th>`
-    + `<th>Setter</th><th>Deal owner</th><th class="n">Deal amount</th><th>HubSpot</th><th>Stripe customer</th></tr></thead><tbody>`
-    + shown.map(r => `<tr${r.state === 'earlier' || r.state === 'predates' ? ' class="muted"' : ''}>${withCompany ? `<td>${r.company || '<span class="muted">no company</span>'}</td>` : ''}`
+    + `<th>Setter</th><th>Deal owner</th><th class="n">Deal amount</th><th>HubSpot first saw them</th>`
+    + `<th class="n">Deals before</th><th>HubSpot</th><th>Stripe customer</th></tr></thead><tbody>`
+    + shown.map(r => `<tr${r.state === 'earlier' || r.state === 'predates' ? ' class="muted"' : ''}>${withCompany ? `<td>${r.company ? (r.companyLink ? extLink(r.companyLink, r.company) : r.company) : '<span class="muted">no company</span>'}</td>` : ''}`
       + `<td>${r.created || '–'}</td><td>${r.arrivedAs || '–'}${r.conversion ? `<br><span class="muted">${r.conversion.replace(/^Meetings Link:\s*/i, 'meetings link ').slice(0, 48)}</span>` : ''}</td>`
       + `<td>${r.dealCreated || '–'}</td><td>${STATE_LABEL[r.state]}${reengaged(r) ? '<br><span class="muted">re-engaged</span>' : ''}</td>`
       + `<td>${personName(r.bookedBy) || '<span class="muted">not recorded</span>'}</td>`
       + `<td>${personName(r.demoedBy) || (r.dealCreated ? '<span class="muted">no owner</span>' : '<span class="muted">no deal</span>')}</td>`
       + `<td class="n">${r.won === true && r.wonMrr ? fmt.money(r.wonMrr) : '–'}</td>`
-      + `<td>${idLinks(r)}</td><td>${stripeCell(r)}</td></tr>`).join('')
+      + `<td>${r.originalSource ? `${ORIGINAL_WORDS[r.originalSource] || r.originalSource.toLowerCase().replace(/_/g, ' ')}`
+          + (cameFromElsewhere(r) ? '<br><span class="notviable">began with marketing</span>' : '') : '–'}</td>`
+      + `<td class="n">${r.dealsBefore === null ? '–' : r.dealsBefore ? `<span class="notviable">${fmt.int(r.dealsBefore)}</span>` : '0'}</td>`
+      + `<td>${idLinks(r)}</td><td>${stripeCell(r, byCompany)}</td></tr>`).join('')
     + `</tbody></table></div>` : '')
-    + (rows.length && !rows.some(r => r.contactId || r.dealId || r.stripeId)
-      ? `<p class="ev-note">This push carries no HubSpot or Stripe ids for the leads, so the last two columns fill once `
-        + `the Event Leads tab adds contact_id, deal_id and stripe_customer_id.</p>` : '')
+    + (rows.length && !rows.some(r => r.contactLink || r.contactId)
+      ? `<p class="ev-note">HubSpot links open the company; the push carries no contact or deal link yet. Stripe links come `
+        + `from the company name where exactly one customer carries it, until the waterfall\u2019s own Stripe link arrives.</p>` : '')
     + (rows.length > shown.length ? `<p class="ev-note">${fmt.int(rows.length - shown.length)} more not listed.</p>` : '')
     + (!withCompany ? `<p class="ev-note">The leads carry no company name in this push, so the list shows the deals: each `
       + `lead that reached a deal or has a setter recorded. The rest are counted above.</p>` : '')

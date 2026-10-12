@@ -475,6 +475,13 @@ def check_lead_counts(doc):
         report("warning", "Lead Counts", "the tab is in the push with no rows.")
         return
     n = lambda v: number(v) or 0
+    # v170: confirmed, contradicted and no conversion split the total; before
+    # it, no conversion was never written and contradicted looked copied.
+    if rows and "no conversion" in rows[0]:
+        off = [r for r in rows if n(r.get("confirmed")) + n(r.get("contradicted")) + n(r.get("no conversion")) != n(r.get("total"))]
+        if off:
+            report("warning", "Lead Counts", f"{len(off)} rows where confirmed, contradicted and no conversion do not "
+                   f"add up to the total, e.g. {off[0].get('source')}.")
     bad_sum = [r.get("source") for r in rows
                if n(r.get("earned")) + n(r.get("list")) > n(r.get("total")) + 3]
     bad_split = [r.get("source") for r in rows
@@ -659,6 +666,24 @@ def check_event_leads(doc, setters):
         if off:
             report("warning", "Setters", f"{len(off)} setter and event rows disagree with Event Leads, which is the "
                    f"source of truth, e.g. {off[0].get('setter')} / {off[0].get('source')}.")
+    # v170: a sit is a contact, so no setter can have more sits than leads, or
+    # more wins than sits.
+    if setters and setters.get("rows"):
+        over = [r for r in setters["rows"] if (number(r.get("sits")) or 0) > (number(r.get("leads")) or 0)
+                or (number(r.get("wins")) or 0) > (number(r.get("sits")) or 0)]
+        if over:
+            report("error", "Setters", f"{len(over)} rows have more sits than leads or more wins than sits, "
+                   f"e.g. {over[0].get('setter')} / {over[0].get('source')}.")
+    # hs-v87: deals_before is a count; links must be HubSpot record links.
+    bad_before = [r for r in rows if str(r.get("deals_before") or "").strip()
+                  and number(r.get("deals_before")) is None]
+    if bad_before:
+        report("warning", "Event Leads", f"{len(bad_before)} rows have a deals_before that is not a number.")
+    for col in ("company_link", "contact_link"):
+        bad = [r for r in rows if str(r.get(col) or "").strip()
+               and not re.match(r"^https://app[\w-]*\.hubspot\.com/", str(r.get(col)))]
+        if bad:
+            report("warning", "Event Leads", f"{len(bad)} rows have a {col} that is not a HubSpot record link.")
 
 
 def check_marketing_monthly(doc, present):
