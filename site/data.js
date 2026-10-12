@@ -5216,6 +5216,7 @@ export function sourceConfidence(t, detail) {
 export const LEAD_STATES = [
   { key: 'earlier', label: 'Tagged, arrived earlier', note: 'in HubSpot before the event with no deal near it; the event did not produce it' },
   { key: 'predates', label: 'Tagged, deal not near the event', note: 'in HubSpot before the event, with a deal opened well before it or long after; not counted' },
+  { key: 'list', label: 'Loaded from a list', note: 'a file loaded into HubSpot, not someone who did something; not counted, as in Lead Counts' },
   { key: 'undated', label: 'Undated event', note: 'the event has no date, so before and after cannot be told apart' },
   { key: 'unworked', label: 'Lead, no booking recorded', note: 'no setter recorded and no deal; silence is no record, not no effort' },
   { key: 'booked', label: 'Booked, no sit', note: 'a setter is recorded and no deal followed' },
@@ -5266,8 +5267,17 @@ export function reengaged(r) {
   if (days >= 0) return days <= REENGAGE_AFTER_DAYS;
   return days >= -REENGAGE_BEFORE_DAYS && conversionNamesEvent(r);
 }
+// A contact that arrived in a loaded file is not a lead the event produced,
+// however soon after it the file was loaded: Pantheon 2025's attendee list of
+// 986 went in on 11 Nov 2025 and was counted as new leads until 12 Oct 2026.
+// Lead Counts has always left lists out of earned leads; the funnel now does
+// too. An existing contact from a list whose deal the event re-engaged still
+// counts, since the deal, not the file, is the evidence.
+export const loadedFromList = r => r.arrivedAs === 'list';
+const countedLead = r => (r.afterEvent !== false && !loadedFromList(r)) || reengaged(r);
 export function leadState(r) {
   if (r.afterEvent === false && !reengaged(r)) return r.dealCreated ? 'predates' : 'earlier';
+  if (r.afterEvent !== false && loadedFromList(r)) return 'list';
   if (r.afterEvent !== false && (!r.eventDate || r.afterEvent === null)) return 'undated';
   const deal = Boolean(r.dealCreated);
   if (!deal) return r.bookedBy ? 'booked' : 'unworked';
@@ -5299,9 +5309,10 @@ export function eventFunnel(data, roi = eventRoi(data)) {
   const events = [...bySource].map(([source, list]) => {
     const e = labelOf.get(source) || null;
     const dated = list.some(r => r.eventDate);
-    const produced = list.filter(r => r.afterEvent === true);
+    const produced = list.filter(r => r.afterEvent === true && !loadedFromList(r));
     const again = list.filter(r => reengaged(r));
-    const base = dated ? [...produced, ...again] : list;
+    const base = dated ? [...produced, ...again] : list.filter(r => !loadedFromList(r));
+    const loaded = list.filter(r => r.afterEvent !== false && loadedFromList(r));
     const booked = base.filter(r => r.bookedBy).length;
     const sat = base.filter(r => r.dealCreated).length;
     const won = base.filter(r => r.won === true).length;
@@ -5316,6 +5327,10 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       satToWon: ratio(won, sat), bookedToSat: ratio(base.filter(r => r.bookedBy && r.dealCreated).length, booked),
       wonDealAmount: base.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0),
       byState, leads: list,
+      // Loaded from a list after the event (or at an undated one): not
+      // counted, but their deals are said so nothing is hidden.
+      loaded: { n: loaded.length, deals: loaded.filter(r => r.dealCreated).length,
+        won: loaded.filter(r => r.won === true).length },
       // Three signals a reader weighs, never merged into one score: already
       // in HubSpot before the event (re-engaged), first came in through
       // marketing rather than the event, and a company already a prospect.
@@ -5331,10 +5346,11 @@ export function eventFunnel(data, roi = eventRoi(data)) {
     };
   }).sort((a, b) => String(b.month || b.eventDate || '').localeCompare(String(a.month || a.eventDate || '')) || a.label.localeCompare(b.label));
   const kept = rows.filter(r => leadMediumOf(r.source, 'event') === 'event');
-  const recent = kept.filter(r => r.afterEvent === true || reengaged(r));
+  const recent = kept.filter(r => (r.afterEvent === true && !loadedFromList(r)) || reengaged(r));
   return {
     events,
-    totals: { tagged: kept.length, produced: kept.filter(r => r.afterEvent === true).length,
+    totals: { tagged: kept.length, produced: kept.filter(r => r.afterEvent === true && !loadedFromList(r)).length,
+      loaded: kept.filter(r => r.afterEvent !== false && loadedFromList(r)).length,
       reengaged: kept.filter(r => reengaged(r)).length,
       earlier: kept.filter(r => r.afterEvent === false && !reengaged(r)).length,
       undated: kept.filter(r => !r.eventDate).length, booked: recent.filter(r => r.bookedBy).length,
@@ -5382,7 +5398,7 @@ export const personName = who => (who === null || who === undefined ? null
 export function salesReport(data) {
   const rows = (data.eventLeadRows || []).filter(r => leadMediumOf(r.source, 'event') === 'event');
   if (!rows.length) return null;
-  const counted = rows.filter(r => r.afterEvent !== false || reengaged(r)); // produced, re-engaged or undated
+  const counted = rows.filter(countedLead); // produced, re-engaged or undated, never a loaded list
   const group = (key, list) => {
     const m = new Map();
     for (const r of list) {

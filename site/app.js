@@ -4277,7 +4277,8 @@ function renderEventAttribution() {
   $('event-attribution-finding').innerHTML =
     `<strong>Events produced ${fmt.int(t.produced)} new leads and re-engaged ${fmt.int(t.reengaged)} existing contacts `
     + `whose deal opened around the event; another ${fmt.int(t.earlier)} carry an event tag but were in HubSpot before it `
-    + `with no deal near it, and are not counted.</strong> Of the leads counted, ${fmt.int(t.booked)} have a setter `
+    + `with no deal near it, and ${fmt.int(t.loaded)} arrived in a list loaded into HubSpot after the event; neither is `
+    + `counted.</strong> Of the leads counted, ${fmt.int(t.booked)} have a setter `
     + `recorded, ${fmt.int(t.sat)} reached a deal and ${fmt.int(t.won)} won. The setter field is filled on `
     + `${fmt.pct(f.setterFill.rate || 0, 0)} of them, so most leads carry no booking record: that is a gap in the record, `
     + `not leads nobody worked.`;
@@ -4652,7 +4653,7 @@ function eventLeadsPanel(e) {
   if (!ev) return '';
   // Contacts outside the attribution window are left off the page: they are
   // not the event's, and only their number is said.
-  const outside = new Set(['earlier', 'predates']);
+  const outside = new Set(['earlier', 'predates', 'list']);
   const states = LEAD_STATES.filter(s => ev.byState[s.key] && !outside.has(s.key)).map(s => `<div class="ev-fact"><span class="ev-fact-label">${s.label}</span>`
     + `<span class="ev-fact-value">${fmt.int(ev.byState[s.key])}</span><span class="ev-fact-sub">${s.note}</span></div>`).join('');
   const order = ['won', 'lost', 'sat', 'booked', 'unworked', 'undated', 'predates', 'earlier'];
@@ -4678,7 +4679,10 @@ function eventLeadsPanel(e) {
       + `existing contacts had a deal open within ${REENGAGE_AFTER_DAYS} days after it, or in the ${REENGAGE_BEFORE_DAYS} days `
       + `before through the event’s own link or form, so it re-engaged them. ${fmt.int(ev.earlier)} more contacts carry its tag but were in HubSpot before it with no deal in `
       + `that window, so they are left out here.` : `The event has no date, so its ${fmt.int(ev.tagged)} tagged contacts `
-      + `cannot be split into before and after.`} Of the ${fmt.int(ev.base)} counted, booked `
+      + `cannot be split into before and after.`}${ev.loaded.n ? ` ${fmt.int(ev.loaded.n)} arrived in a list loaded into HubSpot `
+      + `${ev.dated ? 'after the event' : ''}; a file is not someone who did something, so they are not counted, as Lead Counts `
+      + `does not count them (${fmt.int(ev.loaded.deals)} of them reached a deal and ${fmt.int(ev.loaded.won)} won).` : ''}`
+      + ` Of the ${fmt.int(ev.base)} counted, booked `
       + `${rateCell(ev.booked, { cell: false }).replace('<br>', ' ')}, sat ${rateCell(ev.sat, { cell: false }).replace('<br>', ' ')}, `
       + `won ${rateCell(ev.won, { cell: false }).replace('<br>', ' ')}.</p>`
     + `<div class="ev-facts">${states}</div>`
