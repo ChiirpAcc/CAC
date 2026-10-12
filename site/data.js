@@ -5196,10 +5196,21 @@ export const LEAD_STATES = [
 // opened before that window, or long after, is not the event's.
 export const REENGAGE_BEFORE_DAYS = 45;
 export const REENGAGE_AFTER_DAYS = 90;
+// A deal opened after the event, up to 90 days on, counts. One opened in the
+// 45 days before counts only when the conversion names the event (its
+// meetings link or form): pre-event outreach for it. Before 12 Oct 2026 the
+// date alone decided, which credited Pantheon 2026 with deals that came in
+// through a Revenue Optimization Lab session and general demo forms.
+const conversionNamesEvent = r => {
+  const words = eventWords(String(r.source || '').replace(/^20\d\d\s*-\s*/, ''));
+  const conv = eventWords(r.conversion || '');
+  return Boolean(words) && conv.includes(words);
+};
 export function reengaged(r) {
   if (r.afterEvent !== false || !r.dealCreated || !r.eventDate) return false;
   const days = (Date.parse(r.dealCreated) - Date.parse(r.eventDate)) / 86400000;
-  return days >= -REENGAGE_BEFORE_DAYS && days <= REENGAGE_AFTER_DAYS;
+  if (days >= 0) return days <= REENGAGE_AFTER_DAYS;
+  return days >= -REENGAGE_BEFORE_DAYS && conversionNamesEvent(r);
 }
 export function leadState(r) {
   if (r.afterEvent === false && !reengaged(r)) return r.dealCreated ? 'predates' : 'earlier';

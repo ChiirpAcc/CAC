@@ -4294,8 +4294,9 @@ function renderEventAttribution() {
     + '</tbody>';
   $('event-attribution-note').textContent =
     'From the Event Leads tab, one row per contact tagged to an event. New leads are contacts created on or after the '
-    + `event. Re-engaged are contacts HubSpot already held whose deal opened from ${REENGAGE_BEFORE_DAYS} days before the `
-    + `event to ${REENGAGE_AFTER_DAYS} days after: an existing contact the event converted. Tagged, not counted are contacts `
+    + `event. Re-engaged are contacts HubSpot already held whose deal opened within ${REENGAGE_AFTER_DAYS} days after the `
+    + `event, or in the ${REENGAGE_BEFORE_DAYS} days before through the event’s own meetings link or form: an existing `
+    + `contact the event converted. Tagged, not counted are contacts `
     + 'already held with no deal, or a deal opened well before the event or long after: back-tagging, not the event\u2019s. An undated event cannot be split, so it shows every tagged contact and is not comparable '
     + 'with a dated one. Booked is a setter recorded; sat is a deal existing, since HubSpot creates a deal only once a demo '
     + 'is sat; won is the deal winning. Each rate shows what it rests on and is faded under ten. Won deal amount is what the '
@@ -4640,8 +4641,8 @@ function eventLeadsPanel(e) {
   const shown = rows.slice(0, 60);
   return `<section class="ev-panel"><h3>Leads and how far they went</h3>`
     + `<p class="ev-note">${ev.dated ? `${fmt.int(ev.produced)} new leads arrived on or after the event, and ${fmt.int(ev.reengaged)} `
-      + `existing contacts had a deal open within ${REENGAGE_BEFORE_DAYS} days before it or ${REENGAGE_AFTER_DAYS} after, so it `
-      + `re-engaged them. ${fmt.int(ev.earlier)} more contacts carry its tag but were in HubSpot before it with no deal in `
+      + `existing contacts had a deal open within ${REENGAGE_AFTER_DAYS} days after it, or in the ${REENGAGE_BEFORE_DAYS} days `
+      + `before through the event’s own link or form, so it re-engaged them. ${fmt.int(ev.earlier)} more contacts carry its tag but were in HubSpot before it with no deal in `
       + `that window, so they are left out here.` : `The event has no date, so its ${fmt.int(ev.tagged)} tagged contacts `
       + `cannot be split into before and after.`} Of the ${fmt.int(ev.base)} counted, booked `
       + `${rateCell(ev.booked, { cell: false }).replace('<br>', ' ')}, sat ${rateCell(ev.sat, { cell: false }).replace('<br>', ' ')}, `
