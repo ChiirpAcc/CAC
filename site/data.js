@@ -5393,21 +5393,49 @@ export const hubspotDealUrl = id => (id && /^\d+$/.test(id) ? `${HUBSPOT_APP}/0-
 export const stripeCustomerUrl = r => r.stripeUrl || (r.stripeId ? `https://dashboard.stripe.com/customers/${r.stripeId}` : null);
 // A lead's company as a Stripe customer, matched on the company name where
 // exactly one customer carries it (eleven "George" companies is why).
+// Franchise brands: one name, many separately owned locations, so a short
+// name is never matched to a longer one.
+const FRANCHISE = /^(mr|mister) (electric|rooter|handyman|sparky)|^one hour|^aire serv|^benjamin franklin|^roto rooter|^ars |^service experts|^horizon services/;
+
 export function stripeByCompany(data) {
   const norm = t => String(t || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\b(llc|inc|co|corp|ltd|the)\b/g, ' ').trim().replace(/\s+/g, ' ');
-  const by = new Map();
+    .replace(/\b(llc|lp|inc|co|company|corp|ltd|the|dba|pty)\b/g, ' ').trim().replace(/\s+/g, ' ');
+  // One summary per Stripe customer: first month paid, MRR in its latest
+  // month, and the deal that won it.
+  const sum = new Map();
   for (const c of data.customers || []) {
-    const k = norm(c.name);
-    if (!k) continue;
-    if (!by.has(k)) by.set(k, new Map());
-    by.get(k).set(c.id, c);
+    if (!c.id) continue;
+    let x = sum.get(c.id);
+    if (!x) sum.set(c.id, x = { id: c.id, name: c.name, url: c.stripeLink || `https://dashboard.stripe.com/customers/${c.id}`,
+      firstPaid: null, last: null, mrrNow: 0, live: false, wonDealSource: c.wonDealSource || null });
+    if (c.name && !x.name) x.name = c.name;
+    if (c.stripeLink) x.url = c.stripeLink;
+    if (!x.wonDealSource && c.wonDealSource) x.wonDealSource = c.wonDealSource;
+    if (((c.netCash || 0) > 0 || (c.newMrr || 0) > 0) && (!x.firstPaid || c.month < x.firstPaid)) x.firstPaid = c.month;
+    if (!x.last || c.month > x.last) { x.last = c.month; x.mrrNow = c.eopMrr || 0; x.live = Boolean(c.active); }
   }
+  const by = new Map();
+  for (const x of sum.values()) {
+    const k = norm(x.name);
+    if (!k) continue;
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(x);
+  }
+  const keys = [...by.keys()];
   return company => {
-    const hit = by.get(norm(company));
-    if (!hit || hit.size !== 1) return null;
-    const c = [...hit.values()][0];
-    return { id: c.id, url: c.stripeLink || `https://dashboard.stripe.com/customers/${c.id}`, exact: Boolean(c.stripeLink) };
+    const k = norm(company);
+    if (!k) return null;
+    const exact = by.get(k);
+    if (exact) return exact.length === 1 ? { ...exact[0], how: 'name' } : null;
+    // HubSpot often holds a business under a shorter name than Stripe ("A1
+    // Plumbing" and "A1 Plumbing, Pumps & Water Treatment Inc."). The HubSpot
+    // name starting the Stripe one counts when it is at least two words,
+    // exactly one customer fits, and the rest is not "of <place>": a
+    // franchise's locations are different businesses.
+    if (k.split(' ').length < 2 || FRANCHISE.test(k)) return null;
+    const fits = keys.filter(n => n.startsWith(k + ' ') && !/^of /.test(n.slice(k.length + 1)));
+    const hits = fits.flatMap(n => by.get(n));
+    return hits.length === 1 ? { ...hits[0], how: 'part of the name' } : null;
   };
 }
 

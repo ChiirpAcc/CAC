@@ -4641,7 +4641,7 @@ function idLinks(r) {
 }
 function stripeCell(r, byCompany) {
   const m = !r.stripeId && !r.stripeUrl && byCompany && r.company ? byCompany(r.company) : null;
-  if (m) return extLink(m.url, m.id) + '<br><span class="muted">matched on company name</span>';
+  if (m) return extLink(m.url, m.id) + `<br><span class="muted">matched on ${m.how === 'name' ? 'company name' : 'part of the company name'}</span>`;
   const url = stripeCustomerUrl(r);
   return url && r.stripeId ? extLink(url, r.stripeId) : url ? extLink(url, 'customer') : '<span class="muted">–</span>';
 }
@@ -4664,6 +4664,20 @@ function eventLeadsPanel(e) {
     .sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state) || String(b.created).localeCompare(String(a.created)));
   const shown = rows.slice(0, 60);
   const byCompany = stripeByCompany(data);
+  // What each lead's company became in Stripe, and whether this event is
+  // credited with it; the customers credited here with no lead row are listed
+  // after the table, so who won what is on one page.
+  const credited = new Map((e.customerRows || []).map(x => [x.id, x]));
+  const seen = new Set();
+  const becameCell = r => {
+    const m = r.company ? byCompany(r.company) : null;
+    if (!m || !m.firstPaid) return '';
+    seen.add(m.id);
+    const won = m.wonDealSource && !credited.has(m.id) ? `, won through ${m.wonDealSource}` : '';
+    return `<br><span class="${credited.has(m.id) ? 'pos' : 'muted'}">became a customer ${fmt.monthLabel(m.firstPaid)}`
+      + `${m.mrrNow ? `, ${fmt.money(m.mrrNow)}/mo now` : m.live ? ', $0 this month' : ', since left'}${won}; `
+      + `${credited.has(m.id) ? 'credited to this event' : 'not credited to it'}</span>`;
+  };
   const sg = ev.signals;
   const signalFacts = sg ? `<div class="ev-facts">`
     + (sg.before !== null ? `<div class="ev-fact"><span class="ev-fact-label">In HubSpot before the event</span><span class="ev-fact-value">${fmt.int(sg.before)}</span>`
@@ -4693,7 +4707,7 @@ function eventLeadsPanel(e) {
     + `<th class="n">Deals before</th><th>HubSpot</th><th>Stripe customer</th></tr></thead><tbody>`
     + shown.map(r => `<tr${r.state === 'earlier' || r.state === 'predates' ? ' class="muted"' : ''}>${withCompany ? `<td>${r.company ? (r.companyLink ? extLink(r.companyLink, r.company) : r.company) : '<span class="muted">no company</span>'}</td>` : ''}`
       + `<td>${r.created || '–'}</td><td>${r.arrivedAs || '–'}${r.conversion ? `<br><span class="muted">${r.conversion.replace(/^Meetings Link:\s*/i, 'meetings link ').slice(0, 48)}</span>` : ''}</td>`
-      + `<td>${r.dealCreated || '–'}</td><td>${STATE_LABEL[r.state]}${reengaged(r) ? '<br><span class="muted">re-engaged</span>' : ''}</td>`
+      + `<td>${r.dealCreated || '–'}</td><td>${STATE_LABEL[r.state]}${reengaged(r) ? '<br><span class="muted">re-engaged</span>' : ''}${becameCell(r)}</td>`
       + `<td>${personName(r.bookedBy) || '<span class="muted">not recorded</span>'}</td>`
       + `<td>${personName(r.demoedBy) || (r.dealCreated ? '<span class="muted">no owner</span>' : '<span class="muted">no deal</span>')}</td>`
       + `<td class="n">${r.won === true && r.wonMrr ? fmt.money(r.wonMrr) : '–'}</td>`
@@ -4706,6 +4720,15 @@ function eventLeadsPanel(e) {
       ? `<p class="ev-note">HubSpot links open the company; the push carries no contact or deal link yet. Stripe links come `
         + `from the company name where exactly one Stripe customer carries it, and open in that customer\u2019s own Stripe account.</p>` : '')
     + (rows.length > shown.length ? `<p class="ev-note">${fmt.int(rows.length - shown.length)} more not listed.</p>` : '')
+    + (() => {
+      shown.forEach(r => becameCell(r));
+      const missing = [...credited.values()].filter(x => !seen.has(x.id));
+      return missing.length ? `<p class="ev-note"><strong>Credited to this event with no lead row: </strong>`
+        + missing.map(x => `${x.name || x.id} (first paid ${x.firstPaid ? fmt.monthLabel(x.firstPaid) : '–'}, `
+          + `${x.mrrNow ? `${fmt.money(x.mrrNow)}/mo now` : x.live ? '$0 this month' : 'since left'})`).join('; ')
+        + `. Their event tag is on the company or a deal, not on a contact tagged to the event, or their contact`
+        + ` carries another event; the customers table below has their figures.</p>` : '';
+    })()
     + (!withCompany ? `<p class="ev-note">The leads carry no company name in this push, so the list shows the deals: each `
       + `lead that reached a deal or has a setter recorded. The rest are counted above.</p>` : '')
     + `<p class="ev-note">Deal amount is what the deal said, an estimate, not what Stripe billed. A blank setter means no `
