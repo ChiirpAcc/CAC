@@ -4733,7 +4733,8 @@ function renderEventPage(label) {
       + `<span><i class="ev-split-travel"></i>Travel ${money(travel)}</span></div>`
     : '';
   const feeFrom = !c ? '' : c.feeFrom === 'settled' ? 'Settled on the evidence below'
-    : c.feeFrom === 'shared fee' ? 'Share of a fee covering several events'
+    : c.feeFrom === 'shared fee' ? (pack && pack.covers === 1 ? 'CHIIRP’s share of a booth shared with another company'
+      : 'Share of a fee covering several events')
     : c.feeFrom === 'QuickBooks' ? 'Agrees with QuickBooks'
     : c.feeFrom === 'added here' ? 'Added here until the Event Costs tab carries it' : 'As the Event Costs tab carries it';
   const costFacts = c
