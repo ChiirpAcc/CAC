@@ -797,7 +797,14 @@ export async function load() {
   // event. Each is kept as null and named on the page.
   const yesNo = v => { const t = String(v ?? '').trim().toLowerCase(); return t === 'yes' || t === 'true' ? true : t === 'no' || t === 'false' ? false : null; };
   const isoDay = v => (/^\d{4}-\d{2}-\d{2}/.test(String(v || '')) ? String(v).slice(0, 10) : null);
-  const person = v => String(v ?? '').trim() || null;
+  // HubSpot users the pull cannot name, because they have left: mapped to the
+  // person, so their deals and sets are one line with the rest of their work.
+  const person = v => {
+    const t = String(v ?? '').trim();
+    if (!t) return null;
+    const id = (t.match(/^(?:user\s+)?(\d{6,})\b/i) || [])[1];
+    return id && HUBSPOT_USER_NAMES[id] ? HUBSPOT_USER_NAMES[id] : t;
+  };
   const eventLeadRows = byTab['Event Leads']
     ? byTab['Event Leads'].rows.filter(r => r.source).map(r => ({
         source: mergeSource(r.source),
@@ -4030,6 +4037,12 @@ export function eventContributionRows(serve) {
 // A cost still settling or not found yet is not a cost to divide by.
 export const eventHasReturn = e => e.spend > 0 && Boolean(e.month) && !e.upcoming
   && !(e.cost && e.cost.costState);
+
+// HubSpot users who have left, by id (Josh, 12 Oct 2026). The owners API
+// returns no name for a deactivated user, so the pull sends the id.
+export const HUBSPOT_USER_NAMES = {
+  629850185: 'Parker Joos', // a salesperson who has left; 115 event deals
+};
 
 export const WINBACK_GAP = 3;
 // A company's name as a key: the same business across the two Stripe
