@@ -1130,7 +1130,6 @@ figcaption { margin-bottom: .9rem; }
 .rank-table.is-technical .rank-bar-col { width: 20%; min-width: 120px; }
 .rank-table.is-technical .rank-bar { min-width: 40px; }
 .rank-table.is-technical .rank-bar-value { min-width: 4.8rem; }
-.rank-young td { opacity: 0.55; }
 .rank-table tbody tr:hover { background: var(--surface-sunk); }
 .view-toggle { display: inline-flex; gap: 0.75rem; margin-left: 1rem; }
 .view-toggle label { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }

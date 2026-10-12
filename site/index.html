@@ -882,16 +882,24 @@
       <div class="chart-control">
         <label for="events-sort">Sort by</label>
         <select id="events-sort">
+          <option value="newest" selected>Newest event first</option>
+          <option value="oldest">Oldest event first</option>
           <option value="result">Net gain</option>
           <option value="roi">Return on cost (ROI)</option>
           <option value="az">Name, A to Z</option>
-          <option value="oldest">Oldest event first</option>
-          <option value="newest">Newest event first</option>
         </select>
         <span class="view-toggle" role="radiogroup" aria-label="Table detail">
           <label><input type="radio" name="events-view" id="events-view-simple" checked> Simple</label>
           <label><input type="radio" name="events-view" id="events-view-technical"> Technical</label>
         </span>
+      </div>
+      <div class="chart-control">
+        <label for="events-from">Events from</label>
+        <input type="month" id="events-from">
+        <label for="events-to">to</label>
+        <input type="month" id="events-to">
+        <button type="button" id="events-range-all">All dates</button>
+        <output id="events-range-note"></output>
       </div>
       <div class="plot" id="chart-events"></div>
       <p class="finding" id="events-finding"></p>

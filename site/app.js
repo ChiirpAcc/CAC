@@ -5245,6 +5245,12 @@ function renderEvents() {
     : `not expected to pay for itself within ${r.paybackHorizon} months`);
   const recBy = new Map(r.recovery.map(x => [x.label, x]));
   const ageInput = $('events-age');
+  {
+    const months = [...costed, ...waiting].map(x => x.month).filter(Boolean).sort();
+    for (const id of ['events-from', 'events-to']) {
+      if ($(id) && months.length) { $(id).min = months[0]; $(id).max = months[months.length - 1]; }
+    }
+  }
   if (ageInput && !ageInput.dataset.ready) {
     ageInput.max = String(Math.min(12, Math.max(...r.recovery.map(x => x.age), 1)));
     ageInput.value = String(Math.min(6, Number(ageInput.max)));
@@ -5257,7 +5263,18 @@ function renderEvents() {
     if ($('events-age')) $('events-age').disabled = allTime;
     $('events-age-value').textContent = allTime ? 'all time' : `${k} month${k === 1 ? '' : 's'}`;
     const span = allTime ? 'to date' : `in its first ${k} month${k === 1 ? '' : 's'}`;
-    const atK = costed.map(x => {
+    // The date range narrows every event list and figure below it.
+    const from = ($('events-from') && $('events-from').value) || '';
+    const to = ($('events-to') && $('events-to').value) || '';
+    const inRange = x => Boolean(x.month) && (!from || x.month >= from) && (!to || x.month <= to);
+    const costedIn = costed.filter(inRange);
+    const waitingIn = waiting.filter(inRange);
+    if ($('events-range-note')) {
+      $('events-range-note').textContent = from || to
+        ? `${fmt.int(costedIn.length + waitingIn.length)} of ${fmt.int(costed.length + waiting.length)} events`
+        : `${fmt.int(costed.length + waiting.length)} events`;
+    }
+    const atK = costedIn.map(x => {
       const rc = recBy.get(x.label);
       const pb = paybackBy.get(x.label);
       const age = rc ? rc.age : null;
@@ -5271,7 +5288,7 @@ function renderEvents() {
     // Sort: by net gain or return on cost at this age (events too young at
     // the bottom), by name, or by when the event happened. Every order keeps
     // young events faded.
-    const sortBy = ($('events-sort') && $('events-sort').value) || 'result';
+    const sortBy = ($('events-sort') && $('events-sort').value) || 'newest';
     const showRoi = sortBy === 'roi';
     const judged = atK.filter(x => x.reached)
       .sort(showRoi ? (a, b) => b.roiAtK - a.roiAtK : (a, b) => b.netAtK - a.netAtK);
@@ -5343,13 +5360,13 @@ function renderEvents() {
           ? `<td class="rank-bar-col"><div class="rank-net">${bar(x.netAtK)}`
             + `<span class="rank-bar-value ${cls(x.netAtK)}">${signed(x.netAtK)}</span></div></td>`
           : `<td class="rank-bar-col"><span class="muted">${qty(x.age, 'month')} old, not yet ${k}; ${paybackWords(paybackBy.get(x.label))}</span></td>`;
-        return `<tr${x.reached ? '' : ' class="rank-young"'}>${head}${net}${roiCell(x)}</tr>`;
+        return `<tr>${head}${net}${roiCell(x)}</tr>`;
     };
     const waitingRow = x => {
         const lead = leadsBy.get(x.label);
         const why = [x.month > data.lastMonth ? `after the data, which runs to ${fmt.monthLabel(data.lastMonth)}` : '',
           x.costState ? stateWords[x.costState] : ''].filter(Boolean).join('; ');
-        return `<tr class="rank-young"><td><a href="${eventHref(x.label)}">${x.label}</a> ${confidenceChip(eventConfidence(x))}`
+        return `<tr><td><a href="${eventHref(x.label)}">${x.label}</a> ${confidenceChip(eventConfidence(x))}`
           + `<br><span class="muted">${fmt.monthLabel(x.month)}${technical && x.type ? ` · ${x.type}` : ''}</span></td>`
           + costCell(x, lead)
           + `<td class="n">${fmt.int(x.paid || 0)}${x.liveNow ? `<br><span class="muted">${fmt.int(x.liveNow)} live</span>` : ''}</td>`
@@ -5357,18 +5374,18 @@ function renderEvents() {
           + `<td class="rank-bar-col"><span class="muted">Not scored yet: ${why}.</span></td><td class="n">–</td></tr>`;
     };
     // A date or name sort puts every event in that order, the unscored ones
-    // faded in place; a result sort ranks the scored ones and lists the rest
+    // in place with their reason; a result sort ranks the scored ones and lists the rest
     // after them, since they have no result to rank on.
     const byKey = sortBy === 'az' || sortBy === 'oldest' || sortBy === 'newest';
     const cmp = sortBy === 'az' ? (a, b) => a.label.localeCompare(b.label)
       : sortBy === 'oldest' ? (a, b) => a.month.localeCompare(b.month) || a.label.localeCompare(b.label)
       : (a, b) => b.month.localeCompare(a.month) || a.label.localeCompare(b.label);
     const body = byKey
-      ? [...order.map(x => ({ x, row: scoredRow })), ...waiting.map(x => ({ x, row: waitingRow }))]
+      ? [...order.map(x => ({ x, row: scoredRow })), ...waitingIn.map(x => ({ x, row: waitingRow }))]
         .sort((a, b) => cmp(a.x, b.x)).map(r => r.row(r.x)).join('')
       : order.map(scoredRow).join('')
-        + (waiting.length ? `<tr class="rank-group"><td colspan="${technical ? 6 : 4}">Not scored yet</td></tr>` : '')
-        + waiting.map(waitingRow).join('');
+        + (waitingIn.length ? `<tr class="rank-group"><td colspan="${technical ? 6 : 4}">Not scored yet</td></tr>` : '')
+        + waitingIn.map(waitingRow).join('');
     $('chart-events').innerHTML =
       `<div class="table-scroll"><table class="data-table rank-table${technical ? ' is-technical' : ''}"><thead><tr>`
       + `<th>Event</th><th class="n">Cost</th><th class="n">Customers</th>`
@@ -5388,8 +5405,8 @@ function renderEvents() {
       + `ranked against one on the split alone. `
       + `Net and ${technical ? 'the first ROI' : 'its bar'} are read ${allTime ? 'on everything to date' : `${k} months after each event`}; `
       + `12-month ROI is actual for events a year old and projected for younger ones.`
-      + (allTime ? '' : ` Faded rows are younger than ${qty(k, 'month')} and are not ranked.`)
-      + (waiting.length ? ` Rows reading "Not scored yet" are events whose cost is still settling or not found, or which fall after the `
+      + (allTime ? '' : ` Rows younger than ${qty(k, 'month')} say how old they are and are not ranked.`)
+      + (waitingIn.length ? ` Rows reading "Not scored yet" are events whose cost is still settling or not found, or which fall after the `
         + `last month of data (${fmt.monthLabel(data.lastMonth)}, the last month QuickBooks has closed); they are scored once that clears.` : '')
       + `</p>`;
     const winners = judged.filter(x => x.netAtK >= 0);
@@ -5411,7 +5428,7 @@ function renderEvents() {
             + `of its cost back. ` : '')
         + (worst && worst !== best ? `${worst.label} is furthest behind at ${signed(worst.netAtK)}. ` : '')
         + (young.length && !allTime ? `${qty(young.length, 'event is', 'events are')} younger than ${qty(k, 'month')} and `
-          + `${young.length === 1 ? 'is' : 'are'} listed faded at the bottom rather than ranked. ` : '')
+          + `${young.length === 1 ? 'is' : 'are'} listed with ${young.length === 1 ? 'its' : 'their'} age rather than ranked. ` : '')
         + (t.alreadyPaying
             ? `${qty(t.alreadyPaying, 'more customer carries', 'more customers carry')} an event tag but `
               + `${t.alreadyPaying === 1 ? 'was' : 'were'} already paying before that event, and `
@@ -5462,6 +5479,16 @@ function renderEvents() {
     }
     if ($('events-age-on')) {
       $('events-age-on').addEventListener('change', () => renderEvents.drawAt(Number(ageInput.value)));
+    }
+    for (const id of ['events-from', 'events-to']) {
+      if ($(id)) $(id).addEventListener('change', () => renderEvents.drawAt(Number(ageInput.value)));
+    }
+    if ($('events-range-all')) {
+      $('events-range-all').addEventListener('click', () => {
+        $('events-from').value = '';
+        $('events-to').value = '';
+        renderEvents.drawAt(Number(ageInput.value));
+      });
     }
     for (const id of ['events-view-simple', 'events-view-technical']) {
       if ($(id)) $(id).addEventListener('change', () => renderEvents.drawAt(Number(ageInput.value)));
