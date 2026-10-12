@@ -3605,7 +3605,7 @@ export const EVENT_PACKAGES = [
     basis: 'The $195,000 package is shared four ways. QuickBooks shows two partners\' deposits of '
       + '$48,750 each, and a third partner paid $50,258, which leaves $47,242 of the total; the 2027 '
       + 'budget carries the CHIIRP share at $48,750, a quarter, and that is used. The event ran on '
-      + '16 September 2026.' },
+      + '5 October 2026.' },
 ];
 const packageOf = c => EVENT_PACKAGES.find(pack => pack.match.test(c.event)
   && c.month && c.month >= pack.from && c.month <= pack.to) || null;
@@ -5201,10 +5201,23 @@ export const REENGAGE_AFTER_DAYS = 90;
 // meetings link or form): pre-event outreach for it. Before 12 Oct 2026 the
 // date alone decided, which credited Pantheon 2026 with deals that came in
 // through a Revenue Optimization Lab session and general demo forms.
-const conversionNamesEvent = r => {
-  const words = eventWords(String(r.source || '').replace(/^20\d\d\s*-\s*/, ''));
-  const conv = eventWords(r.conversion || '');
-  return Boolean(words) && conv.includes(words);
+// A conversion names the event when it carries every distinctive word of the
+// source, its first two ("EGIA Epic" for "EGIA Epic Tradeshow"), or its first
+// alone when that is a brand rather than a common word ("Lennox" for a Lennox
+// Live breakout form with no city). "Home service" is shared by several
+// events and guides, so it never matches on its own.
+const CONVERSION_FILLER = /^(tradeshow|trade|show|convention|chiirp)$/;
+const CONVERSION_COMMON = new Set(['home', 'service', 'system', 'raising', 'wealthy', 'blue', 'build', 'table',
+  'zoom', 'business', 'contractor', 'ai', 'digital', 'general', 'demo', 'sales', 'marketing', 'growth', 'pro', 'lb']);
+export function conversionNamesEvent(r) {
+  const words = eventWords(String(r.source || '').replace(/^20\d\d\s*-\s*/, ''))
+    .split(' ').filter(w => w && !CONVERSION_FILLER.test(w));
+  if (!words.length || !r.conversion) return false;
+  const conv = new Set(eventWords(r.conversion).split(' '));
+  if (words.every(w => conv.has(w))) return true;
+  if (words.length >= 2 && !(CONVERSION_COMMON.has(words[0]) && CONVERSION_COMMON.has(words[1]))
+    && conv.has(words[0]) && conv.has(words[1])) return true;
+  return !CONVERSION_COMMON.has(words[0]) && words[0].length >= 4 && conv.has(words[0]);
 };
 export function reengaged(r) {
   if (r.afterEvent !== false || !r.dealCreated || !r.eventDate) return false;
@@ -5262,6 +5275,11 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       satToWon: ratio(won, sat), bookedToSat: ratio(base.filter(r => r.bookedBy && r.dealCreated).length, booked),
       wonDealAmount: base.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0),
       byState, leads: list,
+      // How the counted leads came in: through the event's own link or form,
+      // through something else, or with no conversion recorded.
+      conv: { own: base.filter(r => r.conversion && conversionNamesEvent(r)).length,
+        other: base.filter(r => r.conversion && !conversionNamesEvent(r)).length,
+        none: base.filter(r => !r.conversion).length },
     };
   }).sort((a, b) => String(b.month || b.eventDate || '').localeCompare(String(a.month || a.eventDate || '')) || a.label.localeCompare(b.label));
   const kept = rows.filter(r => leadMediumOf(r.source, 'event') === 'event');

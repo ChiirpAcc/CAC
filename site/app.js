@@ -4753,14 +4753,26 @@ function renderEventPage(label) {
     + (e.report2025 ? `<p class="ev-note"><strong>Partnerships report, Nov 2025.</strong> ${e.report2025}</p>` : '');
 
   // Leads.
+  // The event's own conversions are counted from Event Leads, one row per
+  // contact; Lead Counts' confirmed and contradicted are kept only as a
+  // fallback (in v169 its contradicted repeats confirmed on four rows).
+  const funRow = (() => { const f = eventFunnel(data, r.roi); return f && f.events.find(x => x.source === e.source || x.label === e.label); })();
+  const own = funRow ? funRow.conv.own : lead ? lead.confirmed : null;
+  const other = funRow ? funRow.conv.other : null;
   const leadFacts = lead
-    ? fact('Earned leads', int(lead.leads), 'scan, meeting, form, rep or chat')
-      + fact('From a list', int(lead.list), lead.listShare ? `${pct(lead.listShare)} of all, not counted` : 'not counted')
-      + (lead.dated ? fact('Before / after', `${int(lead.before)} / ${int(lead.after)}`, `event ${lead.eventDate}`) : '')
-      + fact('Confirmed', int(lead.confirmed), 'an at-event form names it')
-      + fact('Contradicted', int(lead.contradicted), 'only conversion names another')
-      + fact('Cost per earned lead', money(lead.costPerLead))
-      + (lead.fromCampaign ? fact('From a campaign, not a tag', int(lead.fromCampaign), 'real leads nobody recorded a source for') : '')
+    ? fact(lead.dated ? 'New leads from the event' : 'Leads that did something', int(lead.leads),
+        lead.dated ? `new to HubSpot on or after ${lead.eventDate}, by a meeting, form, rep, chat or scan`
+          : 'a meeting, form, rep, chat or scan; no event date, so it may include earlier contacts')
+      + fact('Tagged contacts in all', int(lead.total), 'everyone HubSpot tags with this event')
+      + (lead.dated ? fact('Already in HubSpot before it', int(lead.before),
+        funRow && funRow.reengaged ? `tagged, not new; ${fmt.int(funRow.reengaged)} re-engaged by it are counted` : 'tagged, not new; not counted') : '')
+      + fact('Loaded from a list', int(lead.list), lead.listShare ? `${pct(lead.listShare)} of the tagged, not counted` : 'not counted')
+      + (own !== null ? fact('Through its own link or form', int(own),
+        funRow ? `of the ${fmt.int(funRow.base)} counted; a meetings link or form named for it` : 'a form at the event names it') : '')
+      + (other !== null ? fact('Through something else', int(other),
+        `another form, link or campaign${funRow.conv.none ? `; ${fmt.int(funRow.conv.none)} have none recorded` : ''}`) : '')
+      + fact('Cost per new lead', money(lead.costPerLead), lead.costPerLead === null && (lead.costState || e.upcoming) ? 'held back while the cost is settling' : '')
+      + (lead.fromCampaign ? fact('From the event\u2019s campaign, no tag', int(lead.fromCampaign), 'real leads nobody recorded a source for') : '')
     : '';
   // How strong the evidence behind each credited customer is.
   const ev = e.evidence;
@@ -4831,7 +4843,9 @@ function renderEventPage(label) {
         + (drivers ? `<div class="ev-facts">${drivers}</div>` : '') + `</section>` : '')
     + `<section class="ev-panel"><h3>What it cost</h3>${costBar}<div class="ev-facts">${costFacts}</div>${costNotes}</section>`
     + (leadFacts ? `<section class="ev-panel"><h3>Leads</h3><div class="ev-facts">${leadFacts}</div>`
-      + (lead && lead.readAs ? `<p class="ev-note">${lead.readAs}</p>` : '') + `</section>` : '')
+      + (lead && lead.listShare >= 0.3 ? `<p class="ev-note">${pct(lead.listShare)} of the contacts tagged to it came from a `
+        + `loaded list, so the tagged total describes a file, not leads the event generated; the new leads above are what it `
+        + `produced.</p>` : '') + `</section>` : '')
     + eventLeadsPanel(e)
     + confidencePanel(evConf, 'this result', e.paid
       ? 'Nothing in the inputs lowers it: the cost is recorded, the event is dated, and most of its customers were closed by its own deals.'
@@ -5296,6 +5310,8 @@ function renderEvents() {
 
   // ---------------------------------------------------------------- leads per event (Lead Counts)
   const el = eventLeads(data, e);
+  // How each event's counted leads came in, from Event Leads.
+  const convBy = new Map(((eventFunnel(data, e) || {}).events || []).map(f => [f.label, f]));
   if ($('event-leads-table')) {
     if (!el) {
       $('event-leads-finding').textContent = 'This push carries no Lead Counts tab.';
@@ -5326,13 +5342,13 @@ function renderEvents() {
           + `counted. `
           + (big.length ? `${big.map(x => `${x.label} has ${fmt.int(x.list)}`).join(', ')} contacts that arrived `
             + `in a list, so their totals describe a file rather than the event. ` : '')
-          + `HubSpot tags a contact with the last event they touched, so contradicted counts contacts whose only `
-          + `form or meeting names a different event.`
+          + `The last two lead columns say how the counted leads came in: through a meetings link or form named `
+          + `for the event, or through something else (another form, link or campaign).`
         : 'No event in the Lead Counts tab has both a cost and an earned lead.';
       $('event-leads-table').innerHTML =
-        '<thead><tr><th>Event</th><th class="n">Leads</th><th class="n">Companies</th>'
-        + '<th class="n">With a Stripe id</th><th class="n">Customers after the event</th><th class="n">From a list</th>'
-        + '<th class="n">Before / after the event</th><th class="n">Confirmed</th><th class="n">Contradicted</th>'
+        '<thead><tr><th>Event</th><th class="n">New leads</th><th class="n">Companies</th>'
+        + '<th class="n">Companies paying in Stripe</th><th class="n">New customers after it</th><th class="n">Loaded from a list</th>'
+        + '<th class="n">Already in HubSpot / new</th><th class="n">Through its own link or form</th><th class="n">Through something else</th>'
         + '<th class="n">Cost per lead</th><th class="n">Customers credited</th></tr></thead><tbody>'
         + el.events.map(x => `<tr><td>${x.label}${x.eventDate ? `<br><span class="muted">${x.eventDate}</span>` : ''}</td>`
           + `<td class="n">${x.leads === null ? '–' : fmt.int(x.leads)}<br><span class="muted">${x.leadsBasis === 'new'
@@ -5349,8 +5365,9 @@ function renderEvents() {
               + (x.newEarnedHigh !== null ? `<br><span class="muted">${x.newEarnedLow === x.newEarnedHigh ? fmt.int(x.newEarnedHigh)
                 : `${fmt.int(x.newEarnedLow)} to ${fmt.int(x.newEarnedHigh)}`} new earned</span>` : '')
             : '<span class="muted">no date</span>'}</td>`
-          + `<td class="n">${x.confirmed === null ? '–' : fmt.int(x.confirmed)}</td>`
-          + `<td class="n">${x.contradicted === null ? '–' : fmt.int(x.contradicted)}</td>`
+          + (() => { const fr = convBy.get(x.label); return `<td class="n">${fr ? `${fmt.int(fr.conv.own)}<br><span class="muted">of ${fmt.int(fr.base)} counted</span>`
+              : x.confirmed === null ? '–' : fmt.int(x.confirmed)}</td>`
+            + `<td class="n">${fr ? fmt.int(fr.conv.other) : '–'}</td>`; })()
           + `<td class="n">${money(x.costPerLead)}${x.costState ? `<br><span class="muted">${stateWords[x.costState]}</span>` : ''}${x.upcoming && !x.costState ? `<br><span class="muted">${x.afterData
             ? `after the data (${/^\d{4}-\d{2}$/.test(x.afterData) ? fmt.monthLabel(x.afterData) : x.afterData})` : 'no cost row'}</span>` : ''}</td>`
           + `<td class="n">${x.credited === null ? '–' : fmt.int(x.credited)}</td></tr>`).join('')
@@ -5360,8 +5377,11 @@ function renderEvents() {
         + 'divides the event’s cost on this tab by its leads: for an event with a date, the earned contacts created '
         + 'on or after it (earned_after_event); for one without, every earned contact, which may include people '
         + 'HubSpot already held. A total that includes a loaded list would make an event look cheap for leads it did '
-        + 'not generate. Confirmed means an at-event form or meeting names this event; contradicted means '
-        + 'the contact’s only conversion names a different one. HubSpot overwrites the tag on contacts it already '
+        + 'not generate. The two "through" columns come from the Event Leads tab and cover the counted leads: '
+        + 'its own link or form means the conversion HubSpot recorded is a meetings link or form named for this '
+        + 'event; something else means another form, link or campaign; leads with no conversion are in neither. '
+        + 'Where Event Leads has no rows for an event, the first column falls back to Lead Counts’ confirmed. '
+        + 'HubSpot overwrites the tag on contacts it already '
         + 'holds, so for a dated event the share already in HubSpot says how much of its list is re-tagged contacts '
         + 'rather than new ones (in red where that is most of it). Customers after the event are the businesses whose '
         + 'first Stripe payment came on or after it. Companies are the businesses behind the '
