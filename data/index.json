@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-12T13:20:35",
+  "pushed_at": "2026-10-12T13:42:31",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -25,6 +25,11 @@
       "tab": "QB Accounts",
       "file": "qb_accounts.json",
       "rows": 119
+    },
+    {
+      "tab": "Customer Waterfall",
+      "file": "customer_waterfall.json",
+      "rows": 51241
     },
     {
       "tab": "Cash Detail",
@@ -54,7 +59,7 @@
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 938
+      "rows": 939
     },
     {
       "tab": "Webinars",
@@ -64,7 +69,7 @@
     {
       "tab": "Setters",
       "file": "setters.json",
-      "rows": 330
+      "rows": 233
     },
     {
       "tab": "Event Leads",
@@ -72,14 +77,10 @@
       "rows": 4867
     }
   ],
-  "missing_required": [
-    "Customer Waterfall"
-  ],
-  "failed": [
-    "Customer Waterfall: GitHub 409 on PUT /contents/data/customer_waterfall.json\n{\"message\":\"is at 90d3c234bd5e3d7"
-  ],
+  "missing_required": [],
+  "failed": [],
   "pull_version": "hs-v88",
   "row_format": "arrays",
-  "pipeline_version": "v171",
-  "push_version": "gh-v14"
+  "pipeline_version": "v172",
+  "push_version": "gh-v15"
 }
