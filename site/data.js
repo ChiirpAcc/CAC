@@ -3925,31 +3925,77 @@ function textSeededRandom(text) {
 }
 const normalDraw = rnd => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
 
-// The 80% range around an event's projected payback (10th and 90th
-// percentiles of 500 runs). Churn: the event's hazard, scaled each run by its
-// uncertainty, one over the square root of the churns behind it. Revenue: the
-// projection's change a month, varied by one point a month and never above
-// zero. Each customer leaves or stays month by month.
+// How customers' plans move month to month, over the last twelve months of
+// the book: the chance of a downgrade and of an upgrade in a month, and the
+// sizes of each (as fractions of the plan), for the payback simulation.
+export function bookPlanChanges(data) {
+  const last = data.lastMonth;
+  const from = monthAdd(last, -12);
+  const prevOf = new Map();
+  const rows = data.customers.filter(c => c.month > monthAdd(from, -1) && c.month <= last)
+    .sort((a, b) => a.id.localeCompare(b.id) || a.month.localeCompare(b.month));
+  let months = 0;
+  const cuts = [];
+  const raises = [];
+  for (const c of rows) {
+    const prev = prevOf.get(c.id);
+    prevOf.set(c.id, c);
+    if (!prev || prev.month !== monthAdd(c.month, -1)) continue;
+    if (!(prev.active && prev.eopMrr > 0 && c.active && c.eopMrr > 0)) continue;
+    months += 1;
+    const ratio = c.eopMrr / prev.eopMrr;
+    if (ratio < 0.97) cuts.push(1 - ratio);
+    else if (ratio > 1.03) raises.push(Math.min(3, ratio - 1));
+  }
+  const mean = v => (v.length ? v.reduce((t, x) => t + x, 0) / v.length : 0);
+  return { months, pDown: months ? cuts.length / months : 0, pUp: months ? raises.length / months : 0,
+    cuts, raises, meanCut: mean(cuts), meanRaise: mean(raises) };
+}
+
+// The 90% range around an event's projected payback (5th and 95th
+// percentiles of 500 runs). In each run:
+// - churn: the event's hazard, scaled by its own uncertainty (one over the
+//   square root of the churns behind it), and each customer stays or leaves
+//   month by month;
+// - plan changes: each month a customer may downgrade or upgrade, with the
+//   chance and size drawn from what the book's customers actually did over
+//   the last twelve months (a downgrade in about 3% of months, typically a
+//   third off). Upgrades are thinned so the average never rises: revenue is
+//   never assumed to grow, only to move around a flat or falling line.
+// The dashed line is the expected path; the band is how far one customer
+// leaving early, or cutting their plan, can move it.
 export const PROJECTION_RUNS = 500;
-function projectionBand(label, rates, start, age, hazard, churnsBehind, growth, horizon, survival, cost) {
+export const PROJECTION_BAND = [0.05, 0.95];
+function projectionBand(label, rates, start, age, hazard, churnsBehind, growth, horizon, survival, cost, plan) {
   const rnd = textSeededRandom(label);
   const steps = Math.max(0, horizon - age);
   const runs = [];
   const at = [];
   const spread = 1 / Math.sqrt(Math.max(1, churnsBehind));
+  const pick1 = arr => arr[Math.floor(rnd() * arr.length)];
   for (let n = 0; n < PROJECTION_RUNS; n += 1) {
     const hz = Math.min(6, Math.max(0.1, hazard * Math.exp(spread * normalDraw(rnd))));
     const g = Math.min(0, growth + 0.01 * normalDraw(rnd));
-    const alive = rates.map(() => true);
+    // Upgrade chance that makes the run's average monthly change g.
+    const pUp = plan && plan.meanRaise > 0
+      ? Math.max(0, Math.min(plan.pUp, (g + plan.pDown * plan.meanCut) / plan.meanRaise)) : 0;
+    const live = rates.map(x => ({ alive: true, rate: x.rate, age: x.age }));
     let total = start;
     let crossed = null;
     const path = new Array(steps);
     for (let t = 1; t <= steps; t += 1) {
-      rates.forEach((x, i) => {
-        if (!alive[i]) return;
-        if (rnd() > survival(x.age + t - 1) ** hz) { alive[i] = false; return; }
-        total += x.rate * (1 + g) ** t;
-      });
+      for (const x of live) {
+        if (!x.alive) continue;
+        if (rnd() > survival(x.age + t - 1) ** hz) { x.alive = false; continue; }
+        if (plan && plan.cuts.length) {
+          const r = rnd();
+          if (r < plan.pDown) x.rate *= 1 - pick1(plan.cuts);
+          else if (r < plan.pDown + pUp && plan.raises.length) x.rate *= 1 + pick1(plan.raises);
+        } else {
+          x.rate *= 1 + g;
+        }
+        total += x.rate;
+      }
       path[t - 1] = total;
       if (crossed === null && total >= cost) crossed = age + t;
     }
@@ -3961,8 +4007,8 @@ function projectionBand(label, rates, start, age, hazard, churnsBehind, growth, 
   const high = [];
   for (let t = 0; t < steps; t += 1) {
     const col = runs.map(p => p[t]);
-    low.push(pick(col, 0.1));
-    high.push(pick(col, 0.9));
+    low.push(pick(col, PROJECTION_BAND[0]));
+    high.push(pick(col, PROJECTION_BAND[1]));
   }
   const crossedShare = at.filter(v => v !== null).length / PROJECTION_RUNS;
   const crossings = at.filter(v => v !== null);
@@ -4690,6 +4736,7 @@ export function eventReports(data, options = {}) {
   const PRIOR_CHURNS = 2;
   const GROWTH_WEIGHT = 36;
   const GROWTH_CAP = 0.03;
+  const planChanges = bookPlanChanges(data);
   const payback = new Map();
   for (const e of roi.events) {
     // An event whose cost is still settling gets its curve for its own page,
@@ -4790,7 +4837,7 @@ export function eventReports(data, options = {}) {
       // is simulated rather than smoothed. Seeded by the event's name, so the
       // range is the same on every load.
       const band = projectionBand(e.label, rates, running, age, hazard, observed + PRIOR_CHURNS, growthUsed,
-        HORIZON, base.survival, e.spend);
+        HORIZON, base.survival, e.spend, planChanges);
       projectedLow = band.low;
       projectedHigh = band.high;
       if (paidAt === null) projectedAtRange = band.at;
