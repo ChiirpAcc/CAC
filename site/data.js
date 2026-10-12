@@ -4576,6 +4576,19 @@ export function eventReports(data, options = {}) {
   const lastMonth = roi.lastMonth;
   const serve = accountServeCost(data);
   const byIdMonth = new Map();
+  // The share of each month's contribution that recurs: one-off charges (a
+  // setup fee) are received once and never projected forward. Call the Duck
+  // (Home Service Hoorah 2026) paid $2,500 a month plus $1,005 once in its
+  // first month; projecting that month whole overstated it by 40%.
+  const recurringShareOf = new Map();
+  {
+    const oneTimeOf = new Map();
+    for (const c of data.customers) if (c.oneTime) oneTimeOf.set(`${c.id}|${c.month}`, c.oneTime);
+    for (const r of eventContributionRows(serve)) {
+      const once = oneTimeOf.get(`${r.id}|${r.month}`) || 0;
+      if (once > 0 && r.revenue > 0) recurringShareOf.set(`${r.id}|${r.month}`, Math.max(0, (r.revenue - once) / r.revenue));
+    }
+  }
   for (const r of eventContributionRows(serve)) {
     if (!byIdMonth.has(r.id)) byIdMonth.set(r.id, new Map());
     byIdMonth.get(r.id).set(r.month, r.contribution);
@@ -4679,7 +4692,12 @@ export function eventReports(data, options = {}) {
   const GROWTH_CAP = 0.03;
   const payback = new Map();
   for (const e of roi.events) {
-    if (!eventHasReturn(e)) continue;
+    // An event whose cost is still settling gets its curve for its own page,
+    // marked provisional, and stays out of every ranking and count of
+    // payback: its cost may still move.
+    const settling = !eventHasReturn(e) && e.spend > 0 && Boolean(e.month) && !e.upcoming
+      && e.cost && e.cost.costState === 'settling';
+    if (!eventHasReturn(e) && !settling) continue;
     const age = ageOf(e);
     let running = 0;
     let paidAt = null;
@@ -4703,7 +4721,8 @@ export function eventReports(data, options = {}) {
       const from = firstPaid.get(id) || lastMonth;
       // Free months on a coupon are left out: the price comes back after them.
       const keys = [...(months ? months.keys() : [])].filter(m => m >= from && !freeIn.has(`${id}|${m}`)).sort().slice(-3);
-      const vals = keys.map(m => months.get(m)).sort((x, y) => x - y);
+      const vals = keys.map(m => months.get(m) * (recurringShareOf.has(`${id}|${m}`) ? recurringShareOf.get(`${id}|${m}`) : 1))
+        .sort((x, y) => x - y);
       const mid = vals.length >> 1;
       const rate = !vals.length ? 0 : vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
       return { id, rate, age: monthDiff(firstLive.get(id), lastMonth) };
@@ -4789,7 +4808,7 @@ export function eventReports(data, options = {}) {
       }
     }
     payback.set(e.label, {
-      label: e.label, month: e.month, spend: e.spend, age, soFar: running,
+      label: e.label, month: e.month, spend: e.spend, age, soFar: running, provisional: settling,
       recovered: running / e.spend, liveCustomers: live.length, monthlyNow,
       paidAt, projectedAt, companyOnlyAt,
       churn: { observed, expected, hazard },

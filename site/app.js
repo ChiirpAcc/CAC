@@ -5056,6 +5056,8 @@ function renderEventPage(label) {
     + `<div class="ev-kpis">${kpis}</div>`
     + (pb && (pb.actualPath.length || pb.projectedPath.length)
       ? `<section class="ev-panel"><h3>Money back against cost</h3><div class="plot" id="event-page-curve"></div>`
+        + (pb.provisional ? `<p class="ev-note"><strong>Provisional.</strong> The cost is still settling, so the line it has `
+          + `to cross may move; the event is not ranked until it settles.</p>` : '')
         + `<p class="ev-note">Solid is contribution actually received, month by month from the event; dashed is the `
         + `projection from this event’s own churn, and the shaded band is its 80% range: in eight of ten simulated futures `
         + `the line ends up inside it. Revenue per customer is never assumed to grow; it is held flat, or falls where the `
@@ -5236,7 +5238,7 @@ function renderEvents() {
   const t = e.totals;
   const stateWords = { settling: 'cost still settling', pending: 'no cost found yet', 'not yet': 'event still ahead',
     absent: 'fee expected, not found' };
-  const paybackBy = new Map(r.payback.map(p => [p.label, p]));
+  const paybackBy = new Map(r.payback.filter(p => !p.provisional).map(p => [p.label, p]));
   const paybackWords = p => (!p ? 'no projection'
     : p.status === 'paid' ? `paid for itself in month ${p.paidAt}`
     : p.status === 'projected' ? `projected to pay for itself by month ${p.projectedAt}`
@@ -5661,7 +5663,7 @@ function renderEvents() {
 
   // ---------------------------------------------------------------- payback, actual or projected
   const order = { paid: 0, projected: 1, 'not expected': 2, 'too new': 3, none: 4 };
-  const pb = [...r.payback].sort((x, y) => (order[x.status] - order[y.status])
+  const pb = r.payback.filter(x => !x.provisional).sort((x, y) => (order[x.status] - order[y.status])
     || ((x.paidAt ?? x.projectedAt ?? 999) - (y.paidAt ?? y.projectedAt ?? 999))
     || x.label.localeCompare(y.label));
   const count = st => pb.filter(p => p.status === st).length;
