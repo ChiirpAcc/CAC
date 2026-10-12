@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-12T11:54:42",
+  "pushed_at": "2026-10-12T12:47:50",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -25,11 +25,6 @@
       "tab": "QB Accounts",
       "file": "qb_accounts.json",
       "rows": 119
-    },
-    {
-      "tab": "Customer Waterfall",
-      "file": "customer_waterfall.json",
-      "rows": 51241
     },
     {
       "tab": "Cash Detail",
@@ -77,10 +72,14 @@
       "rows": 4867
     }
   ],
-  "missing_required": [],
-  "failed": [],
-  "pull_version": "hs-v84",
+  "missing_required": [
+    "Customer Waterfall"
+  ],
+  "failed": [
+    "Customer Waterfall: 6+ row(s) have a month that is not YYYY-MM, such as 43435, 43466, 43435. A month column has lost its plain-text format, so Sheets parsed it as a date."
+  ],
+  "pull_version": "hs-v87",
   "row_format": "arrays",
-  "pipeline_version": "v169",
+  "pipeline_version": "v170",
   "push_version": "gh-v14"
 }
