@@ -4641,7 +4641,7 @@ function idLinks(r) {
 }
 function stripeCell(r, byCompany) {
   const m = !r.stripeId && !r.stripeUrl && byCompany && r.company ? byCompany(r.company) : null;
-  if (m) return extLink(m.url, m.id) + (m.exact ? '' : '<br><span class="muted">matched on name</span>');
+  if (m) return extLink(m.url, m.id) + '<br><span class="muted">matched on company name</span>';
   const url = stripeCustomerUrl(r);
   return url && r.stripeId ? extLink(url, r.stripeId) : url ? extLink(url, 'customer') : '<span class="muted">–</span>';
 }
@@ -4704,7 +4704,7 @@ function eventLeadsPanel(e) {
     + `</tbody></table></div>` : '')
     + (rows.length && !rows.some(r => r.contactLink || r.contactId)
       ? `<p class="ev-note">HubSpot links open the company; the push carries no contact or deal link yet. Stripe links come `
-        + `from the company name where exactly one customer carries it, until the waterfall\u2019s own Stripe link arrives.</p>` : '')
+        + `from the company name where exactly one Stripe customer carries it, and open in that customer\u2019s own Stripe account.</p>` : '')
     + (rows.length > shown.length ? `<p class="ev-note">${fmt.int(rows.length - shown.length)} more not listed.</p>` : '')
     + (!withCompany ? `<p class="ev-note">The leads carry no company name in this push, so the list shows the deals: each `
       + `lead that reached a deal or has a setter recorded. The rest are counted above.</p>` : '')
