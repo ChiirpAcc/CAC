@@ -1038,7 +1038,7 @@ figcaption { margin-bottom: .9rem; }
   font-size: 0.84rem;
 }
 .bar-row:hover { background: var(--surface-sunk); }
-.bar-row-muted { opacity: 0.55; }
+/* Too-new rows keep full strength; their sub-label says why (Josh, 12 Oct 2026). */
 .bar-label { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
 .bar-name { color: var(--ink); overflow-wrap: anywhere; }
 .bar-sub { color: var(--ink-soft); font-size: 0.74rem; }
