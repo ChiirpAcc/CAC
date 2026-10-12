@@ -4626,19 +4626,23 @@ function eventLeadsPanel(e) {
   const f = eventFunnel(data);
   const ev = f && f.events.find(x => x.source === e.source || x.label === e.label);
   if (!ev) return '';
-  const states = LEAD_STATES.filter(s => ev.byState[s.key]).map(s => `<div class="ev-fact"><span class="ev-fact-label">${s.label}</span>`
+  // Contacts outside the attribution window are left off the page: they are
+  // not the event's, and only their number is said.
+  const outside = new Set(['earlier', 'predates']);
+  const states = LEAD_STATES.filter(s => ev.byState[s.key] && !outside.has(s.key)).map(s => `<div class="ev-fact"><span class="ev-fact-label">${s.label}</span>`
     + `<span class="ev-fact-value">${fmt.int(ev.byState[s.key])}</span><span class="ev-fact-sub">${s.note}</span></div>`).join('');
   const order = ['won', 'lost', 'sat', 'booked', 'unworked', 'undated', 'predates', 'earlier'];
   // With no company on the rows, a list of every lead says nothing; the
   // deals are listed, and the rest are in the counts above.
   const withCompany = ev.leads.some(r => r.company);
-  const rows = [...ev.leads].filter(r => withCompany || r.dealCreated || r.bookedBy)
+  const rows = [...ev.leads].filter(r => !outside.has(r.state) && (withCompany || r.dealCreated || r.bookedBy))
     .sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state) || String(b.created).localeCompare(String(a.created)));
   const shown = rows.slice(0, 60);
   return `<section class="ev-panel"><h3>Leads and how far they went</h3>`
     + `<p class="ev-note">${ev.dated ? `${fmt.int(ev.produced)} new leads arrived on or after the event, and ${fmt.int(ev.reengaged)} `
       + `existing contacts had a deal open within ${REENGAGE_BEFORE_DAYS} days before it or ${REENGAGE_AFTER_DAYS} after, so it `
-      + `re-engaged them. ${fmt.int(ev.earlier)} more carry its tag with no deal near it and are not counted.` : `The event has no date, so its ${fmt.int(ev.tagged)} tagged contacts `
+      + `re-engaged them. ${fmt.int(ev.earlier)} more contacts carry its tag but were in HubSpot before it with no deal in `
+      + `that window, so they are left out here.` : `The event has no date, so its ${fmt.int(ev.tagged)} tagged contacts `
       + `cannot be split into before and after.`} Of the ${fmt.int(ev.base)} counted, booked `
       + `${rateCell(ev.booked, { cell: false }).replace('<br>', ' ')}, sat ${rateCell(ev.sat, { cell: false }).replace('<br>', ' ')}, `
       + `won ${rateCell(ev.won, { cell: false }).replace('<br>', ' ')}.</p>`
