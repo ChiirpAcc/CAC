@@ -4379,6 +4379,7 @@ function renderEventChecks(f) {
 }
 
 // The Sales tab: setters and deal owners, from the same lead rows.
+const ratio2 = (n, d) => ({ n, d, rate: d ? n / d : null, thin: d < 10 });
 function renderSales() {
   if (!$('sales-setters')) return;
   const r = salesReport(data);
@@ -4395,34 +4396,47 @@ function renderSales() {
     + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
   const named = r.setters.filter(x => x.recorded);
   const unrec = r.setters.find(x => !x.recorded);
+  const T = r.totals;
+  const P = r.pairing;
+  const pc = x => (x && x.rate !== null && x.rate !== undefined ? fmt.pct(x.rate, 0) : '–');
   $('sales-kpis').innerHTML =
-    kpi('Event leads', fmt.int(r.counted), 'produced by an event, or from an undated one')
-    + kpi('Setter recorded', fmt.pct(r.setterFill.rate || 0, 0), `${fmt.int(r.setterFill.n)} of ${fmt.int(r.setterFill.d)} leads`)
-    + kpi('Reached a deal', f ? fmt.int(f.totals.sat) : '–', 'of the leads events produced')
-    + kpi('Deal owner recorded', fmt.pct(r.ownerFill.rate || 0, 0), `${fmt.int(r.ownerFill.n)} of ${fmt.int(r.ownerFill.d)} deals`);
+    kpi('Event leads', fmt.int(T.leads), 'produced by an event, or from an undated one')
+    + kpi('Sets', fmt.int(T.sets), `${pc(T.setRate)} of leads have a setter recorded`)
+    + kpi('Shows (demos completed)', fmt.int(T.setShows), `${pc(T.showRate)} of sets; ${fmt.int(T.shows)} demos in all`)
+    + kpi('Sales', fmt.int(T.wins), `${pc(T.closeRate)} of demos; ${pc(T.leadToWin)} of leads`)
+    + kpi('Sold, Stripe MRR', fmt.money(T.stripe.mrr), `first month billed, ${fmt.int(T.stripe.matched)} customers matched`)
+    + kpi('Same person set and ran it', pc(P.same.rate), `${fmt.int(P.same.wins)} of ${fmt.int(P.same.shows)} demos won; `
+      + `handed off ${pc(P.handedOff.rate)}, ${fmt.int(P.handedOff.wins)} of ${fmt.int(P.handedOff.shows)}`);
   $('sales-finding').innerHTML =
-    `<strong>${fmt.int(named.length)} setters are recorded against ${fmt.int(r.setterFill.n)} of ${fmt.int(r.setterFill.d)} `
-    + `event leads.</strong> The other ${fmt.int(unrec ? unrec.booked : 0)} have no setter recorded and are shown as their own `
-    + `line rather than spread across anyone, since a blank means no record, not no work. Every rate shows what it rests on; `
-    + `most rest on fewer than ten leads, so read them as counts, not measurements.`;
+    `<strong>Event leads became ${fmt.int(T.sets)} sets, ${fmt.int(T.setShows)} shows and ${fmt.int(T.wins)} sales.</strong> `
+    + `When the setter also ran the demo, ${fmt.int(P.same.wins)} of ${fmt.int(P.same.shows)} won (${pc(P.same.rate)}); `
+    + `handed to another deal owner, ${fmt.int(P.handedOff.wins)} of ${fmt.int(P.handedOff.shows)} (${pc(P.handedOff.rate)}). `
+    + `Read that with care: a setter tends to keep the warmest leads, so the gap is not all the hand-off. `
+    + `${fmt.int(unrec ? unrec.booked : 0)} leads have no setter recorded and are their own line, since a blank means no `
+    + `record, not no work. Most rates rest on fewer than ten, so read them as counts, not measurements.`;
   const evName = src => String(src).replace(/^(20\d\d)\s*-\s*(.*)$/, '$2 $1');
+  const pairCell = p => (p && p.shows ? rateCell({ n: p.wins, d: p.shows, rate: p.rate.rate, thin: p.shows < 10 }) : '<td class="n">–</td>');
   $('sales-setters').innerHTML =
-    '<thead><tr><th>Setter (booked the demo)</th><th class="n">Leads booked</th><th class="n">Sat (a deal)</th>'
-    + '<th class="n">Won</th><th class="n">Sat to won</th><th class="n">Won deal amount</th><th>Events, most leads first</th></tr></thead><tbody>'
-    + r.setters.map(x => `<tr${x.recorded ? '' : ' class="muted"'}><td>${x.recorded ? personName(x.who) : 'Not recorded'}</td>`
+    '<thead><tr><th>Setter (booked the demo)</th><th class="n">Sets</th><th class="n">Shows</th>'
+    + '<th class="n">Sales, of sets</th><th class="n">Close rate, of shows</th><th class="n">Ran it themselves</th>'
+    + '<th class="n">Handed off</th><th class="n">Sold, Stripe MRR</th><th>Events, most leads first</th></tr></thead><tbody>'
+    + r.setters.map(x => `<tr><td>${x.recorded ? personName(x.who) : 'Not recorded'}</td>`
       + `<td class="n">${fmt.int(x.booked)}</td>` + rateCell(x.sat) + rateCell(x.won) + rateCell(x.satToWon)
-      + `<td class="n">${money(x.wonDealAmount)}</td>`
+      + pairCell(x.self) + pairCell(x.handedOff)
+      + `<td class="n">${money(x.stripe.mrr)}</td>`
       + `<td>${x.events.slice(0, 4).map(e => `${evName(e.source)} <span class="muted">${e.leads}/${e.sat}/${e.won}</span>`).join('<br>')}`
       + `${x.events.length > 4 ? `<br><span class="muted">${x.events.length - 4} more</span>` : ''}</td></tr>`).join('')
     + '</tbody>';
   $('sales-owners').innerHTML =
-    '<thead><tr><th>Deal owner (ran the demo, by proxy)</th><th class="n">Deals</th><th class="n">Won</th>'
-    + '<th class="n">Close rate, closed deals</th><th class="n">Still open</th><th class="n">Won deal amount</th>'
-    + '<th class="n">Booked by a setter</th></tr></thead><tbody>'
-    + r.owners.map(x => `<tr${x.recorded ? '' : ' class="muted"'}><td>${x.recorded ? personName(x.who) : 'No owner on the deal'}</td>`
+    '<thead><tr><th>Salesperson (deal owner)</th><th class="n">Demos</th><th class="n">Sales</th>'
+    + '<th class="n">Close rate, closed deals</th><th class="n">Still open</th><th class="n">Sold, Stripe MRR</th>'
+    + '<th class="n">Deal amount, est.</th><th class="n">Set it themselves</th><th class="n">Set by a setter</th>'
+    + '<th class="n">No setter recorded</th></tr></thead><tbody>'
+    + r.owners.map(x => `<tr><td>${x.recorded ? personName(x.who) : 'No owner on the deal'}</td>`
       + `<td class="n">${fmt.int(x.deals)}</td>` + rateCell(x.won) + rateCell(x.closeRate)
-      + `<td class="n">${fmt.int(x.deals - x.closed)}</td><td class="n">${money(x.wonDealAmount)}</td>`
-      + `<td class="n">${fmt.int(x.bookedByOthers)}</td></tr>`).join('')
+      + `<td class="n">${fmt.int(x.deals - x.closed)}</td><td class="n">${money(x.stripe.mrr)}`
+      + `${x.stripe.matched ? `<br><span class="muted">${fmt.int(x.stripe.matched)} customer${x.stripe.matched === 1 ? '' : 's'}</span>` : ''}</td>`
+      + `<td class="n">${money(x.wonDealAmount)}</td>` + pairCell(x.selfSet) + pairCell(x.setByOthers) + pairCell(x.noSetter) + '</tr>').join('')
     + '</tbody>';
   // Setter by event: leads booked / sat / won in each cell.
   const evs = f ? f.events.filter(e => e.booked.n > 0) : [];
@@ -4435,13 +4449,22 @@ function renderSales() {
   $('sales-people').innerHTML = !r.people ? ''
     : '<thead><tr><th>Person</th><th class="n">Leads</th><th class="n">Sits</th><th class="n">Wins</th><th class="n">Sit rate</th>'
       + '<th class="n">Close rate</th><th class="n">Won deal amount</th><th>Sources, most leads first</th></tr></thead><tbody>'
-      + r.people.map(p => `<tr${p.recorded ? '' : ' class="muted"'}><td>${p.recorded ? personName(p.who) : 'Not recorded'}</td>`
+      + r.people.map(p => `<tr><td>${p.recorded ? personName(p.who) : 'Not recorded'}</td>`
         + `<td class="n">${fmt.int(p.leads)}</td><td class="n">${fmt.int(p.sits)}</td><td class="n">${fmt.int(p.wins)}</td>`
         + rateCell(p.sitRate) + rateCell(p.closeRate) + `<td class="n">${money(p.wonMrr)}</td>`
         + `<td>${p.sources.slice(0, 4).map(x => `${evName(x.source)} <span class="muted">${x.leads || 0}/${x.sits || 0}/${x.wins || 0}</span>`).join('<br>')}`
         + `${p.sources.length > 4 ? `<br><span class="muted">${p.sources.length - 4} more</span>` : ''}</td></tr>`).join('')
+      + (r.peopleTotals ? `<tr class="total-row"><td><strong>All setters</strong></td><td class="n"><strong>${fmt.int(r.peopleTotals.leads)}</strong></td>`
+        + `<td class="n"><strong>${fmt.int(r.peopleTotals.sits)}</strong></td><td class="n"><strong>${fmt.int(r.peopleTotals.wins)}</strong></td>`
+        + rateCell(ratio2(r.peopleTotals.sits, r.peopleTotals.leads)) + rateCell(ratio2(r.peopleTotals.wins, r.peopleTotals.sits))
+        + `<td class="n"><strong>${money(r.peopleTotals.wonMrr)}</strong></td><td></td></tr>` : '')
       + '</tbody>';
   $('sales-note').textContent =
+    'A set is a lead with a setter recorded; a show is a set whose deal exists, since HubSpot opens a deal only once the demo '
+    + 'is sat; a sale is a won deal Stripe agrees with, within six months of the event. Sold, Stripe MRR is what Stripe first '
+    + 'billed each won customer, matched by company name; the deal amount is shown beside it as an estimate only. "Ran it '
+    + 'themselves" is a demo the setter also owned; "handed off" is one another deal owner took. '
+    +
     'From the Event Leads tab. The setter is who got the lead to agree to a demo (the contact\u2019s setter field, or the '
     + 'deal\u2019s). The deal owner stands in for who ran the demo: HubSpot creates a deal only once a demo is sat, and there '
     + 'is no account executive field, so this is the closest the data has, not the same thing. Leads counted are those an '

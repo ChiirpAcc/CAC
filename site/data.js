@@ -5578,8 +5578,11 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       loaded: kept.filter(r => r.afterEvent !== false && loadedFromList(r)).length,
       reengaged: kept.filter(r => !isUpsell(r) && reengaged(r)).length,
       earlier: kept.filter(r => r.afterEvent === false && !reengaged(r)).length,
-      undated: kept.filter(r => !r.eventDate).length, booked: recent.filter(r => r.bookedBy).length,
-      sat: recent.filter(r => r.dealCreated).length, won: recent.filter(r => winInWindow(r) && !r.wonThrough).length },
+      undated: kept.filter(r => !r.eventDate).length,
+      // Booked, sat and won are the sums of the events' own rows, undated
+      // events included, so the Events and Sales tabs give one number.
+      booked: events.reduce((t, e) => t + e.booked.n, 0), sat: events.reduce((t, e) => t + e.sat.n, 0),
+      won: events.reduce((t, e) => t + e.won.n, 0) },
     // How often the setter field is filled, on leads the events produced.
     setterFill: ratio(recent.filter(r => r.bookedBy).length, recent.length),
   };
@@ -5789,6 +5792,10 @@ export function attributionAudit(data) {
       (() => {
         const sum = k => f.events.reduce((t, e) => t + (e[k] || 0), 0);
         const out = [];
+        for (const k of ['booked', 'sat', 'won']) {
+          const s2 = f.events.reduce((t, e) => t + e[k].n, 0);
+          if (f.totals[k] !== s2) out.push(`${k} ${f.totals[k]} against ${s2}`);
+        }
         if (f.totals.produced !== sum('produced')) out.push(`new leads ${f.totals.produced} against ${sum('produced')}`);
         if (f.totals.reengaged !== sum('reengaged')) out.push(`re-engaged ${f.totals.reengaged} against ${sum('reengaged')}`);
         return out;
@@ -5807,8 +5814,9 @@ export function attributionAudit(data) {
       })());
     // Sales shares the funnel (one implementation per number).
     const sales = salesReport(data);
-    check('sales-matches-events', 'The Sales tab counts the same event leads as the Events tab',
-      sales && sales.counted !== undefined && sales.counted !== base.length ? [`Sales ${sales.counted} against Events ${base.length}`] : []);
+    check('sales-matches-events', 'The Sales tab counts the same event leads and sales as the Events tab',
+      [...(sales && sales.counted !== base.length ? [`leads: Sales ${sales.counted} against Events ${base.length}`] : []),
+       ...(sales && sales.totals && sales.totals.wins !== f.totals.won ? [`sales: Sales ${sales.totals.wins} against Events ${f.totals.won}`] : [])]);
   }
   // Upsells (1.4).
   const up = eventUpsells(data, roi);
@@ -5938,14 +5946,33 @@ export function salesReport(data) {
     }
     return m;
   };
+  // A set is a lead with a setter recorded; a show is a set whose deal
+  // exists (HubSpot opens one only once a demo is sat); a win is the funnel's
+  // (Stripe agrees, inside the window). Sales are wins, valued at what Stripe
+  // first billed the customer, never at the deal's own amount alone.
+  const winOf = r => r.won === true && winInWindow(r) && !r.wonThrough;
+  const byCo = stripeByCompany(data);
+  const stripeMrrOf = list => {
+    const seen = new Map();
+    for (const r of list) {
+      if (!winOf(r) || !r.company) continue;
+      const x = byCo(r.company);
+      if (x && x.firstPaid && !seen.has(x.id)) seen.set(x.id, x.mrrBy.get(x.firstPaid) || 0);
+    }
+    return { mrr: [...seen.values()].reduce((t, v) => t + v, 0), matched: seen.size };
+  };
+  const same = r => Boolean(r.bookedBy && r.demoedBy) && String(r.bookedBy).toLowerCase() === String(r.demoedBy).toLowerCase();
+  const pair = list => ({ shows: list.length, wins: list.filter(winOf).length, rate: ratio(list.filter(winOf).length, list.length) });
   const setters = [...group('bookedBy', counted)].map(([who, list]) => {
     const sat = list.filter(r => r.dealCreated).length;
     const won = list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).length;
     const events = [...group('source', list)].map(([source, l]) => ({ source, leads: l.length,
       sat: l.filter(r => r.dealCreated).length, won: l.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).length }))
       .sort((a, b) => b.leads - a.leads);
+    const shows = list.filter(r => r.dealCreated);
     return { who, recorded: who !== null, booked: list.length, sat: ratio(sat, list.length), won: ratio(won, list.length),
-      satToWon: ratio(won, sat), wonDealAmount: list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).reduce((t, r) => t + (r.wonMrr || 0), 0), events };
+      satToWon: ratio(won, sat), wonDealAmount: list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).reduce((t, r) => t + (r.wonMrr || 0), 0), events,
+      self: pair(shows.filter(same)), handedOff: pair(shows.filter(r => r.demoedBy && !same(r))), stripe: stripeMrrOf(list) };
   }).sort((a, b) => (b.recorded - a.recorded) || b.booked - a.booked);
   const withDeal = counted.filter(r => r.dealCreated);
   const owners = [...group('demoedBy', withDeal)].map(([who, list]) => {
@@ -5953,7 +5980,9 @@ export function salesReport(data) {
     const closed = list.filter(r => r.won !== null).length;
     return { who, recorded: who !== null, deals: list.length, won: ratio(won, list.length), closed,
       closeRate: ratio(won, closed), wonDealAmount: list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).reduce((t, r) => t + (r.wonMrr || 0), 0),
-      bookedByOthers: list.filter(r => r.bookedBy && r.bookedBy !== who).length };
+      bookedByOthers: list.filter(r => r.bookedBy && r.bookedBy !== who).length,
+      selfSet: pair(list.filter(same)), setByOthers: pair(list.filter(r => r.bookedBy && !same(r))),
+      noSetter: pair(list.filter(r => !r.bookedBy)), stripe: stripeMrrOf(list) };
   }).sort((a, b) => (b.recorded - a.recorded) || b.deals - a.deals);
   // The Setters tab, as the pipeline built it: every source, per person.
   let people = null;
@@ -5971,7 +6000,21 @@ export function salesReport(data) {
       closeRate: ratio(p.wins, p.sits), sources: p.sources.sort((a, b) => (b.leads || 0) - (a.leads || 0)) }))
       .sort((a, b) => (b.recorded - a.recorded) || b.leads - a.leads);
   }
-  return { setters, owners, counted: counted.length, people,
+  // The funnel in totals, and whether one person carrying a lead from set to
+  // demo wins more often than a hand-off.
+  const sets = counted.filter(r => r.bookedBy);
+  const setShows = sets.filter(r => r.dealCreated);
+  const allShows = counted.filter(r => r.dealCreated);
+  const wins = counted.filter(winOf);
+  const totals = { leads: counted.length, sets: sets.length, shows: allShows.length, setShows: setShows.length,
+    wins: wins.length, setRate: ratio(sets.length, counted.length), showRate: ratio(setShows.length, sets.length),
+    closeRate: ratio(wins.length, allShows.length), leadToWin: ratio(wins.length, counted.length),
+    stripe: stripeMrrOf(counted), wonDealAmount: wins.reduce((t, r) => t + (r.wonMrr || 0), 0) };
+  const pairing = { same: pair(allShows.filter(same)), handedOff: pair(allShows.filter(r => r.bookedBy && r.demoedBy && !same(r))),
+    noSetter: pair(allShows.filter(r => !r.bookedBy)) };
+  const peopleTotals = people ? people.reduce((t, p) => ({ leads: t.leads + p.leads, sits: t.sits + p.sits, wins: t.wins + p.wins,
+    wonMrr: t.wonMrr + p.wonMrr }), { leads: 0, sits: 0, wins: 0, wonMrr: 0 }) : null;
+  return { setters, owners, counted: counted.length, people, totals, pairing, peopleTotals,
     setterFill: ratio(counted.filter(r => r.bookedBy).length, counted.length),
     ownerFill: ratio(withDeal.filter(r => r.demoedBy).length, withDeal.length) };
 }
