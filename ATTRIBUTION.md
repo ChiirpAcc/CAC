@@ -173,7 +173,7 @@ site actually computed. It runs in three places, always with the same code:
 - **GitHub**, on every data push and every change to `site/data.js`
   (`.github/workflows/validate-data.yml` runs `scripts/audit_attribution.mjs`).
   A failure is added to the open "Data push did not validate" issue.
-- **The Events tab**, under Attribution checks ("Rule audit: all 14 checks pass",
+- **The Events tab**, under Attribution checks ("Rule audit: all 15 checks pass",
   or the failures, opened).
 - **By hand:** `node scripts/audit_attribution.mjs`.
 
@@ -182,6 +182,7 @@ site actually computed. It runs in three places, always with the same code:
 | `credit-window` | Every credited customer first paid from the event month to 6 months after (win-backs from the event month). |
 | `credit-not-elsewhere` | No credited customer was won through another source. |
 | `credit-tag-evidence` | A customer credited on the tag alone was tagged by the month after the event, not on a list-import day. |
+| `credit-company-once` | Each event counts a company once, even with an account in both Stripe environments. |
 | `credit-default-rule` | Every figure uses the default credit rule. |
 | `leads-no-list` | No contact from a loaded list is counted as a lead, unless the event re-engaged its deal. |
 | `leads-no-backtag` | No contact HubSpot held before the event is counted, unless its deal opened near the event. |

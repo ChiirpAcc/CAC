@@ -4032,6 +4032,10 @@ export const eventHasReturn = e => e.spend > 0 && Boolean(e.month) && !e.upcomin
   && !(e.cost && e.cost.costState);
 
 export const WINBACK_GAP = 3;
+// A company's name as a key: the same business across the two Stripe
+// environments, whatever suffix each carries.
+export const companyKey = t => String(t || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ')
+  .replace(/\b(llc|lp|inc|co|company|corp|ltd|the|dba|pty)\b/g, ' ').trim().replace(/\s+/g, ' ');
 
 // Which tagged customers an event is credited with. 'all' is every one who
 // first paid in or after its month. 'record' also needs their HubSpot record
@@ -4324,7 +4328,11 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       alreadyPaying: prior.size,
       alreadyPayingMrrNow: priorMrrNow,
       customers: ids.size,
-      paid: [...ids].filter(id => firstRevenue.has(id)).length,
+      // One company with an account in each Stripe environment counts once
+      // (Sierra Pacific, Lennox Live Anaheim 2026); its revenue is all
+      // counted, as Stripe collected it.
+      paid: new Set([...ids].filter(id => firstRevenue.has(id))
+        .map(id => companyKey((allRows.find(r => r.id === id && r.name) || {}).name) || id)).size,
       neverPaid: [...ids].filter(id => never.has(id)).length,
       liveNow: liveNow.size,
       mrrNow,
@@ -5737,6 +5745,11 @@ export function attributionAudit(data) {
       const set = setAt.get(x.id);
       return set && (set.slice(0, 7) > monthAdd(e.month, 1) || (listDays.get(`${e.source}|${set.slice(0, 10)}`) || 0) >= 20);
     }).map(({ e, x }) => `${e.label}: ${x.name} tagged ${setAt.get(x.id)}`));
+  check('credit-company-once', 'Each event counts a company once, across both Stripe environments',
+    roi.events.filter(e => !e.upcoming && (e.customerRows || []).length).filter(e => {
+      const names = new Set(e.customerRows.filter(x => x.firstPaid).map(x => companyKey(x.name) || x.id));
+      return e.paid !== names.size;
+    }).map(e => `${e.label}: ${e.paid} counted`));
   check('credit-default-rule', `Every figure uses the default credit rule (${DEFAULT_CREDIT_RULE})`,
     (() => {
       const explicit = eventRoi(data, { creditRule: DEFAULT_CREDIT_RULE });
@@ -5842,11 +5855,21 @@ export function stripeByCompany(data) {
 }
 // A matched customer's MRR going into a month: the month before it, or the
 // latest month the data holds when the event is newer than the data.
+// A customer paying in any of the WINBACK_GAP months before the event is
+// still a customer going in: one skipped month (a late invoice) does not make
+// them a former customer. Summit Roofing (HSF 2025) paid every month from Oct
+// 2024 except Aug 2025, and was read as a new win until 12 Oct 2026. The MRR
+// going in is the latest of those months that paid.
 export function mrrGoingInto(x, month) {
   if (!x || !x.mrrBy) return null;
   let best = null;
   for (const m of x.mrrBy.keys()) if (m < month && (!best || m > best)) best = m;
-  return best ? { month: best, mrr: x.mrrBy.get(best) } : null;
+  if (!best) return null;
+  for (let k = 1; k <= WINBACK_GAP; k += 1) {
+    const m = monthAdd(month, -k);
+    if ((x.mrrBy.get(m) || 0) > 0) return { month: m, mrr: x.mrrBy.get(m) };
+  }
+  return { month: best, mrr: x.mrrBy.get(best) };
 }
 function buildStripeMatch(data) {
   const norm = t => String(t || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ')
