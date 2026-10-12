@@ -3910,6 +3910,66 @@ const onTab = (x, rows) => rows.some(c => c.event === x.event
 // 17.5% against a usual 9.0%. Read at the booked rate in one place and the
 // usual one in another, an event could be paid in one table and not in the
 // next. Every other month is as booked.
+// A small seeded generator, so a simulated range is identical on every load.
+function textSeededRandom(text) {
+  let h = 2166136261;
+  for (const ch of String(text)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const normalDraw = rnd => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+
+// The 80% range around an event's projected payback (10th and 90th
+// percentiles of 500 runs). Churn: the event's hazard, scaled each run by its
+// uncertainty, one over the square root of the churns behind it. Revenue: the
+// projection's change a month, varied by one point a month and never above
+// zero. Each customer leaves or stays month by month.
+export const PROJECTION_RUNS = 500;
+function projectionBand(label, rates, start, age, hazard, churnsBehind, growth, horizon, survival, cost) {
+  const rnd = textSeededRandom(label);
+  const steps = Math.max(0, horizon - age);
+  const runs = [];
+  const at = [];
+  const spread = 1 / Math.sqrt(Math.max(1, churnsBehind));
+  for (let n = 0; n < PROJECTION_RUNS; n += 1) {
+    const hz = Math.min(6, Math.max(0.1, hazard * Math.exp(spread * normalDraw(rnd))));
+    const g = Math.min(0, growth + 0.01 * normalDraw(rnd));
+    const alive = rates.map(() => true);
+    let total = start;
+    let crossed = null;
+    const path = new Array(steps);
+    for (let t = 1; t <= steps; t += 1) {
+      rates.forEach((x, i) => {
+        if (!alive[i]) return;
+        if (rnd() > survival(x.age + t - 1) ** hz) { alive[i] = false; return; }
+        total += x.rate * (1 + g) ** t;
+      });
+      path[t - 1] = total;
+      if (crossed === null && total >= cost) crossed = age + t;
+    }
+    runs.push(path);
+    at.push(crossed);
+  }
+  const pick = (vals, q) => { const v = [...vals].sort((a, b) => a - b); return v[Math.min(v.length - 1, Math.floor(q * v.length))]; };
+  const low = [];
+  const high = [];
+  for (let t = 0; t < steps; t += 1) {
+    const col = runs.map(p => p[t]);
+    low.push(pick(col, 0.1));
+    high.push(pick(col, 0.9));
+  }
+  const crossedShare = at.filter(v => v !== null).length / PROJECTION_RUNS;
+  const crossings = at.filter(v => v !== null);
+  return { low, high, at: { share: crossedShare,
+    early: crossings.length ? pick(crossings, 0.1) : null, late: crossedShare >= 0.9 ? pick(crossings, 0.9) : null } };
+}
+
 export function eventContributionRows(serve) {
   if (!serve) return [];
   const open = new Set(serve.outliers);
@@ -4669,6 +4729,10 @@ export function eventReports(data, options = {}) {
     const own = growthOver(e.broughtIds, e.month);
     const weight = own.pairs / (own.pairs + GROWTH_WEIGHT);
     const growth = Math.max(-GROWTH_CAP, Math.min(GROWTH_CAP, weight * own.rate + (1 - weight) * bookGrowth.rate));
+    // The projection never assumes revenue grows (Josh, 12 Oct 2026): a
+    // customer's revenue is held flat, or falls where this event's or the
+    // book's record says it does.
+    const growthUsed = Math.min(0, growth);
 
     // Cumulative contribution, actual to date and projected after, for the
     // event's page: month k counts the event month as 1.
@@ -4690,13 +4754,27 @@ export function eventReports(data, options = {}) {
     let projectedAt = null;
     let companyOnlyAt = null;
     let projectedPath = [];
+    let projectedLow = [];
+    let projectedHigh = [];
+    let projectedAtRange = null;
     if (base && monthlyNow > 0) {
-      const mine = project(hazard, growth);
+      const mine = project(hazard, growthUsed);
       projectedPath = mine.path;
       if (paidAt === null) {
         projectedAt = mine.at;
         companyOnlyAt = project(1, 0).at;
       }
+      // An 80% range: each live customer stays or leaves month by month,
+      // with the event's churn drawn from what its own record supports (the
+      // fewer churns observed, the wider) and revenue flat or falling. With a
+      // handful of customers, which ones leave is the main uncertainty, so it
+      // is simulated rather than smoothed. Seeded by the event's name, so the
+      // range is the same on every load.
+      const band = projectionBand(e.label, rates, running, age, hazard, observed + PRIOR_CHURNS, growthUsed,
+        HORIZON, base.survival, e.spend);
+      projectedLow = band.low;
+      projectedHigh = band.high;
+      if (paidAt === null) projectedAtRange = band.at;
     }
     const actualPath = [];
     {
@@ -4715,8 +4793,8 @@ export function eventReports(data, options = {}) {
       recovered: running / e.spend, liveCustomers: live.length, monthlyNow,
       paidAt, projectedAt, companyOnlyAt,
       churn: { observed, expected, hazard },
-      growth: { rate: growth, own: own.rate, pairs: own.pairs, book: bookGrowth.rate },
-      actualPath, projectedPath,
+      growth: { rate: growth, used: growthUsed, own: own.rate, pairs: own.pairs, book: bookGrowth.rate },
+      actualPath, projectedPath, projectedLow, projectedHigh, projectedAtRange,
       // Return on cost: to date, and at twelve months from the event, actual
       // where the event is that old and projected (as above) where it is not.
       roiToDate: (running - e.spend) / e.spend,
@@ -4726,6 +4804,10 @@ export function eventReports(data, options = {}) {
         return (at12 - e.spend) / e.spend;
       })(),
       roi12Projected: age < 12,
+      roi12Range: age >= 12 || !projectedLow.length ? null : (() => {
+        const k = Math.min(12 - age, projectedLow.length) - 1;
+        return k < 0 ? null : [(projectedLow[k] - e.spend) / e.spend, (projectedHigh[k] - e.spend) / e.spend];
+      })(),
       status: paidAt !== null ? 'paid' : projectedAt !== null ? 'projected'
         : isTooNew(e) ? 'too new' : !e.paid ? 'none' : 'not expected',
     });

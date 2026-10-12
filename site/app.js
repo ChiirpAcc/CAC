@@ -4931,7 +4931,9 @@ function renderEventPage(label) {
         return up && up.credited && e.net !== null ? `${signed(e.net + up.credited)} with upsells` : '';
       })(), e.costState === 'absent' ? '' : tone(e.net))
       + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', '', pb ? tone(pb.roiToDate) : '')
-      + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12Projected ? 'projected' : 'actual', pb ? tone(pb.roi12) : '')
+      + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12Projected
+        ? (pb.roi12Range ? `projected; 80% range ${signedPct(pb.roi12Range[0])} to ${signedPct(pb.roi12Range[1])}` : 'projected') : 'actual',
+        pb ? tone(pb.roi12) : '')
       + kpi('Customers', int(e.paid), `${int(e.liveNow)} still live · ${money(e.mrrNow)} MRR`
         + (e.pausedNow ? ` · ${fmt.int(e.pausedNow)} on a coupon, ${money(e.pausedMrr)} paused` : ''))
       + (e.paid && e.evidence ? kpi('Direct customers', int(e.evidence.direct),
@@ -5018,8 +5020,9 @@ function renderEventPage(label) {
   // Projection drivers.
   const drivers = pb && pb.churn
     ? fact('Churn against the book', `${pb.churn.hazard.toFixed(2)}x`, `${fmt.int(pb.churn.observed)} left, ${pb.churn.expected.toFixed(1)} expected`)
-      + fact('Revenue change a month', `${pb.growth.rate >= 0 ? '+' : '−'}${Math.abs(pb.growth.rate * 100).toFixed(1)}%`,
-        `own ${(pb.growth.own * 100).toFixed(1)}% over ${fmt.int(pb.growth.pairs)} customer-months; book ${(pb.growth.book * 100).toFixed(1)}%`)
+      + fact('Revenue change a month', `${pb.growth.used < 0 ? '−' : ''}${Math.abs(pb.growth.used * 100).toFixed(1)}%`,
+        `${pb.growth.rate > 0 ? `measured ${(pb.growth.rate * 100).toFixed(1)}%, not assumed to continue; ` : ''}`
+        + `own ${(pb.growth.own * 100).toFixed(1)}% over ${fmt.int(pb.growth.pairs)} customer-months; book ${(pb.growth.book * 100).toFixed(1)}%`)
       + fact('Contribution a month now', money(pb.monthlyNow), `${fmt.int(pb.liveCustomers)} live customers`)
       + (pb.companyOnlyAt !== null && pb.companyOnlyAt !== pb.projectedAt
         ? fact('On company averages alone', `Month ${pb.companyOnlyAt}`) : '')
@@ -5054,7 +5057,14 @@ function renderEventPage(label) {
     + (pb && (pb.actualPath.length || pb.projectedPath.length)
       ? `<section class="ev-panel"><h3>Money back against cost</h3><div class="plot" id="event-page-curve"></div>`
         + `<p class="ev-note">Solid is contribution actually received, month by month from the event; dashed is the `
-        + `projection from this event’s own churn and revenue change. The line it has to cross is the cost.</p>`
+        + `projection from this event’s own churn, and the shaded band is its 80% range: in eight of ten simulated futures `
+        + `the line ends up inside it. Revenue per customer is never assumed to grow; it is held flat, or falls where the `
+        + `record says it does. The line it has to cross is the cost.`
+        + (pb.projectedAtRange && pb.paidAt === null ? ` ${pb.projectedAtRange.share >= 0.9
+          ? `It pays back in nine of ten futures, between month ${pb.projectedAtRange.early} and month ${pb.projectedAtRange.late}.`
+          : pb.projectedAtRange.share > 0 ? `It pays back within ${36} months in ${fmt.pct(pb.projectedAtRange.share, 0)} of futures.`
+            : 'It does not pay back within 36 months in any simulated future.'}` : '')
+        + `</p>`
         + (drivers ? `<div class="ev-facts">${drivers}</div>` : '') + `</section>` : '')
     + `<section class="ev-panel"><h3>What it cost</h3>${costBar}<div class="ev-facts">${costFacts}</div>${costNotes}</section>`
     + (leadFacts ? `<section class="ev-panel"><h3>Leads</h3><div class="ev-facts">${leadFacts}</div>`
@@ -5093,6 +5103,11 @@ function renderEventPage(label) {
     const actual = labels.map((_, i) => (i < pb.actualPath.length ? pb.actualPath[i] : null));
     const projected = labels.map((_, i) => (i === pb.actualPath.length - 1 ? pb.actualPath[i]
       : i >= pb.actualPath.length && i - pb.age < pb.projectedPath.length ? pb.projectedPath[i - pb.age] : null));
+    // The 80% band starts from the last actual month, like the dashed line.
+    const bandAt = (arr, i) => (i === pb.actualPath.length - 1 ? pb.actualPath[i]
+      : i >= pb.actualPath.length && i - pb.age < arr.length ? arr[i - pb.age] : null);
+    const low = labels.map((_, i) => bandAt(pb.projectedLow || [], i));
+    const high = labels.map((_, i) => bandAt(pb.projectedHigh || [], i));
     multiLineChart($('event-page-curve'), {
       labels, yMin: 0, yFormat: v => fmt.money(v), yTitle: 'Contribution received, cumulative',
       xTitle: 'Months from the event, the event month as M1',
@@ -5101,9 +5116,11 @@ function renderEventPage(label) {
         { label: 'Received', colour: INK.primary, values: actual },
         { label: 'Projected', colour: INK.primary, dashed: true, values: projected },
       ],
+      bands: (pb.projectedLow || []).length ? [{ label: '80% range', colour: INK.primary, low, high }] : [],
       describe: i => `<strong>Month ${i + 1}</strong>`
         + (actual[i] !== null ? `<span>Received ${money(actual[i])}</span>` : '')
         + (projected[i] !== null && i >= pb.actualPath.length ? `<span>Projected ${money(projected[i])}</span>` : '')
+        + (low[i] !== null && i >= pb.actualPath.length ? `<span class="muted">80% range ${money(low[i])} to ${money(high[i])}</span>` : '')
         + `<span class="muted">Cost ${money(pb.spend)}</span>`,
     });
   }

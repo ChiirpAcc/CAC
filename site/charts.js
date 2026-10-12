@@ -243,9 +243,10 @@ export function lineChart(container, { labels, values, yFormat = fmt.int, descri
 export function multiLineChart(container, { labels, series, yFormat = fmt.int, describe,
                                             yMin = null, yMax = null, refs = [],
                                             showLegend = true, legendItems = null,
-                                            xTitle = null, yTitle = null }) {
+                                            xTitle = null, yTitle = null, bands = [] }) {
   const svg = makeSvg(container);
-  const all = series.flatMap(s => s.values).filter(v => v !== null && Number.isFinite(v));
+  const all = [...series.flatMap(s => s.values), ...bands.flatMap(b => [...b.low, ...b.high])]
+    .filter(v => v !== null && Number.isFinite(v));
   if (!all.length) { container.innerHTML = '<p class="empty">Not enough data yet.</p>'; return; }
 
   const lo = yMin !== null ? yMin : Math.min(...all, 0);
@@ -255,6 +256,15 @@ export function multiLineChart(container, { labels, series, yFormat = fmt.int, d
   const x = i => band.centre(i);
 
   for (const ref of refs) referenceLine(svg, y, ref.value, ref.label, ref.variant || '');
+
+  // A shaded range (a projection's 80% band): the top edge left to right,
+  // then the bottom edge back, over the positions where both are known.
+  for (const b of bands) {
+    const idx = b.low.map((v, i) => (v !== null && b.high[i] !== null && Number.isFinite(v) ? i : null)).filter(i => i !== null);
+    if (idx.length < 2) continue;
+    const pts = [...idx.map(i => `${x(i)},${y(b.high[i])}`), ...idx.slice().reverse().map(i => `${x(i)},${y(b.low[i])}`)];
+    el('polygon', { points: pts.join(' '), class: 'ci-band', fill: b.colour }, svg);
+  }
 
   for (const s of series) {
     el('path', {
@@ -280,7 +290,8 @@ export function multiLineChart(container, { labels, series, yFormat = fmt.int, d
   // A chart drawing dozens of faint lines needs a legend that names what they
   // are, not one entry per line.
   if (legendItems) legend(container, legendItems);
-  else if (showLegend) legend(container, series.map(s => ({ label: s.label, colour: s.colour })));
+  else if (showLegend) legend(container, [...series.map(s => ({ label: s.label, colour: s.colour })),
+    ...bands.map(b => ({ label: b.label, colour: b.colour }))]);
 }
 
 // Columns, optionally with reference lines. Nulls leave a gap rather than a

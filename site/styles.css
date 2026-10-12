@@ -277,6 +277,7 @@ figcaption { margin-bottom: .9rem; }
 
 .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .line-dashed { stroke-dasharray: 4 3; }
+.ci-band { fill-opacity: 0.16; stroke: none; }
 .line-net { stroke: var(--ink); stroke-width: 1.6; stroke-dasharray: 3 2.5; }
 .area { opacity: .08; }
 .dot { stroke: var(--surface); stroke-width: 1; }
