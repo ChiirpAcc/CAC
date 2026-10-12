@@ -619,7 +619,7 @@ def check_event_credit(customers):
                f"capped at indirect.")
 
 
-def check_event_leads(doc, setters):
+def check_event_leads(doc, setters, lead_counts=None):
     """Event Leads (hs-v82): one row per contact tagged to an event. Its yes/no
     columns must hold yes, no or blank; a dated event's rows must say whether
     they arrived after it; won is blank only where there is no deal. The
@@ -674,6 +674,42 @@ def check_event_leads(doc, setters):
         if over:
             report("error", "Setters", f"{len(over)} rows have more sits than leads or more wins than sits, "
                    f"e.g. {over[0].get('setter')} / {over[0].get('source')}.")
+    # The site's new leads (tagged, arrived on or after the event, not in a
+    # loaded list) must agree with Lead Counts' earned_after_event for every
+    # dated event, so a rule that goes wrong for one event shows up here rather
+    # than on someone's read of that event's page. A list that brought wins is
+    # named, since those wins are left out of the event's leads.
+    if lead_counts and lead_counts.get("rows"):
+        mine = {}
+        loaded = {}
+        for r in rows:
+            if yn(r.get("after_the_event")) != "yes":
+                continue
+            src = r.get("source")
+            if str(r.get("arrived_as") or "").strip().lower() == "list":
+                v = loaded.setdefault(src, [0, 0])
+                v[0] += 1
+                v[1] += 1 if yn(r.get("won")) == "yes" else 0
+            else:
+                mine[src] = mine.get(src, 0) + 1
+        off = []
+        for lc in lead_counts["rows"]:
+            src = lc.get("source")
+            theirs = number(lc.get("earned_after_event"))
+            if theirs is None or not str(lc.get("event date") or "").strip():
+                continue
+            ours = mine.get(src, 0)
+            if abs(ours - theirs) > max(3, 0.1 * max(ours, theirs)):
+                off.append(f"{src} {ours} against {int(theirs)}")
+        if off:
+            report("warning", "Event Leads", f"{len(off)} events where the site's new leads and Lead Counts' "
+                   f"earned_after_event disagree: {'; '.join(off[:6])}.")
+        else:
+            report("note", "Event Leads", "every dated event's new leads agree with Lead Counts' earned_after_event.")
+        won_lists = [(s, v) for s, v in loaded.items() if v[1]]
+        if won_lists:
+            report("note", "Event Leads", "lists loaded after their event, not counted as its leads, that later won: "
+                   + "; ".join(f"{s} {v[0]:,} loaded, {v[1]} won" for s, v in sorted(won_lists, key=lambda x: -x[1][1])) + ".")
     # hs-v87: deals_before is a count; links must be HubSpot record links.
     bad_before = [r for r in rows if str(r.get("deals_before") or "").strip()
                   and number(r.get("deals_before")) is None]
@@ -803,7 +839,8 @@ def main():
         check_ledger_closed(load("qb_expenses.json"))
         el = present.get("Event Leads")
         st = present.get("Setters")
-        check_event_leads(load(el["file"]) if el else None, load(st["file"]) if st else None)
+        check_event_leads(load(el["file"]) if el else None, load(st["file"]) if st else None,
+                          load(lead_counts["file"]) if lead_counts else None)
         mm = present.get("Marketing Monthly")
         check_marketing_monthly(load(mm["file"]) if mm else None, present)
 
