@@ -4656,7 +4656,7 @@ function eventLeadsPanel(e) {
   const outside = new Set(['earlier', 'predates', 'list']);
   const states = LEAD_STATES.filter(s => ev.byState[s.key] && !outside.has(s.key)).map(s => `<div class="ev-fact"><span class="ev-fact-label">${s.label}</span>`
     + `<span class="ev-fact-value">${fmt.int(ev.byState[s.key])}</span><span class="ev-fact-sub">${s.note}</span></div>`).join('');
-  const order = ['won', 'lost', 'sat', 'booked', 'unworked', 'undated', 'predates', 'earlier'];
+  const order = ['won', 'wonLate', 'lost', 'sat', 'booked', 'unworked', 'undated', 'predates', 'earlier'];
   // With no company on the rows, a list of every lead says nothing; the
   // deals are listed, and the rest are in the counts above.
   const withCompany = ev.leads.some(r => r.company);
@@ -4961,8 +4961,11 @@ function renderEvents() {
   if ($('events-credit-note')) {
     $('events-credit-note').textContent = creditRule === 'all'
       ? 'Every tagged customer who first paid in or after the event’s month.'
+      : creditRule === 'won6'
+        ? `The default. Tagged customers who first paid from the event\u2019s month to six months after it; `
+          + `${fmt.int(e.droppedRule)} left out, either won through another source or first paying later than that.`
       : creditRule === 'won'
-        ? `The default. Every tagged customer who first paid in or after the event’s month, except `
+        ? `Every tagged customer who first paid in or after the event’s month, except `
           + `${fmt.int(e.droppedRule)} whose event deal was lost and who were won through another source.`
         : `${fmt.int(e.droppedRule)} tagged customer${e.droppedRule === 1 ? '' : 's'} left out by this rule.`;
   }

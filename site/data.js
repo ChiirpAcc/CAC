@@ -3937,10 +3937,17 @@ export const WINBACK_GAP = 3;
 // lead and not the revenue. A customer with no won deal linked stays in.
 // 'direct' keeps only customers the pipeline grades direct: the event's own
 // deal won them. An event with no date can have none.
-export const CREDIT_RULES = ['all', 'record', 'within3', 'within6', 'won', 'direct'];
-// The rule every figure uses unless a reader picks another (7 Oct 2026): it
-// removes only the customers another source's deal is recorded as winning.
-export const DEFAULT_CREDIT_RULE = 'won';
+// 'won6' is 'won' with a win window: the first Stripe payment no more than
+// WIN_WINDOW_MONTHS after the event's month. A business tagged at an event
+// and sold the next summer (Rhoden Roofing: Pantheon 2025, first paid June
+// 2026) was not won by the event (Josh, 12 Oct 2026). Of customers the
+// event's own deal won, 95% first paid within six months.
+export const CREDIT_RULES = ['all', 'record', 'within3', 'within6', 'won', 'won6', 'direct'];
+export const WIN_WINDOW_MONTHS = 6;
+// The rule every figure uses unless a reader picks another (12 Oct 2026):
+// another source's won deal, or a first payment after the window, leaves a
+// customer out.
+export const DEFAULT_CREDIT_RULE = 'won6';
 
 // 'last' reads lead_source, which since v156 is the pipeline's resolved
 // source: the earliest attributable one at the company, a deal tag before a
@@ -4268,6 +4275,12 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     if (creditRule !== 'all' && fromMonth && !upcoming) {
       const keep = id => {
         if (creditRule === 'won') return !wonDealOf.has(id) || sameEvent(wonDealOf.get(id));
+        if (creditRule === 'won6') {
+          if (wonDealOf.has(id) && !sameEvent(wonDealOf.get(id))) return false;
+          const fp = firstRevenueOf.get(id);
+          if (!fp || fp < fromMonth) return true; // never paid, already paying or a win-back: decided below
+          return monthDiff(fromMonth, fp) <= WIN_WINDOW_MONTHS;
+        }
         if (creditRule === 'direct') {
           // Already paying and never paid are decided below, as for every rule.
           const fp = firstRevenueOf.get(id);
@@ -5222,7 +5235,8 @@ export const LEAD_STATES = [
   { key: 'booked', label: 'Booked, no sit', note: 'a setter is recorded and no deal followed' },
   { key: 'lost', label: 'Sat and lost', note: 'a deal exists and did not win' },
   { key: 'sat', label: 'Sat, still open', note: 'a deal exists and has not closed' },
-  { key: 'won', label: 'Won', note: 'a deal exists and won' },
+  { key: 'won', label: 'Won', note: 'a deal exists and won, within six months of the event' },
+  { key: 'wonLate', label: 'Won after the window', note: 'the deal opened more than six months after the event, so the win is not the event\u2019s' },
 ];
 // An existing contact whose deal opened close to the event is one the event
 // re-engaged, and counts (decided 12 Oct 2026): from 45 days before it, the
@@ -5274,6 +5288,11 @@ export function reengaged(r) {
 // too. An existing contact from a list whose deal the event re-engaged still
 // counts, since the deal, not the file, is the evidence.
 export const loadedFromList = r => r.arrivedAs === 'list';
+// A lead's win is the event's only when its deal opened within the win window
+// of the event. Event Leads carries no close date, so the deal's opening
+// stands in until it does.
+export const winInWindow = r => r.won === true && (!r.eventDate || !r.dealCreated
+  || (Date.parse(r.dealCreated) - Date.parse(r.eventDate)) / 86400000 <= WIN_WINDOW_MONTHS * 30.5);
 const countedLead = r => (r.afterEvent !== false && !loadedFromList(r)) || reengaged(r);
 export function leadState(r) {
   if (r.afterEvent === false && !reengaged(r)) return r.dealCreated ? 'predates' : 'earlier';
@@ -5281,7 +5300,7 @@ export function leadState(r) {
   if (r.afterEvent !== false && (!r.eventDate || r.afterEvent === null)) return 'undated';
   const deal = Boolean(r.dealCreated);
   if (!deal) return r.bookedBy ? 'booked' : 'unworked';
-  if (r.won === true) return 'won';
+  if (r.won === true) return winInWindow(r) ? 'won' : 'wonLate';
   if (r.won === false) return 'lost';
   return 'sat';
 }
@@ -5315,7 +5334,7 @@ export function eventFunnel(data, roi = eventRoi(data)) {
     const loaded = list.filter(r => r.afterEvent !== false && loadedFromList(r));
     const booked = base.filter(r => r.bookedBy).length;
     const sat = base.filter(r => r.dealCreated).length;
-    const won = base.filter(r => r.won === true).length;
+    const won = base.filter(winInWindow).length;
     const byState = Object.fromEntries(LEAD_STATES.map(s => [s.key, list.filter(r => r.state === s.key).length]));
     return {
       source, label: e ? e.label : source.replace(/^(20\d\d)\s*-\s*(.*)$/, '$2 $1'), event: e && e.cost ? e : null,
@@ -5325,7 +5344,7 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       earlier: dated ? byState.earlier + byState.predates : null,
       base: base.length, booked: ratio(booked, base.length), sat: ratio(sat, base.length), won: ratio(won, base.length),
       satToWon: ratio(won, sat), bookedToSat: ratio(base.filter(r => r.bookedBy && r.dealCreated).length, booked),
-      wonDealAmount: base.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0),
+      wonDealAmount: base.filter(winInWindow).reduce((t, r) => t + (r.wonMrr || 0), 0),
       byState, leads: list,
       // Loaded from a list after the event (or at an undated one): not
       // counted, but their deals are said so nothing is hidden.
@@ -5354,7 +5373,7 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       reengaged: kept.filter(r => reengaged(r)).length,
       earlier: kept.filter(r => r.afterEvent === false && !reengaged(r)).length,
       undated: kept.filter(r => !r.eventDate).length, booked: recent.filter(r => r.bookedBy).length,
-      sat: recent.filter(r => r.dealCreated).length, won: recent.filter(r => r.won === true).length },
+      sat: recent.filter(r => r.dealCreated).length, won: recent.filter(winInWindow).length },
     // How often the setter field is filled, on leads the events produced.
     setterFill: ratio(recent.filter(r => r.bookedBy).length, recent.length),
   };
