@@ -107,7 +107,8 @@ figure is a floor.
    commits while a data push is running.
 2. Check the index: `failed` and `missing_required` must be empty, and
    `pipeline_version` and `pull_version` as announced.
-3. Run `py -3 scripts/validate_data.py`. Errors block; warnings to read:
+3. Run `py -3 scripts/validate_data.py` and `node scripts/audit_attribution.mjs`
+   (GitHub runs both on every push; section 7). Errors block; warnings to read:
    - an event whose new leads disagree with Lead Counts;
    - setters with more sits than leads;
    - Lead Counts' conversion columns not summing to the total;
@@ -163,3 +164,39 @@ Open judgement call: a customer from an organiser's attendee list who later
 books through a general link, where a rep put the event on the winning deal.
 This counts today, because a person named the event on the deal. If attendee
 lists are loaded under their own source (2.9), the call makes itself.
+
+## 7. The audit (runs on every push)
+
+`attributionAudit` in `site/data.js` checks every rule above against what the
+site actually computed. It runs in three places, always with the same code:
+
+- **GitHub**, on every data push and every change to `site/data.js`
+  (`.github/workflows/validate-data.yml` runs `scripts/audit_attribution.mjs`).
+  A failure is added to the open "Data push did not validate" issue.
+- **The Events tab**, under Attribution checks ("Rule audit: all 14 checks pass",
+  or the failures, opened).
+- **By hand:** `node scripts/audit_attribution.mjs`.
+
+| Check | Rule |
+|---|---|
+| `credit-window` | Every credited customer first paid from the event month to 6 months after (win-backs from the event month). |
+| `credit-not-elsewhere` | No credited customer was won through another source. |
+| `credit-tag-evidence` | A customer credited on the tag alone was tagged by the month after the event, not on a list-import day. |
+| `credit-default-rule` | Every figure uses the default credit rule. |
+| `leads-no-list` | No contact from a loaded list is counted as a lead, unless the event re-engaged its deal. |
+| `leads-no-backtag` | No contact HubSpot held before the event is counted, unless its deal opened near the event. |
+| `leads-upsell-apart` | No existing customer is counted as a new lead. |
+| `wins-stripe` | No win Stripe credits to another source is counted, rechecked against Stripe independently. |
+| `wins-window` | No win whose deal opened more than 6 months after the event is counted. |
+| `leads-totals` | The Events tab totals are the sum of its events. |
+| `leads-match-lead-counts` | Every dated event's arrivals agree with Lead Counts within 10%. |
+| `sales-matches-events` | The Sales tab counts the same leads as the Events tab. |
+| `upsell-not-new` | No upsell customer is also credited as a new customer of the same event. |
+| `upsell-baseline` | Every upsell was paying going in and is credited no more than its increase. |
+
+The audit was tested by breaking the code on purpose: dropping the win window
+failed `credit-window` on the 9 late payers, and counting lists as leads failed
+`leads-no-list`, `wins-stripe` and `leads-totals`.
+
+A new rule goes into this file, into the code, and into the audit, in the same
+commit.

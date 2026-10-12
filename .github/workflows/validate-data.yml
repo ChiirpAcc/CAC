@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - 'data/**'
+      - 'site/data.js'
       - 'scripts/validate_data.py'
+      - 'scripts/audit_attribution.mjs'
       - '.github/workflows/validate-data.yml'
   workflow_dispatch:
 
@@ -36,11 +38,25 @@ jobs:
           python scripts/validate_data.py
           echo "status=$?" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The attribution rules in ATTRIBUTION.md, checked with the site's own
+      # code against this push. A failure means a figure on the site breaks a
+      # rule, and it is reported in the same issue as the data checks.
+      - name: Audit the attribution rules
+        id: audit
+        run: |
+          set +e
+          node scripts/audit_attribution.mjs --md validation-report.md
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+
       # Deliberately not a failing job. The deploy runs regardless and the site
       # publishes; this raises a flag rather than pulling the page down, because
       # a site carrying a warning is more useful than no site.
       - name: Open or update an issue
-        if: steps.check.outputs.status != '0'
+        if: steps.check.outputs.status != '0' || steps.audit.outputs.status != '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

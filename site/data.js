@@ -5312,6 +5312,8 @@ export function reengaged(r) {
 // too. An existing contact from a list whose deal the event re-engaged still
 // counts, since the deal, not the file, is the evidence.
 export const loadedFromList = r => r.arrivedAs === 'list';
+// Lead states the funnel counts, the Sales tab included.
+const SALES_COUNTED = new Set(['won', 'wonLate', 'wonElsewhere', 'lost', 'sat', 'booked', 'unworked', 'undated']);
 // A lead's win is the event's only when its deal opened within the win window
 // of the event. Event Leads carries no close date, so the deal's opening
 // stands in until it does.
@@ -5362,10 +5364,11 @@ export function eventFunnel(data, roi = eventRoi(data)) {
     // Stripe decides a win: a deal marked won whose customer Stripe records as
     // won through another source is not the event's win (ABC Plumbing,
     // Pantheon 2025: won through Powerhouse Consulting).
-    if (row.state === 'won' && x && x.wonDealSource
-      && !conversionNamesEvent({ source: r.source, conversion: mergeSource(x.wonDealSource) })) {
-      row.state = 'wonElsewhere';
-      row.wonThrough = x.wonDealSource;
+    // Every won row is checked, an undated event's included.
+    const xw = r.won === true && r.company ? (x || byCompany(r.company)) : null;
+    if (xw && xw.wonDealSource && !conversionNamesEvent({ source: r.source, conversion: mergeSource(xw.wonDealSource) })) {
+      row.wonThrough = xw.wonDealSource;
+      if (row.state === 'won') row.state = 'wonElsewhere';
     }
     bySource.get(r.source).push(row);
   }
@@ -5378,7 +5381,7 @@ export function eventFunnel(data, roi = eventRoi(data)) {
     const loaded = list.filter(r => r.afterEvent !== false && loadedFromList(r));
     const booked = base.filter(r => r.bookedBy).length;
     const sat = base.filter(r => r.dealCreated).length;
-    const won = base.filter(r => winInWindow(r) && r.state !== 'wonElsewhere').length;
+    const won = base.filter(r => winInWindow(r) && !r.wonThrough).length;
     const byState = Object.fromEntries(LEAD_STATES.map(s => [s.key, list.filter(r => r.state === s.key).length]));
     return {
       source, label: e ? e.label : source.replace(/^(20\d\d)\s*-\s*(.*)$/, '$2 $1'), event: e && e.cost ? e : null,
@@ -5388,7 +5391,7 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       earlier: dated ? byState.earlier + byState.predates : null,
       base: base.length, booked: ratio(booked, base.length), sat: ratio(sat, base.length), won: ratio(won, base.length),
       satToWon: ratio(won, sat), bookedToSat: ratio(base.filter(r => r.bookedBy && r.dealCreated).length, booked),
-      wonDealAmount: base.filter(r => winInWindow(r) && r.state !== 'wonElsewhere').reduce((t, r) => t + (r.wonMrr || 0), 0),
+      wonDealAmount: base.filter(r => winInWindow(r) && !r.wonThrough).reduce((t, r) => t + (r.wonMrr || 0), 0),
       byState, leads: list,
       // Loaded from a list after the event (or at an undated one): not
       // counted, but their deals are said so nothing is hidden.
@@ -5420,7 +5423,7 @@ export function eventFunnel(data, roi = eventRoi(data)) {
       reengaged: kept.filter(r => !isUpsell(r) && reengaged(r)).length,
       earlier: kept.filter(r => r.afterEvent === false && !reengaged(r)).length,
       undated: kept.filter(r => !r.eventDate).length, booked: recent.filter(r => r.bookedBy).length,
-      sat: recent.filter(r => r.dealCreated).length, won: recent.filter(r => winInWindow(r) && r.state !== 'wonElsewhere').length },
+      sat: recent.filter(r => r.dealCreated).length, won: recent.filter(r => winInWindow(r) && !r.wonThrough).length },
     // How often the setter field is filled, on leads the events produced.
     setterFill: ratio(recent.filter(r => r.bookedBy).length, recent.length),
   };
@@ -5546,6 +5549,124 @@ export function eventUpsells(data, roi = eventRoi(data)) {
   return out;
 }
 
+// The attribution audit (ATTRIBUTION.md): every rule, checked against what the
+// site actually computed, on every push. The Events tab shows the result and
+// scripts/audit_attribution.mjs runs it in GitHub. A failure means a rule and
+// a figure disagree, never a judgement call.
+export function attributionAudit(data) {
+  const checks = [];
+  const check = (id, rule, failures, detail = '') => checks.push({ id, rule, pass: failures.length === 0,
+    failures: failures.slice(0, 8), count: failures.length, detail });
+  const roi = eventRoi(data);
+  const f = eventFunnel(data, roi);
+  const wonDeal = new Map();
+  const setAt = new Map();
+  for (const c of data.customers) {
+    if (c.wonDealSource && !wonDeal.has(c.id)) wonDeal.set(c.id, mergeSource(c.wonDealSource));
+    if (c.leadSetAt && !setAt.has(c.id)) setAt.set(c.id, c.leadSetAt);
+  }
+  const listDays = new Map();
+  for (const r of data.eventLeadRows || []) {
+    if (r.arrivedAs === 'list' && r.created) listDays.set(`${r.source}|${r.created.slice(0, 10)}`,
+      (listDays.get(`${r.source}|${r.created.slice(0, 10)}`) || 0) + 1);
+  }
+  const names = (src, w) => conversionNamesEvent({ source: src, conversion: w });
+  const credited = [];
+  for (const e of roi.events) {
+    if (e.upcoming || !e.month || !e.source) continue;
+    for (const x of e.customerRows || []) if (x.firstPaid) credited.push({ e, x });
+  }
+  // Revenue (1.3).
+  check('credit-window', `Every credited customer first paid from the event month to ${WIN_WINDOW_MONTHS} months after (win-backs from the event month)`,
+    credited.filter(({ e, x }) => !x.winback && (x.firstPaid < e.month || monthDiff(e.month, x.firstPaid) > WIN_WINDOW_MONTHS))
+      .map(({ e, x }) => `${e.label}: ${x.name} first paid ${x.firstPaid}`));
+  check('credit-not-elsewhere', 'No credited customer was won through another source',
+    credited.filter(({ e, x }) => wonDeal.has(x.id) && !names(e.source, wonDeal.get(x.id)))
+      .map(({ e, x }) => `${e.label}: ${x.name} won through ${wonDeal.get(x.id)}`));
+  check('credit-tag-evidence', 'A customer credited on the tag alone was tagged by the month after the event, not on a list-import day',
+    credited.filter(({ e, x }) => {
+      if (x.credit === 'direct' || (wonDeal.has(x.id) && names(e.source, wonDeal.get(x.id)))) return false;
+      const set = setAt.get(x.id);
+      return set && (set.slice(0, 7) > monthAdd(e.month, 1) || (listDays.get(`${e.source}|${set.slice(0, 10)}`) || 0) >= 20);
+    }).map(({ e, x }) => `${e.label}: ${x.name} tagged ${setAt.get(x.id)}`));
+  check('credit-default-rule', `Every figure uses the default credit rule (${DEFAULT_CREDIT_RULE})`,
+    (() => {
+      const explicit = eventRoi(data, { creditRule: DEFAULT_CREDIT_RULE });
+      const a = roi.events.map(e => `${e.label}:${e.paid}`).join('|');
+      const b = explicit.events.map(e => `${e.label}:${e.paid}`).join('|');
+      return a === b ? [] : ['eventRoi without options differs from the default rule'];
+    })());
+  if (f) {
+    const all = f.events.flatMap(e => e.leads.map(r => ({ e, r })));
+    const base = f.events.flatMap(e => {
+      const set = new Set();
+      return e.leads.filter(r => SALES_COUNTED.has(r.state) && !set.has(r)).map(r => ({ e, r }));
+    });
+    // Leads (1.1).
+    check('leads-no-list', 'No contact that arrived in a loaded list is counted as a lead, unless the event re-engaged its deal',
+      base.filter(({ r }) => loadedFromList(r) && !reengaged(r)).map(({ e, r }) => `${e.label}: ${r.company || 'no company'}`));
+    check('leads-no-backtag', 'No contact HubSpot held before the event is counted, unless its deal opened near the event',
+      base.filter(({ r }) => r.afterEvent === false && !reengaged(r)).map(({ e, r }) => `${e.label}: ${r.company || 'no company'}`));
+    check('leads-upsell-apart', 'No upsell lead (already paying, or through the upsell form) is counted as a new lead',
+      base.filter(({ r }) => r.customerAt === 'paying').map(({ e, r }) => `${e.label}: ${r.company || 'no company'}`));
+    // Wins (1.2).
+    const byCo = stripeByCompany(data);
+    check('wins-stripe', 'No win Stripe credits to another source is counted as the event\u2019s',
+      f.events.filter(e => {
+        const counted = e.leads.filter(r => SALES_COUNTED.has(r.state) && r.state !== 'upsell'
+          && (e.dated ? (r.afterEvent === true && !loadedFromList(r)) || reengaged(r) : !loadedFromList(r)));
+        const expected = counted.filter(r => {
+          if (r.won !== true || !winInWindow(r)) return false;
+          const m = r.company ? byCo(r.company) : null;
+          return !(m && m.wonDealSource && !names(r.source, mergeSource(m.wonDealSource)));
+        }).length;
+        return e.won && e.won.n !== expected;
+      }).map(e => `${e.label}: ${e.won.n} counted`));
+    check('wins-window', `No win whose deal opened more than ${WIN_WINDOW_MONTHS} months after the event is counted`,
+      all.filter(({ r }) => r.state === 'won' && !winInWindow(r)).map(({ e, r }) => `${e.label}: ${r.company || 'no company'}`));
+    check('leads-totals', 'The Events tab totals are the sum of its events',
+      (() => {
+        const sum = k => f.events.reduce((t, e) => t + (e[k] || 0), 0);
+        const out = [];
+        if (f.totals.produced !== sum('produced')) out.push(`new leads ${f.totals.produced} against ${sum('produced')}`);
+        if (f.totals.reengaged !== sum('reengaged')) out.push(`re-engaged ${f.totals.reengaged} against ${sum('reengaged')}`);
+        return out;
+      })());
+    check('leads-match-lead-counts', 'Every dated event\u2019s arrivals after it (not lists) agree with Lead Counts\u2019 earned_after_event within 10%',
+      (() => {
+        const out = [];
+        for (const lc of data.leadCounts || []) {
+          if (!lc.eventDate || lc.earnedAfter === null || lc.earnedAfter === undefined) continue;
+          const ev = f.events.find(e => e.source === lc.source);
+          if (!ev) continue;
+          const ours = ev.leads.filter(r => r.afterEvent === true && !loadedFromList(r)).length;
+          if (Math.abs(ours - lc.earnedAfter) > Math.max(3, 0.1 * Math.max(ours, lc.earnedAfter))) out.push(`${ev.label}: ${ours} against ${lc.earnedAfter}`);
+        }
+        return out;
+      })());
+    // Sales shares the funnel (one implementation per number).
+    const sales = salesReport(data);
+    check('sales-matches-events', 'The Sales tab counts the same event leads as the Events tab',
+      sales && sales.counted !== undefined && sales.counted !== base.length ? [`Sales ${sales.counted} against Events ${base.length}`] : []);
+  }
+  // Upsells (1.4).
+  const up = eventUpsells(data, roi);
+  if (up) {
+    check('upsell-not-new', 'No upsell customer is also credited to the same event as a new customer',
+      up.events.flatMap(u => {
+        const e = roi.events.find(x => x.label === u.label);
+        const ids = new Set(e ? e.broughtIds : []);
+        return u.rows.filter(r => ids.has(r.id)).map(r => `${u.label}: ${r.name}`);
+      }));
+    check('upsell-baseline', 'Every upsell was paying going into the event, and is credited no more than the contribution on its increase',
+      up.events.flatMap(u => [
+        ...u.rows.filter(r => !(r.baseMrr > 0)).map(r => `${u.label}: ${r.name} had no MRR going in`),
+        ...(u.credited > u.rows.reduce((t, r) => t + (r.extraContribution || 0), 0) + 0.01 ? [`${u.label}: credited above the increase`] : []),
+      ]));
+  }
+  return { checks, passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length };
+}
+
 // Setters and deal owners, from the event lead rows. booked_by is who got
 // the demo agreed; demoed_by is the deal's owner, the closest the data has
 // to who ran it (there is no AE field). Leads with no setter recorded are
@@ -5629,9 +5750,14 @@ export const personName = who => (who === null || who === undefined ? null
   : /^\d{6,}$/.test(String(who)) ? `HubSpot user ${who}` : String(who));
 
 export function salesReport(data) {
-  const rows = (data.eventLeadRows || []).filter(r => leadMediumOf(r.source, 'event') === 'event');
+  // The same classified leads the Events tab counts (ATTRIBUTION.md 1.1), so
+  // the two tabs never disagree: no loaded lists, no back-tagged contacts, and
+  // upsell leads apart. A win is the event funnel's win: Stripe agrees and the
+  // deal opened within the window.
+  const fun = eventFunnel(data);
+  const rows = fun ? fun.events.flatMap(e => e.leads) : [];
   if (!rows.length) return null;
-  const counted = rows.filter(countedLead); // produced, re-engaged or undated, never a loaded list
+  const counted = rows.filter(r => SALES_COUNTED.has(r.state));
   const group = (key, list) => {
     const m = new Map();
     for (const r of list) {
@@ -5643,19 +5769,19 @@ export function salesReport(data) {
   };
   const setters = [...group('bookedBy', counted)].map(([who, list]) => {
     const sat = list.filter(r => r.dealCreated).length;
-    const won = list.filter(r => r.won === true).length;
+    const won = list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).length;
     const events = [...group('source', list)].map(([source, l]) => ({ source, leads: l.length,
-      sat: l.filter(r => r.dealCreated).length, won: l.filter(r => r.won === true).length }))
+      sat: l.filter(r => r.dealCreated).length, won: l.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).length }))
       .sort((a, b) => b.leads - a.leads);
     return { who, recorded: who !== null, booked: list.length, sat: ratio(sat, list.length), won: ratio(won, list.length),
-      satToWon: ratio(won, sat), wonDealAmount: list.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0), events };
+      satToWon: ratio(won, sat), wonDealAmount: list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).reduce((t, r) => t + (r.wonMrr || 0), 0), events };
   }).sort((a, b) => (b.recorded - a.recorded) || b.booked - a.booked);
   const withDeal = counted.filter(r => r.dealCreated);
   const owners = [...group('demoedBy', withDeal)].map(([who, list]) => {
-    const won = list.filter(r => r.won === true).length;
+    const won = list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).length;
     const closed = list.filter(r => r.won !== null).length;
     return { who, recorded: who !== null, deals: list.length, won: ratio(won, list.length), closed,
-      closeRate: ratio(won, closed), wonDealAmount: list.filter(r => r.won === true).reduce((t, r) => t + (r.wonMrr || 0), 0),
+      closeRate: ratio(won, closed), wonDealAmount: list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).reduce((t, r) => t + (r.wonMrr || 0), 0),
       bookedByOthers: list.filter(r => r.bookedBy && r.bookedBy !== who).length };
   }).sort((a, b) => (b.recorded - a.recorded) || b.deals - a.deals);
   // The Setters tab, as the pipeline built it: every source, per person.

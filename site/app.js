@@ -16,7 +16,7 @@ import {
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
-  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
+  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4358,6 +4358,19 @@ function renderEventChecks(f) {
       + `${fmt.int(new Set(items.map(i => i.event)).size)} event${new Set(items.map(i => i.event)).size === 1 ? '' : 's'}.</strong> `
       + 'Everything else is attributed by rule.'
     : '<strong>Nothing needs a look.</strong> Every event is attributed by rule.';
+  // The rule audit (ATTRIBUTION.md section 7): the same checks GitHub runs on
+  // every push, here after the rest of the tab has drawn.
+  if ($('event-audit-list')) {
+    setTimeout(() => {
+      const a = attributionAudit(data);
+      $('event-audit-summary').innerHTML = a.failed
+        ? `<strong class="neg">Rule audit: ${fmt.int(a.failed)} of ${fmt.int(a.checks.length)} checks fail</strong>`
+        : `Rule audit: all ${fmt.int(a.checks.length)} checks pass`;
+      if (a.failed) $('event-audit').open = true;
+      $('event-audit-list').innerHTML = a.checks.map(c => `<li><strong class="${c.pass ? 'pos' : 'neg'}">${c.pass ? 'Pass' : 'Fail'}</strong> `
+        + `${c.rule}${c.pass ? '' : `: ${fmt.int(c.count)}, such as ${c.failures.slice(0, 3).join('; ')}`}</li>`).join('');
+    }, 0);
+  }
   $('event-checks-list').innerHTML = items.length
     ? '<thead><tr><th>Event</th><th>What was found</th><th>Who</th><th>What fixes it</th></tr></thead><tbody>'
       + items.map(i => `<tr><td><a href="${eventHref(i.event)}">${i.event}</a></td><td>${i.what}</td>`
