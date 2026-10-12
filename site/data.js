@@ -3938,7 +3938,9 @@ export const WINBACK_GAP = 3;
 // 'direct' keeps only customers the pipeline grades direct: the event's own
 // deal won them. An event with no date can have none.
 // 'won6' is 'won' with a win window: the first Stripe payment no more than
-// WIN_WINDOW_MONTHS after the event's month. A business tagged at an event
+// WIN_WINDOW_MONTHS after the event's month, and, for a customer resting on
+// the tag alone, a tag written by the end of the month after the event and not
+// on a day a list was loaded. A business tagged at an event
 // and sold the next summer (Rhoden Roofing: Pantheon 2025, first paid June
 // 2026) was not won by the event (Josh, 12 Oct 2026). Of customers the
 // event's own deal won, 95% first paid within six months.
@@ -4018,6 +4020,15 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
   const sourceOf = new Map();
   const mediumOf = new Map();
   const leadDateOf = new Map();
+  // Days a list was loaded into a source: twenty or more contacts arriving
+  // as a list on one day. A tag written that day came from the file.
+  const listDays = new Map();
+  for (const r of data.eventLeadRows || []) {
+    if (r.arrivedAs !== 'list' || !r.created) continue;
+    const k = `${r.source}|${r.created.slice(0, 10)}`;
+    listDays.set(k, (listDays.get(k) || 0) + 1);
+  }
+  const listDayOf = (source, day) => (listDays.get(`${source}|${String(day).slice(0, 10)}`) || 0) >= 20;
   const leadSetOf = new Map();
   const bulkOf = new Map();
   // A first-touch value is given the medium the pipeline gives that same
@@ -4279,7 +4290,18 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
           if (wonDealOf.has(id) && !sameEvent(wonDealOf.get(id))) return false;
           const fp = firstRevenueOf.get(id);
           if (!fp || fp < fromMonth) return true; // never paid, already paying or a win-back: decided below
-          return monthDiff(fromMonth, fp) <= WIN_WINDOW_MONTHS;
+          if (monthDiff(fromMonth, fp) > WIN_WINDOW_MONTHS) return false;
+          // A customer whose only evidence is the tag needs the tag written
+          // at the time, and not by a list import: Schar Heating and Plumb
+          // Line (Pantheon 2025) were tagged on 11 Nov 2025, the day the
+          // attendee list was loaded, with no deal naming the event (Josh,
+          // 12 Oct 2026). A won deal naming the event stays credited however
+          // late it was written: a person named the event on the winning deal.
+          if (creditOf.get(id) !== 'direct' && !(wonDealOf.has(id) && sameEvent(wonDealOf.get(id)))) {
+            const set = leadSetOf.get(id);
+            if (set && (set.slice(0, 7) > monthAdd(fromMonth, 1) || listDayOf(b.source, set))) return false;
+          }
+          return true;
         }
         if (creditRule === 'direct') {
           // Already paying and never paid are decided below, as for every rule.
@@ -5568,8 +5590,9 @@ function buildStripeMatch(data) {
     let x = sum.get(c.id);
     if (!x) sum.set(c.id, x = { id: c.id, name: c.name, url: c.stripeLink || `https://dashboard.stripe.com/customers/${c.id}`,
       firstPaid: null, last: null, mrrNow: 0, live: false, wonDealSource: c.wonDealSource || null, mrrBy: new Map(),
-      leadSource: c.leadSource || null });
+      leadSource: c.leadSource || null, leadSetAt: c.leadSetAt || null });
     if (!x.leadSource && c.leadSource) x.leadSource = c.leadSource;
+    if (!x.leadSetAt && c.leadSetAt) x.leadSetAt = c.leadSetAt;
     x.mrrBy.set(c.month, c.active ? c.eopMrr || 0 : 0);
     if (c.name && !x.name) x.name = c.name;
     if (c.stripeLink) x.url = c.stripeLink;

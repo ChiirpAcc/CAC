@@ -4739,6 +4739,8 @@ function eventLeadsPanel(e) {
       : m.wonDealSource && !conversionNamesEvent({ source: r.source, conversion: m.wonDealSource }) ? `not credited: won through ${m.wonDealSource}`
       : evMonth && monthDiff(evMonth, m.firstPaid) > WIN_WINDOW_MONTHS ? `not credited: first paid ${monthDiff(evMonth, m.firstPaid)} months after, outside the ${WIN_WINDOW_MONTHS}-month window`
       : m.leadSource && !conversionNamesEvent({ source: r.source, conversion: m.leadSource }) ? `not credited: Stripe\u2019s customer is tagged ${m.leadSource}`
+      : m.leadSetAt && evMonth && m.leadSetAt.slice(0, 7) > monthAdd(evMonth, 1) ? `not credited: the tag rests alone and was written ${m.leadSetAt}, long after the event`
+      : m.leadSetAt ? `not credited: the tag rests alone and was written ${m.leadSetAt}, a day a list was loaded`
       : 'not credited to it';
     return `<br><span class="${credited.has(m.id) ? 'pos' : 'muted'}">became a customer ${fmt.monthLabel(m.firstPaid)}`
       + `${m.mrrNow ? `, ${fmt.money(m.mrrNow)}/mo now` : m.live ? ', $0 this month' : ', since left'}; ${why}</span>`;
