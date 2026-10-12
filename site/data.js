@@ -799,7 +799,10 @@ export async function load() {
     ? byTab['Event Leads'].rows.filter(r => r.source).map(r => ({
         source: mergeSource(r.source),
         eventDate: isoDay(r.event_date),
-        contactId: String(r.contact_id ?? '').trim() || null,
+        contactId: String(r.contact_id ?? r.hubspot_id ?? '').trim() || null,
+        dealId: String(r.deal_id ?? '').trim() || null,
+        stripeId: (String(r.stripe_customer_id ?? r.stripe_id ?? '').match(/cus_[A-Za-z0-9]+/) || [])[0] || null,
+        stripeUrl: /^https:\/\/dashboard\.stripe\.com\//.test(String(r.stripe_url ?? '')) ? String(r.stripe_url) : null,
         company: String(r.company ?? '').trim() || null,
         created: isoDay(r.created),
         afterEvent: yesNo(r.after_the_event),
@@ -3751,6 +3754,9 @@ export const EVENT_TYPES = ['Conference sponsorship', 'Partner network event',
   'Small room', 'Training'];
 const ON = 'On the 2027 calendar';
 const OFF = 'Not on the 2027 list';
+// One series under two names, keyed by eventWords of the label.
+const EVENT_SERIES = { 'wealthy plumber hoorah': 'home service hoorah', hsf: 'home service freedom' };
+
 export const EVENT_META = {
   'HSF 2025': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   'Pantheon 2025': { type: 'Conference sponsorship', organiser: 'ServiceTitan', plan2027: ON },
@@ -4336,6 +4342,15 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
   }
   events.sort((a, b) => String(a.month || a.year || '').localeCompare(String(b.month || b.year || ''))
     || String(a.label).localeCompare(String(b.label)));
+  // The 2027 plan is about a series, so an edition with a later one (Pantheon
+  // 2025 beside Pantheon 2026) does not show it; the latest edition does. The
+  // Wealthy Plumber's Hoorah ran as "Wealthy Plumber Hoorah" in 2025 and
+  // "Home Service Hoorah" in 2026 (Josh, 12 Oct 2026).
+  const seriesOf = e => (EVENT_SERIES[eventWords(e.label)] || eventWords(e.label));
+  for (const e of events) {
+    const later = e.month && events.find(x => x !== e && x.month && x.month > e.month && seriesOf(x) === seriesOf(e));
+    e.laterEdition = later ? later.label : null;
+  }
 
   // The package view: one row per shared fee, its events summed.
   const packages = EVENT_PACKAGES.map(pack => {
@@ -5055,7 +5070,8 @@ function campaignContext(data) {
   for (const r of data.leadCounts || []) {
     if (leadMediumOf(r.source, r.medium) !== 'event') continue;
     events.push({ source: r.source, words: eventWords(r.source.replace(/^20\d\d\s*-\s*/, '')),
-      year: (r.source.match(/^(20\d\d)/) || [])[1] || null, fromCampaign: r.fromCampaign || 0 });
+      year: (r.source.match(/^(20\d\d)/) || [])[1] || null, fromCampaign: r.fromCampaign || 0,
+      month: r.eventDate ? r.eventDate.slice(0, 7) : null });
   }
   const webinars = (data.webinars || []).map(w => norm(w.webinar)).filter(t => t.length > 12);
   return { events, webinars, norm };
@@ -5068,6 +5084,10 @@ function campaignTarget(drill, month, ctx) {
   const words = eventWords(named.replace(/^20\d\d\s*-\s*/, ''));
   const year = (named.match(/^(20\d\d)/) || [])[1] || String(month || '').slice(0, 4);
   const ev = words && ctx.events.find(e => e.words === words && (!e.year || e.year === year));
+  // Before the event's month a campaign is promotion, not the event: the 2026
+  // Wealthy Plumber list of June and July stays in its own channel, so Hoorah
+  // 2026 counts from the event on, as Hoorah 2025 did (Josh, 12 Oct 2026).
+  if (ev && ev.month && month && month < ev.month) return null;
   if (ev) return { category: 'Events', source: ev.source, fromCampaign: ev.fromCampaign };
   const dn = ctx.norm(d);
   if (dn.length > 12 && ctx.webinars.some(w => w.startsWith(dn.slice(0, 40)) || dn.startsWith(w.slice(0, 40)))) {
@@ -5301,6 +5321,14 @@ export function eventFunnel(data, roi = eventRoi(data)) {
 // to who ran it (there is no AE field). Leads with no setter recorded are
 // one line of their own, never spread across the people.
 // A HubSpot person the pull could not name arrives as a bare user id.
+// Links to a lead's records. CHIIRP's HubSpot portal is 23947290 on the na2
+// domain; a Stripe customer opens in the dashboard (its environment's own
+// URL when the push carries one).
+const HUBSPOT_APP = 'https://app-na2.hubspot.com/contacts/23947290/record';
+export const hubspotContactUrl = id => (id && /^\d+$/.test(id) ? `${HUBSPOT_APP}/0-1/${id}` : null);
+export const hubspotDealUrl = id => (id && /^\d+$/.test(id) ? `${HUBSPOT_APP}/0-3/${id}` : null);
+export const stripeCustomerUrl = r => r.stripeUrl || (r.stripeId ? `https://dashboard.stripe.com/customers/${r.stripeId}` : null);
+
 export const personName = who => (who === null || who === undefined ? null
   : /^\d{6,}$/.test(String(who)) ? `HubSpot user ${who}` : String(who));
 

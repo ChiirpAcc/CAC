@@ -15,7 +15,7 @@ import {
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
-  eventFunnel, salesReport, LEAD_STATES, personName, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
+  eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4622,6 +4622,19 @@ function eventsOnSourcePage() {
     + `Paying customers and contribution use the Events tab’s credit rule.</p></section>`;
 }
 
+// A lead's HubSpot contact and deal, and its Stripe customer, as links.
+const extLink = (url, text) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+function idLinks(r) {
+  const parts = [];
+  if (hubspotContactUrl(r.contactId)) parts.push(extLink(hubspotContactUrl(r.contactId), `contact ${r.contactId}`));
+  if (hubspotDealUrl(r.dealId)) parts.push(extLink(hubspotDealUrl(r.dealId), `deal ${r.dealId}`));
+  return parts.length ? parts.join('<br>') : '<span class="muted">–</span>';
+}
+function stripeCell(r) {
+  const url = stripeCustomerUrl(r);
+  return url && r.stripeId ? extLink(url, r.stripeId) : url ? extLink(url, 'customer') : '<span class="muted">–</span>';
+}
+
 // One event's leads from the Event Leads tab: the funnel, then each lead.
 function eventLeadsPanel(e) {
   const f = eventFunnel(data);
@@ -4650,14 +4663,18 @@ function eventLeadsPanel(e) {
     + `<div class="ev-facts">${states}</div>`
     + (rows.length ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr>${withCompany ? '<th>Company</th>' : ''}`
     + `<th>Arrived</th><th>How</th><th>Deal opened</th><th>Where it stands</th>`
-    + `<th>Setter</th><th>Deal owner</th><th class="n">Deal amount</th></tr></thead><tbody>`
+    + `<th>Setter</th><th>Deal owner</th><th class="n">Deal amount</th><th>HubSpot</th><th>Stripe customer</th></tr></thead><tbody>`
     + shown.map(r => `<tr${r.state === 'earlier' || r.state === 'predates' ? ' class="muted"' : ''}>${withCompany ? `<td>${r.company || '<span class="muted">no company</span>'}</td>` : ''}`
       + `<td>${r.created || '–'}</td><td>${r.arrivedAs || '–'}${r.conversion ? `<br><span class="muted">${r.conversion.replace(/^Meetings Link:\s*/i, 'meetings link ').slice(0, 48)}</span>` : ''}</td>`
       + `<td>${r.dealCreated || '–'}</td><td>${STATE_LABEL[r.state]}${reengaged(r) ? '<br><span class="muted">re-engaged</span>' : ''}</td>`
       + `<td>${personName(r.bookedBy) || '<span class="muted">not recorded</span>'}</td>`
       + `<td>${personName(r.demoedBy) || (r.dealCreated ? '<span class="muted">no owner</span>' : '<span class="muted">no deal</span>')}</td>`
-      + `<td class="n">${r.won === true && r.wonMrr ? fmt.money(r.wonMrr) : '–'}</td></tr>`).join('')
+      + `<td class="n">${r.won === true && r.wonMrr ? fmt.money(r.wonMrr) : '–'}</td>`
+      + `<td>${idLinks(r)}</td><td>${stripeCell(r)}</td></tr>`).join('')
     + `</tbody></table></div>` : '')
+    + (rows.length && !rows.some(r => r.contactId || r.dealId || r.stripeId)
+      ? `<p class="ev-note">This push carries no HubSpot or Stripe ids for the leads, so the last two columns fill once `
+        + `the Event Leads tab adds contact_id, deal_id and stripe_customer_id.</p>` : '')
     + (rows.length > shown.length ? `<p class="ev-note">${fmt.int(rows.length - shown.length)} more not listed.</p>` : '')
     + (!withCompany ? `<p class="ev-note">The leads carry no company name in this push, so the list shows the deals: each `
       + `lead that reached a deal or has a setter recorded. The rest are counted above.</p>` : '')
@@ -4705,7 +4722,7 @@ function renderEventPage(label) {
   const chips = [e.month ? fmt.monthLabel(e.month) : e.upcoming ? `Happens ${fmt.monthLabel(e.upcoming)}` : 'Undated',
     e.type, e.organiser, e.paid && !evDated ? 'Undated' : null].filter(Boolean).map(x => `<span class="ev-chip">${x}</span>`).join('')
     + confidenceChip(evConf)
-    + (e.plan2027 ? `<span class="ev-chip ${e.plan2027.startsWith('On') ? 'on' : e.plan2027.startsWith('Dropped') ? 'off' : ''}">`
+    + (e.plan2027 && !e.laterEdition ? `<span class="ev-chip ${e.plan2027.startsWith('On') ? 'on' : e.plan2027.startsWith('Dropped') ? 'off' : ''}">`
       + `2027: ${e.plan2027.startsWith('On') ? 'on the calendar' : e.plan2027.startsWith('Dropped') ? 'dropped' : 'not listed'}</span>` : '');
   const kpis = e.upcoming
     ? kpi('Status', 'Upcoming', `happens ${fmt.monthLabel(e.upcoming)}`)
@@ -5242,7 +5259,7 @@ function renderEvents() {
         + `${money(c.travel)} travel</span>`
         + (c.costState ? `<br><span class="event-chip">${stateWords[c.costState]}</span>` : '')
       : x.upcoming ? '<span class="muted">after the data</span>' : '<span class="muted">no cost row</span>';
-    return `<tr><td><a href="${eventHref(x.label)}">${x.label}</a> ${chip(x.plan2027)}`
+    return `<tr><td><a href="${eventHref(x.label)}">${x.label}</a> ${chip(x.laterEdition ? null : x.plan2027)}`
       + `${x.type ? `<br><span class="muted">${x.type}${x.organiser ? ' · ' + x.organiser : ''}</span>` : ''}`
       + `${x.source && x.cost && x.source !== x.label ? `<br><span class="muted">HubSpot: ${x.source}</span>` : ''}`
       + `${!x.source && x.cost ? '<br><span class="muted">no customer tagged</span>' : ''}</td>`
@@ -5706,7 +5723,7 @@ function renderEvents() {
       + `<td>${x.type || '–'}</td><td class="n">${money(x.spend)}</td>`
       + `<td class="n">${fmt.int(x.alreadyPaying || 0)}</td>`
       + `<td>${x.report2025 || '<span class="muted">not in the report</span>'}</td>`
-      + `<td>${chip(x.plan2027)}</td></tr>`).join('')
+      + `<td>${chip(x.laterEdition ? null : x.plan2027)}</td></tr>`).join('')
     + '</tbody>';
 
   // ---------------------------------------------------------------- disputed fees, settled
@@ -5723,7 +5740,7 @@ function renderEvents() {
       const x = byDecision(d);
       const used = x && x.cost ? x.cost.sponsor : null;
       const tab = x && x.cost ? x.cost.tabSponsor : null;
-      return `<tr><td>${x ? x.label : d.event}${x ? ' ' + chip(x.plan2027)
+      return `<tr><td>${x ? x.label : d.event}${x ? ' ' + chip(x.laterEdition ? null : x.plan2027)
           : '<br><span class="notviable">not on the Event Costs tab</span>'}</td>`
         + `<td class="n">${tab === null ? '–' : fmt.money(tab)}</td>`
         + `<td class="n">${used === null ? '–' : `<span class="${x.cost.decided ? 'held' : ''}">${fmt.money(used)}</span>`}</td>`
