@@ -5379,6 +5379,114 @@ export function eventFunnel(data, roi = eventRoi(data)) {
   };
 }
 
+// Upsells (12 Oct 2026). An existing customer, paying the month before the
+// event, whose contact came in through the event's own form or meetings link
+// (an "upsell" form most plainly) and whose MRR is higher at the end of the
+// win window than before the event. A tag alone is not enough, as for new
+// customers. What is credited is the increase, less what the book's usual
+// expansion would have added anyway, and the contribution on it at the
+// account's own margin each month. Shown beside the event's return, never
+// folded into it: the evidence is a form, and the company is matched to Stripe
+// by name until Event Leads carries a Stripe id.
+const upsellCache = new WeakMap();
+export function bookExpansionRate(data) {
+  // Monthly expansion of customers paying in both months, over the twelve
+  // months to the last closed month: the drift an upsell has to beat.
+  const last = data.lastMonth;
+  if (!last) return 0;
+  const from = monthAdd(last, -12);
+  const by = new Map();
+  for (const c of data.customers) {
+    if (c.month <= from || c.month > last) continue;
+    if (!by.has(c.id)) by.set(c.id, new Map());
+    by.get(c.id).set(c.month, c.eopMrr || 0);
+  }
+  let base = 0;
+  let up = 0;
+  for (const months of by.values()) {
+    for (const [m, v] of months) {
+      const prev = months.get(monthAdd(m, -1));
+      if (!(prev > 0) || !(v > 0)) continue;
+      base += prev;
+      if (v > prev) up += v - prev;
+    }
+  }
+  return base ? up / base : 0;
+}
+
+export function eventUpsells(data, roi = eventRoi(data)) {
+  if (upsellCache.has(data) && upsellCache.get(data).roi === roi) return upsellCache.get(data).out;
+  const f = eventFunnel(data, roi);
+  if (!f) return null;
+  const by = stripeByCompany(data);
+  const last = data.lastMonth;
+  const rate = bookExpansionRate(data);
+  const rowsOf = new Map();
+  for (const c of data.customers) {
+    if (!rowsOf.has(c.id)) rowsOf.set(c.id, new Map());
+    rowsOf.get(c.id).set(c.month, c);
+  }
+  const contribOf = new Map();
+  for (const r of eventContributionRows(accountServeCost(data))) {
+    if (!contribOf.has(r.id)) contribOf.set(r.id, new Map());
+    contribOf.get(r.id).set(r.month, r);
+  }
+  const events = [];
+  for (const ev of f.events) {
+    if (!ev.eventDate) continue;
+    const month = ev.eventDate.slice(0, 7);
+    const seen = new Map();
+    for (const r of ev.leads) {
+      if (!r.company || !r.conversion || !conversionNamesEvent(r)) continue;
+      const m = by(r.company);
+      if (!m || seen.has(m.id)) continue;
+      const months = rowsOf.get(m.id);
+      const before = months && months.get(monthAdd(month, -1));
+      if (!before || !before.active || !(before.eopMrr > 0)) continue;
+      const end = [monthAdd(month, WIN_WINDOW_MONTHS), last].sort()[0];
+      if (!end || end < month) continue;
+      let endRow = null;
+      for (let k = monthDiff(month, end); k >= 0 && !endRow; k -= 1) endRow = months.get(monthAdd(month, k)) || null;
+      const baseMrr = before.eopMrr;
+      const endMrr = endRow && endRow.active ? endRow.eopMrr || 0 : 0;
+      const elapsed = monthDiff(month, end) + 1;
+      const expected = baseMrr * rate * elapsed;
+      // Contribution on the MRR above the pre-event level, month by month,
+      // at the share that month's contribution is of its revenue.
+      let extra = 0;
+      let extraContribution = 0;
+      for (let k = 0; k < elapsed; k += 1) {
+        const mo = monthAdd(month, k);
+        const row = months.get(mo);
+        const add = row && row.active ? Math.max(0, (row.eopMrr || 0) - baseMrr) : 0;
+        if (!add) continue;
+        extra += add;
+        const cr = contribOf.get(m.id) && contribOf.get(m.id).get(mo);
+        if (cr && cr.revenue > 0) extraContribution += add * (cr.contribution / cr.revenue);
+      }
+      seen.set(m.id, { id: m.id, name: m.name, url: m.url, how: m.how, conversion: r.conversion,
+        upsellForm: /upsell/i.test(r.conversion), baseMrr, endMrr, endMonth: endRow ? endRow.month : end,
+        added: endMrr - baseMrr, expected, extra, extraContribution, elapsed,
+        windowDone: monthDiff(month, last) >= WIN_WINDOW_MONTHS });
+    }
+    const list = [...seen.values()].sort((a, b) => b.added - a.added);
+    if (!list.length) continue;
+    const grew = list.filter(x => x.added > 0);
+    const added = grew.reduce((t, x) => t + x.added, 0);
+    const expected = grew.reduce((t, x) => t + x.expected, 0);
+    // Credited: the share of the contribution on the increase that beats the
+    // book's drift.
+    const credited = grew.reduce((t, x) => t + x.extraContribution * Math.max(0, x.added - x.expected) / x.added, 0);
+    events.push({ label: ev.label, source: ev.source, month, existing: list.length,
+      upsellForm: list.filter(x => x.upsellForm).length, grew: grew.length,
+      fell: list.filter(x => x.added < 0).length, added, expected, credited,
+      windowDone: monthDiff(month, last) >= WIN_WINDOW_MONTHS, rows: list });
+  }
+  const out = { rate, events, byLabel: new Map(events.map(e => [e.label, e])) };
+  upsellCache.set(data, { roi, out });
+  return out;
+}
+
 // Setters and deal owners, from the event lead rows. booked_by is who got
 // the demo agreed; demoed_by is the deal's owner, the closest the data has
 // to who ran it (there is no AE field). Leads with no setter recorded are

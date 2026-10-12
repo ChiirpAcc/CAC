@@ -16,7 +16,7 @@ import {
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
-  stripeByCompany, cameFromElsewhere, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
+  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4264,6 +4264,7 @@ const STATE_LABEL = Object.fromEntries(LEAD_STATES.map(s => [s.key, s.label]));
 function renderEventAttribution() {
   if (!$('event-attribution-table')) return;
   const f = eventFunnel(data);
+  const upsellBy = (eventUpsells(data) || { byLabel: new Map() }).byLabel;
   const fig = $('fig-event-attribution');
   if (!f) {
     $('event-attribution-finding').innerHTML = 'The Event Leads tab is not in this push, so there is nothing to attribute yet. '
@@ -4285,14 +4286,18 @@ function renderEventAttribution() {
   $('event-attribution-table').innerHTML =
     '<thead><tr><th>Event</th><th class="n">New leads</th><th class="n">Re-engaged</th><th class="n">Tagged, not counted</th>'
     + '<th class="n">Booked</th><th class="n">Sat (a deal)</th><th class="n">Won</th><th class="n">Sat to won</th>'
-    + '<th class="n">Won deal amount</th></tr></thead><tbody>'
+    + '<th class="n">Won deal amount</th><th class="n">Upsells</th></tr></thead><tbody>'
     + f.events.map(e => `<tr><td>${e.event ? `<a href="${eventHref(e.label)}">${e.label}</a>` : e.label}`
       + `<br><span class="muted">${e.dated ? (e.eventDate || '') : 'undated: every tagged contact, before or after'}</span></td>`
       + `<td class="n">${e.dated ? fmt.int(e.produced) : `${fmt.int(e.tagged)}<br><span class="muted">all tagged</span>`}</td>`
       + `<td class="n">${e.dated ? fmt.int(e.reengaged) : '–'}</td>`
       + `<td class="n">${e.dated ? (e.earlier ? `<span class="${e.earlier > e.produced ? 'notviable' : ''}">${fmt.int(e.earlier)}</span>` : '0') : '–'}</td>`
       + rateCell(e.booked) + rateCell(e.sat) + rateCell(e.won) + rateCell(e.satToWon)
-      + `<td class="n">${money(e.wonDealAmount)}${e.wonDealAmount ? '<br><span class="muted">deal amount, est.</span>' : ''}</td></tr>`).join('')
+      + `<td class="n">${money(e.wonDealAmount)}${e.wonDealAmount ? '<br><span class="muted">deal amount, est.</span>' : ''}</td>`
+      + (() => { const up = upsellBy.get(e.label); return `<td class="n">${!up ? '–' : up.grew
+        ? `+${fmt.money(up.added)}/mo<br><span class="muted">${fmt.int(up.grew)} of ${fmt.int(up.existing)} existing</span>`
+        : `0<br><span class="muted">${fmt.int(up.existing)} existing${up.windowDone ? '' : ', window open'}</span>`}</td>`; })()
+      + '</tr>').join('')
     + '</tbody>';
   $('event-attribution-note').textContent =
     'From the Event Leads tab, one row per contact tagged to an event. New leads are contacts created on or after the '
@@ -4646,6 +4651,38 @@ function stripeCell(r, byCompany) {
   return url && r.stripeId ? extLink(url, r.stripeId) : url ? extLink(url, 'customer') : '<span class="muted">–</span>';
 }
 
+// Upsells: existing customers who came through the event's own form or link,
+// and what their MRR did over the win window. Beside the return, not in it.
+function eventUpsellPanel(e, roi) {
+  const u = eventUpsells(data, roi);
+  const x = u && u.byLabel.get(e.label);
+  if (!x) return '';
+  const money = v => fmt.money(v);
+  const rows = x.rows.map(r => `<tr><td>${extLink(r.url, r.name || r.id)}<br><span class="muted">matched on `
+      + `${r.how === 'name' ? 'company name' : 'part of the company name'}</span></td>`
+    + `<td>${r.conversion.replace(/^Meetings Link:\s*/i, 'meetings link ').slice(0, 60)}${r.upsellForm ? '<br><span class="pos">an upsell form</span>' : ''}</td>`
+    + `<td class="n">${money(r.baseMrr)}</td><td class="n">${money(r.endMrr)}<br><span class="muted">${fmt.monthLabel(r.endMonth)}</span></td>`
+    + `<td class="n"><span class="${r.added > 0 ? 'pos' : r.added < 0 ? 'neg' : ''}">${r.added > 0 ? '+' : r.added < 0 ? '−' : ''}${money(Math.abs(r.added))}</span></td>`
+    + `<td class="n">${r.added > 0 ? money(r.expected) : '–'}</td>`
+    + `<td class="n">${r.added > 0 ? money(r.extraContribution) : '–'}</td></tr>`).join('');
+  return `<section class="ev-panel"><h3>Upsells</h3>`
+    + `<p class="ev-note"><strong>${fmt.int(x.existing)} existing customer${x.existing === 1 ? '' : 's'} came through the event\u2019s own `
+    + `form or link${x.upsellForm ? `, ${fmt.int(x.upsellForm)} through an upsell form` : ''}.</strong> `
+    + (x.grew ? `${fmt.int(x.grew)} pay more ${x.windowDone ? `${WIN_WINDOW_MONTHS} months on` : 'so far'}: +${money(x.added)} a month, `
+      + `against ${money(x.expected)} the book\u2019s usual expansion (${fmt.pct(u.rate, 1)} a month) would have added. `
+      + `The contribution on the increase above that is ${money(x.credited)}. ` : 'None pays more yet. ')
+    + (x.fell ? `${fmt.int(x.fell)} pay${x.fell === 1 ? 's' : ''} less or left. ` : '')
+    + (x.windowDone ? '' : `The ${WIN_WINDOW_MONTHS}-month window is still open. `)
+    + `</p><div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>Came through</th>`
+    + `<th class="n">MRR before</th><th class="n">MRR at the window\u2019s end</th><th class="n">Change</th>`
+    + `<th class="n">Expected anyway</th><th class="n">Contribution on the increase</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    + `<p class="ev-note">An upsell needs an existing customer (paying the month before the event) whose contact came in `
+    + `through a form or meetings link named for the event; a tag alone is not enough. The increase is measured from the `
+    + `month before the event to ${WIN_WINDOW_MONTHS} months after it, and only the part above the book\u2019s usual expansion is `
+    + `credited. It is shown beside the event\u2019s return, not added to it. Companies are matched to Stripe by name until the `
+    + `leads carry a Stripe id.</p></section>`;
+}
+
 // One event's leads from the Event Leads tab: the funnel, then each lead.
 function eventLeadsPanel(e) {
   const f = eventFunnel(data);
@@ -4784,7 +4821,10 @@ function renderEventPage(label) {
         c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')
       : kpi('Cost', money(e.spend)))
       + kpi('Contribution', money(e.contribution), `${money(e.collected)} collected`)
-      + kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), '', e.costState === 'absent' ? '' : tone(e.net))
+      + kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), (() => {
+        const up = (eventUpsells(data, r.roi) || { byLabel: new Map() }).byLabel.get(e.label);
+        return up && up.credited && e.net !== null ? `${signed(e.net + up.credited)} with upsells` : '';
+      })(), e.costState === 'absent' ? '' : tone(e.net))
       + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', '', pb ? tone(pb.roiToDate) : '')
       + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12Projected ? 'projected' : 'actual', pb ? tone(pb.roi12) : '')
       + kpi('Customers', int(e.paid), `${int(e.liveNow)} still live · ${money(e.mrrNow)} MRR`
@@ -4917,6 +4957,7 @@ function renderEventPage(label) {
         + `loaded list, so the tagged total describes a file, not leads the event generated; the new leads above are what it `
         + `produced.</p>` : '') + `</section>` : '')
     + eventLeadsPanel(e)
+    + eventUpsellPanel(e, r.roi)
     + confidencePanel(evConf, 'this result', e.paid
       ? 'Nothing in the inputs lowers it: the cost is recorded, the event is dated, and most of its customers were closed by its own deals.'
       : 'Nothing in the inputs lowers it: the cost is recorded. No customer is credited to it yet, so there is no attribution to check.')
