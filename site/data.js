@@ -803,6 +803,12 @@ export async function load() {
         company: String(r.company ?? '').trim() || null,
         created: isoDay(r.created),
         afterEvent: yesNo(r.after_the_event),
+        // hs-v84: how the contact arrived (list, form fill, booked a meeting,
+        // rep added, chat, booth scan, swept in) and the conversion that
+        // brought them, such as an event's meetings link. A meeting booked
+        // through the event's own link counts as arriving at it.
+        arrivedAs: String(r.arrived_as ?? '').trim() || null,
+        conversion: String(r.conversion ?? '').trim() || null,
         bookedBy: person(r.booked_by),
         demoedBy: person(r.demoed_by),
         dealCreated: isoDay(r.deal_created),

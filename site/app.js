@@ -4648,10 +4648,11 @@ function eventLeadsPanel(e) {
       + `won ${rateCell(ev.won, { cell: false }).replace('<br>', ' ')}.</p>`
     + `<div class="ev-facts">${states}</div>`
     + (rows.length ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr>${withCompany ? '<th>Company</th>' : ''}`
-    + `<th>Arrived</th><th>Deal opened</th><th>Where it stands</th>`
+    + `<th>Arrived</th><th>How</th><th>Deal opened</th><th>Where it stands</th>`
     + `<th>Setter</th><th>Deal owner</th><th class="n">Deal amount</th></tr></thead><tbody>`
     + shown.map(r => `<tr${r.state === 'earlier' || r.state === 'predates' ? ' class="muted"' : ''}>${withCompany ? `<td>${r.company || '<span class="muted">no company</span>'}</td>` : ''}`
-      + `<td>${r.created || '–'}</td><td>${r.dealCreated || '–'}</td><td>${STATE_LABEL[r.state]}${reengaged(r) ? '<br><span class="muted">re-engaged</span>' : ''}</td>`
+      + `<td>${r.created || '–'}</td><td>${r.arrivedAs || '–'}${r.conversion ? `<br><span class="muted">${r.conversion.replace(/^Meetings Link:\s*/i, 'meetings link ').slice(0, 48)}</span>` : ''}</td>`
+      + `<td>${r.dealCreated || '–'}</td><td>${STATE_LABEL[r.state]}${reengaged(r) ? '<br><span class="muted">re-engaged</span>' : ''}</td>`
       + `<td>${personName(r.bookedBy) || '<span class="muted">not recorded</span>'}</td>`
       + `<td>${personName(r.demoedBy) || (r.dealCreated ? '<span class="muted">no owner</span>' : '<span class="muted">no deal</span>')}</td>`
       + `<td class="n">${r.won === true && r.wonMrr ? fmt.money(r.wonMrr) : '–'}</td></tr>`).join('')
