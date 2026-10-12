@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-12T10:44:05",
+  "pushed_at": "2026-10-12T11:54:42",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -69,7 +69,7 @@
     {
       "tab": "Setters",
       "file": "setters.json",
-      "rows": 233
+      "rows": 330
     },
     {
       "tab": "Event Leads",
@@ -79,7 +79,7 @@
   ],
   "missing_required": [],
   "failed": [],
-  "pull_version": "hs-v82",
+  "pull_version": "hs-v84",
   "row_format": "arrays",
   "pipeline_version": "v169",
   "push_version": "gh-v14"
