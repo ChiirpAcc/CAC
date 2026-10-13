@@ -837,6 +837,8 @@
         <label><input type="radio" name="summary-range" id="summary-all"> Every event</label>
       </div>
     </header>
+    <label class="deal-toggle"><input type="checkbox" id="summary-deal-only"> <span><strong>Deal attribution only</strong> &middot;
+      credit an event only with customers whose won deal names it (last touch on the deal)</span></label>
     <p class="summary-lede" id="summary-lede"></p>
     <div class="summary-kpis" id="summary-kpis"></div>
     <div class="summary-grid">
@@ -890,6 +892,10 @@
       <label><input type="checkbox" id="events-prompt-only"> Count only tags written by the end of
         the month after the event</label>
       <output id="events-prompt-note"></output>
+    </div>
+    <div class="chart-control">
+      <label class="deal-toggle"><input type="checkbox" id="events-deal-only"> <span><strong>Deal attribution only</strong> &middot;
+        credit an event only with customers whose won deal names it (last touch on the deal)</span></label>
     </div>
     <div class="chart-control">
       <label for="events-credit">Credit an event with</label>

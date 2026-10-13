@@ -4432,7 +4432,8 @@ function renderEventChecks(f) {
 function renderSummary() {
   if (!$('summary-kpis')) return;
   const last12 = !$('summary-all') || !$('summary-all').checked;
-  const o = eventsOverview(data, last12 ? { from: monthAdd(data.lastMonth, -11) } : {});
+  const creditRule = eventCreditRule();
+  const o = eventsOverview(data, { ...(last12 ? { from: monthAdd(data.lastMonth, -11) } : {}), creditRule });
   const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
   const signed = v => (v === null || v === undefined ? '–' : (v < 0 ? '−' : '+') + fmt.money(Math.abs(v)));
   const pct = v => (v === null || v === undefined ? '–' : (v < 0 ? '−' : '+') + fmt.pct(Math.abs(v), 0));
@@ -4501,16 +4502,54 @@ function renderSummary() {
       + o.ahead.map(a => `<tr><td><a href="#event=${encodeURIComponent(a.label)}">${a.label}</a></td><td>${a.month ? fmt.monthLabel(a.month) : '–'}</td>`
         + `<td class="n">${a.committed ? money(a.committed) : '<span class="muted">fee not set</span>'}${a.committed && !a.feeKnown ? '<br><span class="muted">travel only so far</span>' : ''}</td></tr>`).join('')
       + `<tr class="total-row"><td><strong>Total committed</strong></td><td></td><td class="n"><strong>${money(o.ahead.reduce((x, a) => x + a.committed, 0))}</strong></td></tr></tbody>`;
-  $('summary-note').textContent = `Revenue is what Stripe billed; cost is QuickBooks. A customer counts for an event only if they `
-    + `first paid within six months of it and nothing else won them; ${fmt.int(o.direct)} of the ${fmt.int(o.customers)} were won by `
-    + `the event\u2019s own deal. Figures are a floor: a customer an event brought who was never tagged in HubSpot is not counted. `
+  $('summary-note').textContent = `Revenue is what Stripe billed; cost is QuickBooks. ` + (creditRule === 'deal'
+    ? `Deal attribution only: a customer counts for an event only if their won deal names it.`
+    : `A customer counts for an event only if they first paid within six months of it and nothing else won them; `
+      + `${fmt.int(o.direct)} of the ${fmt.int(o.customers)} were won by the event\u2019s own deal.`) + ` Figures are a floor: a customer an event brought who was never tagged in HubSpot is not counted. `
     + `${o.settling ? `${fmt.int(o.settling)} recent event${o.settling === 1 ? '\u2019s' : 's\u2019'} costs are still settling. ` : ''}`
     + 'The Events tab has every event in detail.';
   if (!renderSummary.ready) {
     for (const id of ['summary-last12', 'summary-all']) if ($(id)) $(id).addEventListener('change', () => renderSummary());
     renderSummary.ready = true;
   }
+  if ($('summary-deal-only')) $('summary-deal-only').checked = dealOnlyNow();
 }
+
+// Deal attribution only (Josh, 13 Oct 2026): one switch, shared by the Events
+// tab, every event page and the Events summary, that credits an event only
+// with customers whose won deal names it: last touch on the deal. Kept in
+// the browser so it holds across pages.
+const DEAL_ONLY_KEY = 'cac-events-deal-only';
+let dealOnlyHere = null;
+function dealOnlyNow() {
+  if (dealOnlyHere !== null) return dealOnlyHere;
+  try { dealOnlyHere = localStorage.getItem(DEAL_ONLY_KEY) === '1'; } catch (err) { dealOnlyHere = false; }
+  return dealOnlyHere;
+}
+function setDealOnly(on) {
+  dealOnlyHere = on;
+  try { localStorage.setItem(DEAL_ONLY_KEY, on ? '1' : '0'); } catch (err) { /* private window: this visit only */ }
+}
+const eventCreditRule = () => (dealOnlyNow() ? 'deal'
+  : ($('events-credit') && $('events-credit').value) || DEFAULT_CREDIT_RULE);
+function dealToggle(id) {
+  return `<label class="deal-toggle"><input type="checkbox" id="${id}"${dealOnlyNow() ? ' checked' : ''}> `
+    + `<span><strong>Deal attribution only</strong> \u00b7 credit an event only with customers whose won deal names it `
+    + `(last touch on the deal)</span></label>`;
+}
+// Any of the three switches flips the shared one and redraws what is showing.
+const DEAL_TOGGLES = ['events-deal-only', 'summary-deal-only', 'event-deal-only'];
+document.addEventListener('change', ev => {
+  const el = ev.target;
+  if (!el || !DEAL_TOGGLES.includes(el.id)) return;
+  setDealOnly(el.checked);
+  for (const other of DEAL_TOGGLES) if ($(other)) $(other).checked = el.checked;
+  if ($('events-credit')) $('events-credit').disabled = el.checked;
+  const hash = decodeURIComponent(location.hash || '');
+  if (hash.startsWith('#event=')) renderEventPage(hash.slice(7));
+  else if (hash.startsWith('#summary')) renderSummary();
+  else renderEvents();
+});
 
 // Proof of an event's cost: the fee as the Event Hub records it, and every
 // card charge matched to the event, grouped by who paid and in date order,
@@ -5186,7 +5225,9 @@ function renderEventPage(label) {
   const box = $('event-page');
   if (!box) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
-  const creditRule = ($('events-credit') && $('events-credit').value) || DEFAULT_CREDIT_RULE;
+  const creditRule = eventCreditRule();
+  if ($('events-deal-only')) $('events-deal-only').checked = dealOnlyNow();
+  if ($('events-credit')) $('events-credit').disabled = dealOnlyNow();
   const touch = ($('events-touch') && $('events-touch').value) || 'last';
   const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule, touch });
   const e = r ? r.roi.events.find(x => x.label === label) : null;
@@ -5385,6 +5426,7 @@ function renderEventPage(label) {
 
   box.innerHTML =
     `<a href="#events" class="ev-back">All events</a>`
+    + dealToggle('event-deal-only')
     + `<header class="ev-hero"><h2>${e.label}</h2><div class="ev-chips">${chips}</div>`
     + (e.source ? `<p class="ev-source">HubSpot source: ${e.source}</p>` : '') + `</header>`
     + `<div class="ev-kpis ev-kpis-head">${headCards}</div>`
@@ -5468,7 +5510,9 @@ function renderEventPage(label) {
 function renderEvents() {
   if (!$('chart-events')) return;
   const promptOnly = Boolean($('events-prompt-only') && $('events-prompt-only').checked);
-  const creditRule = ($('events-credit') && $('events-credit').value) || DEFAULT_CREDIT_RULE;
+  const creditRule = eventCreditRule();
+  if ($('events-deal-only')) $('events-deal-only').checked = dealOnlyNow();
+  if ($('events-credit')) $('events-credit').disabled = dealOnlyNow();
   const touch = ($('events-touch') && $('events-touch').value) || 'last';
   const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule, touch });
   for (const id of ['events-credit', 'events-touch']) {

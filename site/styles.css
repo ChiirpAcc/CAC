@@ -1251,3 +1251,9 @@ span.pos { color: var(--series-pos); }
 .proof-review { margin-top: 10px; font-size: 0.9rem; }
 .proof-review summary { cursor: pointer; color: var(--ink-mid); }
 .proof-review ul { margin: 8px 0 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+
+/* Deal attribution only: one switch on the Events tab, event pages and summary. */
+.deal-toggle { display: inline-flex; gap: 8px; align-items: flex-start; padding: 6px 10px; margin: 6px 0;
+  border: 1px solid var(--rule, #ddd); border-radius: 8px; background: var(--surface-sunk); font-size: 0.9rem; cursor: pointer; }
+.deal-toggle input { margin-top: 3px; }
+.deal-toggle:has(input:checked) { border-color: var(--series-1); }

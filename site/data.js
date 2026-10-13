@@ -4089,7 +4089,11 @@ export const companyKey = t => String(t || '').toLowerCase().replace(/&/g, ' and
 // and sold the next summer (Rhoden Roofing: Pantheon 2025, first paid June
 // 2026) was not won by the event (Josh, 12 Oct 2026). Of customers the
 // event's own deal won, 95% first paid within six months.
-export const CREDIT_RULES = ['all', 'record', 'within3', 'within6', 'won', 'won6', 'direct'];
+// 'deal' is last touch on the deal: an event is credited only with the
+// customers whose won deal names it, whatever the contact or company was
+// tagged, and with no window (Josh, 13 Oct 2026). A customer with no won deal
+// naming an event is credited to none.
+export const CREDIT_RULES = ['all', 'record', 'within3', 'within6', 'won', 'won6', 'direct', 'deal'];
 export const WIN_WINDOW_MONTHS = 6;
 // The rule every figure uses unless a reader picks another (12 Oct 2026):
 // another source's won deal, or a first payment after the window, leaves a
@@ -4230,6 +4234,18 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       const wonCan = fp >= mw && monthDiff(mw, fp) <= WIN_WINDOW_MONTHS;
       if (tagCan || !wonCan) continue;
       sourceOf.set(id, w);
+      tagOf.set(id, w);
+      creditOf.set(id, 'direct');
+    }
+  }
+  // Last touch on the deal: every customer whose won deal names an event is
+  // read as that event's, tagged or not.
+  if (creditRule === 'deal') {
+    for (const [id, won] of wonDealOf) {
+      const w = mergeSource(won);
+      if (leadMediumOf(w, 'event') !== 'event') continue;
+      sourceOf.set(id, w);
+      mediumOf.set(id, 'event');
       tagOf.set(id, w);
       creditOf.set(id, 'direct');
     }
@@ -4477,6 +4493,11 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
             if (set && (set.slice(0, 7) > monthAdd(fromMonth, 1) || listDayOf(b.source, set))) return false;
           }
           return true;
+        }
+        if (creditRule === 'deal') {
+          const fp = firstRevenueOf.get(id);
+          if (fp && fp < fromMonth && !isWinback(id, fromMonth)) return true; // already paying: decided below
+          return wonDealOf.has(id) && sameEvent(mergeSource(wonDealOf.get(id)));
         }
         if (creditRule === 'direct') {
           // Already paying and never paid are decided below, as for every rule.
@@ -5968,8 +5989,8 @@ export function eventAuditRows(data) {
 // a roll-up of the same event figures the Events tab shows, over a range of
 // event months. Revenue is Stripe's, cost is QuickBooks', and the funnel is
 // the Event Leads funnel; nothing is computed a second way here.
-export function eventsOverview(data, { from = null, to = null } = {}) {
-  const r = eventReports(data);
+export function eventsOverview(data, { from = null, to = null, creditRule = DEFAULT_CREDIT_RULE } = {}) {
+  const r = eventReports(data, { creditRule });
   const roi = r.roi;
   const last = data.lastMonth;
   const lo = from || '0000-00';

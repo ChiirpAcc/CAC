@@ -69,6 +69,13 @@ never the event's.
    list follow-up wins as their own line. Once HubSpot carries `List Source`,
    lists are named by it rather than told apart by how they were imported.
 
+**Switch: Deal attribution only (rule `deal`).** On the Events tab, every
+event page and the Events summary, one switch credits an event only with
+customers whose won deal's lead source names it: last touch on the deal. The
+contact's or company's tag is ignored, there is no window, and a customer
+whose won deal names no event is credited to none. The default rule above
+stays the figure of record; the audit runs on it.
+
 ### 1.4 Upsells
 
 - An existing customer (paying the month before the event) whose contact came
