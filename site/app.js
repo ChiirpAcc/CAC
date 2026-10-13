@@ -4469,7 +4469,10 @@ function renderSummary() {
   const step = (label, n, of) => `<div class="funnel-step"><div class="funnel-bar" style="width:${Math.max(4, fu.leads ? (n / fu.leads) * 100 : 0).toFixed(1)}%"></div>`
     + `<span class="funnel-label">${label}</span><span class="funnel-value">${fmt.int(n)}</span>`
     + `<span class="funnel-rate">${of ? `${fmt.pct(of ? n / of : 0, 0)} of the step before` : ''}</span></div>`;
-  $('summary-funnel').innerHTML = step('Leads', fu.leads, null) + step('Demos', fu.demos, fu.leads) + step('Sales', fu.sales, fu.demos);
+  $('summary-funnel').innerHTML = step('Leads', fu.leads, null) + step('Demos', fu.demos, fu.leads) + step('Sales', fu.sales, fu.demos)
+    + (fu.listLoaded ? `<p class="funnel-aside"><strong>Beside it, not in it:</strong> organisers’ lists added ${fmt.int(fu.listLoaded)} `
+      + `contacts after these events, and ${fmt.int(fu.listWon)} of them later won. The booth earned the leads above; a list is a file `
+      + `the organiser handed over, so its wins are shown here and kept out of each event’s return.</p>` : '');
   // Best and worst.
   const r = o.ranked;
   const pick = r.length > 10 ? [...r.slice(0, 5), ...r.slice(-5)] : r;

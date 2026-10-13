@@ -62,6 +62,13 @@ never the event's.
    that event as direct. A partner or webinar that came first keeps its
    customer.
 
+6. **Organisers' lists sit beside the event, never in its return** (decided 13 Oct
+   2026). A contact who arrived in a list the organiser handed over is not
+   the event's lead, and a later win from it is not the event's win unless
+   that won deal names the event. The Events summary and each event page show
+   list follow-up wins as their own line. Once HubSpot carries `List Source`,
+   lists are named by it rather than told apart by how they were imported.
+
 ### 1.4 Upsells
 
 - An existing customer (paying the month before the event) whose contact came

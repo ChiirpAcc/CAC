@@ -6009,7 +6009,11 @@ export function eventsOverview(data, { from = null, to = null } = {}) {
   const labels = new Set(ran.map(e => e.label));
   const fe = f ? f.events.filter(x => labels.has(x.label)) : [];
   const funnel = { leads: fe.reduce((t, x) => t + x.base, 0), demos: fe.reduce((t, x) => t + x.sat.n, 0),
-    sales: fe.reduce((t, x) => t + x.won.n, 0) };
+    sales: fe.reduce((t, x) => t + x.won.n, 0),
+    // Organisers' lists loaded after the event: shown beside it, never in its
+    // return (decided 13 Oct 2026).
+    listLoaded: fe.reduce((t, x) => t + (x.loaded ? x.loaded.n : 0), 0),
+    listWon: fe.reduce((t, x) => t + (x.loaded ? x.loaded.won : 0), 0) };
   // Cumulative spend and contribution by calendar month.
   const spendBy = new Map();
   for (const e of ran) spendBy.set(e.month, (spendBy.get(e.month) || 0) + e.spend);

@@ -1234,3 +1234,4 @@ html { scroll-behavior: smooth; }
 .kind-bar.pos { background: var(--series-pos); }
 span.neg { color: var(--series-neg); }
 span.pos { color: var(--series-pos); }
+.funnel-aside { font-size: 0.9rem; color: var(--ink-mid); border-top: 1px solid var(--rule); padding-top: 10px; margin: 0; }
