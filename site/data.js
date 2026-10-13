@@ -4060,6 +4060,10 @@ export const HUBSPOT_USER_NAMES = {
   162436241: 'Benjamin Clawson',
   162436285: 'Glenn Dickman',
   160248815: 'Tavi Carvajal',
+  81136863: 'Jared Walker',
+  654125224: 'Chelsea Allred',
+  78970364: 'Jared Hunsaker',
+  80228467: 'Mike Harper',
 };
 
 export const WINBACK_GAP = 3;
