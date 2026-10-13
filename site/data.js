@@ -4052,7 +4052,14 @@ export const eventHasReturn = e => e.spend > 0 && Boolean(e.month) && !e.upcomin
 // returns no name for a deactivated user, so the pull sends the id.
 export const HUBSPOT_USER_NAMES = {
   629850185: 'Parker Joos', // a salesperson who has left; 115 event deals
-  160676359: 'Danielle', // has left (Josh, 13 Oct 2026); last name not given
+  // Inactive HubSpot users, named by Josh on 13 Oct 2026.
+  160676359: 'Danielle Cheesman',
+  160784066: 'Jackson Tolman',
+  160422039: 'James Goff',
+  161026299: 'Nick Bright',
+  162436241: 'Benjamin Clawson',
+  162436285: 'Glenn Dickman',
+  160248815: 'Tavi Carvajal',
 };
 
 export const WINBACK_GAP = 3;
