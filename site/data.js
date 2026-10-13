@@ -842,6 +842,9 @@ export async function load() {
         // Decker)") when a meeting followed (a deal opened). Blank where
         // nothing names anyone (Josh, 13 Oct 2026).
         setterFromForm: setterNamedIn(r.conversion),
+        // The source the lead's won deal names, where HubSpot was checked
+        // live and Stripe cannot say (no payment yet).
+        wonDealSource: mergeSource(HUBSPOT_WON_DEAL_BY_COMPANY[String(r.company_id ?? '').trim()] || null),
         readAs: String(r['read this as'] ?? '').trim() || null,
       }))
     : null;
@@ -4184,6 +4187,23 @@ export function setterNamedIn(conversion) {
 }
 export const setterOf = r => r.bookedBy || (r.setterFromForm && r.dealCreated ? r.setterFromForm : null);
 
+// The Sub Lead Source on the won deal of event leads that have not paid in
+// Stripe, so the waterfall cannot say which source won them; from a live
+// HubSpot check on 13 Oct 2026, keyed by HubSpot company id. Bold City's
+// deal names Leap Marketing, not Pantheon 2026, so its win is not the
+// event's. Superseded by the push once Event Leads carries the deal's source.
+export const HUBSPOT_WON_DEAL_BY_COMPANY = {
+  25130047783: 'Leap Marketing', // Bold City Heating and Air, won 10 Sep 2026
+  338260898506: '2026 - Home Service Hoorah', // Riverstone Plumbing, won 24 Sep 2026
+  342195185354: '2026 - Home Service Hoorah', // Opus Plumbing and Heating, won 9 Oct 2026
+  176851385051: '2026 - Garage Door Freedom Vertical Track', // Luxor Garage Door, won 19 Jun 2026
+  25134868281: '2026 - Lennox Live - Anaheim', // Midway Heating Company, won 16 Apr 2026
+  25135657321: '2025 - Lennox Live Roadshow', // Lamar Heat & Air, won 16 Mar 2026 (lead tagged Lennox Live New Orleans 2026)
+  229550743239: '2025 - LB Roofing Process Conference', // Big Time Roofing and Gutters, won 31 Dec 2025
+  229126584035: '2025 - LB Roofing Process Conference', // LGM Roofing, won 14 Jan 2026
+  171537775330: '2025 - The Wealthy Plumber Hoorah', // Charlotte Plumbing, won 3 Dec 2025
+};
+
 export const HUBSPOT_USER_NAMES = {
   629850185: 'Parker Joos', // a salesperson who has left; 115 event deals
   // Inactive HubSpot users, named by Josh on 13 Oct 2026.
@@ -5692,7 +5712,8 @@ export function reengaged(r) {
   // Before the event, the event's own form or link names it; so does a won
   // deal tagged to it (Riverstone Plumbing, Hoorah 2026: deal opened 20 days
   // before through a webinar, won as a Hoorah deal; Josh, 13 Oct 2026).
-  return days >= -REENGAGE_BEFORE_DAYS && (conversionNamesEvent(r) || r.won === true);
+  return days >= -REENGAGE_BEFORE_DAYS && (conversionNamesEvent(r) || (r.won === true
+    && (!r.wonDealSource || conversionNamesEvent({ source: r.source, conversion: r.wonDealSource }))));
 }
 // A contact that arrived in a loaded file is not a lead the event produced,
 // however soon after it the file was loaded: Pantheon 2025's attendee list of
@@ -5755,8 +5776,9 @@ export function eventFunnel(data, roi = eventRoi(data)) {
     // Pantheon 2025: won through Powerhouse Consulting).
     // Every won row is checked, an undated event's included.
     const xw = r.won === true && r.company ? (x || byCompany(r.company)) : null;
-    if (xw && xw.wonDealSource && !conversionNamesEvent({ source: r.source, conversion: mergeSource(xw.wonDealSource) })) {
-      row.wonThrough = xw.wonDealSource;
+    const wonSrc = (xw && xw.wonDealSource) || (r.won === true ? r.wonDealSource : null);
+    if (wonSrc && !conversionNamesEvent({ source: r.source, conversion: mergeSource(wonSrc) })) {
+      row.wonThrough = wonSrc;
       if (row.state === 'won') row.state = 'wonElsewhere';
     }
     bySource.get(r.source).push(row);
