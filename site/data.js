@@ -3639,6 +3639,18 @@ export const EVENT_TRAVEL_DECISIONS = {
   'Home Service Hoorah 2026': { was: 5812, now: 2360.45,
     evidence: 'Ryan Fenn\'s $3,451.73 (a Delta flight, a Hilton Gulf Breeze stay, a rental car, meals) is not '
       + 'this event\'s: he was not part of the Hoorah team (Josh, 13 Oct 2026).' },
+  // Set to the card charges proven against each event, where the proof finds
+  // more than the tab: bookings made by someone other than the attendee
+  // (Josh, 13 Oct 2026). Each event page lists every charge.
+  'Hardi Annual Conference': { was: 2835, now: 5148.7,
+    evidence: 'QuickBooks card charges matched to the event: 24 charges, including the $3,916.16 Wynn Las Vegas '
+      + 'booking Alicia Schmaling made for the team.' },
+  'Goettl Training': { was: 2485, now: 4385.4,
+    evidence: 'QuickBooks card charges matched to the event: 14 charges, including the flights and Tempe hotel '
+      + 'rooms Alicia Schmaling booked for Justin Judd, Tavi Carvajal and Jared Hunsaker.' },
+  'RynoX 2026': { was: 2850, now: 3897.96,
+    evidence: 'QuickBooks card charges matched to the event: 21 charges for Justin Judd, Ryan Fenn and Garret '
+      + 'Clarke, whose Phoenix flights and hotel are dated in their Ramp memos.' },
 };
 
 // Any table keyed by event name is read by the name, or failing that by the
