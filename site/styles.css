@@ -1209,3 +1209,28 @@ html { scroll-behavior: smooth; }
 /* The quarter headline person, and total rows in the Sales tables. */
 .row-featured td { background: var(--surface-sunk); font-weight: 600; }
 .total-row td { border-top: 1px solid var(--rule-strong); }
+
+/* Events summary: an executive's first look. */
+.summary-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; }
+.summary-lede { font-size: 1.1rem; line-height: 1.55; max-width: 68ch; margin: 0 0 18px; }
+.summary-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.summary-kpi { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.summary-kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.summary-kpi-value { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.summary-kpi-sub { font-size: 0.85rem; color: var(--ink-mid); }
+.summary-kpi.neg .summary-kpi-value { color: var(--series-neg); }
+.summary-kpi.pos .summary-kpi-value { color: var(--series-pos); }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.summary-grid > figure { min-width: 0; margin: 0; }
+.summary-funnel { display: flex; flex-direction: column; gap: 14px; padding-block: 8px; }
+.funnel-step { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 4px 12px; align-items: baseline; }
+.funnel-bar { grid-column: 1 / -1; height: 26px; border-radius: 4px; background: var(--series-1); }
+.funnel-label { font-weight: 600; }
+.funnel-value { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.funnel-rate { grid-column: 1 / -1; font-size: 0.85rem; color: var(--ink-soft); }
+.kind-net { display: flex; align-items: center; gap: 8px; min-width: 160px; }
+.kind-bar { display: inline-block; height: 10px; border-radius: 3px; max-width: 90px; flex: 0 0 auto; }
+.kind-bar.neg { background: var(--series-neg); }
+.kind-bar.pos { background: var(--series-pos); }
+span.neg { color: var(--series-neg); }
+span.pos { color: var(--series-pos); }

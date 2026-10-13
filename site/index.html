@@ -40,6 +40,7 @@
   <nav class="wrap tabs" role="tablist" aria-label="Views">
     <button id="tab-all" role="tab" aria-selected="true" aria-controls="view-all">Every chart</button>
     <button id="tab-list" role="tab" aria-selected="false" aria-controls="view-list">Upgrade list</button>
+    <button id="tab-summary" role="tab" aria-selected="false" aria-controls="view-summary">Events summary</button>
     <button id="tab-events" role="tab" aria-selected="false" aria-controls="view-events">Events</button>
     <button id="tab-marketing" role="tab" aria-selected="false" aria-controls="view-marketing">Marketing</button>
     <button id="tab-sales" role="tab" aria-selected="false" aria-controls="view-sales">Sales</button>
@@ -827,6 +828,46 @@
   </section>
 
   </div><!-- view-all -->
+
+  <section id="view-summary" class="wrap" hidden>
+    <header class="story-head summary-head">
+      <h2>Events summary</h2>
+      <div class="view-toggle" role="radiogroup" aria-label="Period">
+        <label><input type="radio" name="summary-range" id="summary-last12" checked> Last 12 months</label>
+        <label><input type="radio" name="summary-range" id="summary-all"> Every event</label>
+      </div>
+    </header>
+    <p class="summary-lede" id="summary-lede"></p>
+    <div class="summary-kpis" id="summary-kpis"></div>
+    <div class="summary-grid">
+      <figure class="card">
+        <figcaption><h3>Spent against earned back, cumulative</h3></figcaption>
+        <div class="plot" id="summary-curve"></div>
+        <p class="note" id="summary-curve-note"></p>
+      </figure>
+      <figure class="card">
+        <figcaption><h3>From lead to sale</h3></figcaption>
+        <div class="summary-funnel" id="summary-funnel"></div>
+        <p class="note">Leads are new contacts each event produced, and existing ones whose deal it re-engaged; loaded lists
+          and back-tagged contacts are left out. A demo is a deal opened; a sale is a won deal Stripe agrees with.</p>
+      </figure>
+    </div>
+    <div class="summary-grid">
+      <figure class="card">
+        <figcaption><h3>Best and worst events, net of cost so far</h3></figcaption>
+        <div class="plot" id="summary-best"></div>
+      </figure>
+      <figure class="card">
+        <figcaption><h3>By kind of event</h3></figcaption>
+        <div class="table-scroll"><table class="data-table" id="summary-kinds"></table></div>
+      </figure>
+    </div>
+    <figure class="card wide">
+      <figcaption><h3>Committed next</h3></figcaption>
+      <div class="table-scroll"><table class="data-table" id="summary-ahead"></table></div>
+    </figure>
+    <p class="note" id="summary-note"></p>
+  </section>
 
   <section id="view-events" class="wrap" hidden>
     <p class="finding negative" id="events-hubspot-notice" hidden></p>

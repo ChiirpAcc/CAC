@@ -5964,6 +5964,99 @@ export function eventAuditRows(data) {
   return rows.sort((a, b) => b.month.localeCompare(a.month) || a.label.localeCompare(b.label));
 }
 
+// The events summary for an executive (Events summary tab): every number is
+// a roll-up of the same event figures the Events tab shows, over a range of
+// event months. Revenue is Stripe's, cost is QuickBooks', and the funnel is
+// the Event Leads funnel; nothing is computed a second way here.
+export function eventsOverview(data, { from = null, to = null } = {}) {
+  const r = eventReports(data);
+  const roi = r.roi;
+  const last = data.lastMonth;
+  const lo = from || '0000-00';
+  const hi = to || last;
+  const inRange = e => Boolean(e.month) && e.month >= lo && e.month <= hi;
+  const ran = roi.events.filter(e => e.cost && inRange(e) && !e.upcoming && e.month <= last);
+  const scored = ran.filter(eventHasReturn);
+  const pb = new Map(r.payback.map(p => [p.label, p]));
+  const sum = (list, k) => list.reduce((t, e) => t + (e[k] || 0), 0);
+  const spend = sum(ran, 'spend');
+  const contribution = sum(ran.filter(e => e.contribution !== null), 'contribution');
+  const customers = sum(ran, 'paid');
+  // Twelve months on: actual where an event is a year old, projected (with
+  // its 90% range) where it is not; events still settling included.
+  let at12 = 0, at12Low = 0, at12High = 0, spend12 = 0;
+  for (const e of ran) {
+    const p = pb.get(e.label);
+    if (!p || p.roi12 === null || p.roi12 === undefined) continue;
+    spend12 += e.spend;
+    at12 += e.spend * (1 + p.roi12);
+    const range = p.roi12Range || [p.roi12, p.roi12];
+    at12Low += e.spend * (1 + range[0]);
+    at12High += e.spend * (1 + range[1]);
+  }
+  const paidBack = scored.filter(e => { const p = pb.get(e.label); return p && p.paidAt !== null; });
+  const onTrack = scored.filter(e => { const p = pb.get(e.label); return p && p.paidAt === null && p.projectedAt !== null && p.projectedAt <= 12; });
+  // The company's cost per new customer over the same months, every channel.
+  const months = [];
+  for (let m = lo === '0000-00' ? (ran.map(e => e.month).sort()[0] || last) : lo; m <= hi; m = monthAdd(m, 1)) months.push(m);
+  const started = logosStarted(data);
+  const cacBy = new Map(data.cacMonthly.map(x => [x.month, x.cacTotalActual]));
+  const coMonths = months.filter(m => cacBy.has(m) && started.has(m));
+  const coCost = coMonths.reduce((t, m) => t + (cacBy.get(m) || 0), 0);
+  const coLogos = coMonths.reduce((t, m) => t + (started.get(m) || 0), 0);
+  // Funnel, on the events in range.
+  const f = eventFunnel(data, roi);
+  const labels = new Set(ran.map(e => e.label));
+  const fe = f ? f.events.filter(x => labels.has(x.label)) : [];
+  const funnel = { leads: fe.reduce((t, x) => t + x.base, 0), demos: fe.reduce((t, x) => t + x.sat.n, 0),
+    sales: fe.reduce((t, x) => t + x.won.n, 0) };
+  // Cumulative spend and contribution by calendar month.
+  const spendBy = new Map();
+  for (const e of ran) spendBy.set(e.month, (spendBy.get(e.month) || 0) + e.spend);
+  const contribBy = new Map();
+  for (const e of ran) {
+    const p = pb.get(e.label);
+    if (!p) continue;
+    p.actualPath.forEach((v, k) => {
+      const m = monthAdd(e.month, k);
+      contribBy.set(m, (contribBy.get(m) || 0) + v - (k ? p.actualPath[k - 1] : 0));
+    });
+  }
+  let cs = 0, cc = 0;
+  const timeline = months.map(m => { cs += spendBy.get(m) || 0; cc += contribBy.get(m) || 0; return { month: m, spend: cs, contribution: cc }; });
+  // Winners and losers, events whose cost is final.
+  const ranked = scored.filter(e => e.net !== null).map(e => ({ label: e.label, month: e.month, type: e.type, spend: e.spend,
+    net: e.net, customers: e.paid, roi12: pb.get(e.label) ? pb.get(e.label).roi12 : null }))
+    .sort((a, b) => b.net - a.net);
+  // By kind of event.
+  const kinds = new Map();
+  for (const e of ran) {
+    const k = e.type || 'Not classified';
+    if (!kinds.has(k)) kinds.set(k, { kind: k, events: 0, spend: 0, customers: 0, contribution: 0 });
+    const x = kinds.get(k);
+    x.events += 1; x.spend += e.spend || 0; x.customers += e.paid || 0; x.contribution += e.contribution || 0;
+  }
+  const byKind = [...kinds.values()].map(x => ({ ...x, net: x.contribution - x.spend,
+    perCustomer: x.customers ? x.spend / x.customers : null })).sort((a, b) => b.spend - a.spend);
+  // Committed: events ahead of the data, or still settling.
+  const ahead = roi.events.filter(e => e.cost && (e.upcoming || e.month > last))
+    .map(e => ({ label: e.label, month: e.month, committed: (e.cost.sponsor || 0) + (e.cost.travel || 0),
+      feeKnown: e.cost.sponsor !== null && e.cost.sponsor !== undefined }))
+    .sort((a, b) => String(a.month).localeCompare(String(b.month)));
+  const direct = ran.reduce((t, e) => t + (e.evidence ? e.evidence.direct : 0), 0);
+  return {
+    from: lo === '0000-00' ? (ran.map(e => e.month).sort()[0] || null) : lo, to: hi, events: ran.length, scored: scored.length,
+    settling: ran.filter(e => e.costState === 'settling').length,
+    spend, contribution, net: contribution - spend, roiToDate: spend ? (contribution - spend) / spend : null,
+    collected: sum(ran, 'collected'), customers, direct, liveNow: sum(ran, 'liveNow'), mrrNow: sum(ran, 'mrrNow'),
+    perCustomer: customers ? spend / customers : null,
+    companyPerCustomer: coLogos ? coCost / coLogos : null,
+    roi12: spend12 ? at12 / spend12 - 1 : null, roi12Range: spend12 ? [at12Low / spend12 - 1, at12High / spend12 - 1] : null,
+    paidBack: paidBack.length, onTrack: onTrack.length,
+    funnel, timeline, ranked, byKind, ahead,
+  };
+}
+
 // Setters and deal owners, from the event lead rows. booked_by is who got
 // the demo agreed; demoed_by is the deal's owner, the closest the data has
 // to who ran it (there is no AE field). Leads with no setter recorded are

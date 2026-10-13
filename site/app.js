@@ -16,7 +16,7 @@ import {
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
-  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
+  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, eventsOverview, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -1145,6 +1145,7 @@ function showView(which) {
   if ($('view-event')) $('view-event').hidden = which !== 'event';
   if ($('view-source')) $('view-source').hidden = which !== 'source';
   if ($('view-sales')) $('view-sales').hidden = which !== 'sales';
+  if ($('view-summary')) $('view-summary').hidden = which !== 'summary';
   // Leaving an event's page drops its address, so the same event can be
   // opened again from the list.
   if (which !== 'source' && /^#source=/.test(location.hash)) {
@@ -1156,7 +1157,7 @@ function showView(which) {
   for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'],
                           ['tab-events', which === 'events' || which === 'event'],
                           ['tab-marketing', which === 'marketing' || which === 'source'],
-                          ['tab-sales', which === 'sales']]) {
+                          ['tab-sales', which === 'sales'], ['tab-summary', which === 'summary']]) {
     if (!$(id)) continue;
     $(id).setAttribute('aria-selected', String(on));
     $(id).classList.toggle('is-on', on);
@@ -1170,6 +1171,7 @@ function wireTabs() {
   if ($('tab-events')) $('tab-events').addEventListener('click', () => showView('events'));
   if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => showView('marketing'));
   if ($('tab-sales')) $('tab-sales').addEventListener('click', () => showView('sales'));
+  if ($('tab-summary')) $('tab-summary').addEventListener('click', () => { history.replaceState(null, '', '#summary'); showView('summary'); });
   // An event's own page is #event=<name>; #events returns to the list.
   const route = () => {
     const m = location.hash.match(/^#event=(.+)$/);
@@ -1179,6 +1181,7 @@ function wireTabs() {
     if (src) { renderSourcePage(decodeURIComponent(src[1])); showView('source'); return true; }
     if (location.hash === '#marketing') { showView('marketing'); return true; }
     if (location.hash === '#sales') { showView('sales'); return true; }
+    if (location.hash === '#summary') { showView('summary'); return true; }
     return false;
   };
   window.addEventListener('hashchange', route);
@@ -4418,6 +4421,89 @@ function renderEventChecks(f) {
     : '';
 }
 
+// The Events summary: the roll-ups an executive reads first. Every figure
+// comes from eventsOverview, which sums the same event figures the Events
+// tab shows.
+function renderSummary() {
+  if (!$('summary-kpis')) return;
+  const last12 = !$('summary-all') || !$('summary-all').checked;
+  const o = eventsOverview(data, last12 ? { from: monthAdd(data.lastMonth, -11) } : {});
+  const money = v => (v === null || v === undefined ? '–' : fmt.money(v));
+  const signed = v => (v === null || v === undefined ? '–' : (v < 0 ? '−' : '+') + fmt.money(Math.abs(v)));
+  const pct = v => (v === null || v === undefined ? '–' : (v < 0 ? '−' : '+') + fmt.pct(Math.abs(v), 0));
+  const short = v => (Math.abs(v) >= 1000 ? `$${(Math.abs(v) / 1000).toFixed(Math.abs(v) >= 100000 ? 0 : 1)}k` : fmt.money(Math.abs(v)));
+  const span = `${fmt.monthLabel(o.from)} to ${fmt.monthLabel(o.to)}`;
+  $('summary-lede').innerHTML = `<strong>${span}: ${fmt.int(o.events)} events cost ${short(o.spend)} and have earned back `
+    + `${short(o.contribution)} so far.</strong> They brought ${fmt.int(o.customers)} new paying customers, ${fmt.int(o.liveNow)} still `
+    + `paying ${money(o.mrrNow)} a month. Twelve months after each event the return is projected at ${pct(o.roi12)}`
+    + `${o.roi12Range ? ` (likely ${pct(o.roi12Range[0])} to ${pct(o.roi12Range[1])})` : ''}.`;
+  const tile = (label, value, sub, tone = '') => `<div class="summary-kpi ${tone}"><span class="summary-kpi-label">${label}</span>`
+    + `<span class="summary-kpi-value">${value}</span><span class="summary-kpi-sub">${sub}</span></div>`;
+  const vs = o.perCustomer && o.companyPerCustomer ? o.perCustomer / o.companyPerCustomer - 1 : null;
+  $('summary-kpis').innerHTML =
+    tile('Spent', short(o.spend), `${fmt.int(o.events)} events, fees and travel`)
+    + tile('Earned back', short(o.contribution), `contribution so far; ${short(o.collected)} collected`)
+    + tile('Net so far', `${o.net < 0 ? '−' : '+'}${short(o.net)}`, `${pct(o.roiToDate)} on cost`, o.net < 0 ? 'neg' : 'pos')
+    + tile('12-month return', pct(o.roi12), o.roi12Range ? `projected; likely ${pct(o.roi12Range[0])} to ${pct(o.roi12Range[1])}` : 'projected',
+      o.roi12 < 0 ? 'neg' : 'pos')
+    + tile('New customers', fmt.int(o.customers), `${fmt.int(o.liveNow)} still paying, ${money(o.mrrNow)}/mo`)
+    + tile('Cost per new customer', money(o.perCustomer), vs === null ? '' : `${vs >= 0 ? fmt.pct(vs, 0) + ' more' : fmt.pct(-vs, 0) + ' less'} than the company\u2019s ${money(o.companyPerCustomer)}`,
+      vs !== null && vs > 0.1 ? 'neg' : vs !== null && vs < -0.1 ? 'pos' : '')
+    + tile('Paid for themselves', `${fmt.int(o.paidBack)} of ${fmt.int(o.scored)}`, `${fmt.int(o.onTrack)} more on track within a year`);
+  // Cumulative spend and contribution.
+  const t = o.timeline;
+  multiLineChart($('summary-curve'), {
+    labels: t.map(x => fmt.monthLabel(x.month)), yMin: 0, yFormat: v => fmt.money(v), yTitle: 'Cumulative',
+    series: [
+      { label: 'Spent', colour: INK.negative, values: t.map(x => x.spend) },
+      { label: 'Earned back', colour: INK.positive, values: t.map(x => x.contribution) },
+    ],
+    describe: i => `<strong>${fmt.monthLabel(t[i].month)}</strong><span>Spent ${money(t[i].spend)}</span>`
+      + `<span>Earned back ${money(t[i].contribution)}</span><span class="muted">Gap ${signed(t[i].contribution - t[i].spend)}</span>`,
+  });
+  $('summary-curve-note').textContent = 'Spend lands in the month of each event; what customers pay keeps arriving for months '
+    + 'after, so the green line keeps climbing after the red one steps up. Earned back is contribution: what customers paid, '
+    + 'less the cost of serving them.';
+  // Funnel.
+  const fu = o.funnel;
+  const step = (label, n, of) => `<div class="funnel-step"><div class="funnel-bar" style="width:${Math.max(4, fu.leads ? (n / fu.leads) * 100 : 0).toFixed(1)}%"></div>`
+    + `<span class="funnel-label">${label}</span><span class="funnel-value">${fmt.int(n)}</span>`
+    + `<span class="funnel-rate">${of ? `${fmt.pct(of ? n / of : 0, 0)} of the step before` : ''}</span></div>`;
+  $('summary-funnel').innerHTML = step('Leads', fu.leads, null) + step('Demos', fu.demos, fu.leads) + step('Sales', fu.sales, fu.demos);
+  // Best and worst.
+  const r = o.ranked;
+  const pick = r.length > 10 ? [...r.slice(0, 5), ...r.slice(-5)] : r;
+  barList($('summary-best'), {
+    items: pick.map(x => ({ label: `<a href="#event=${encodeURIComponent(x.label)}">${x.label}</a>`,
+      sub: `${fmt.monthLabel(x.month)} · cost ${money(x.spend)} · ${fmt.int(x.customers)} customer${x.customers === 1 ? '' : 's'}`,
+      value: x.net, colour: x.net >= 0 ? INK.positive : INK.negative })),
+    format: v => signed(v),
+  });
+  // By kind.
+  const maxAbs = Math.max(1, ...o.byKind.map(k => Math.abs(k.net)));
+  $('summary-kinds').innerHTML = '<thead><tr><th>Kind</th><th class="n">Events</th><th class="n">Spent</th><th class="n">Customers</th>'
+    + '<th class="n">Cost per customer</th><th>Net so far</th></tr></thead><tbody>'
+    + o.byKind.map(k => `<tr><td>${k.kind}</td><td class="n">${fmt.int(k.events)}</td><td class="n">${money(k.spend)}</td>`
+      + `<td class="n">${fmt.int(k.customers)}</td><td class="n">${money(k.perCustomer)}</td>`
+      + `<td><span class="kind-net"><span class="kind-bar ${k.net < 0 ? 'neg' : 'pos'}" style="width:${(Math.abs(k.net) / maxAbs * 100).toFixed(0)}%"></span>`
+      + `<span class="${k.net < 0 ? 'neg' : 'pos'}">${signed(k.net)}</span></span></td></tr>`).join('') + '</tbody>';
+  // Committed.
+  $('summary-ahead').innerHTML = !o.ahead.length ? '<tbody><tr><td class="muted">Nothing booked ahead.</td></tr></tbody>'
+    : '<thead><tr><th>Event</th><th>When</th><th class="n">Committed</th></tr></thead><tbody>'
+      + o.ahead.map(a => `<tr><td><a href="#event=${encodeURIComponent(a.label)}">${a.label}</a></td><td>${a.month ? fmt.monthLabel(a.month) : '–'}</td>`
+        + `<td class="n">${a.committed ? money(a.committed) : '<span class="muted">fee not set</span>'}${a.committed && !a.feeKnown ? '<br><span class="muted">travel only so far</span>' : ''}</td></tr>`).join('')
+      + `<tr class="total-row"><td><strong>Total committed</strong></td><td></td><td class="n"><strong>${money(o.ahead.reduce((x, a) => x + a.committed, 0))}</strong></td></tr></tbody>`;
+  $('summary-note').textContent = `Revenue is what Stripe billed; cost is QuickBooks. A customer counts for an event only if they `
+    + `first paid within six months of it and nothing else won them; ${fmt.int(o.direct)} of the ${fmt.int(o.customers)} were won by `
+    + `the event\u2019s own deal. Figures are a floor: a customer an event brought who was never tagged in HubSpot is not counted. `
+    + `${o.settling ? `${fmt.int(o.settling)} recent event${o.settling === 1 ? '\u2019s' : 's\u2019'} costs are still settling. ` : ''}`
+    + 'The Events tab has every event in detail.';
+  if (!renderSummary.ready) {
+    for (const id of ['summary-last12', 'summary-all']) if ($(id)) $(id).addEventListener('change', () => renderSummary());
+    renderSummary.ready = true;
+  }
+}
+
 // The Sales tab: setters and deal owners, from the same lead rows.
 const ratio2 = (n, d) => ({ n, d, rate: d ? n / d : null, thin: d < 10 });
 // The person the quarter's headline names (Josh, 13 Oct 2026).
@@ -7025,6 +7111,7 @@ function boot() {
     renderEventAttribution();
     renderMarketing();
     renderSales();
+    renderSummary();
     renderFloors();
     renderUpgradeList();
     renderCampaign();
