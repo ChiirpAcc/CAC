@@ -3633,6 +3633,14 @@ export const EVENT_PACKAGES = [
 const packageOf = c => EVENT_PACKAGES.find(pack => pack.match.test(c.event)
   && c.month && c.month >= pack.from && c.month <= pack.to) || null;
 
+// Travel taken off an event after the cost run, applied only while the
+// Event Costs tab still carries the figure it corrects.
+export const EVENT_TRAVEL_DECISIONS = {
+  'Home Service Hoorah 2026': { was: 5812, now: 2360.45,
+    evidence: 'Ryan Fenn\'s $3,451.73 (a Delta flight, a Hilton Gulf Breeze stay, a rental car, meals) is not '
+      + 'this event\'s: he was not part of the Hoorah team (Josh, 13 Oct 2026).' },
+};
+
 // Any table keyed by event name is read by the name, or failing that by the
 // same words and year, so a row renamed on the tab ("The Wealthy Plumber
 // Hoorah 2025") keeps its decision, kind and notes.
@@ -3648,7 +3656,6 @@ const byEventName = (table, name, month) => {
 // that belong to no event on the Event Costs tab, so they are in no figure on
 // the Events tab. Listed so the tab's total can be read against the ledger.
 export const EVENT_UNASSIGNED_QB = [
-  { what: 'Home First Services, "Event Costs Australia"', months: 'Oct and Nov 2025', amount: 3660 },
   { what: 'Standard Plumbing Industry Show booth', months: 'Mar 2026', amount: 4997 },
   { what: 'SOLA Group sponsorship media', months: 'Aug 2026', amount: 10000 },
   { what: 'Utah Plumbing and Heating Contractors golf sponsorship', months: 'Aug 2026', amount: 876 },
@@ -3693,19 +3700,26 @@ export const EVENT_FEE_DECISIONS = [
   { event: 'HSF 2025', was: 64000, now: 64000, confidence: 'strong',
     evidence: 'The sheet lists the Titanium sponsorship at $52,500, and QuickBooks adds the HSF co-op '
       + 'postcard ($10,000) and the HSF site listing ($1,500), both bought because of the event.' },
-  { event: 'Pantheon 2025', was: 30000, now: 30000, confidence: 'strong',
-    evidence: 'The sheet lists Pantheon of Sep 17-19 at $30,000 and QuickBooks books $30,000 to '
-      + 'ServiceTitan that month. The $40,000 on the planning sheet was not paid.' },
+  // Settled again on 13 Oct 2026 from the QuickBooks bills behind each
+  // event's proof of cost.
+  { event: 'Pantheon 2025', was: 30000, now: 31616.25, confidence: 'strong',
+    evidence: 'QuickBooks books $30,000 to ServiceTitan in Sep 2025, and Shepard Exposition billed a further '
+      + '$1,616.25 late graphics fee (#199800, Dec 2025) on the "Pantheon - Fall 2025" booth. The $40,000 on '
+      + 'the planning sheet was not paid.' },
+  { event: 'Network ST Event', was: 0, now: 3660, confidence: 'moderate',
+    evidence: 'Home First Services billed $3,660 of "Event Costs Australia" for Oct and Nov 2025 (expensed '
+      + '$1,830 a month); Network ST, Oct 27-28 2025, is the only event in Australia then. The bill answers '
+      + 'the planning sheet\'s payment question.' },
   { event: 'Raising GOATS 2026', was: 12500, now: 12500, confidence: 'moderate',
     evidence: 'The EGIA bill in QuickBooks names the Raising Goats conference of Mar 2026. Only the bill '
       + 'speaks to it; the planning figure of $4,000 has no bill behind it.' },
   { event: 'Redwood Leadership Summit', was: 10000, now: 10000, confidence: 'moderate',
     evidence: 'QuickBooks books $10,000 to Redwood Services as "Redwood Leadership Summit Sponsorship". '
       + 'The 2025 summit was $5,000 on the sheet, so the price doubled.' },
-  { event: 'BDR Spark 2026', was: 17500, now: 17500, confidence: 'moderate',
-    evidence: 'The 2026 section of the sheet lists Spark at $17,500. QuickBooks spreads a year-long BDRU '
-      + 'sponsorship of $17,900 across 2026 at $1,492 a month, which covers Spark and BDRU\'s other events '
-      + 'and training classes; none of those has its own lead source, so the whole fee sits on Spark.' },
+  { event: 'BDR Spark 2026', was: 17500, now: 17900, confidence: 'moderate',
+    evidence: 'BDR bill #163391 is $17,900, spread across 2026 at $1,491.67 a month: a year of sponsorship at '
+      + 'BDRU events and training classes, Spark among them. None of the others has its own lead source, so '
+      + 'the whole bill sits on Spark; the sheet\'s $17,500 was the planned figure.' },
   { event: 'EGIA Epic 2026', was: 16445, now: 16445, confidence: 'moderate',
     evidence: 'The trade show is $10,945 on the sheet and in QuickBooks. A further $5,500 from EGIA, '
       + 'billed before Sep 2025, is recognised in Feb 2026, Epic\'s month, and is taken as part of it.' },
@@ -4145,9 +4159,16 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     const basis = decided
       ? `Settled at $${decision.now.toLocaleString()} (the tab had $${decision.was.toLocaleString()}): ${decision.evidence}`
       : sponsorBasis;
-    const known = sponsor !== null || c.travel !== null;
+    // Travel settled here while the tab still carries the old figure.
+    const td = byEventName(EVENT_TRAVEL_DECISIONS, c.event, c.month);
+    const travelDecided = Boolean(td && c.travel !== null && Math.abs(c.travel - td.was) < 1);
+    const travel = travelDecided ? td.now : c.travel;
+    const known = sponsor !== null || travel !== null;
     return {
       ...c,
+      tabTravel: c.travel,
+      travel,
+      travelDecision: travelDecided ? td : null,
       tabSponsor: c.sponsor,
       sponsor,
       sponsorBasis: basis,
@@ -4158,7 +4179,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       feeFrom: decided ? 'settled' : pk ? 'shared fee' : qb && !qbDiffers ? 'QuickBooks'
         : c.extra ? 'added here' : null,
       packageKey: pk ? pk.pack.key : null,
-      cost: known ? (sponsor || 0) + (c.travel || 0) : null,
+      cost: known ? (sponsor || 0) + (travel || 0) : null,
       year: eventYear(c.event, c.month),
       words: eventWords(c.event),
     };
@@ -5544,7 +5565,10 @@ export function reengaged(r) {
   if (r.afterEvent !== false || !r.dealCreated || !r.eventDate) return false;
   const days = (Date.parse(r.dealCreated) - Date.parse(r.eventDate)) / 86400000;
   if (days >= 0) return days <= REENGAGE_AFTER_DAYS;
-  return days >= -REENGAGE_BEFORE_DAYS && conversionNamesEvent(r);
+  // Before the event, the event's own form or link names it; so does a won
+  // deal tagged to it (Riverstone Plumbing, Hoorah 2026: deal opened 20 days
+  // before through a webinar, won as a Hoorah deal; Josh, 13 Oct 2026).
+  return days >= -REENGAGE_BEFORE_DAYS && (conversionNamesEvent(r) || r.won === true);
 }
 // A contact that arrived in a loaded file is not a lead the event produced,
 // however soon after it the file was loaded: Pantheon 2025's attendee list of

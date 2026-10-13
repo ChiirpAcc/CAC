@@ -5298,11 +5298,14 @@ function renderEventPage(label) {
   // Closed deals are the customers Stripe confirms the event won, so the card
   // agrees with the revenue beside it; won deals Stripe has not billed yet
   // are said underneath.
-  const closedWon = e.paid || 0;
   const byCoHead = stripeByCompany(data);
   const creditedIds = new Set((e.customerRows || []).map(x => x.id));
   const wonNotBilled = new Set(headLeads.filter(l => l.state === 'won' && !(l.company && byCoHead(l.company)
     && creditedIds.has(byCoHead(l.company).id))).map(l => l.company || l)).size;
+  // Closed deals: every deal won in HubSpot that counts for the event, billed
+  // or not yet (Josh, 13 Oct 2026: Hoorah 2026 had three won, the card showed
+  // the one Stripe had billed). Revenue stays Stripe's.
+  const closedWon = (e.paid || 0) + wonNotBilled;
   const closedLost = headLeads.filter(l => l.state === 'lost').length;
   const stillOpen = headLeads.filter(l => l.state === 'sat').length;
   const costCard = e.costState === 'absent'
@@ -5314,7 +5317,7 @@ function renderEventPage(label) {
     + kpi('Demos booked', e.upcoming && !headLeads.length ? '–' : int(demosBooked),
       headLeads.length ? `${int(demosSat)} sat, from ${int(headLeads.length)} leads` : 'no event leads yet')
     + kpi('Closed deals', e.upcoming && !headLeads.length ? '–' : int(closedWon),
-      [e.evidence && e.paid ? `${int(e.evidence.direct)} by its own deal` : '', wonNotBilled ? `${int(wonNotBilled)} won, not billed yet` : '',
+      [e.paid ? `${int(e.paid)} billed in Stripe` : '', wonNotBilled ? `${int(wonNotBilled)} won, not billed yet` : '',
         headLeads.length ? `${int(closedLost)} lost` : ''].filter(Boolean).join(' · '))
     + kpi('Revenue', e.upcoming ? '–' : money(e.collected), e.upcoming ? `happens ${fmt.monthLabel(e.upcoming)}`
       : `collected in Stripe from ${int(e.paid)} customer${e.paid === 1 ? '' : 's'}${e.mrrNow ? ` · ${money(e.mrrNow)}/mo now` : ''}`)

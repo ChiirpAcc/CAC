@@ -53,9 +53,12 @@ HUB_ATTENDEES = {
 }
 # Judgement calls about attendees made after the cost run.
 HUB_NOTES = {
-    "Home Service Hoorah": "The Event Hub no longer lists Ryan Fenn (13 Oct 2026), but his card puts him in Gulf Breeze on the "
-                           "event dates (a Delta flight, a Hilton Gulf Breeze stay, a rental car), so his charges stay counted.",
+    "Home Service Hoorah": "Ryan Fenn's charges are not counted: he was not part of the Hoorah team (Josh, 13 Oct 2026), "
+                           "though the cost run had matched $3,451.73 of his to it.",
 }
+# Cardholders whose matched charges are taken off an event after the cost
+# run; they are listed as reviewed and not counted.
+HUB_EXCLUDE = {"Home Service Hoorah": {"Ryan Fenn": "not part of the Hoorah team (Josh, 13 Oct 2026)"}}
 
 
 def iso(v):
@@ -161,6 +164,12 @@ def main(path):
     for name, e in events.items():
         if not e["attendees"] and name in HUB_ATTENDEES:
             e["attendees"] = HUB_ATTENDEES[name]
+        for who, why in HUB_EXCLUDE.get(name, {}).items():
+            out_ = [l for l in e["lines"] if l["owner"] == who]
+            e["lines"] = [l for l in e["lines"] if l["owner"] != who]
+            e["attendees"] = [x for x in e["attendees"] if x != who]
+            e["notCounted"] += [{"date": l["date"], "owner": who, "merchant": l["merchant"], "city": l["city"],
+                                 "amount": l["amount"], "why": why} for l in out_]
         if name in HUB_NOTES:
             e["notes"] = " ".join(x for x in (e["notes"], HUB_NOTES[name]) if x)
     for e in events.values():

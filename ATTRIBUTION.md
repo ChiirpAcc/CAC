@@ -23,7 +23,7 @@ Each contact tagged to an event falls into exactly one state.
 | State | Rule | Counted? |
 |---|---|---|
 | New lead | Created on or after the event date, and arrived by doing something: a form, meetings link, booth scan, chat or rep. | Yes |
-| Re-engaged | Already in HubSpot, and a deal opened within 90 days after the event, or in the 45 days before it through the event's own form or link. | Yes |
+| Re-engaged | Already in HubSpot, and a deal opened within 90 days after the event, or in the 45 days before it through the event's own form or link, or as a deal tagged to the event that was won (Riverstone Plumbing, Hoorah 2026). | Yes |
 | Upsell lead | The company was paying going into the event, or the contact came through the event's upsell form or link. | No; watched as an upsell (1.4) |
 | Loaded from a list | Arrived in a file (`arrived_as` list), however soon after the event the file was loaded. | No |
 | Arrived earlier | In HubSpot before the event with no deal near it: the tag was added later. | No |

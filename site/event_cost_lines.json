@@ -13617,10 +13617,9 @@
    "flags": null,
    "attendees": [
     "Colton Lingmann",
-    "Ky Decker",
-    "Ryan Fenn"
+    "Ky Decker"
    ],
-   "notes": "No American Airlines charges on Ramp for Colton or Ky (Event Hub shows AA flights), so their flights were paid some other way. Two Hilton rooms are on Taylor Roberts' card. The Event Hub no longer lists Ryan Fenn (13 Oct 2026), but his card puts him in Gulf Breeze on the event dates (a Delta flight, a Hilton Gulf Breeze stay, a rental car), so his charges stay counted.",
+   "notes": "No American Airlines charges on Ramp for Colton or Ky (Event Hub shows AA flights), so their flights were paid some other way. Two Hilton rooms are on Taylor Roberts' card. Ryan Fenn's charges are not counted: he was not part of the Hoorah team (Josh, 13 Oct 2026), though the cost run had matched $3,451.73 of his to it.",
    "lines": [
     {
      "date": "2026-09-07",
@@ -13791,210 +13790,6 @@
      "source": "Ramp card"
     },
     {
-     "date": "2026-08-21",
-     "owner": "Ryan Fenn",
-     "merchant": "Delta Air Lines",
-     "rampCategory": "Airlines",
-     "city": "Atlanta, GA",
-     "amount": 1448.78,
-     "label": "Flights",
-     "confidence": "Medium",
-     "why": "Ryan flew via Atlanta on Sep 6 and Sep 9 (Popeyes ATL); no other Delta booking fits",
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-06",
-     "owner": "Ryan Fenn",
-     "merchant": "Hilton Hotels",
-     "rampCategory": "Lodging",
-     "city": "Gulf Breeze, FL",
-     "amount": 1204.06,
-     "label": "Lodging",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-06",
-     "owner": "Ryan Fenn",
-     "merchant": "Popeyes Louisiana Kitchen",
-     "rampCategory": "Restaurants",
-     "city": "Atlanta, GA",
-     "amount": 6.78,
-     "label": "Meals",
-     "confidence": "High",
-     "why": "Atlanta layover",
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-06",
-     "owner": "Ryan Fenn",
-     "merchant": "Pedro's Tacos & Tequila Bar",
-     "rampCategory": "Restaurants",
-     "city": "Gulf Breeze, FL",
-     "amount": 63.16,
-     "label": "Meals",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-06",
-     "owner": "Ryan Fenn",
-     "merchant": "Enterprise",
-     "rampCategory": "Car Rental",
-     "city": "Pensacola, FL",
-     "amount": 315.74,
-     "label": "Ground transport",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-06",
-     "owner": "Ryan Fenn",
-     "merchant": "CVS Pharmacy",
-     "rampCategory": "Supermarkets and Grocery Stores",
-     "city": "Gulf Breeze, FL",
-     "amount": 43.71,
-     "label": "Other",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-06",
-     "owner": "Ryan Fenn",
-     "merchant": "CVS Pharmacy",
-     "rampCategory": "Supermarkets and Grocery Stores",
-     "city": "Gulf Breeze, FL",
-     "amount": 26.74,
-     "label": "Other",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-07",
-     "owner": "Ryan Fenn",
-     "merchant": "Ice Cream Shoppe",
-     "rampCategory": "Supermarkets and Grocery Stores",
-     "city": "Gulf Breeze, FL",
-     "amount": 12.78,
-     "label": "Meals",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-07",
-     "owner": "Ryan Fenn",
-     "merchant": "Whataburger",
-     "rampCategory": "Restaurants",
-     "city": "Gulf Breeze, FL",
-     "amount": 31.42,
-     "label": "Meals",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-08",
-     "owner": "Ryan Fenn",
-     "merchant": "Slidsters Tap House",
-     "rampCategory": "Restaurants",
-     "city": "Gulf Breeze, FL",
-     "amount": 40.83,
-     "label": "Meals",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-08",
-     "owner": "Ryan Fenn",
-     "merchant": "Joe Patti's Seafood",
-     "rampCategory": "Supermarkets and Grocery Stores",
-     "city": "Pensacola, FL",
-     "amount": 8.98,
-     "label": "Meals",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-08",
-     "owner": "Ryan Fenn",
-     "merchant": "Red Snapper",
-     "rampCategory": "Restaurants",
-     "city": "Pensacola, FL",
-     "amount": 24.51,
-     "label": "Meals",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-08",
-     "owner": "Ryan Fenn",
-     "merchant": "Whataburger",
-     "rampCategory": "Restaurants",
-     "city": "Gulf Breeze, FL",
-     "amount": 8.65,
-     "label": "Meals",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-08",
-     "owner": "Ryan Fenn",
-     "merchant": "Graffiti Pizza",
-     "rampCategory": "Restaurants",
-     "city": "Pensacola, FL",
-     "amount": 50.53,
-     "label": "Meals",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-09",
-     "owner": "Ryan Fenn",
-     "merchant": "Popeyes Louisiana Kitchen",
-     "rampCategory": "Restaurants",
-     "city": "Atlanta, GA",
-     "amount": 32.97,
-     "label": "Meals",
-     "confidence": "High",
-     "why": "Atlanta layover",
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-09",
-     "owner": "Ryan Fenn",
-     "merchant": "Circle K",
-     "rampCategory": "Fuel and Gas",
-     "city": "Pensacola, FL",
-     "amount": 47.14,
-     "label": "Ground transport",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
-     "date": "2026-09-09",
-     "owner": "Ryan Fenn",
-     "merchant": "Uber",
-     "rampCategory": "Taxi and Rideshare",
-     "city": "San Francisco, CA",
-     "amount": 84.95,
-     "label": "Ground transport",
-     "confidence": "High",
-     "why": null,
-     "source": "Ramp card"
-    },
-    {
      "date": "2026-09-08",
      "owner": "Taylor Roberts",
      "merchant": "Hilton Hotels",
@@ -14027,10 +13822,146 @@
      "city": "Lehi, UT",
      "amount": 1265.0,
      "why": "In the Home Service Hoorah window but doesn't fit it (merchant in Lehi, UT)"
+    },
+    {
+     "date": "2026-08-21",
+     "owner": "Ryan Fenn",
+     "merchant": "Delta Air Lines",
+     "city": "Atlanta, GA",
+     "amount": 1448.78,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-06",
+     "owner": "Ryan Fenn",
+     "merchant": "Hilton Hotels",
+     "city": "Gulf Breeze, FL",
+     "amount": 1204.06,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-06",
+     "owner": "Ryan Fenn",
+     "merchant": "Popeyes Louisiana Kitchen",
+     "city": "Atlanta, GA",
+     "amount": 6.78,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-06",
+     "owner": "Ryan Fenn",
+     "merchant": "Pedro's Tacos & Tequila Bar",
+     "city": "Gulf Breeze, FL",
+     "amount": 63.16,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-07",
+     "owner": "Ryan Fenn",
+     "merchant": "Ice Cream Shoppe",
+     "city": "Gulf Breeze, FL",
+     "amount": 12.78,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-07",
+     "owner": "Ryan Fenn",
+     "merchant": "Whataburger",
+     "city": "Gulf Breeze, FL",
+     "amount": 31.42,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-08",
+     "owner": "Ryan Fenn",
+     "merchant": "Slidsters Tap House",
+     "city": "Gulf Breeze, FL",
+     "amount": 40.83,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-08",
+     "owner": "Ryan Fenn",
+     "merchant": "Joe Patti's Seafood",
+     "city": "Pensacola, FL",
+     "amount": 8.98,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-08",
+     "owner": "Ryan Fenn",
+     "merchant": "Red Snapper",
+     "city": "Pensacola, FL",
+     "amount": 24.51,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-08",
+     "owner": "Ryan Fenn",
+     "merchant": "Whataburger",
+     "city": "Gulf Breeze, FL",
+     "amount": 8.65,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-08",
+     "owner": "Ryan Fenn",
+     "merchant": "Graffiti Pizza",
+     "city": "Pensacola, FL",
+     "amount": 50.53,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-09",
+     "owner": "Ryan Fenn",
+     "merchant": "Popeyes Louisiana Kitchen",
+     "city": "Atlanta, GA",
+     "amount": 32.97,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-06",
+     "owner": "Ryan Fenn",
+     "merchant": "Enterprise",
+     "city": "Pensacola, FL",
+     "amount": 315.74,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-09",
+     "owner": "Ryan Fenn",
+     "merchant": "Circle K",
+     "city": "Pensacola, FL",
+     "amount": 47.14,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-09",
+     "owner": "Ryan Fenn",
+     "merchant": "Uber",
+     "city": "San Francisco, CA",
+     "amount": 84.95,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-06",
+     "owner": "Ryan Fenn",
+     "merchant": "CVS Pharmacy",
+     "city": "Gulf Breeze, FL",
+     "amount": 43.71,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
+    },
+    {
+     "date": "2026-09-06",
+     "owner": "Ryan Fenn",
+     "merchant": "CVS Pharmacy",
+     "city": "Gulf Breeze, FL",
+     "amount": 26.74,
+     "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
     }
    ],
    "basis": "event hub",
-   "travelTotal": 5812.18
+   "travelTotal": 2360.45
   },
   {
    "label": "Nexstar Super Meeting 2026",
