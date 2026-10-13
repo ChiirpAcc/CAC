@@ -1409,6 +1409,19 @@
      "source": "QuickBooks, Divvy card"
     },
     {
+     "date": "2025-09-20",
+     "owner": "Ryan Peterson",
+     "merchant": "Provo City",
+     "rampCategory": null,
+     "city": "Provo, UT",
+     "amount": 48.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-09-17",
      "owner": "Taylor Roberts",
      "merchant": "Los De Juarez Burritos",
@@ -1606,6 +1619,19 @@
     {
      "date": "2025-09-20",
      "owner": "Taylor Roberts",
+     "merchant": "Provo City",
+     "rampCategory": null,
+     "city": "Provo, UT",
+     "amount": 36.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-20",
+     "owner": "Taylor Roberts",
      "merchant": "Yum Yum Donuts",
      "rampCategory": null,
      "city": "Garden Grove, CA",
@@ -1683,25 +1709,9 @@
      "city": "Anaheim, CA",
      "amount": 1300.0,
      "why": "a meal of 1,000 or more; check before counting"
-    },
-    {
-     "date": "2025-09-20",
-     "owner": "Ryan Peterson",
-     "merchant": "Provo City",
-     "city": "Provo, UT",
-     "amount": 48.0,
-     "why": "in the Pantheon 2025 window, but the merchant is in Provo, UT, not Anaheim, CA"
-    },
-    {
-     "date": "2025-09-20",
-     "owner": "Taylor Roberts",
-     "merchant": "Provo City",
-     "city": "Provo, UT",
-     "amount": 36.0,
-     "why": "in the Pantheon 2025 window, but the merchant is in Provo, UT, not Anaheim, CA"
     }
    ],
-   "travelTotal": 2950.03
+   "travelTotal": 3034.03
   },
   {
    "label": "CertainPath Fall Expo 2025",
@@ -3830,6 +3840,19 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-10-15",
+     "owner": "Justin Judd",
+     "merchant": "Talking Stick Resort",
+     "rampCategory": null,
+     "city": "Scottsdale, AZ",
+     "amount": 117.61,
+     "label": "Hotel incidentals",
+     "confidence": "Medium",
+     "why": "judgement: Talking Stick Resort folio charge posted after GDF Vertical Track there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-10-07",
      "owner": "Ryan Peterson",
      "merchant": "Delta Airlines",
@@ -4038,6 +4061,19 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-10-15",
+     "owner": "Ryan Peterson",
+     "merchant": "Talking Stick Resort",
+     "rampCategory": null,
+     "city": "Scottsdale, AZ",
+     "amount": 117.6,
+     "label": "Hotel incidentals",
+     "confidence": "Medium",
+     "why": "judgement: Talking Stick Resort folio charge posted after GDF Vertical Track there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-10-10",
      "owner": "Tavi Carvajal",
      "merchant": "Panera Bread",
@@ -4088,6 +4124,19 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-15",
+     "owner": "Tavi Carvajal",
+     "merchant": "Talking Stick Resort",
+     "rampCategory": null,
+     "city": "Scottsdale, AZ",
+     "amount": 112.26,
+     "label": "Hotel incidentals",
+     "confidence": "Medium",
+     "why": "judgement: Talking Stick Resort folio charge posted after GDF Vertical Track there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
     }
    ],
    "notCounted": [
@@ -4112,27 +4161,11 @@
      "owner": "Ryan Peterson",
      "merchant": "Talking Stick Resort",
      "city": "Scottsdale, AZ",
-     "amount": 117.6,
-     "why": "just outside the GDF Vertical Track 2025 travel window"
-    },
-    {
-     "date": "2025-10-15",
-     "owner": "Tavi Carvajal",
-     "merchant": "Talking Stick Resort",
-     "city": "Scottsdale, AZ",
-     "amount": 112.26,
-     "why": "just outside the GDF Vertical Track 2025 travel window"
-    },
-    {
-     "date": "2025-10-15",
-     "owner": "Ryan Peterson",
-     "merchant": "Talking Stick Resort",
-     "city": "Scottsdale, AZ",
      "amount": 7.94,
      "why": "just outside the GDF Vertical Track 2025 travel window"
     }
    ],
-   "travelTotal": 946.63
+   "travelTotal": 1294.1
   },
   {
    "label": "Legacy Annual Offsite",
@@ -4963,14 +4996,6 @@
     {
      "date": "2025-10-17",
      "owner": "Ryan Fenn",
-     "merchant": "Qantas",
-     "city": "Los Angeles, CA",
-     "amount": 895.1,
-     "why": "fare booked ahead; more than one event it could be for: Nuve Networks Tour, Network ST Event"
-    },
-    {
-     "date": "2025-10-17",
-     "owner": "Ryan Fenn",
      "merchant": "United",
      "city": "Houston, TX",
      "amount": 1055.63,
@@ -5267,6 +5292,19 @@
    "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
+     "date": "2025-10-23",
+     "owner": "Blake Fenn",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Dallas, TX",
+     "amount": 536.35,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "judgement: Southwest fare three days before Service World (Las Vegas), Blake Fenn's next event",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-10-27",
      "owner": "Blake Fenn",
      "merchant": "Uber",
@@ -5410,6 +5448,19 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-10-30",
+     "owner": "Blake Fenn",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 115.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-10-27",
      "owner": "Ky Decker",
      "merchant": "Delta Airlines",
@@ -5490,55 +5541,15 @@
    ],
    "notCounted": [
     {
-     "date": "2025-10-23",
-     "owner": "Blake Fenn",
-     "merchant": "Southwest Airlines",
-     "city": "Dallas, TX",
-     "amount": 536.35,
-     "why": "fare booked ahead; more than one event it could be for: Service World, We Mean Business Conference"
-    },
-    {
-     "date": "2025-10-24",
-     "owner": "Blake Fenn",
-     "merchant": "Wild Dunes Resort",
-     "city": "Isle Of Palms, SC",
-     "amount": 358.52,
-     "why": "in the Service World window, but the merchant is in Isle Of Palms, SC, not Las Vegas, NV"
-    },
-    {
-     "date": "2025-10-24",
-     "owner": "Blake Fenn",
-     "merchant": "Wild Dunes Resort",
-     "city": "Isle Of Palms, SC",
-     "amount": 327.88,
-     "why": "in the Service World window, but the merchant is in Isle Of Palms, SC, not Las Vegas, NV"
-    },
-    {
-     "date": "2025-10-24",
-     "owner": "Blake Fenn",
-     "merchant": "Delta Airlines",
-     "city": "Atlanta, GA",
-     "amount": 1252.74,
-     "why": "fare booked ahead; more than one event it could be for: Service World, We Mean Business Conference"
-    },
-    {
      "date": "2025-10-28",
      "owner": "Ky Decker",
      "merchant": "Starbucks",
      "city": "Castle Rock, CO",
      "amount": 12.52,
      "why": "in the Service World window, but the merchant is in Castle Rock, CO, not Las Vegas, NV"
-    },
-    {
-     "date": "2025-10-30",
-     "owner": "Blake Fenn",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 115.0,
-     "why": "in the Service World window, but the merchant is in Salt Lake City, UT, not Las Vegas, NV"
     }
    ],
-   "travelTotal": 639.69
+   "travelTotal": 1291.04
   },
   {
    "label": "Zoom Drain Expo - Vortex",
@@ -6213,6 +6224,58 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-10-30",
+     "owner": "Justin Judd",
+     "merchant": "Traveloka",
+     "rampCategory": null,
+     "city": "SYDNEY, AUS",
+     "amount": 484.65,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "judgement: Traveloka (Australian) fare during the Network ST trip",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-31",
+     "owner": "Justin Judd",
+     "merchant": "Lilyvale Hotel Pty Ltd",
+     "rampCategory": null,
+     "city": "THE ROCKS, AUS",
+     "amount": 605.83,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "judgement: Sydney hotel the day after the Network ST trip's window",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-31",
+     "owner": "Justin Judd",
+     "merchant": "Uber",
+     "rampCategory": null,
+     "city": "Sydney, AUS",
+     "amount": 51.0,
+     "label": "Ground transport",
+     "confidence": "Medium",
+     "why": "judgement: Sydney Uber the day after the Network ST trip's window",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-17",
+     "owner": "Ryan Fenn",
+     "merchant": "Qantas",
+     "rampCategory": null,
+     "city": "Los Angeles, CA",
+     "amount": 895.1,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: Qantas fare ten days before Network ST in Australia",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-10-22",
      "owner": "Ryan Fenn",
      "merchant": "Virgin Australia",
@@ -6504,27 +6567,11 @@
      "why": "in the Network ST Event window, but the merchant is in Los Angeles, CA, not Australia"
     },
     {
-     "date": "2025-10-30",
-     "owner": "Justin Judd",
-     "merchant": "Traveloka",
-     "city": "SYDNEY, AUS",
-     "amount": 484.65,
-     "why": "fare booked ahead; more than one event it could be for: WinSupply AOR Summit 2025, Goettl Training"
-    },
-    {
      "date": "2025-10-31",
      "owner": "Justin Judd",
      "merchant": "Uber",
      "city": "Sydney, AUS",
      "amount": 3.4,
-     "why": "just outside the Network ST Event travel window"
-    },
-    {
-     "date": "2025-10-31",
-     "owner": "Justin Judd",
-     "merchant": "Uber",
-     "city": "Sydney, AUS",
-     "amount": 51.0,
      "why": "just outside the Network ST Event travel window"
     },
     {
@@ -6541,14 +6588,6 @@
      "merchant": "Uber",
      "city": "Sydney, AUS",
      "amount": 11.42,
-     "why": "just outside the Network ST Event travel window"
-    },
-    {
-     "date": "2025-10-31",
-     "owner": "Justin Judd",
-     "merchant": "Lilyvale Hotel Pty Ltd",
-     "city": "THE ROCKS, AUS",
-     "amount": 605.83,
      "why": "just outside the Network ST Event travel window"
     },
     {
@@ -6576,7 +6615,7 @@
      "why": "just outside the Network ST Event travel window"
     }
    ],
-   "travelTotal": 11779.75
+   "travelTotal": 13816.33
   },
   {
    "label": "Blue Collar Success Group 2025",
@@ -7214,6 +7253,45 @@
    "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
+     "date": "2025-10-24",
+     "owner": "Blake Fenn",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 1252.74,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: Delta fare bought with the Wild Dunes (Charleston) rooms for We Mean Business",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-24",
+     "owner": "Blake Fenn",
+     "merchant": "Wild Dunes Resort",
+     "rampCategory": null,
+     "city": "Isle Of Palms, SC",
+     "amount": 358.52,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "judgement: Wild Dunes Resort, Isle of Palms, by Charleston: We Mean Business, paid ahead",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-24",
+     "owner": "Blake Fenn",
+     "merchant": "Wild Dunes Resort",
+     "rampCategory": null,
+     "city": "Isle Of Palms, SC",
+     "amount": 327.88,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "judgement: Wild Dunes Resort, Isle of Palms, by Charleston: We Mean Business, paid ahead",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-11-09",
      "owner": "Blake Fenn",
      "merchant": "Wild Dunes Resort",
@@ -7586,7 +7664,7 @@
      "why": "in the We Mean Business Conference window, but the merchant is in Atlanta, GA, not Charleston, SC"
     }
    ],
-   "travelTotal": 2251.84
+   "travelTotal": 4190.98
   },
   {
    "label": "Goettl Training",
@@ -7665,6 +7743,19 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-11-17",
+     "owner": "Alicia Schmaling",
+     "merchant": "Breeze",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 45.0,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "judgement: Breeze bag fee on the Goettl flights the memo names",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-11-18",
      "owner": "Alicia Schmaling",
      "merchant": "Holiday Inn",
@@ -7712,6 +7803,19 @@
      "amount": 2035.37,
      "label": "Other",
      "confidence": "Low",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-11-19",
+     "owner": "Jared Hunsaker",
+     "merchant": "Provo City",
+     "rampCategory": null,
+     "city": "Provo, UT",
+     "amount": 24.0,
+     "label": "Parking",
+     "confidence": "High",
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
@@ -7769,6 +7873,19 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-11-20",
+     "owner": "Justin Judd",
+     "merchant": "Provo City",
+     "rampCategory": null,
+     "city": "Provo, UT",
+     "amount": 36.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-11-18",
      "owner": "Tavi Carvajal",
      "merchant": "QuikTrip",
@@ -7776,6 +7893,19 @@
      "city": "Phoenix, AZ",
      "amount": 5.39,
      "label": "Ground transport",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-11-19",
+     "owner": "Tavi Carvajal",
+     "merchant": "Provo City",
+     "rampCategory": null,
+     "city": "Provo, UT",
+     "amount": 24.0,
+     "label": "Parking",
      "confidence": "High",
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
@@ -7795,33 +7925,8 @@
      "source": "QuickBooks, Ramp card"
     }
    ],
-   "notCounted": [
-    {
-     "date": "2025-11-19",
-     "owner": "Tavi Carvajal",
-     "merchant": "Provo City",
-     "city": "Provo, UT",
-     "amount": 24.0,
-     "why": "in the Goettl Training window, but the merchant is in Provo, UT, not Phoenix, AZ"
-    },
-    {
-     "date": "2025-11-19",
-     "owner": "Jared Hunsaker",
-     "merchant": "Provo City",
-     "city": "Provo, UT",
-     "amount": 24.0,
-     "why": "in the Goettl Training window, but the merchant is in Provo, UT, not Phoenix, AZ"
-    },
-    {
-     "date": "2025-11-20",
-     "owner": "Justin Judd",
-     "merchant": "Provo City",
-     "city": "Provo, UT",
-     "amount": 36.0,
-     "why": "in the Goettl Training window, but the merchant is in Provo, UT, not Phoenix, AZ"
-    }
-   ],
-   "travelTotal": 4385.4
+   "notCounted": [],
+   "travelTotal": 4514.4
   },
   {
    "label": "LB Roofing Process Conference",
@@ -7858,6 +7963,32 @@
    ],
    "notes": null,
    "lines": [
+    {
+     "date": "2025-12-02",
+     "owner": "Alicia Schmaling",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 1433.94,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: booked by Alicia Schmaling the day before LB Roofing (Marco Island, FL) on Delta; judged to be that trip",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-12-02",
+     "owner": "Alicia Schmaling",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 9.99,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: fee on the Delta booking judged to be LB Roofing's",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
     {
      "date": "2025-12-02",
      "owner": "Ky Decker",
@@ -8143,6 +8274,32 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-12-06",
+     "owner": "Ryan Peterson",
+     "merchant": "Marco Prime Steak & Seafood Restaurant",
+     "rampCategory": null,
+     "city": "Marco Island, FL",
+     "amount": 201.6,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "judgement: Marco Island, FL: LB Roofing's place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-12-06",
+     "owner": "Ryan Peterson",
+     "merchant": "Uber",
+     "rampCategory": null,
+     "city": "San Francisco, CA",
+     "amount": 50.24,
+     "label": "Ground transport",
+     "confidence": "Medium",
+     "why": "judgement: Uber on the day Ryan Peterson left Marco Island",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
     }
    ],
    "notCounted": [
@@ -8155,7 +8312,7 @@
      "why": "in the LB Roofing Process Conference window, but the merchant is in Denver, CO, not Marco Island, FL"
     }
    ],
-   "travelTotal": 1302.66
+   "travelTotal": 2998.43
   },
   {
    "label": "Hardi Annual Conference",
@@ -8202,6 +8359,19 @@
      "label": "Lodging",
      "confidence": "Medium",
      "why": "booked by Alicia Schmaling: a Las Vegas, NV hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-12-05",
+     "owner": "Alicia Schmaling",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Dallas, TX",
+     "amount": 724.96,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: booked by Alicia Schmaling three days before Hardi (Las Vegas) on Southwest, the airline she booked for Las Vegas",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
     },
@@ -8506,7 +8676,7 @@
     }
    ],
    "notCounted": [],
-   "travelTotal": 5148.7
+   "travelTotal": 5873.66
   },
   {
    "label": "BDR Spark 2026",
@@ -8543,6 +8713,71 @@
    ],
    "notes": null,
    "lines": [
+    {
+     "date": "2025-12-17",
+     "owner": "Alicia Schmaling",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 1826.72,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: booked by Alicia Schmaling on Delta, the airline Ryan Peterson and Ky Decker flew to BDR Spark (their bag fees)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-12-17",
+     "owner": "Alicia Schmaling",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 49.98,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: fee on the Delta booking judged to be BDR Spark's",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-12-17",
+     "owner": "Alicia Schmaling",
+     "merchant": "Allianz Travel Insurance",
+     "rampCategory": null,
+     "city": "Henrico, VA",
+     "amount": 126.68,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: trip insurance bought with the Delta booking judged to be BDR Spark's",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-12-31",
+     "owner": "Alicia Schmaling",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 543.6,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: booked by Alicia Schmaling on Delta six days before BDR Spark",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-12-31",
+     "owner": "Alicia Schmaling",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 19.98,
+     "label": "Flights",
+     "confidence": "Low",
+     "why": "judgement: fee on the Delta booking judged to be BDR Spark's",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
     {
      "date": "2026-01-05",
      "owner": "Ky Decker",
@@ -8779,7 +9014,7 @@
     }
    ],
    "notCounted": [],
-   "travelTotal": 1014.13
+   "travelTotal": 3581.09
   },
   {
    "label": "Generac 2026",
@@ -8903,6 +9138,32 @@
      "label": "Hotel incidentals",
      "confidence": "Medium",
      "why": "booked by Alicia Schmaling: a Las Vegas, NV hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-20",
+     "owner": "Alicia Schmaling",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Dallas, TX",
+     "amount": 82.14,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "judgement: Southwest change fee; the memo says the Generac flights were first booked against the wrong agenda",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-20",
+     "owner": "Alicia Schmaling",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Dallas, TX",
+     "amount": 47.58,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "judgement: Southwest change fee; the memo says the Generac flights were first booked against the wrong agenda",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
     },
@@ -9195,6 +9456,19 @@
     {
      "date": "2026-01-30",
      "owner": "Parker Joos",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 36.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-30",
+     "owner": "Parker Joos",
      "merchant": "JAMBA",
      "rampCategory": null,
      "city": "Las Vegas, NV",
@@ -9451,17 +9725,9 @@
      "city": "Troy, MI",
      "amount": 3.0,
      "why": "in the Generac 2026 window, but the merchant is in Troy, MI, not Las Vegas, NV"
-    },
-    {
-     "date": "2026-01-30",
-     "owner": "Parker Joos",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 36.0,
-     "why": "in the Generac 2026 window, but the merchant is in Salt Lake City, UT, not Las Vegas, NV"
     }
    ],
-   "travelTotal": 2537.24
+   "travelTotal": 2702.96
   },
   {
    "label": "EGIA Epic 2026",
@@ -9735,6 +10001,19 @@
     {
      "date": "2026-02-14",
      "owner": "Ky Decker",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 24.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-14",
+     "owner": "Ky Decker",
      "merchant": "JAMBA",
      "rampCategory": null,
      "city": "Las Vegas, NV",
@@ -9865,6 +10144,19 @@
     {
      "date": "2026-02-14",
      "owner": "Ryan Fenn",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 120.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-14",
+     "owner": "Ryan Fenn",
      "merchant": "Deseret News",
      "rampCategory": null,
      "city": "Salt Lake City, UT",
@@ -9948,6 +10240,19 @@
      "city": "San Francisco, CA",
      "amount": 30.94,
      "label": "Ground transport",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-14",
+     "owner": "Ryan Peterson",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 36.0,
+     "label": "Parking",
      "confidence": "High",
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
@@ -10100,33 +10405,9 @@
      "city": "Houston, TX",
      "amount": 369.61,
      "why": "fare booked ahead; more than one event it could be for: EGIA Epic 2026, RynoX 2026, Raising GOATS 2026"
-    },
-    {
-     "date": "2026-02-14",
-     "owner": "Ky Decker",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 24.0,
-     "why": "in the EGIA Epic 2026 window, but the merchant is in Salt Lake City, UT, not Las Vegas, NV"
-    },
-    {
-     "date": "2026-02-14",
-     "owner": "Ryan Peterson",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 36.0,
-     "why": "in the EGIA Epic 2026 window, but the merchant is in Salt Lake City, UT, not Las Vegas, NV"
-    },
-    {
-     "date": "2026-02-14",
-     "owner": "Ryan Fenn",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 120.0,
-     "why": "in the EGIA Epic 2026 window, but the merchant is in Salt Lake City, UT, not Las Vegas, NV"
     }
    ],
-   "travelTotal": 2973.04
+   "travelTotal": 3153.04
   },
   {
    "label": "RynoX 2026",
@@ -10200,6 +10481,19 @@
      "label": "Flights",
      "confidence": "High",
      "why": "the Ramp memo's dates fall in the event's dates",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-17",
+     "owner": "Garret Clarke",
+     "merchant": "Ramp Travel",
+     "rampCategory": null,
+     "city": "Buffalo, NY",
+     "amount": 179.17,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "judgement: Ramp Travel charge on the RynoX flights",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
     },
@@ -10375,6 +10669,19 @@
     {
      "date": "2026-02-20",
      "owner": "Justin Judd",
+     "merchant": "Provo City",
+     "rampCategory": null,
+     "city": "Provo, UT",
+     "amount": 48.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-20",
+     "owner": "Justin Judd",
      "merchant": "Hudson News",
      "rampCategory": null,
      "city": "Phoenix, AZ",
@@ -10412,6 +10719,19 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2026-02-20",
+     "owner": "Ryan Fenn",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 100.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2026-02-21",
      "owner": "Ryan Fenn",
      "merchant": "Frontier",
@@ -10439,14 +10759,6 @@
     }
    ],
    "notCounted": [
-    {
-     "date": "2026-02-17",
-     "owner": "Garret Clarke",
-     "merchant": "Ramp Travel",
-     "city": "Buffalo, NY",
-     "amount": 179.17,
-     "why": "in the RynoX 2026 window, but the merchant is in Buffalo, NY, not Phoenix, AZ"
-    },
     {
      "date": "2026-02-17",
      "owner": "Garret Clarke",
@@ -10489,14 +10801,6 @@
     },
     {
      "date": "2026-02-20",
-     "owner": "Justin Judd",
-     "merchant": "Provo City",
-     "city": "Provo, UT",
-     "amount": 48.0,
-     "why": "in the RynoX 2026 window, but the merchant is in Provo, UT, not Phoenix, AZ"
-    },
-    {
-     "date": "2026-02-20",
      "owner": "Garret Clarke",
      "merchant": "Terminal A",
      "city": "San Jose, CA",
@@ -10510,14 +10814,6 @@
      "city": "Riverton, UT",
      "amount": 28.36,
      "why": "in the RynoX 2026 window, but the merchant is in Riverton, UT, not Phoenix, AZ"
-    },
-    {
-     "date": "2026-02-20",
-     "owner": "Ryan Fenn",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 100.0,
-     "why": "in the RynoX 2026 window, but the merchant is in Salt Lake City, UT, not Phoenix, AZ"
     },
     {
      "date": "2026-02-20",
@@ -10688,7 +10984,7 @@
      "why": "just outside the RynoX 2026 travel window"
     }
    ],
-   "travelTotal": 3897.96
+   "travelTotal": 4225.13
   },
   {
    "label": "Lennox Live New Orleans 2026",
@@ -11163,6 +11459,19 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-03-13",
+     "owner": "Ryan Peterson",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 48.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
     }
    ],
    "notCounted": [
@@ -11189,33 +11498,9 @@
      "city": "Atlanta, GA",
      "amount": 5.77,
      "why": "in the Lennox Live New Orleans 2026 window, but the merchant is in Atlanta, GA, not New Orleans, LA"
-    },
-    {
-     "date": "2026-03-13",
-     "owner": "Ryan Peterson",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 48.0,
-     "why": "in the Lennox Live New Orleans 2026 window, but the merchant is in Salt Lake City, UT, not New Orleans, LA"
-    },
-    {
-     "date": "2026-03-13",
-     "owner": "Ryan Peterson",
-     "merchant": "Mohegan Sun",
-     "city": "Uncasville, CT",
-     "amount": 257.72,
-     "why": "in the Lennox Live New Orleans 2026 window, but the merchant is in Uncasville, CT, not New Orleans, LA"
-    },
-    {
-     "date": "2026-03-13",
-     "owner": "Justin Judd",
-     "merchant": "Mohegan Sun",
-     "city": "Uncasville, CT",
-     "amount": 257.72,
-     "why": "in the Lennox Live New Orleans 2026 window, but the merchant is in Uncasville, CT, not New Orleans, LA"
     }
    ],
-   "travelTotal": 5424.41
+   "travelTotal": 5472.41
   },
   {
    "label": "Raising GOATS 2026",
@@ -11437,6 +11722,19 @@
     {
      "date": "2026-03-25",
      "owner": "Ryan Fenn",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 60.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-03-25",
+     "owner": "Ryan Fenn",
      "merchant": "Shake Shack",
      "rampCategory": null,
      "city": "Phoenix, AZ",
@@ -11472,25 +11770,9 @@
      "city": "New Orleans, LA",
      "amount": 10.22,
      "why": "just outside the Raising GOATS 2026 travel window"
-    },
-    {
-     "date": "2026-03-20",
-     "owner": "Justin Judd",
-     "merchant": "Hilton Hotels",
-     "city": "Norwalk, CT",
-     "amount": -306.31,
-     "why": "just outside the Raising GOATS 2026 travel window"
-    },
-    {
-     "date": "2026-03-25",
-     "owner": "Ryan Fenn",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 60.0,
-     "why": "in the Raising GOATS 2026 window, but the merchant is in Salt Lake City, UT, not Scottsdale, AZ"
     }
    ],
-   "travelTotal": 1116.94
+   "travelTotal": 1176.94
   },
   {
    "label": "Lennox Live Anaheim 2026",
@@ -11701,6 +11983,19 @@
      "city": "Orange, CA",
      "amount": 21.52,
      "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-04-02",
+     "owner": "Blake Fenn",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 120.0,
+     "label": "Parking",
      "confidence": "High",
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
@@ -12060,6 +12355,19 @@
     {
      "date": "2026-04-02",
      "owner": "Ryan Peterson",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 43.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-04-02",
+     "owner": "Ryan Peterson",
      "merchant": "Uber",
      "rampCategory": null,
      "city": "San Francisco, CA",
@@ -12086,22 +12394,6 @@
    ],
    "notCounted": [
     {
-     "date": "2026-04-02",
-     "owner": "Ryan Peterson",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 43.0,
-     "why": "in the Lennox Live Anaheim 2026 window, but the merchant is in Salt Lake City, UT, not Anaheim, CA"
-    },
-    {
-     "date": "2026-04-02",
-     "owner": "Blake Fenn",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 120.0,
-     "why": "in the Lennox Live Anaheim 2026 window, but the merchant is in Salt Lake City, UT, not Anaheim, CA"
-    },
-    {
      "date": "2026-04-06",
      "owner": "Blake Fenn",
      "merchant": "Provo City",
@@ -12110,7 +12402,7 @@
      "why": "just outside the Lennox Live Anaheim 2026 travel window"
     }
    ],
-   "travelTotal": 4337.34
+   "travelTotal": 4500.34
   },
   {
    "label": "CertainPath Spring Expo 2026",
@@ -12168,6 +12460,32 @@
      "label": "Flights",
      "confidence": "High",
      "why": "the Ramp memo's dates fall in the event's dates",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-03-13",
+     "owner": "Justin Judd",
+     "merchant": "Mohegan Sun",
+     "rampCategory": null,
+     "city": "Uncasville, CT",
+     "amount": 257.72,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "judgement: Mohegan Sun deposit: CertainPath Spring Expo was at Mohegan Sun",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-03-20",
+     "owner": "Justin Judd",
+     "merchant": "Hilton Hotels",
+     "rampCategory": null,
+     "city": "Norwalk, CT",
+     "amount": -306.31,
+     "label": "Lodging",
+     "confidence": "Low",
+     "why": "judgement: Connecticut hotel refund before CertainPath Spring Expo",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
     },
@@ -12246,6 +12564,19 @@
      "label": "Flights",
      "confidence": "High",
      "why": "the Ramp memo's dates fall in the event's dates",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-03-13",
+     "owner": "Ryan Peterson",
+     "merchant": "Mohegan Sun",
+     "rampCategory": null,
+     "city": "Uncasville, CT",
+     "amount": 257.72,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "judgement: Mohegan Sun deposit: CertainPath Spring Expo was at Mohegan Sun",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
     },
@@ -12343,6 +12674,19 @@
     {
      "date": "2026-04-10",
      "owner": "Ryan Peterson",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 24.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-04-10",
+     "owner": "Ryan Peterson",
      "merchant": "Bdl Hartfrd Travelmart",
      "rampCategory": null,
      "city": "Windsor Locks, CT",
@@ -12373,14 +12717,6 @@
     },
     {
      "date": "2026-04-10",
-     "owner": "Ryan Peterson",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 24.0,
-     "why": "in the CertainPath Spring Expo 2026 window, but the merchant is in Salt Lake City, UT, not Uncasville, CT (Mohegan Sun)"
-    },
-    {
-     "date": "2026-04-10",
      "owner": "Justin Judd",
      "merchant": "Hudson News",
      "city": "Des Plaines, IL",
@@ -12388,7 +12724,7 @@
      "why": "in the CertainPath Spring Expo 2026 window, but the merchant is in Des Plaines, IL, not Uncasville, CT (Mohegan Sun)"
     }
    ],
-   "travelTotal": 2415.0
+   "travelTotal": 2648.13
   },
   {
    "label": "Redwood Leadership Summit",
@@ -12608,6 +12944,58 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2026-04-22",
+     "owner": "Blake Fenn",
+     "merchant": "Memphis Barbecue Company",
+     "rampCategory": null,
+     "city": "Horn Lake, MS",
+     "amount": 90.59,
+     "label": "Meals",
+     "confidence": "Medium",
+     "why": "judgement: Horn Lake, MS, next to Memphis",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-04-23",
+     "owner": "Blake Fenn",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 80.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-04-15",
+     "owner": "Tavi Carvajal",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 1246.81,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "judgement: two identical Delta fares six days before Redwood (Memphis), for Tavi Carvajal and Blake Fenn, who flew Delta there (his bag fees)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-04-15",
+     "owner": "Tavi Carvajal",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 1246.81,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "judgement: two identical Delta fares six days before Redwood (Memphis), for Tavi Carvajal and Blake Fenn, who flew Delta there (his bag fees)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2026-04-21",
      "owner": "Tavi Carvajal",
      "merchant": "Holiday Inn",
@@ -12727,38 +13115,6 @@
    ],
    "notCounted": [
     {
-     "date": "2026-04-15",
-     "owner": "Tavi Carvajal",
-     "merchant": "Delta Airlines",
-     "city": "Atlanta, GA",
-     "amount": 1246.81,
-     "why": "one of 2 fares Tavi Carvajal bought before Redwood Leadership Summit; destination unknown"
-    },
-    {
-     "date": "2026-04-15",
-     "owner": "Tavi Carvajal",
-     "merchant": "Delta Airlines",
-     "city": "Atlanta, GA",
-     "amount": 1246.81,
-     "why": "one of 2 fares Tavi Carvajal bought before Redwood Leadership Summit; destination unknown"
-    },
-    {
-     "date": "2026-04-22",
-     "owner": "Blake Fenn",
-     "merchant": "Memphis Barbecue Company",
-     "city": "Horn Lake, MS",
-     "amount": 90.59,
-     "why": "in the Redwood Leadership Summit window, but the merchant is in Horn Lake, MS, not Memphis, TN"
-    },
-    {
-     "date": "2026-04-23",
-     "owner": "Blake Fenn",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 80.0,
-     "why": "in the Redwood Leadership Summit window, but the merchant is in Salt Lake City, UT, not Memphis, TN"
-    },
-    {
      "date": "2026-04-23",
      "owner": "Blake Fenn",
      "merchant": "Paradies Lagardere",
@@ -12775,7 +13131,7 @@
      "why": "in the Redwood Leadership Summit window, but the merchant is in Atlanta, GA, not Memphis, TN"
     }
    ],
-   "travelTotal": 1384.36
+   "travelTotal": 4048.57
   },
   {
    "label": "BCSG Acceleration Days 2026",
@@ -12918,6 +13274,19 @@
     {
      "date": "2026-04-30",
      "owner": "Ryan Peterson",
+     "merchant": "Provo City",
+     "rampCategory": null,
+     "city": "Provo, UT",
+     "amount": 36.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-04-30",
+     "owner": "Ryan Peterson",
      "merchant": "Uber",
      "rampCategory": null,
      "city": "San Francisco, CA",
@@ -12989,17 +13358,9 @@
      "city": "Provo, UT",
      "amount": 6.43,
      "why": "in the BCSG Acceleration Days 2026 window, but the merchant is in Provo, UT, not Glendale, AZ"
-    },
-    {
-     "date": "2026-04-30",
-     "owner": "Ryan Peterson",
-     "merchant": "Provo City",
-     "city": "Provo, UT",
-     "amount": 36.0,
-     "why": "in the BCSG Acceleration Days 2026 window, but the merchant is in Provo, UT, not Glendale, AZ"
     }
    ],
-   "travelTotal": 1249.74
+   "travelTotal": 1285.74
   },
   {
    "label": "GDF Vertical Track 2026",
@@ -13245,6 +13606,19 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2026-05-15",
+     "owner": "Justin Judd",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 33.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2026-05-13",
      "owner": "Parker Joos",
      "merchant": "Uber",
@@ -13362,17 +13736,8 @@
      "source": "QuickBooks, Ramp card"
     }
    ],
-   "notCounted": [
-    {
-     "date": "2026-05-15",
-     "owner": "Justin Judd",
-     "merchant": "Salt Lake City Dept Of Ai",
-     "city": "Salt Lake City, UT",
-     "amount": 33.0,
-     "why": "in the GDF Vertical Track 2026 window, but the merchant is in Salt Lake City, UT, not Scottsdale, AZ"
-    }
-   ],
-   "travelTotal": 2662.95
+   "notCounted": [],
+   "travelTotal": 2695.95
   },
   {
    "label": "Nuve 2026",
@@ -13541,6 +13906,19 @@
     {
      "date": "2026-05-16",
      "owner": "Blake Fenn",
+     "merchant": "Provo City",
+     "rampCategory": null,
+     "city": "Provo, UT",
+     "amount": 24.0,
+     "label": "Parking",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-05-16",
+     "owner": "Blake Fenn",
      "merchant": "The Taco Stand",
      "rampCategory": null,
      "city": "Orange, CA",
@@ -13560,17 +13938,9 @@
      "city": "Provo, UT",
      "amount": 10.5,
      "why": "in the Nuve 2026 window, but the merchant is in Provo, UT, not Anaheim, CA"
-    },
-    {
-     "date": "2026-05-16",
-     "owner": "Blake Fenn",
-     "merchant": "Provo City",
-     "city": "Provo, UT",
-     "amount": 24.0,
-     "why": "in the Nuve 2026 window, but the merchant is in Provo, UT, not Anaheim, CA"
     }
    ],
-   "travelTotal": 1573.52
+   "travelTotal": 1597.52
   },
   {
    "label": "Grosso University 2026",

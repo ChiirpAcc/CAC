@@ -3639,18 +3639,46 @@ export const EVENT_TRAVEL_DECISIONS = {
   'Home Service Hoorah 2026': { was: 5812, now: 2360.45,
     evidence: 'Ryan Fenn\'s $3,451.73 (a Delta flight, a Hilton Gulf Breeze stay, a rental car, meals) is not '
       + 'this event\'s: he was not part of the Hoorah team (Josh, 13 Oct 2026).' },
-  // Set to the card charges proven against each event, where the proof finds
-  // more than the tab: bookings made by someone other than the attendee
-  // (Josh, 13 Oct 2026). Each event page lists every charge.
-  'Hardi Annual Conference': { was: 2835, now: 5148.7,
-    evidence: 'QuickBooks card charges matched to the event: 24 charges, including the $3,916.16 Wynn Las Vegas '
-      + 'booking Alicia Schmaling made for the team.' },
-  'Goettl Training': { was: 2485, now: 4385.4,
-    evidence: 'QuickBooks card charges matched to the event: 14 charges, including the flights and Tempe hotel '
-      + 'rooms Alicia Schmaling booked for Justin Judd, Tavi Carvajal and Jared Hunsaker.' },
-  'RynoX 2026': { was: 2850, now: 3897.96,
-    evidence: 'QuickBooks card charges matched to the event: 21 charges for Justin Judd, Ryan Fenn and Garret '
-      + 'Clarke, whose Phoenix flights and hotel are dated in their Ramp memos.' },
+  // Set to the card charges proven against each event (Josh, 13 Oct 2026:
+  // use your judgement): every event from Nov 2025, when the cards carry the
+  // whole trip, whose proof reaches 80% of the tab or more, and any earlier
+  // event whose proof is above the tab. Sep-Oct 2025 events otherwise keep
+  // the tab: their flights went through TravelPerk with no traveller named.
+  // Each event page lists every charge under Proof of cost.
+  'Legacy Annual Offsite': { was: 1970, now: 3184.72,
+    evidence: 'The card charges matched to the event in QuickBooks: 38 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'Network ST Event': { was: 5629, now: 13816.33,
+    evidence: 'The card charges matched to the event in QuickBooks: 48 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'We Mean Business Conference': { was: 2388, now: 4190.98,
+    evidence: 'The card charges matched to the event in QuickBooks: 29 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'Goettl Training': { was: 2485, now: 4514.4,
+    evidence: 'The card charges matched to the event in QuickBooks: 18 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'LB Roofing Process Conference': { was: 2222, now: 2998.43,
+    evidence: 'The card charges matched to the event in QuickBooks: 26 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'Hardi Annual Conference': { was: 2835, now: 5873.66,
+    evidence: 'The card charges matched to the event in QuickBooks: 25 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'BDR Spark 2026': { was: 3449, now: 3581.09,
+    evidence: 'The card charges matched to the event in QuickBooks: 23 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'Generac 2026': { was: 3147, now: 2702.96,
+    evidence: 'The card charges matched to the event in QuickBooks: 49 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'EGIA Epic 2026': { was: 3607, now: 3153.04,
+    evidence: 'The card charges matched to the event in QuickBooks: 39 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'RynoX 2026': { was: 2850, now: 4225.13,
+    evidence: 'The card charges matched to the event in QuickBooks: 24 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'Lennox Live New Orleans 2026': { was: 5512, now: 5472.41,
+    evidence: 'The card charges matched to the event in QuickBooks: 33 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'Lennox Live Anaheim 2026': { was: 4223, now: 4500.34,
+    evidence: 'The card charges matched to the event in QuickBooks: 43 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'CertainPath Spring Expo 2026': { was: 2634, now: 2648.13,
+    evidence: 'The card charges matched to the event in QuickBooks: 19 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'Redwood Leadership Summit': { was: 3136, now: 4048.57,
+    evidence: 'The card charges matched to the event in QuickBooks: 27 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'BCSG Acceleration Days 2026': { was: 1342, now: 1285.74,
+    evidence: 'The card charges matched to the event in QuickBooks: 14 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'GDF Vertical Track 2026': { was: 2549, now: 2695.95,
+    evidence: 'The card charges matched to the event in QuickBooks: 26 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
+  'Nuve 2026': { was: 1228, now: 1597.52,
+    evidence: 'The card charges matched to the event in QuickBooks: 12 charges, each listed under Proof of cost with who paid and why it is this event\'s.' },
 };
 
 // Any table keyed by event name is read by the name, or failing that by the
