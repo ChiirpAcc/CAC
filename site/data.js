@@ -837,6 +837,11 @@ export async function load() {
         dealCreated: isoDay(r.deal_created),
         won: yesNo(r.won),
         wonMrr: num(r.won_mrr),
+        // Who set the lead: the setter HubSpot records, or, where that is
+        // blank, the rep the event form names ("Form: BDR - Spark - 2026 (Ky
+        // Decker)") when a meeting followed (a deal opened). Blank where
+        // nothing names anyone (Josh, 13 Oct 2026).
+        setterFromForm: setterNamedIn(r.conversion),
         readAs: String(r['read this as'] ?? '').trim() || null,
       }))
     : null;
@@ -3835,7 +3840,8 @@ export const EVENT_META = {
   'HSF 2025': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   'Pantheon 2025': { type: 'Conference sponsorship', organiser: 'ServiceTitan', plan2027: ON },
   'CertainPath Fall Expo 2025': { type: 'Partner network event', organiser: 'CertainPath', plan2027: ON },
-  'Lennox Premier Dealer Appreciation Day': { type: 'Partner network event', organiser: 'Lennox', plan2027: OFF },
+  'Lennox Premier Dealer Appreciation Day': { type: 'Partner network event', organiser: 'Lennox', plan2027: OFF,
+    presence: 'A free dealer appreciation day in Oklahoma City; Colton Lingmann attended. No lead capture.', eventDate: '2025-09-28' },
   'Nexstar Super Meeting 2025': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
   'The Huge Convention 2025': { type: 'Conference sponsorship', organiser: 'The Huge Convention', plan2027: OFF },
   // Aug 5-6 2025 in Australia (2025 Events/Travel planning sheet).
@@ -4139,6 +4145,40 @@ export const HUBSPOT_COMPANY_STRIPE = {
   23553523830: ['Outdoor Lighting Perspectives', 'cus_T2IWzPcIvzDANV'], // Outdoor Lights HTX
   25135657321: ['Lamar Heat & Air', 'cus_UA3UQKWe2MuUTs'], // never paid: not in the waterfall
 };
+
+// The rep an event form names, as the conversion writes it: a name in
+// brackets at the end of the form, "<Name> Demo" or "<Name>'s ... Form".
+// Checked on 13 Oct 2026 against leads with both: the form's rep is the
+// recorded setter 246 times in 267. A personal meetings link is not: its
+// owner gave the demo (26 of 26) and set it only 4 times in 26, so links
+// name no setter.
+const SETTER_ALIASES = {
+  'blake': 'Blake Fenn', 'blake fenn': 'Blake Fenn', 'blake-fenn': 'Blake Fenn',
+  'parker': 'Parker Joos', 'parker-joos': 'Parker Joos',
+  'justin': 'Justin Judd', 'justin-judd': 'Justin Judd',
+  'ky': 'Ky Decker', 'ky decker': 'Ky Decker', 'kyden': 'Ky Decker', 'kyden decker': 'Ky Decker',
+  'stan': 'Stan Wesemann', 'stan wesemann': 'Stan Wesemann',
+  'jared w': 'Jared Walker', 'jared walker': 'Jared Walker',
+  'korth': 'Korth Rushdi', 'korth-rushdi': 'Korth Rushdi',
+  'chelsea-allred': 'Chelsea Allred', 'colton-lingmann': 'Colton Lingmann',
+  'danielle-cheesman': 'Danielle Cheesman', 'glenn-dickman': 'Glenn Dickman', 'jackson tolman': 'Jackson Tolman',
+};
+export function setterNamedIn(conversion) {
+  const v = String(conversion || '').trim();
+  if (!v || /round-robin/i.test(v)) return null;
+  const tries = [
+    (v.match(/\(([^)]+)\)\s*$/) || [])[1],
+    (v.match(/ - ([A-Z][a-z]+) -?\s?Demo/) || [])[1],
+    (v.match(/^Form: ([A-Z][a-z]+ [A-Z][a-z]+)'s /) || [])[1],
+  ];
+  for (const t of tries) {
+    if (!t) continue;
+    const k = t.toLowerCase().replace(/\s*-?\s*(demo|upsell)$/, '').trim();
+    if (SETTER_ALIASES[k]) return SETTER_ALIASES[k];
+  }
+  return null;
+}
+export const setterOf = r => r.bookedBy || (r.setterFromForm && r.dealCreated ? r.setterFromForm : null);
 
 export const HUBSPOT_USER_NAMES = {
   629850185: 'Parker Joos', // a salesperson who has left; 115 event deals
@@ -6068,7 +6108,9 @@ export function eventAuditRows(data) {
     const credited = (e.customerRows || []).filter(x => x.firstPaid);
     const leadIds = new Set(counted.map(l => l.company && by(l.company)).filter(Boolean).map(x => x.id));
     const weakNoRow = credited.filter(x => x.credit !== 'direct' && !leadIds.has(x.id));
-    if (weakNoRow.length) gaps.push(`${weakNoRow.length} credited on the tag alone with no lead: ${weakNoRow.map(x => x.name).join('; ')}`);
+    // A credited customer with no Event Leads row is not a gap: the customer
+    // is paying and tagged, and nothing on our side fills the missing row
+    // (Josh, 13 Oct 2026).
     const wins = counted.filter(l => l.won === true && winInWindow(l) && !l.wonThrough);
     const winsUnmatched = wins.filter(l => !(l.company && by(l.company)));
     // Every won lead with a paying Stripe account is matched (13 Oct 2026), so
@@ -6076,10 +6118,12 @@ export function eventAuditRows(data) {
     if (winsUnmatched.length) gaps.push(`${winsUnmatched.length} won deal${winsUnmatched.length === 1 ? '' : 's'} with no Stripe payment yet`);
     const elsewhere = counted.filter(l => l.state === 'wonElsewhere');
     // People
-    const setters = counted.filter(l => l.bookedBy).length;
+    const setters = counted.filter(l => setterOf(l)).length;
     const deals = counted.filter(l => l.dealCreated);
     const owners = deals.filter(l => l.demoedBy).length;
-    if (counted.length >= 5 && setters / counted.length < 0.25) gaps.push(`setter on ${setters} of ${counted.length} leads`);
+    // A blank setter is not a gap: where the form names no rep and HubSpot has
+    // none, there is nothing to fill (Josh, 13 Oct 2026). The share stays on
+    // the row for the Sales tab.
     rows.push({ label: e.label, month: e.month, spend: e.spend, cost, dated, leadsCheck,
       leads: fe ? (fe.dated ? fe.produced : fe.base) : 0, customers: e.paid,
       direct: e.evidence ? e.evidence.direct : 0, tagOnly: e.evidence ? e.evidence.tagOnly : 0,
@@ -6323,7 +6367,7 @@ export function salesReport(data) {
   const group = (key, list) => {
     const m = new Map();
     for (const r of list) {
-      const k = r[key] || null;
+      const k = (typeof key === 'function' ? key(r) : r[key]) || null;
       if (!m.has(k)) m.set(k, []);
       m.get(k).push(r);
     }
@@ -6350,9 +6394,9 @@ export function salesReport(data) {
     }
     return { mrr: [...seen.values()].reduce((t, v) => t + v, 0), matched: seen.size };
   };
-  const same = r => Boolean(r.bookedBy && r.demoedBy) && String(r.bookedBy).toLowerCase() === String(r.demoedBy).toLowerCase();
+  const same = r => Boolean(setterOf(r) && r.demoedBy) && String(setterOf(r)).toLowerCase() === String(r.demoedBy).toLowerCase();
   const pair = list => ({ shows: list.length, wins: list.filter(winOf).length, rate: ratio(list.filter(winOf).length, list.length) });
-  const setters = [...group('bookedBy', counted)].map(([who, list]) => {
+  const setters = [...group(setterOf, counted)].map(([who, list]) => {
     const sat = list.filter(r => r.dealCreated).length;
     const won = list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).length;
     const events = [...group('source', list)].map(([source, l]) => ({ source, leads: l.length,
@@ -6369,9 +6413,9 @@ export function salesReport(data) {
     const closed = list.filter(r => r.won !== null).length;
     return { who, recorded: who !== null, deals: list.length, won: ratio(won, list.length), closed,
       closeRate: ratio(won, closed), wonDealAmount: list.filter(r => (r.won === true && winInWindow(r) && !r.wonThrough)).reduce((t, r) => t + (r.wonMrr || 0), 0),
-      bookedByOthers: list.filter(r => r.bookedBy && r.bookedBy !== who).length,
-      selfSet: pair(list.filter(same)), setByOthers: pair(list.filter(r => r.bookedBy && !same(r))),
-      noSetter: pair(list.filter(r => !r.bookedBy)), stripe: stripeMrrOf(list) };
+      bookedByOthers: list.filter(r => setterOf(r) && setterOf(r) !== who).length,
+      selfSet: pair(list.filter(same)), setByOthers: pair(list.filter(r => setterOf(r) && !same(r))),
+      noSetter: pair(list.filter(r => !setterOf(r))), stripe: stripeMrrOf(list) };
   }).sort((a, b) => (b.recorded - a.recorded) || b.deals - a.deals);
   // The Setters tab, as the pipeline built it: every source, per person.
   let people = null;
@@ -6391,7 +6435,7 @@ export function salesReport(data) {
   }
   // The funnel in totals, and whether one person carrying a lead from set to
   // demo wins more often than a hand-off.
-  const sets = counted.filter(r => r.bookedBy);
+  const sets = counted.filter(r => setterOf(r));
   const setShows = sets.filter(r => r.dealCreated);
   const allShows = counted.filter(r => r.dealCreated);
   const wins = counted.filter(winOf);
@@ -6399,8 +6443,8 @@ export function salesReport(data) {
     wins: wins.length, setRate: ratio(sets.length, counted.length), showRate: ratio(setShows.length, sets.length),
     closeRate: ratio(wins.length, allShows.length), leadToWin: ratio(wins.length, counted.length),
     stripe: stripeMrrOf(counted), wonDealAmount: wins.reduce((t, r) => t + (r.wonMrr || 0), 0) };
-  const pairing = { same: pair(allShows.filter(same)), handedOff: pair(allShows.filter(r => r.bookedBy && r.demoedBy && !same(r))),
-    noSetter: pair(allShows.filter(r => !r.bookedBy)) };
+  const pairing = { same: pair(allShows.filter(same)), handedOff: pair(allShows.filter(r => setterOf(r) && r.demoedBy && !same(r))),
+    noSetter: pair(allShows.filter(r => !setterOf(r))) };
   const peopleTotals = people ? people.reduce((t, p) => ({ leads: t.leads + p.leads, sits: t.sits + p.sits, wins: t.wins + p.wins,
     wonMrr: t.wonMrr + p.wonMrr }), { leads: 0, sits: 0, wins: 0, wonMrr: 0 }) : null;
   // By quarter, per person. Event Leads carries no booking date, so a set is
@@ -6419,11 +6463,11 @@ export function salesReport(data) {
     return m.get(who);
   };
   for (const r of worked) {
-    if (r.bookedBy) {
+    if (setterOf(r)) {
       const qs = quarterOf(setMonth(r));
-      if (qs) cell(qs, r.bookedBy).sets += 1;
+      if (qs) cell(qs, setterOf(r)).sets += 1;
       const qd = quarterOf(r.dealCreated && r.dealCreated.slice(0, 7));
-      if (qd) cell(qd, r.bookedBy).shows += 1;
+      if (qd) cell(qd, setterOf(r)).shows += 1;
     }
     if (r.demoedBy && r.dealCreated) {
       const qd = quarterOf(r.dealCreated.slice(0, 7));
@@ -6441,7 +6485,7 @@ export function salesReport(data) {
       stripeMrr: [...c.wonIds].reduce((t, id) => t + (firstBilledOf.get(id) || 0), 0) }))
       .sort((a, b) => b.sets - a.sets || b.demos - a.demos || String(a.who).localeCompare(String(b.who))) }));
   return { setters, owners, counted: counted.length, people, totals, pairing, peopleTotals, byQuarter,
-    setterFill: ratio(counted.filter(r => r.bookedBy).length, counted.length),
+    setterFill: ratio(counted.filter(r => setterOf(r)).length, counted.length),
     ownerFill: ratio(withDeal.filter(r => r.demoedBy).length, withDeal.length) };
 }
 
