@@ -3793,13 +3793,19 @@ export const EVENT_META = {
   'Zoom Drain Expo - Vortex': { type: 'Conference sponsorship', organiser: 'Zoom Drain', plan2027: OFF },
   'Service World': { type: 'Conference sponsorship', organiser: 'Service World', plan2027: OFF },
   'Nuve Networks Tour': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
-  'Lennox Live Roadshow': { type: 'Partner network event', organiser: 'Lennox', plan2027: ON },
+  // Attended or spoke, with no booth and no lead capture (the 2026 Events and
+  // Travel planning sheet, read 13 Oct 2026): no leads are expected, so no
+  // leads is not a failure. Their cost is travel only.
+  'Lennox Live Roadshow': { type: 'Partner network event', organiser: 'Lennox', plan2027: ON,
+    presence: 'Free; Ryan spoke. No booth, no swag.', eventDate: '2025-10-02' },
   'Clover Mastermind 2025': { type: 'Small room', organiser: 'Clover', plan2027: OFF },
-  'Home and Commercial Svcs Marketing Summit': { type: 'Conference sponsorship', organiser: 'Home and Commercial Services Marketing Summit', plan2027: OFF },
+  'Home and Commercial Svcs Marketing Summit': { type: 'Conference sponsorship', organiser: 'Home and Commercial Services Marketing Summit', plan2027: OFF,
+    presence: 'A free breakout session. No booth, no swag.', eventDate: '2025-10-16' },
   'Blue Collar Success Group 2025': { type: 'Partner network event', organiser: 'Blue Collar Success Group', plan2027: OFF },
   'WinSupply AOR Summit 2025': { type: 'Partner network event', organiser: 'WinSupply', plan2027: OFF },
   'We Mean Business Conference': { type: 'Conference sponsorship', organiser: 'We Mean Business', plan2027: OFF },
-  'Goettl Training': { type: 'Training', organiser: 'Goettl', plan2027: OFF },
+  'Goettl Training': { type: 'Training', organiser: 'Goettl', plan2027: OFF,
+    presence: 'No paid level; booth, swag and AV not needed.', eventDate: '2025-11-18' },
   'LB Roofing Process Conference': { type: 'Conference sponsorship', organiser: 'LB Roofing', plan2027: OFF },
   'Hardi Annual Conference': { type: 'Conference sponsorship', organiser: 'HARDI', plan2027: OFF },
   'BDR Spark 2026': { type: 'Partner network event', organiser: 'BDR', plan2027: ON },
@@ -3811,7 +3817,11 @@ export const EVENT_META = {
   'Raising GOATS 2026': { type: 'Conference sponsorship', organiser: 'EGIA', plan2027: ON },
   'CertainPath Spring Expo 2026': { type: 'Partner network event', organiser: 'CertainPath', plan2027: ON },
   'BCSG Acceleration Days 2026': { type: 'Partner network event', organiser: 'Blue Collar Success Group', plan2027: ON },
-  'Redwood Leadership Summit': { type: 'Partner network event', organiser: 'Redwood', plan2027: ON },
+  // The planning sheet shows registration only; QuickBooks books $10,000 to
+  // Redwood Services as the summit's sponsorship. QuickBooks is the ledger, so
+  // the cost stands, and the conflict is said on the event (13 Oct 2026).
+  'Redwood Leadership Summit': { type: 'Partner network event', organiser: 'Redwood', plan2027: ON, eventDate: '2026-04-21',
+    conflict: 'The planning sheet shows registration only, but QuickBooks books $10,000 to Redwood Services as the summit’s sponsorship, and no lead capture was set up. Confirm what the $10,000 bought.' },
   'GDF Vertical Track 2026': { type: 'Partner network event', organiser: 'Garage Door Freedom', plan2027: ON },
   'Nuve 2026': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
   'Grosso University 2026': { type: 'Partner network event', organiser: 'Grosso University', plan2027: ON },
@@ -4539,6 +4549,9 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     e.type = meta ? meta.type : e.cost ? EVENT_UNCLASSIFIED : null;
     e.organiser = meta ? meta.organiser : e.cost ? EVENT_UNCLASSIFIED : null;
     e.plan2027 = meta ? meta.plan2027 : null;
+    e.presence = meta && meta.presence ? meta.presence : null;
+    e.conflict = meta && meta.conflict ? meta.conflict : null;
+    if (!e.eventDate && meta && meta.eventDate) e.eventDate = meta.eventDate;
     e.report2025 = e.cost ? byEventName(EVENT_REPORT_NOV2025, e.cost.event, e.cost.month) : null;
   }
   events.sort((a, b) => String(a.month || a.year || '').localeCompare(String(b.month || b.year || ''))
@@ -5899,12 +5912,12 @@ export function eventAuditRows(data) {
     if (c.costState && c.costState !== 'settling') problems.push(`cost ${c.costState}`);
     if (c.sponsor === null || c.sponsor === undefined) problems.push('no fee recorded');
     // Date and source
-    const dated = Boolean((lc && lc.eventDate) || (fe && fe.dated));
+    const dated = Boolean((lc && lc.eventDate) || (fe && fe.dated) || e.eventDate);
     const tagged = Boolean(e.source || fe);
     // No date matters only where something was tagged to the event: without
     // a date its contacts cannot be split into before and after.
-    if (!dated && tagged) problems.push('no event date');
-    if (!tagged) gaps.push('never measured: no contact or customer was tagged to it');
+    if (!dated && tagged && !e.eventDate) problems.push('no event date');
+    if (!tagged && !e.presence) gaps.push(e.conflict || 'never measured: no contact or customer was tagged to it');
     // Leads against Lead Counts
     let leadsCheck = '–';
     if (fe && lc && fe.dated && lc.earnedAfter !== null && lc.earnedAfter !== undefined) {
@@ -5933,7 +5946,7 @@ export function eventAuditRows(data) {
       direct: e.evidence ? e.evidence.direct : 0, tagOnly: e.evidence ? e.evidence.tagOnly : 0,
       wins: wins.length, winsMatched: wins.length - winsUnmatched.length, wonElsewhere: elsewhere.length,
       setterShare: counted.length ? setters / counted.length : null, ownerShare: deals.length ? owners / deals.length : null,
-      net: e.net, problems, gaps,
+      net: e.net, problems, gaps, presence: e.presence,
       status: problems.length ? 'problem' : gaps.length ? 'gap' : 'ok' });
   }
   return rows.sort((a, b) => b.month.localeCompare(a.month) || a.label.localeCompare(b.label));
@@ -6055,6 +6068,12 @@ export function salesReport(data) {
   // first billed the customer, never at the deal's own amount alone.
   const winOf = r => r.won === true && winInWindow(r) && !r.wonThrough;
   const byCo = stripeByCompany(data);
+  // What Stripe first billed each customer: its MRR in its first paid month.
+  const firstBilledOf = new Map();
+  {
+    const first = firstPaymentMonths(data);
+    for (const c of data.customers) if (first.get(c.id) === c.month && !firstBilledOf.has(c.id)) firstBilledOf.set(c.id, c.eopMrr || 0);
+  }
   const stripeMrrOf = list => {
     const seen = new Map();
     for (const r of list) {
@@ -6117,7 +6136,44 @@ export function salesReport(data) {
     noSetter: pair(allShows.filter(r => !r.bookedBy)) };
   const peopleTotals = people ? people.reduce((t, p) => ({ leads: t.leads + p.leads, sits: t.sits + p.sits, wins: t.wins + p.wins,
     wonMrr: t.wonMrr + p.wonMrr }), { leads: 0, sits: 0, wins: 0, wonMrr: 0 }) : null;
-  return { setters, owners, counted: counted.length, people, totals, pairing, peopleTotals,
+  // By quarter, per person. Event Leads carries no booking date, so a set is
+  // dated by the later of the lead's arrival and its event (when the lead
+  // could first be set), and a show, a demo and a sale by when the deal
+  // opened, which HubSpot does once the demo is sat. Upsell meetings count
+  // here: they are sets and demos all the same.
+  const quarterOf = m => (m ? `${m.slice(0, 4)} Q${Math.floor((Number(m.slice(5, 7)) - 1) / 3) + 1}` : null);
+  const worked = rows.filter(r => SALES_COUNTED.has(r.state) || r.state === 'upsell');
+  const setMonth = r => [r.created, r.eventDate].filter(Boolean).sort().pop()?.slice(0, 7) || null;
+  const q = new Map();
+  const cell = (quarter, who) => {
+    if (!q.has(quarter)) q.set(quarter, new Map());
+    const m = q.get(quarter);
+    if (!m.has(who)) m.set(who, { who, sets: 0, shows: 0, demos: 0, sales: 0, wonIds: new Set() });
+    return m.get(who);
+  };
+  for (const r of worked) {
+    if (r.bookedBy) {
+      const qs = quarterOf(setMonth(r));
+      if (qs) cell(qs, r.bookedBy).sets += 1;
+      const qd = quarterOf(r.dealCreated && r.dealCreated.slice(0, 7));
+      if (qd) cell(qd, r.bookedBy).shows += 1;
+    }
+    if (r.demoedBy && r.dealCreated) {
+      const qd = quarterOf(r.dealCreated.slice(0, 7));
+      const c = cell(qd, r.demoedBy);
+      c.demos += 1;
+      if (winOf(r)) {
+        c.sales += 1;
+        const x = r.company ? byCo(r.company) : null;
+        if (x && x.firstPaid) c.wonIds.add(x.id);
+      }
+    }
+  }
+  const byQuarter = [...q.keys()].sort().reverse().map(quarter => ({ quarter,
+    people: [...q.get(quarter).values()].map(c => ({ who: c.who, sets: c.sets, shows: c.shows, demos: c.demos, sales: c.sales,
+      stripeMrr: [...c.wonIds].reduce((t, id) => t + (firstBilledOf.get(id) || 0), 0) }))
+      .sort((a, b) => b.sets - a.sets || b.demos - a.demos || String(a.who).localeCompare(String(b.who))) }));
+  return { setters, owners, counted: counted.length, people, totals, pairing, peopleTotals, byQuarter,
     setterFill: ratio(counted.filter(r => r.bookedBy).length, counted.length),
     ownerFill: ratio(withDeal.filter(r => r.demoedBy).length, withDeal.length) };
 }

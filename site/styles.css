@@ -1205,3 +1205,7 @@ html { scroll-behavior: smooth; }
 
 /* A rate resting on fewer than ten: shown, but faded. */
 .rate-thin { color: var(--ink-soft); }
+
+/* The quarter headline person, and total rows in the Sales tables. */
+.row-featured td { background: var(--surface-sunk); font-weight: 600; }
+.total-row td { border-top: 1px solid var(--rule-strong); }

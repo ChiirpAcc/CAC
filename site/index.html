@@ -1159,6 +1159,25 @@
     </header>
     <div class="ev-kpis" id="sales-kpis"></div>
     <p class="finding" id="sales-finding"></p>
+    <figure class="card wide" id="fig-sales-quarter">
+      <figcaption><h3>By quarter: sets, shows and demos per person</h3></figcaption>
+      <div class="chart-control">
+        <label for="sales-quarter">Quarter</label>
+        <select id="sales-quarter"></select>
+        <button type="button" id="sales-quarter-download">Download this quarter as CSV</button>
+        <button type="button" id="sales-quarters-download">Download every quarter as CSV</button>
+        <output id="sales-quarter-status"></output>
+      </div>
+      <div class="ev-kpis" id="sales-quarter-kpis"></div>
+      <div class="table-scroll"><table class="data-table" id="sales-quarter-table"></table></div>
+      <h4>Every quarter: sets / demos completed</h4>
+      <div class="table-scroll"><table class="data-table" id="sales-quarter-matrix"></table></div>
+      <p class="note">On event leads. A set is a lead with a setter recorded, dated by when the lead could first be set: the
+        later of its arrival and its event. A show is one of the setter’s sets reaching a demo, and a demo and a sale are
+        dated by when the deal opened, which HubSpot does once the demo is sat; the leads carry no booking or close date, so
+        a sale sits in the quarter its demo did. Upsell meetings count. Sold, Stripe MRR is what Stripe first billed each
+        won customer.</p>
+    </figure>
     <figure class="card wide">
       <figcaption><h3>Setters: sets, shows and sales</h3></figcaption>
       <div class="table-scroll"><table class="data-table" id="sales-setters"></table></div>

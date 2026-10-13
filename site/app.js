@@ -4341,7 +4341,8 @@ function renderEventAudit(range = renderEventAudit.range || 'last12') {
       + `<td class="n">${x.wins ? `${fmt.int(x.winsMatched)} of ${fmt.int(x.wins)}` : '–'}</td>`
       + `<td class="n">${share(x.setterShare)}</td><td class="n">${share(x.ownerShare)}</td>`
       + `<td class="n">${x.net === null || x.net === undefined ? '–' : (x.net < 0 ? '−' : '+') + fmt.money(Math.abs(x.net))}</td>`
-      + `<td>${[...x.problems.map(p => `<span class="neg">${p}</span>`), ...x.gaps].join('<br>') || '<span class="muted">nothing</span>'}</td></tr>`).join('')
+      + `<td>${[...x.problems.map(p => `<span class="neg">${p}</span>`), ...x.gaps].join('<br>')
+        || (x.presence ? `<span class="muted">attended or spoke, no lead capture: ${x.presence}</span>` : '<span class="muted">nothing</span>')}</td></tr>`).join('')
     + '</tbody>';
   if ($('audit-last12') && !$('audit-last12').dataset.ready) {
     $('audit-last12').addEventListener('click', () => renderEventAudit('last12'));
@@ -4419,6 +4420,79 @@ function renderEventChecks(f) {
 
 // The Sales tab: setters and deal owners, from the same lead rows.
 const ratio2 = (n, d) => ({ n, d, rate: d ? n / d : null, thin: d < 10 });
+// The person the quarter's headline names (Josh, 13 Oct 2026).
+const FEATURED_SETTER = 'Ryan Peterson';
+const quarterNow = () => { const d = new Date(); return `${d.getFullYear()} Q${Math.floor(d.getMonth() / 3) + 1}`; };
+function renderSalesQuarters(r) {
+  const sel = $('sales-quarter');
+  if (!sel || !r.byQuarter || !r.byQuarter.length) return;
+  const quarters = r.byQuarter.map(x => x.quarter);
+  if (!sel.dataset.ready) {
+    const now = quarterNow();
+    if (!quarters.includes(now)) quarters.unshift(now);
+    sel.innerHTML = quarters.map(qq => `<option value="${qq}">${qq}${qq === now ? ' (this quarter)' : ''}</option>`).join('');
+    sel.value = now;
+    sel.addEventListener('change', () => renderSalesQuarters(r));
+    sel.dataset.ready = '1';
+  }
+  const qq = sel.value;
+  const row = r.byQuarter.find(x => x.quarter === qq) || { quarter: qq, people: [] };
+  const sum = k => row.people.reduce((t, p) => t + p[k], 0);
+  const me = row.people.find(p => p.who === FEATURED_SETTER) || { sets: 0, shows: 0, demos: 0, sales: 0 };
+  const kpi = (k, v, sub = '') => `<div class="ev-kpi"><span class="ev-kpi-label">${k}</span>`
+    + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
+  $('sales-quarter-kpis').innerHTML =
+    kpi(`${FEATURED_SETTER}: sets`, fmt.int(me.sets), `in ${qq}`)
+    + kpi(`${FEATURED_SETTER}: shows`, fmt.int(me.shows), 'his sets that reached a demo')
+    + kpi('Sets, everyone', fmt.int(sum('sets')), `${fmt.int(row.people.filter(p => p.sets).length)} setters`)
+    + kpi('Demos completed', fmt.int(sum('demos')), 'deals opened, so demos sat')
+    + kpi('Sales', fmt.int(sum('sales')), `${fmt.money(sum('stripeMrr'))} Stripe MRR`);
+  const people = row.people.filter(p => p.sets || p.shows || p.demos);
+  $('sales-quarter-table').innerHTML = !people.length ? '<tbody><tr><td class="muted">Nothing in this quarter yet.</td></tr></tbody>'
+    : '<thead><tr><th>Person</th><th class="n">Sets</th><th class="n">Shows (their sets)</th><th class="n">Demos completed (owner)</th>'
+      + '<th class="n">Sales</th><th class="n">Sold, Stripe MRR</th></tr></thead><tbody>'
+      + people.map(p => `<tr${p.who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${personName(p.who)}</td>`
+        + `<td class="n">${fmt.int(p.sets)}</td><td class="n">${fmt.int(p.shows)}</td><td class="n">${fmt.int(p.demos)}</td>`
+        + `<td class="n">${fmt.int(p.sales)}</td><td class="n">${p.stripeMrr ? fmt.money(p.stripeMrr) : '–'}</td></tr>`).join('')
+      + `<tr class="total-row"><td><strong>Everyone</strong></td><td class="n"><strong>${fmt.int(sum('sets'))}</strong></td>`
+      + `<td class="n"><strong>${fmt.int(sum('shows'))}</strong></td><td class="n"><strong>${fmt.int(sum('demos'))}</strong></td>`
+      + `<td class="n"><strong>${fmt.int(sum('sales'))}</strong></td><td class="n"><strong>${fmt.money(sum('stripeMrr'))}</strong></td></tr></tbody>`;
+  // Every quarter, sets / demos completed per person.
+  const shown = [...r.byQuarter].reverse().slice(-8);
+  const everyone = [...new Set(r.byQuarter.flatMap(x => x.people.map(p => p.who)))]
+    .sort((a, b) => (a === FEATURED_SETTER ? -1 : b === FEATURED_SETTER ? 1 : String(a).localeCompare(String(b))));
+  $('sales-quarter-matrix').innerHTML = '<thead><tr><th>Person</th>' + shown.map(x => `<th class="n">${x.quarter}</th>`).join('')
+    + '</tr></thead><tbody>' + everyone.map(who => `<tr${who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${personName(who)}</td>`
+      + shown.map(x => { const p = x.people.find(pp => pp.who === who); return `<td class="n">${p && (p.sets || p.demos) ? `${p.sets}<span class="muted"> / ${p.demos}</span>` : '<span class="muted">–</span>'}</td>`; }).join('')
+      + '</tr>').join('') + '</tbody>';
+  // Exports.
+  const cell = v => (v === null || v === undefined ? '' : /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
+  const csv = list => ['quarter,person,sets,shows_of_their_sets,demos_completed_as_owner,sales,sold_stripe_mrr']
+    .concat(list.flatMap(x => x.people.map(p => [x.quarter, personName(p.who), p.sets, p.shows, p.demos, p.sales,
+      Math.round(p.stripeMrr || 0)].map(cell).join(',')))).join('\n');
+  const save = (text, name, n) => {
+    const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    $('sales-quarter-status').textContent = `${fmt.int(n)} rows exported.`;
+  };
+  const b1 = $('sales-quarter-download');
+  const b2 = $('sales-quarters-download');
+  if (b1 && !b1.dataset.ready) {
+    b1.addEventListener('click', () => {
+      const cur = $('sales-quarter').value;
+      const x = renderSalesQuarters.latest.byQuarter.find(y => y.quarter === cur) || { quarter: cur, people: [] };
+      save(csv([x]), `chiirp-sales-${cur.replace(' ', '-')}.csv`, x.people.length);
+    });
+    b2.addEventListener('click', () => {
+      const all = renderSalesQuarters.latest.byQuarter;
+      save(csv(all), 'chiirp-sales-by-quarter.csv', all.reduce((t, x) => t + x.people.length, 0));
+    });
+    b1.dataset.ready = '1';
+  }
+  renderSalesQuarters.latest = r;
+}
 function renderSales() {
   if (!$('sales-setters')) return;
   const r = salesReport(data);
@@ -4465,6 +4539,10 @@ function renderSales() {
       + `<td class="n">${money(x.stripe.mrr)}</td>`
       + `<td>${x.events.slice(0, 4).map(e => `${evName(e.source)} <span class="muted">${e.leads}/${e.sat}/${e.won}</span>`).join('<br>')}`
       + `${x.events.length > 4 ? `<br><span class="muted">${x.events.length - 4} more</span>` : ''}</td></tr>`).join('')
+    + `<tr class="total-row"><td><strong>All setters</strong></td><td class="n"><strong>${fmt.int(T.sets)}</strong></td>`
+    + rateCell(ratio2(T.setShows, T.sets)) + rateCell(ratio2(r.setters.filter(x => x.recorded).reduce((t, x) => t + x.won.n, 0), T.sets))
+    + rateCell(ratio2(r.setters.filter(x => x.recorded).reduce((t, x) => t + x.won.n, 0), T.setShows))
+    + pairCell(P.same) + pairCell(P.handedOff) + `<td class="n"><strong>${money(r.setters.filter(x => x.recorded).reduce((t, x) => t + x.stripe.mrr, 0))}</strong></td><td></td></tr>`
     + '</tbody>';
   $('sales-owners').innerHTML =
     '<thead><tr><th>Salesperson (deal owner)</th><th class="n">Demos</th><th class="n">Sales</th>'
@@ -4476,7 +4554,21 @@ function renderSales() {
       + `<td class="n">${fmt.int(x.deals - x.closed)}</td><td class="n">${money(x.stripe.mrr)}`
       + `${x.stripe.matched ? `<br><span class="muted">${fmt.int(x.stripe.matched)} customer${x.stripe.matched === 1 ? '' : 's'}</span>` : ''}</td>`
       + `<td class="n">${money(x.wonDealAmount)}</td>` + pairCell(x.selfSet) + pairCell(x.setByOthers) + pairCell(x.noSetter) + '</tr>').join('')
+    + (() => {
+      const o = r.owners;
+      const sumP = k => ({ shows: o.reduce((t, x) => t + x[k].shows, 0), wins: o.reduce((t, x) => t + x[k].wins, 0) });
+      const pc2 = p => ({ ...p, rate: ratio2(p.wins, p.shows) });
+      const deals = o.reduce((t, x) => t + x.deals, 0);
+      const won = o.reduce((t, x) => t + x.won.n, 0);
+      const closed = o.reduce((t, x) => t + x.closed, 0);
+      return `<tr class="total-row"><td><strong>All salespeople</strong></td><td class="n"><strong>${fmt.int(deals)}</strong></td>`
+        + rateCell(ratio2(won, deals)) + rateCell(ratio2(won, closed)) + `<td class="n">${fmt.int(deals - closed)}</td>`
+        + `<td class="n"><strong>${money(o.reduce((t, x) => t + x.stripe.mrr, 0))}</strong></td>`
+        + `<td class="n">${money(o.reduce((t, x) => t + x.wonDealAmount, 0))}</td>`
+        + pairCell(pc2(sumP('selfSet'))) + pairCell(pc2(sumP('setByOthers'))) + pairCell(pc2(sumP('noSetter'))) + '</tr>';
+    })()
     + '</tbody>';
+  renderSalesQuarters(r);
   // Setter by event: leads booked / sat / won in each cell.
   const evs = f ? f.events.filter(e => e.booked.n > 0) : [];
   $('sales-matrix').innerHTML = !named.length || !evs.length ? ''
