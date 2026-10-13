@@ -621,7 +621,7 @@ export async function load() {
       leadSourceFirstAt: /^\d{4}-\d{2}-\d{2}/.test(String(r.lead_source_first_at || '')) ? String(r.lead_source_first_at).slice(0, 10) : null,
       // The lead source on the deal that won this customer (Oct 2026). Blank
       // where no won deal is linked, about seven in eight customers.
-      wonDealSource: mergeSource(r.won_deal_source),
+      wonDealSource: mergeSource(r.won_deal_source) || mergeSource(HUBSPOT_WON_DEAL_LINKS[r.customer_id] || null),
       // The pipeline's grade of an event tag (v147, rules v148): direct is the
       // won deal naming the event, with the record made on or after it or
       // within 45 days before; indirect is the tag naming it while the won
@@ -4064,6 +4064,26 @@ export const eventHasReturn = e => e.spend > 0 && Boolean(e.month) && !e.upcomin
 
 // HubSpot users who have left, by id (Josh, 12 Oct 2026). The owners API
 // returns no name for a deactivated user, so the pull sends the id.
+// Won deals HubSpot links to a Stripe customer (stripe_url) that the push
+// leaves unlinked, from a live HubSpot check on 13 Oct 2026: every won New
+// Business or Reactivation deal whose customer is in the waterfall with no
+// won deal source. Used only where the push has none, so the push wins once
+// it carries them (brief item 12). Deal ids in the comments.
+export const HUBSPOT_WON_DEAL_LINKS = {
+  cus_U4oKf7Xr6tes0D: '2026 - RynoX', // 300722504381 Arctic Air Holdings, closed 2 Mar 2026
+  cus_T6Ntuif7JjOOSq: '2025 - Home Service Freedom', // 28277071542 Pinnacle Roofing Group, closed 22 Sep 2025
+  cus_T3mki1WtE4ythj: '2025 - Home Service Freedom', // 161660045023 Control Tech Heating & Air, closed 15 Sep 2025
+  cus_TSCAjaDaS8UqYR: '2025 - Home Service Freedom', // 36767202695 Lascko Services, closed 19 Nov 2025
+  cus_TFT5hQLCCKpm8W: '2025 - Home Service Freedom', // 144659628763 EMC Electric, closed 16 Oct 2025
+  // Closed before HSF 2025 (3 Sep 2025), so already paying when it happened.
+  cus_SgcjHcbzg1aF8m: '2025 - Home Service Freedom', // 40249097786 CNS Cousins Construction, 15 Jul 2025
+  cus_SgbOgNOtOnmw91: '2025 - Home Service Freedom', // 40010018104 Be Secure Locksmith, 15 Jul 2025
+  cus_SgeEhZsbqfnIwm: '2025 - Home Service Freedom', // 39250798356 Raptor Rooter & Plumbing, 15 Jul 2025
+  cus_SekKic7jmkB77v: '2025 - Home Service Freedom', // 35037821616 Super Door Garage Door Service, 10 Jul 2025
+  cus_SmyLfTTSd6HYKZ: '2025 - Home Service Freedom', // 28240912961 Pioneer Overhead Door, 1 Aug 2025
+  cus_PaqLTTdOxV6a3V: '2025 - Home Service Freedom', // 17778428249 genesrefrigeraton.com, 15 Aug 2025
+};
+
 export const HUBSPOT_USER_NAMES = {
   629850185: 'Parker Joos', // a salesperson who has left; 115 event deals
   // Inactive HubSpot users, named by Josh on 13 Oct 2026.
@@ -4253,7 +4273,11 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       if (!mt || !mw || !fp) continue;
       const tagCan = fp >= mt && monthDiff(mt, fp) <= WIN_WINDOW_MONTHS;
       const wonCan = fp >= mw && monthDiff(mw, fp) <= WIN_WINDOW_MONTHS;
-      if (tagCan || !wonCan) continue;
+      // The won deal's event takes the customer whenever it can credit them:
+      // the default rule leaves a customer out of a tag event another
+      // source's deal won, so staying would credit them nowhere (Lascko:
+      // tagged Nexstar 2025, won by an HSF 2025 deal; 13 Oct 2026).
+      if (!wonCan || (tagCan && creditRule === 'all')) continue;
       sourceOf.set(id, w);
       tagOf.set(id, w);
       creditOf.set(id, 'direct');

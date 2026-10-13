@@ -7613,6 +7613,97 @@
    "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
+     "date": "2025-11-07",
+     "owner": "Alicia Schmaling",
+     "merchant": "Breeze",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 753.0,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "the memo names the event (booked by Alicia Schmaling)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-11-07",
+     "owner": "Alicia Schmaling",
+     "merchant": "Breeze",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 81.51,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "the memo names the event (booked by Alicia Schmaling)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-11-17",
+     "owner": "Alicia Schmaling",
+     "merchant": "Holiday Inn",
+     "rampCategory": null,
+     "city": "Tempe, AZ",
+     "amount": 204.18,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Tempe, AZ hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-11-17",
+     "owner": "Alicia Schmaling",
+     "merchant": "Holiday Inn",
+     "rampCategory": null,
+     "city": "Tempe, AZ",
+     "amount": 204.18,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Tempe, AZ hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-11-18",
+     "owner": "Alicia Schmaling",
+     "merchant": "Holiday Inn",
+     "rampCategory": null,
+     "city": "Tempe, AZ",
+     "amount": 297.74,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Tempe, AZ hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-11-19",
+     "owner": "Alicia Schmaling",
+     "merchant": "Holiday Inn",
+     "rampCategory": null,
+     "city": "Tempe, AZ",
+     "amount": 266.58,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Tempe, AZ hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-11-19",
+     "owner": "Alicia Schmaling",
+     "merchant": "Holiday Inn",
+     "rampCategory": null,
+     "city": "Tempe, AZ",
+     "amount": 446.36,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Tempe, AZ hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-11-19",
      "owner": "Jared Hunsaker",
      "merchant": "Barrio Queen",
@@ -7730,7 +7821,7 @@
      "why": "in the Goettl Training window, but the merchant is in Provo, UT, not Phoenix, AZ"
     }
    ],
-   "travelTotal": 2131.85
+   "travelTotal": 4385.4
   },
   {
    "label": "LB Roofing Process Conference",
@@ -8102,6 +8193,19 @@
    "notes": null,
    "lines": [
     {
+     "date": "2025-12-04",
+     "owner": "Alicia Schmaling",
+     "merchant": "Wynn Las Vegas",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 3916.16,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Las Vegas, NV hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2025-12-07",
      "owner": "Korth Rushdi",
      "merchant": "Uber",
@@ -8402,7 +8506,7 @@
     }
    ],
    "notCounted": [],
-   "travelTotal": 1232.54
+   "travelTotal": 5148.7
   },
   {
    "label": "BDR Spark 2026",
@@ -8724,6 +8828,162 @@
    ],
    "notes": null,
    "lines": [
+    {
+     "date": "2026-01-08",
+     "owner": "Alicia Schmaling",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Dallas, TX",
+     "amount": 361.18,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "the memo names the event (booked by Alicia Schmaling)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-08",
+     "owner": "Alicia Schmaling",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Dallas, TX",
+     "amount": 395.74,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "the memo names the event (booked by Alicia Schmaling)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-08",
+     "owner": "Alicia Schmaling",
+     "merchant": "LINQ",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 34.01,
+     "label": "Hotel incidentals",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Las Vegas, NV hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-08",
+     "owner": "Alicia Schmaling",
+     "merchant": "LINQ",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 34.01,
+     "label": "Hotel incidentals",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Las Vegas, NV hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-14",
+     "owner": "Alicia Schmaling",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Dallas, TX",
+     "amount": 443.32,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "the memo names the event (booked by Alicia Schmaling)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-14",
+     "owner": "Alicia Schmaling",
+     "merchant": "LINQ",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 34.01,
+     "label": "Hotel incidentals",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Las Vegas, NV hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-23",
+     "owner": "Alicia Schmaling",
+     "merchant": "LINQ",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 202.03,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Las Vegas, NV hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-23",
+     "owner": "Alicia Schmaling",
+     "merchant": "LINQ",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 320.05,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Las Vegas, NV hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-23",
+     "owner": "Alicia Schmaling",
+     "merchant": "LINQ",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 202.03,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Las Vegas, NV hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-29",
+     "owner": "Alicia Schmaling",
+     "merchant": "LINQ",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": -100.0,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling at LINQ, the hotel its other bookings name for this event",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-30",
+     "owner": "Alicia Schmaling",
+     "merchant": "LINQ",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": -100.0,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling at LINQ, the hotel its other bookings name for this event",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-30",
+     "owner": "Alicia Schmaling",
+     "merchant": "LINQ",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": -121.65,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling at LINQ, the hotel its other bookings name for this event",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
     {
      "date": "2026-01-26",
      "owner": "Justin Judd",
@@ -9201,7 +9461,7 @@
      "why": "in the Generac 2026 window, but the merchant is in Salt Lake City, UT, not Las Vegas, NV"
     }
    ],
-   "travelTotal": 832.51
+   "travelTotal": 2537.24
   },
   {
    "label": "EGIA Epic 2026",
@@ -9251,6 +9511,58 @@
    ],
    "notes": null,
    "lines": [
+    {
+     "date": "2025-12-31",
+     "owner": "Alicia Schmaling",
+     "merchant": "Bellagio",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 209.75,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling at Bellagio, the hotel its other bookings name for this event",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-01-01",
+     "owner": "Alicia Schmaling",
+     "merchant": "Bellagio",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 209.75,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling at Bellagio, the hotel its other bookings name for this event",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-06",
+     "owner": "Alicia Schmaling",
+     "merchant": "Bellagio",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 300.45,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "the memo names the event (booked by Alicia Schmaling)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-06",
+     "owner": "Alicia Schmaling",
+     "merchant": "Bellagio",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 300.45,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "the memo names the event (booked by Alicia Schmaling)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
     {
      "date": "2026-02-12",
      "owner": "Justin Judd",
@@ -9814,7 +10126,7 @@
      "why": "in the EGIA Epic 2026 window, but the merchant is in Salt Lake City, UT, not Las Vegas, NV"
     }
    ],
-   "travelTotal": 1952.64
+   "travelTotal": 2973.04
   },
   {
    "label": "RynoX 2026",
@@ -12725,6 +13037,45 @@
    "notes": null,
    "lines": [
     {
+     "date": "2026-05-01",
+     "owner": "Alicia Schmaling",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 877.8,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "the memo names the event (booked by Alicia Schmaling)",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-05-11",
+     "owner": "Alicia Schmaling",
+     "merchant": "Talking Stick Resort",
+     "rampCategory": null,
+     "city": "Scottsdale, AZ",
+     "amount": 469.82,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Scottsdale, AZ hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-05-11",
+     "owner": "Alicia Schmaling",
+     "merchant": "Talking Stick Resort",
+     "rampCategory": null,
+     "city": "Scottsdale, AZ",
+     "amount": 699.73,
+     "label": "Lodging",
+     "confidence": "Medium",
+     "why": "booked by Alicia Schmaling: a Scottsdale, AZ hotel, the next event there",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
      "date": "2026-05-13",
      "owner": "Justin Judd",
      "merchant": "Uber",
@@ -13021,7 +13372,7 @@
      "why": "in the GDF Vertical Track 2026 window, but the merchant is in Salt Lake City, UT, not Scottsdale, AZ"
     }
    ],
-   "travelTotal": 615.6
+   "travelTotal": 2662.95
   },
   {
    "label": "Nuve 2026",
