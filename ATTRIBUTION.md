@@ -56,6 +56,12 @@ What a credited customer paid is counted from Stripe, from the event month on.
 An existing customer's pre-event revenue, and the rate they keep paying, is
 never the event's.
 
+5. **The won deal's event as a fallback:** a customer whose earliest-source
+   event cannot credit them (they first paid outside its window), and whose
+   won deal names another event inside that event's window, is credited to
+   that event as direct. A partner or webinar that came first keeps its
+   customer.
+
 ### 1.4 Upsells
 
 - An existing customer (paying the month before the event) whose contact came
@@ -140,6 +146,27 @@ figure is a floor.
 A workflow: when a deal is created and `sub_lead_source` is empty, copy it from
 the contact. Only about 21% of deals carry a tag, and setters about 18%. This
 is the only change that creates attribution rather than grading what exists.
+
+### 4.2 Auditing past events
+
+1. **On the site.** The Events tab's **Event audit** table checks every past
+   event in one row: cost final, dated, new leads agreeing with Lead Counts,
+   customers credited (and how many by the event's own won deal), won leads
+   matched to Stripe, setter and owner coverage, and what is wrong or
+   missing. **Last 12 months** narrows it to the year to the last closed
+   month. A problem means a figure may be wrong; a gap means something is
+   missing.
+2. **Against live HubSpot, monthly.** Every won deal whose `sub_lead_source`
+   names an event in the window is pulled straight from HubSpot (Claude runs
+   this with the HubSpot connector) and compared, by its Stripe link, with
+   the customers the site credits. Each deal is either credited to the same
+   event, or not credited for a stated rule: never paid in Stripe (refunded
+   or under $100), already a customer before the event, first paid outside
+   the window, a cancellation record, no Stripe link, or a partner or webinar
+   that came first. Anything else is a finding. On 13 Oct 2026 the year to
+   September held 62 won deals: 47 credited to the same event, 13 explained,
+   2 by the earliest-source rule (a partner and a webinar came first). It
+   found Bacon Plumbing credited to no event, which led to the rule in 1.3.5.
 
 ## 5. What the pipeline still owes (brief items)
 

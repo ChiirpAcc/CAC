@@ -4186,6 +4186,32 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     if (setAt) leadSetOf.set(r.id, setAt);
     if (r.leadBulk) bulkOf.set(r.id, r.leadBulk);
   }
+  // A customer whose earliest-relationship event cannot credit them (they
+  // first paid outside its window) but whose won deal names another event,
+  // inside that event's window, is that event's: its own deal won them
+  // (12 Oct 2026). Bacon Plumbing met CHIIRP at Nexstar 2025, was won by a
+  // Lennox Live New Orleans 2026 deal in April 2026, and was credited to no
+  // event. Both events need a date; only an event moves the credit, so a
+  // partner or webinar that came first keeps it.
+  {
+    const firstPaidOf = firstPaymentMonths(data);
+    const monthOfSource = src => (datedSources.get(src) || '').slice(0, 7) || null;
+    for (const [id, won] of wonDealOf) {
+      const tag = sourceOf.get(id);
+      const w = mergeSource(won);
+      if (!tag || w === tag || mediumOf.get(id) !== 'event' || leadMediumOf(w, 'event') !== 'event') continue;
+      const mt = monthOfSource(tag);
+      const mw = monthOfSource(w);
+      const fp = firstPaidOf.get(id);
+      if (!mt || !mw || !fp) continue;
+      const tagCan = fp >= mt && monthDiff(mt, fp) <= WIN_WINDOW_MONTHS;
+      const wonCan = fp >= mw && monthDiff(mw, fp) <= WIN_WINDOW_MONTHS;
+      if (tagCan || !wonCan) continue;
+      sourceOf.set(id, w);
+      tagOf.set(id, w);
+      creditOf.set(id, 'direct');
+    }
+  }
   // How a tag was made, for the customers an event is credited with.
   //
   // lead_date is when the HubSpot record carrying the source was created. A
@@ -5847,6 +5873,70 @@ export function attributionAudit(data) {
       ]));
   }
   return { checks, passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length };
+}
+
+// One row per past event: what its inputs and results look like, so a range
+// of events can be audited in one table (Events tab, "Event audit"). Each
+// check reads ok, a gap, or a problem; the reasons say what is wrong.
+export function eventAuditRows(data) {
+  const roi = eventRoi(data);
+  const f = eventFunnel(data, roi);
+  const by = stripeByCompany(data);
+  const lcBy = new Map((data.leadCounts || []).map(l => [l.source, l]));
+  const last = data.lastMonth;
+  const rows = [];
+  for (const e of roi.events) {
+    if (!e.cost || !e.month || e.upcoming || e.month > last) continue;
+    const c = e.cost;
+    const fe = f ? f.events.find(x => x.label === e.label || x.source === e.source) : null;
+    const lc = (e.source && lcBy.get(e.source)) || (fe && lcBy.get(fe.source)) || null;
+    const counted = fe ? fe.leads.filter(l => SALES_COUNTED.has(l.state)) : [];
+    const problems = [];
+    const gaps = [];
+    // Cost
+    const cost = c.costState === 'settling' ? 'settling' : c.costState ? 'gap'
+      : (c.sponsor === null || c.sponsor === undefined) ? 'gap' : 'ok';
+    if (c.costState && c.costState !== 'settling') problems.push(`cost ${c.costState}`);
+    if (c.sponsor === null || c.sponsor === undefined) problems.push('no fee recorded');
+    // Date and source
+    const dated = Boolean((lc && lc.eventDate) || (fe && fe.dated));
+    const tagged = Boolean(e.source || fe);
+    // No date matters only where something was tagged to the event: without
+    // a date its contacts cannot be split into before and after.
+    if (!dated && tagged) problems.push('no event date');
+    if (!tagged) gaps.push('never measured: no contact or customer was tagged to it');
+    // Leads against Lead Counts
+    let leadsCheck = '–';
+    if (fe && lc && fe.dated && lc.earnedAfter !== null && lc.earnedAfter !== undefined) {
+      const ours = fe.leads.filter(x => x.afterEvent === true && !loadedFromList(x)).length;
+      const ok = Math.abs(ours - lc.earnedAfter) <= Math.max(3, 0.1 * Math.max(ours, lc.earnedAfter));
+      leadsCheck = ok ? 'ok' : 'problem';
+      if (!ok) problems.push(`new leads ${ours} against Lead Counts ${lc.earnedAfter}`);
+    }
+    if (fe && counted.length === 0 && monthDiff(e.month, last) >= 1) gaps.push('no leads counted at all');
+    // Customers and wins
+    const credited = (e.customerRows || []).filter(x => x.firstPaid);
+    const leadIds = new Set(counted.map(l => l.company && by(l.company)).filter(Boolean).map(x => x.id));
+    const weakNoRow = credited.filter(x => x.credit !== 'direct' && !leadIds.has(x.id));
+    if (weakNoRow.length) gaps.push(`${weakNoRow.length} credited on the tag alone with no lead: ${weakNoRow.map(x => x.name).join('; ')}`);
+    const wins = counted.filter(l => l.won === true && winInWindow(l) && !l.wonThrough);
+    const winsUnmatched = wins.filter(l => !(l.company && by(l.company)));
+    if (winsUnmatched.length) gaps.push(`${winsUnmatched.length} won lead${winsUnmatched.length === 1 ? '' : 's'} not matched to a Stripe customer`);
+    const elsewhere = counted.filter(l => l.state === 'wonElsewhere');
+    // People
+    const setters = counted.filter(l => l.bookedBy).length;
+    const deals = counted.filter(l => l.dealCreated);
+    const owners = deals.filter(l => l.demoedBy).length;
+    if (counted.length >= 5 && setters / counted.length < 0.25) gaps.push(`setter on ${setters} of ${counted.length} leads`);
+    rows.push({ label: e.label, month: e.month, spend: e.spend, cost, dated, leadsCheck,
+      leads: fe ? (fe.dated ? fe.produced : fe.base) : 0, customers: e.paid,
+      direct: e.evidence ? e.evidence.direct : 0, tagOnly: e.evidence ? e.evidence.tagOnly : 0,
+      wins: wins.length, winsMatched: wins.length - winsUnmatched.length, wonElsewhere: elsewhere.length,
+      setterShare: counted.length ? setters / counted.length : null, ownerShare: deals.length ? owners / deals.length : null,
+      net: e.net, problems, gaps,
+      status: problems.length ? 'problem' : gaps.length ? 'gap' : 'ok' });
+  }
+  return rows.sort((a, b) => b.month.localeCompare(a.month) || a.label.localeCompare(b.label));
 }
 
 // Setters and deal owners, from the event lead rows. booked_by is who got

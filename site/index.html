@@ -943,7 +943,26 @@
       <p class="note" id="event-attribution-note"></p>
     </figure>
 
-    <figure class="card wide" id="fig-event-checks">
+    <figure class="card wide" id="fig-event-audit">
+      <figcaption><h3>Event audit: every past event, checked</h3></figcaption>
+      <div class="chart-control">
+        <button type="button" id="audit-last12">Last 12 months</button>
+        <button type="button" id="audit-all">All past events</button>
+        <output id="audit-range"></output>
+      </div>
+      <p class="finding" id="event-audit-finding"></p>
+      <div class="table-scroll">
+        <table class="data-table" id="event-audit-table"></table>
+      </div>
+      <p class="note">One row per event that has happened. Cost: final, still settling, or a gap. Dated: the event has a
+        date, so new leads can be told from earlier contacts. Leads: the site’s new leads agree with HubSpot’s Lead
+        Counts. Customers: credited by Stripe revenue, with how many the event’s own won deal closed. Wins matched: won
+        leads linked to a Stripe customer. A problem means a figure may be wrong; a gap means something is missing that
+        would make it more complete. The live HubSpot cross-check (won deals by event, against what is credited) is run
+        separately; see ATTRIBUTION.md.</p>
+    </figure>
+
+    <figure class="card wide" id="fig-attribution-checks">
       <figcaption><h3>Attribution checks: what to look at after a push</h3></figcaption>
       <p class="finding" id="event-checks-finding"></p>
       <div class="table-scroll">

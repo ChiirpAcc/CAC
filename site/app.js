@@ -16,7 +16,7 @@ import {
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
-  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
+  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4309,6 +4309,45 @@ function renderEventAttribution() {
     + 'is sat; won is the deal winning. Each rate shows what it rests on and is faded under ten. Won deal amount is what the '
     + 'deal said, not what Stripe billed; revenue per event is on the ranking above.';
   renderEventChecks(f);
+  renderEventAudit();
+}
+
+// The event audit: every past event in a range, its checks in one row.
+function renderEventAudit(range = renderEventAudit.range || 'last12') {
+  if (!$('event-audit-table')) return;
+  renderEventAudit.range = range;
+  const all = eventAuditRows(data);
+  const from = range === 'last12' ? monthAdd(data.lastMonth, -11) : null;
+  const rows = all.filter(x => !from || x.month >= from);
+  $('audit-range').textContent = from ? `${fmt.monthLabel(from)} to ${fmt.monthLabel(data.lastMonth)}, ${fmt.int(rows.length)} events`
+    : `every past event, ${fmt.int(rows.length)}`;
+  const n = st => rows.filter(x => x.status === st).length;
+  const spend = rows.reduce((t, x) => t + (x.spend || 0), 0);
+  $('event-audit-finding').innerHTML = `<strong>${fmt.int(rows.length)} events, ${fmt.money(spend)} spent: `
+    + `${fmt.int(n('ok'))} clean, ${fmt.int(n('gap'))} with something missing, ${fmt.int(n('problem'))} with a figure that may be wrong.</strong> `
+    + `Customers credited: ${fmt.int(rows.reduce((t, x) => t + x.customers, 0))}, of whom `
+    + `${fmt.int(rows.reduce((t, x) => t + x.direct, 0))} were closed by the event’s own won deal.`;
+  const mark = v => (v === 'ok' || v === true ? '<span class="pos">ok</span>' : v === 'settling' ? '<span class="muted">settling</span>'
+    : v === '–' ? '<span class="muted">–</span>' : `<span class="neg">${v === false ? 'no' : v}</span>`);
+  const share = v => (v === null ? '–' : fmt.pct(v, 0));
+  $('event-audit-table').innerHTML = '<thead><tr><th>Event</th><th>Status</th><th>Cost</th><th>Dated</th><th>Leads</th>'
+    + '<th class="n">New leads</th><th class="n">Customers</th><th class="n">Wins matched</th><th class="n">Setter</th>'
+    + '<th class="n">Owner</th><th class="n">Net</th><th>What is wrong or missing</th></tr></thead><tbody>'
+    + rows.map(x => `<tr><td><a href="${eventHref(x.label)}">${x.label}</a><br><span class="muted">${fmt.monthLabel(x.month)}</span></td>`
+      + `<td>${x.status === 'ok' ? '<span class="pos">clean</span>' : x.status === 'gap' ? 'gap' : '<span class="neg">problem</span>'}</td>`
+      + `<td>${mark(x.cost)}</td><td>${mark(x.dated)}</td><td>${mark(x.leadsCheck)}</td>`
+      + `<td class="n">${fmt.int(x.leads)}</td>`
+      + `<td class="n">${fmt.int(x.customers)}${x.customers ? `<br><span class="muted">${fmt.int(x.direct)} direct</span>` : ''}</td>`
+      + `<td class="n">${x.wins ? `${fmt.int(x.winsMatched)} of ${fmt.int(x.wins)}` : '–'}</td>`
+      + `<td class="n">${share(x.setterShare)}</td><td class="n">${share(x.ownerShare)}</td>`
+      + `<td class="n">${x.net === null || x.net === undefined ? '–' : (x.net < 0 ? '−' : '+') + fmt.money(Math.abs(x.net))}</td>`
+      + `<td>${[...x.problems.map(p => `<span class="neg">${p}</span>`), ...x.gaps].join('<br>') || '<span class="muted">nothing</span>'}</td></tr>`).join('')
+    + '</tbody>';
+  if ($('audit-last12') && !$('audit-last12').dataset.ready) {
+    $('audit-last12').addEventListener('click', () => renderEventAudit('last12'));
+    $('audit-all').addEventListener('click', () => renderEventAudit('all'));
+    $('audit-last12').dataset.ready = '1';
+  }
 }
 
 // The exceptions the attribution rules could not settle, across every event,
