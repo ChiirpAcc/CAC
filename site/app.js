@@ -5079,7 +5079,9 @@ function idLinks(r) {
 }
 function stripeCell(r, byCompany) {
   const m = !r.stripeId && !r.stripeUrl && byCompany && r.company ? byCompany(r.company) : null;
-  if (m) return extLink(m.url, m.id) + `<br><span class="muted">matched on ${m.how === 'name' ? 'company name' : 'part of the company name'}</span>`;
+  const how = { name: 'company name', 'name without spaces': 'company name, spaces aside', 'part of the name': 'part of the company name' };
+  if (m) return extLink(m.url, m.id) + `<br><span class="muted">${/Stripe account/.test(m.how) ? 'the HubSpot company’s Stripe account'
+    : `matched on ${how[m.how.split(',')[0]] || m.how}${/accounts/.test(m.how) ? ` (${m.how.split(', ')[1]})` : ''}`}</span>`;
   const url = stripeCustomerUrl(r);
   return url && r.stripeId ? extLink(url, r.stripeId) : url ? extLink(url, 'customer') : '<span class="muted">–</span>';
 }
