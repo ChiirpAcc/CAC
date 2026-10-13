@@ -42,6 +42,21 @@ LABELS = {
     "EGIA EPIC 2027": "EGIA Epic 2027",
 }
 
+# Attendees as the Event Hub lists them on 13 Oct 2026 (Josh), for events the
+# workbook's Ramp Travel Summary does not cover yet (upcoming). The workbook
+# wins wherever it names attendees.
+HUB_ATTENDEES = {
+    "CertainPath Connect/Partner Jam": ["Ryan Peterson", "Justin Judd"],
+    "Qualified Remodeler Top 500": ["Justin Judd", "Ryan Fenn", "Ky Decker", "Ryan Peterson"],
+    "HSF Freedom 2026": ["Colton Lingmann", "Blake Fenn", "Taylor Roberts", "Ryan Fenn"],
+    "Table of Titans (Tony Hoty Mastermind)": ["Justin Judd (not registered)", "Ryan Fenn (not registered)"],
+}
+# Judgement calls about attendees made after the cost run.
+HUB_NOTES = {
+    "Home Service Hoorah": "The Event Hub no longer lists Ryan Fenn (13 Oct 2026), but his card puts him in Gulf Breeze on the "
+                           "event dates (a Delta flight, a Hilton Gulf Breeze stay, a rental car), so his charges stay counted.",
+}
+
 
 def iso(v):
     if isinstance(v, (datetime, date)):
@@ -143,6 +158,11 @@ def main(path):
         for label, e in older(qb).items():
             if not any(x["label"] == label for x in events.values()):
                 events[f"qb:{label}"] = e
+    for name, e in events.items():
+        if not e["attendees"] and name in HUB_ATTENDEES:
+            e["attendees"] = HUB_ATTENDEES[name]
+        if name in HUB_NOTES:
+            e["notes"] = " ".join(x for x in (e["notes"], HUB_NOTES[name]) if x)
     for e in events.values():
         e.setdefault("basis", "event hub")
         e["lines"].sort(key=lambda x: (str(x["owner"]), str(x["date"])))

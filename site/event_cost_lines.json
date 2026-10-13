@@ -13620,7 +13620,7 @@
     "Ky Decker",
     "Ryan Fenn"
    ],
-   "notes": "No American Airlines charges on Ramp for Colton or Ky (Event Hub shows AA flights), so their flights were paid some other way. Two Hilton rooms are on Taylor Roberts' card.",
+   "notes": "No American Airlines charges on Ramp for Colton or Ky (Event Hub shows AA flights), so their flights were paid some other way. Two Hilton rooms are on Taylor Roberts' card. The Event Hub no longer lists Ryan Fenn (13 Oct 2026), but his card puts him in Gulf Breeze on the event dates (a Delta flight, a Hilton Gulf Breeze stay, a rental car), so his charges stay counted.",
    "lines": [
     {
      "date": "2026-09-07",
@@ -16215,7 +16215,10 @@
     "rentalCars": 104.0
    },
    "flags": "Sponsorship/booth blank (app note says it's covered). Flights $0 even though 2 Delta flights are booked: flight cost not entered",
-   "attendees": [],
+   "attendees": [
+    "Ryan Peterson",
+    "Justin Judd"
+   ],
    "notes": null,
    "lines": [],
    "notCounted": [],
@@ -16241,7 +16244,12 @@
     "rentalCars": 0.0
    },
    "flags": "Sponsorship/booth blank. Hotels $0 (travel status: Needs booking)",
-   "attendees": [],
+   "attendees": [
+    "Justin Judd",
+    "Ryan Fenn",
+    "Ky Decker",
+    "Ryan Peterson"
+   ],
    "notes": null,
    "lines": [],
    "notCounted": [
@@ -16284,7 +16292,12 @@
     "rentalCars": 0.0
    },
    "flags": "Flights $0 even though 2 Delta flights are booked: flight cost not entered",
-   "attendees": [],
+   "attendees": [
+    "Colton Lingmann",
+    "Blake Fenn",
+    "Taylor Roberts",
+    "Ryan Fenn"
+   ],
    "notes": null,
    "lines": [],
    "notCounted": [],
@@ -16336,7 +16349,10 @@
     "rentalCars": 0.0
    },
    "flags": "No travel costs entered (travel status: Needs booking). Sponsorship marked Unpaid",
-   "attendees": [],
+   "attendees": [
+    "Justin Judd (not registered)",
+    "Ryan Fenn (not registered)"
+   ],
    "notes": null,
    "lines": [],
    "notCounted": [],
