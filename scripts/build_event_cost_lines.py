@@ -8,6 +8,12 @@ merchant, label and why it was matched, and the charges reviewed and not
 counted. The site shows it on each event page under "Proof of cost".
 
     py -3 scripts/build_event_cost_lines.py "C:/Users/josha/OneDrive/Desktop/CHIIRP Event Costs.xlsx"
+
+Events before the Event Hub (Aug 2025 to Aug 2026) come from a second
+workbook, CHIIRP Event Costs 2025-26 (QuickBooks).xlsx, read when it sits
+beside the first: every 6100-07 bill as the fee, and every card charge on any
+card (Ramp, Divvy, the company Chase card) from QuickBooks' travel accounts,
+with the merchant city from the Ramp export, matched by the same rules.
 """
 import json
 import sys
@@ -54,9 +60,45 @@ def rows(ws):
     it = ws.iter_rows(values_only=True)
     head = [str(h).strip() if h is not None else "" for h in next(it)]
     for r in it:
-        if not r or r[0] in (None, "") or str(r[0]).startswith(("GRAND TOTAL", "Source:")):
+        if not r or r[0] in (None, "") or str(r[0]).startswith(("GRAND TOTAL", "Source:", "Sources:")):
             continue
         yield dict(zip(head, r))
+
+
+def older(path):
+    """Events before the Event Hub, from the QuickBooks workbook."""
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    out = {}
+    for r in rows(wb["Events"]):
+        out[r["Event"]] = {
+            "label": r["Event"], "hubName": None, "start": iso(r.get("Start date")), "end": iso(r.get("End date")),
+            "location": r.get("Location"), "venue": None, "basis": "quickbooks",
+            "fee": {"amount": num(r.get("Fee in QuickBooks ($)")), "paymentStatus": None, "what": None,
+                    "source": "QuickBooks, 6100-07 Tradeshows & Events"},
+            "feeLines": [], "hubTravel": None, "flags": None,
+            "attendees": [a.strip() for a in str(r.get("Attendees") or "").split(",") if a.strip()],
+            "notes": r.get("Notes"), "lines": [], "notCounted": [],
+        }
+    for r in rows(wb["Fee Lines"]):
+        e = out.get(r["Event"])
+        if e:
+            e["feeLines"].append({"date": iso(r.get("Date")), "vendor": r.get("Vendor"), "what": r.get("What"),
+                                  "number": r.get("Number"), "type": r.get("Type"), "amount": num(r.get("Amount ($)")),
+                                  "expensed": r.get("Expensed in"), "confidence": r.get("Confidence"), "note": r.get("Note")})
+    for r in rows(wb["Card Detail"]):
+        e = out.get(r["Event"])
+        if e:
+            e["lines"].append({"date": iso(r.get("Date")), "owner": r.get("Cardholder"), "merchant": r.get("Merchant"),
+                               "rampCategory": None, "city": r.get("Merchant city"), "amount": num(r.get("Amount ($)")),
+                               "label": r.get("Category"), "confidence": r.get("Confidence"), "why": r.get("Why it was matched"),
+                               "card": r.get("Card"), "source": f"QuickBooks, {r.get('Card')} card"})
+    for r in rows(wb["Needs Review"]):
+        e = out.get(r["Nearest event"]) if r.get("Nearest event") else None
+        if e:
+            e["notCounted"].append({"date": iso(r.get("Date")), "owner": r.get("Cardholder"), "merchant": r.get("Merchant"),
+                                    "city": r.get("Merchant city"), "amount": num(r.get("Amount ($)")),
+                                    "why": r.get("Why it is not counted")})
+    return out
 
 
 def main(path):
@@ -96,11 +138,18 @@ def main(path):
             if name in why:
                 e["notCounted"].append({"date": iso(r.get("Date")), "owner": r.get("Cardholder"), "merchant": r.get("Merchant"),
                                         "city": r.get("Merchant city"), "amount": num(r.get("Amount ($)")), "why": why})
+    qb = Path(path).with_name("CHIIRP Event Costs 2025-26 (QuickBooks).xlsx")
+    if qb.exists():
+        for label, e in older(qb).items():
+            if not any(x["label"] == label for x in events.values()):
+                events[f"qb:{label}"] = e
     for e in events.values():
+        e.setdefault("basis", "event hub")
         e["lines"].sort(key=lambda x: (str(x["owner"]), str(x["date"])))
         e["travelTotal"] = round(sum(x["amount"] or 0 for x in e["lines"]), 2)
-    out = {"source": Path(path).name, "built": date.today().isoformat(),
-           "note": "Event Hub fees and Ramp card charges matched to each event by the month-end cost run.",
+    out = {"source": Path(path).name, "olderSource": qb.name if qb.exists() else None, "built": date.today().isoformat(),
+           "note": "Event Hub fees and Ramp card charges matched to each event by the month-end cost run; events before "
+                   "the Event Hub from QuickBooks bills and card charges.",
            "events": sorted(events.values(), key=lambda e: e["start"] or "")}
     OUT.write_text(json.dumps(out, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
     print(f"{OUT}: {len(out['events'])} events, {sum(len(e['lines']) for e in out['events'])} charges, "

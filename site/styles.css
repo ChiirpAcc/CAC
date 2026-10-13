@@ -1257,3 +1257,4 @@ span.pos { color: var(--series-pos); }
   border: 1px solid var(--rule, #ddd); border-radius: 8px; background: var(--surface-sunk); font-size: 0.9rem; cursor: pointer; }
 .deal-toggle input { margin-top: 3px; }
 .deal-toggle:has(input:checked) { border-color: var(--series-1); }
+.proof-sub { margin: 14px 0 6px; font-size: 0.95rem; }

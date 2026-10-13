@@ -4558,10 +4558,11 @@ function costProofPanel(e) {
   const entry = costLines && costLines.events ? costLines.events.find(x => x.label === e.label) : null;
   const money2 = v => (v === null || v === undefined ? '–' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
   if (!entry) {
-    return `<section class="ev-panel"><h3>Proof of cost</h3><p class="ev-note">No transaction detail yet. The month-end cost run `
-      + `matches card charges to events from 26 Aug 2026 on; for earlier events it needs each event's attendees from the Event Hub `
-      + `first, then a Ramp export for the months around it.</p></section>`;
+    return `<section class="ev-panel"><h3>Proof of cost</h3><p class="ev-note">No transaction detail yet. Events from 26 Aug 2026 `
+      + `come from the Event Hub and Ramp; events from Sep 2025 come from QuickBooks bills and card charges. This one falls outside `
+      + `both, or has not been matched.</p></section>`;
   }
+  const fromQb = entry.basis === 'quickbooks';
   const c = e.cost || {};
   const byOwner = new Map();
   for (const l of entry.lines) {
@@ -4580,7 +4581,10 @@ function costProofPanel(e) {
   return `<section class="ev-panel"><h3>Proof of cost</h3>`
     + `<div class="ev-facts">`
     + `<div class="ev-fact"><span class="ev-fact-label">Fee</span><span class="ev-fact-value">${money2(entry.fee.amount)}</span>`
-    + `<span class="ev-fact-sub">${[entry.fee.what, entry.fee.paymentStatus ? entry.fee.paymentStatus.toLowerCase() : '', 'Event Hub'].filter(Boolean).join(' · ')}`
+    + `<span class="ev-fact-sub">${fromQb
+      ? (entry.feeLines && entry.feeLines.length ? `${fmt.int(entry.feeLines.length)} QuickBooks line${entry.feeLines.length === 1 ? '' : 's'}`
+        : 'no bill in QuickBooks from Sep 2025')
+      : [entry.fee.what, entry.fee.paymentStatus ? entry.fee.paymentStatus.toLowerCase() : '', 'Event Hub'].filter(Boolean).join(' · ')}`
     + `${entry.fee.amount !== null && feeSite !== null ? ` · against ${money2(feeSite)} here: ${tie(entry.fee.amount, feeSite)}` : ''}</span></div>`
     + `<div class="ev-fact"><span class="ev-fact-label">Card charges</span><span class="ev-fact-value">${money2(entry.travelTotal)}</span>`
     + `<span class="ev-fact-sub">${fmt.int(entry.lines.length)} charges, ${fmt.int(owners.length)} cardholder${owners.length === 1 ? '' : 's'}`
@@ -4590,11 +4594,21 @@ function costProofPanel(e) {
     + `<div class="ev-fact"><span class="ev-fact-label">Attended</span><span class="ev-fact-value proof-labels">${entry.attendees.join('<br>') || '–'}</span>`
     + `<span class="ev-fact-sub">${entry.start || ''}${entry.end && entry.end !== entry.start ? ` to ${entry.end}` : ''}${entry.location ? ` · ${entry.location}` : ''}</span></div>`
     + `</div>`
+    + (entry.feeLines && entry.feeLines.length ? `<h4 class="proof-sub">The fee, bill by bill</h4>`
+      + `<div class="table-scroll"><table class="data-table ev-table proof-table"><thead><tr><th>Date</th><th>Vendor</th><th>What</th>`
+      + `<th>Number</th><th class="n">Amount</th><th>Note</th></tr></thead><tbody>`
+      + entry.feeLines.map(l => `<tr><td>${l.date || '–'}</td><td>${l.vendor || '–'}</td><td>${l.what || '–'}`
+        + `${l.expensed ? `<br><span class="muted">expensed ${l.expensed}</span>` : ''}</td>`
+        + `<td>${l.number && !/^AA_/.test(l.number) ? l.number : `<span class="muted">${l.type || ''}</span>`}</td>`
+        + `<td class="n${l.amount < 0 ? ' neg' : ''}">${money2(l.amount)}</td>`
+        + `<td class="proof-why">${[l.confidence && l.confidence !== 'High' ? `<span class="proof-conf">${l.confidence.toLowerCase()} confidence</span>` : '', l.note || ''].filter(Boolean).join(' ')}</td></tr>`).join('')
+      + `<tr class="total-row"><td colspan="4"><strong>Fee</strong></td><td class="n"><strong>${money2(entry.fee.amount)}</strong></td><td></td></tr>`
+      + `</tbody></table></div><h4 class="proof-sub">Card charges, by who paid</h4>` : '')
     + (owners.length ? `<div class="table-scroll"><table class="data-table ev-table proof-table"><thead><tr><th>Date</th><th>Merchant</th>`
       + `<th>Label</th><th>City</th><th class="n">Amount</th><th>Why it is this event\u2019s</th></tr></thead><tbody>`
       + owners.map(o => `<tr class="proof-owner"><td colspan="4"><strong>${o.owner}</strong> · ${fmt.int(o.lines.length)} charge${o.lines.length === 1 ? '' : 's'}</td>`
         + `<td class="n"><strong>${money2(o.total)}</strong></td><td></td></tr>`
-        + o.lines.map(l => `<tr><td>${l.date || '–'}</td><td>${l.merchant || '–'}</td><td>${l.label || '–'}${confTag(l)}</td>`
+        + o.lines.map(l => `<tr><td>${l.date || '–'}</td><td>${l.merchant || '–'}${l.card ? `<br><span class="muted">${l.card} card</span>` : ''}</td><td>${l.label || '–'}${confTag(l)}</td>`
           + `<td>${l.city || '–'}</td><td class="n${l.amount < 0 ? ' neg' : ''}">${money2(l.amount)}</td>`
           + `<td class="proof-why">${l.why || '<span class="muted">attendee, in the event\u2019s dates and place</span>'}</td></tr>`).join('')).join('')
       + `<tr class="total-row"><td colspan="4"><strong>All card charges</strong></td><td class="n"><strong>${money2(entry.travelTotal)}</strong></td><td></td></tr>`
@@ -4603,9 +4617,16 @@ function costProofPanel(e) {
       + `reviewed and not counted</summary><ul>` + entry.notCounted.map(l => `<li>${l.date} · ${l.owner} · ${l.merchant}${l.city ? ` (${l.city})` : ''} · `
         + `${money2(l.amount)}: ${l.why}</li>`).join('') + `</ul></details>` : '')
     + (entry.notes || entry.flags ? `<p class="ev-note">${[entry.notes, entry.flags].filter(Boolean).join(' ')}</p>` : '')
-    + `<p class="ev-note">From the month-end cost run (${costLines.source}, built ${costLines.built}): the fee as the Event Hub records `
-    + `it, and each Ramp card charge matched to the event because the cardholder attended, the charge falls in the event\u2019s travel `
-    + `window, and its place fits the trip. Fares bought weeks ahead are matched by hand and say why.</p></section>`;
+    + (fromQb
+      ? `<p class="ev-note">From QuickBooks (${costLines.olderSource || 'the 2025-26 cost workbook'}, built ${costLines.built}): every `
+        + `Tradeshows &amp; Events bill for the event as the fee, and every travel charge on any company card (Ramp, Divvy, the `
+        + `company Chase card) matched to it because the cardholder attended (2026 Events/Travel planning sheet), the charge falls in `
+        + `the event\u2019s travel window, and, where the Ramp export gives a city, its place fits the trip. Divvy charges carry no `
+        + `city and are medium confidence. Fares bought weeks ahead count only when they are the person\u2019s one fare before the `
+        + `event; flights booked through TravelPerk name no traveller and wait for its trip report.</p></section>`
+      : `<p class="ev-note">From the month-end cost run (${costLines.source}, built ${costLines.built}): the fee as the Event Hub records `
+        + `it, and each Ramp card charge matched to the event because the cardholder attended, the charge falls in the event\u2019s travel `
+        + `window, and its place fits the trip. Fares bought weeks ahead are matched by hand and say why.</p></section>`);
 }
 
 // The Sales tab: setters and deal owners, from the same lead rows.
