@@ -1235,3 +1235,9 @@ html { scroll-behavior: smooth; }
 span.neg { color: var(--series-neg); }
 span.pos { color: var(--series-pos); }
 .funnel-aside { font-size: 0.9rem; color: var(--ink-mid); border-top: 1px solid var(--rule); padding-top: 10px; margin: 0; }
+
+/* Event page: the five headline cards, then the rest smaller. */
+.ev-kpis-head { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.ev-kpis-head .ev-kpi-value { font-size: 1.7rem; }
+.ev-kpis-more .ev-kpi { padding: 0.6rem 0.85rem; }
+.ev-kpis-more .ev-kpi-value { font-size: 1.05rem; }

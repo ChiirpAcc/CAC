@@ -5162,18 +5162,47 @@ function renderEventPage(label) {
     + confidenceChip(evConf)
     + (e.plan2027 && !e.laterEdition ? `<span class="ev-chip ${e.plan2027.startsWith('On') ? 'on' : e.plan2027.startsWith('Dropped') ? 'off' : ''}">`
       + `2027: ${e.plan2027.startsWith('On') ? 'on the calendar' : e.plan2027.startsWith('Dropped') ? 'dropped' : 'not listed'}</span>` : '');
+  // The five cards that matter most (Josh, 13 Oct 2026): total cost, demos
+  // booked, closed deals, revenue and ROI to date. A demo is booked when the
+  // lead booked through the event's meetings link, a setter is recorded, or
+  // a deal opened (HubSpot opens one only once the demo is sat). Closed
+  // deals are wins Stripe agrees with; revenue is what Stripe collected.
+  const headFun = (() => { const f = eventFunnel(data, r.roi); return f && f.events.find(x => x.source === e.source || x.label === e.label); })();
+  const headLeads = headFun ? headFun.leads.filter(l => ['won', 'wonLate', 'wonElsewhere', 'lost', 'sat', 'booked', 'unworked', 'undated'].includes(l.state)) : [];
+  const demosBooked = headLeads.filter(l => l.bookedBy || l.dealCreated || l.conversionType === 'meetings link').length;
+  const demosSat = headLeads.filter(l => l.dealCreated).length;
+  // Closed deals are the customers Stripe confirms the event won, so the card
+  // agrees with the revenue beside it; won deals Stripe has not billed yet
+  // are said underneath.
+  const closedWon = e.paid || 0;
+  const byCoHead = stripeByCompany(data);
+  const creditedIds = new Set((e.customerRows || []).map(x => x.id));
+  const wonNotBilled = new Set(headLeads.filter(l => l.state === 'won' && !(l.company && byCoHead(l.company)
+    && creditedIds.has(byCoHead(l.company).id))).map(l => l.company || l)).size;
+  const closedLost = headLeads.filter(l => l.state === 'lost').length;
+  const stillOpen = headLeads.filter(l => l.state === 'sat').length;
+  const costCard = e.costState === 'absent'
+    ? kpi('Total cost', c && c.travel ? `${money(c.travel)} +` : 'Not found',
+      c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')
+    : kpi('Total cost', money(e.spend), c ? `fee ${money(c.sponsor)} · travel ${money(c.travel)}`
+      + (e.costState === 'settling' ? ' · still settling' : e.upcoming ? ' · committed' : '') : '');
+  const headCards = costCard
+    + kpi('Demos booked', e.upcoming && !headLeads.length ? '–' : int(demosBooked),
+      headLeads.length ? `${int(demosSat)} sat, from ${int(headLeads.length)} leads` : 'no event leads yet')
+    + kpi('Closed deals', e.upcoming && !headLeads.length ? '–' : int(closedWon),
+      [e.evidence && e.paid ? `${int(e.evidence.direct)} by its own deal` : '', wonNotBilled ? `${int(wonNotBilled)} won, not billed yet` : '',
+        headLeads.length ? `${int(closedLost)} lost` : ''].filter(Boolean).join(' · '))
+    + kpi('Revenue', e.upcoming ? '–' : money(e.collected), e.upcoming ? `happens ${fmt.monthLabel(e.upcoming)}`
+      : `collected in Stripe from ${int(e.paid)} customer${e.paid === 1 ? '' : 's'}${e.mrrNow ? ` · ${money(e.mrrNow)}/mo now` : ''}`)
+    + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', pb ? (pb.provisional ? 'provisional: cost still settling' : 'on contribution, after cost to serve')
+      : e.upcoming ? 'after the event' : '', pb ? tone(pb.roiToDate) : '');
   const kpis = e.upcoming
     ? kpi('Status', 'Upcoming', `happens ${fmt.monthLabel(e.upcoming)}`)
-    : (e.costState === 'absent'
-      ? kpi('Cost', c && c.travel ? `${money(c.travel)} +` : 'Not found',
-        c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')
-      : kpi('Cost', money(e.spend)))
-      + kpi('Contribution', money(e.contribution), `${money(e.collected)} collected`)
+    : kpi('Contribution', money(e.contribution), 'what customers paid, less the cost to serve them')
       + kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), (() => {
         const up = (eventUpsells(data, r.roi) || { byLabel: new Map() }).byLabel.get(e.label);
         return up && up.credited && e.net !== null ? `${signed(e.net + up.credited)} with upsells` : '';
       })(), e.costState === 'absent' ? '' : tone(e.net))
-      + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', '', pb ? tone(pb.roiToDate) : '')
       + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12Projected
         ? (pb.roi12Range ? `projected; 90% range ${signedPct(pb.roi12Range[0])} to ${signedPct(pb.roi12Range[1])}` : 'projected') : 'actual',
         pb ? tone(pb.roi12) : '')
@@ -5296,7 +5325,8 @@ function renderEventPage(label) {
     `<a href="#events" class="ev-back">All events</a>`
     + `<header class="ev-hero"><h2>${e.label}</h2><div class="ev-chips">${chips}</div>`
     + (e.source ? `<p class="ev-source">HubSpot source: ${e.source}</p>` : '') + `</header>`
-    + `<div class="ev-kpis">${kpis}</div>`
+    + `<div class="ev-kpis ev-kpis-head">${headCards}</div>`
+    + `<div class="ev-kpis ev-kpis-more">${kpis}</div>`
     + (pb && (pb.actualPath.length || pb.projectedPath.length)
       ? `<section class="ev-panel"><h3>Money back against cost</h3><div class="plot" id="event-page-curve"></div>`
         + (pb.provisional ? `<p class="ev-note"><strong>Provisional.</strong> The cost is still settling, so the line it has `
