@@ -116,7 +116,7 @@
     "Blake Fenn",
     "Parker Joos"
    ],
-   "notes": "2,311 of TravelPerk bookings near it name no traveller.",
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-09-05",
@@ -834,72 +834,7 @@
      "source": "QuickBooks, Divvy card"
     }
    ],
-   "notCounted": [
-    {
-     "date": "2025-09-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 309.41,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 330.55,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 19.16,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 355.79,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 313.52,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 313.52,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 313.52,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 355.79,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    }
-   ],
+   "notCounted": [],
    "travelTotal": 2231.26
   },
   {
@@ -951,7 +886,7 @@
     "Blake Fenn",
     "Jared Walker"
    ],
-   "notes": "9,450 of TravelPerk bookings near it name no traveller.",
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-09-17",
@@ -1710,46 +1645,6 @@
    ],
    "notCounted": [
     {
-     "date": "2025-09-12",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 555.15,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-13",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 2250.98,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-15",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 399.02,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-15",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1759.82,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-16",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 985.57,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
      "date": "2025-09-16",
      "owner": "Ryan Peterson",
      "merchant": "Indianapolis, IN",
@@ -1775,22 +1670,6 @@
     },
     {
      "date": "2025-09-17",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1994.44,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-17",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 14.85,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-17",
      "owner": "Taylor Roberts",
      "merchant": "Indianapolis, IN",
      "city": "Provo, UT",
@@ -1804,14 +1683,6 @@
      "city": "Anaheim, CA",
      "amount": 1300.0,
      "why": "a meal of 1,000 or more; check before counting"
-    },
-    {
-     "date": "2025-09-19",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1490.67,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
     },
     {
      "date": "2025-09-20",
@@ -1853,7 +1724,7 @@
     "Ryan Peterson",
     "Justin Judd"
    ],
-   "notes": "2,403 of TravelPerk bookings near it name no traveller.",
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-09-24",
@@ -2040,14 +1911,6 @@
    ],
    "notCounted": [
     {
-     "date": "2025-09-20",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1195.13,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
      "date": "2025-09-23",
      "owner": "Ryan Peterson",
      "merchant": "Los Angeles International Airport",
@@ -2070,30 +1933,6 @@
      "city": "Los Angeles, CA",
      "amount": 10.81,
      "why": "in the CertainPath Fall Expo 2025 window, but the merchant is in Los Angeles, CA, not Cabo San Lucas, Mexico"
-    },
-    {
-     "date": "2025-09-26",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 214.76,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-26",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 127.75,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-26",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 865.01,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
     }
    ],
    "travelTotal": 291.55
@@ -2118,58 +1957,9 @@
    "attendees": [
     "Colton Lingmann"
    ],
-   "notes": "3,343 of TravelPerk bookings near it name no traveller.",
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [],
-   "notCounted": [
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1763.82,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 7.68,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 167.75,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 629.1,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 767.91,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 7.0,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    }
-   ],
+   "notCounted": [],
    "travelTotal": 0
   },
   {
@@ -2218,7 +2008,7 @@
     "Korth Rushdi",
     "Stan Wesemann"
    ],
-   "notes": "9,782 of TravelPerk bookings near it name no traveller.",
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-09-29",
@@ -2944,70 +2734,6 @@
      "city": "LOS CABOS BCS, MEX",
      "amount": 110.35,
      "why": "in the Nexstar Super Meeting 2025 window, but the merchant is in LOS CABOS BCS, MEX, not Denver, CO"
-    },
-    {
-     "date": "2025-10-01",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 524.64,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-01",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 487.35,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-02",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 2915.55,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-02",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 931.19,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-02",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1877.15,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-02",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 170.0,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-02",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1360.55,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-02",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1515.33,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
     }
    ],
    "travelTotal": 2118.6
@@ -3033,7 +2759,7 @@
     "Blake Fenn",
     "David Fenn"
    ],
-   "notes": "3,811 of TravelPerk bookings near it name no traveller.",
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-10-01",
@@ -3262,44 +2988,12 @@
      "why": "in the System Forward Pro Boot Camp window, but the merchant is in Denver, CO, not New Orleans, LA"
     },
     {
-     "date": "2025-10-03",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 670.21,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1246.12,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 579.09,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
      "date": "2025-10-04",
      "owner": "Blake Fenn",
      "merchant": "Guy Fieri's Kitchen + Bar",
      "city": "Phoenix, AZ",
      "amount": 63.87,
      "why": "in the System Forward Pro Boot Camp window, but the merchant is in Phoenix, AZ, not New Orleans, LA"
-    },
-    {
-     "date": "2025-10-04",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1315.93,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
     }
    ],
    "travelTotal": 751.45
@@ -3324,7 +3018,7 @@
    "attendees": [
     "Ryan Fenn"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-10-02",
@@ -3475,7 +3169,7 @@
     "Parker Joos",
     "Ky Decker"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-09-30",
@@ -3938,7 +3632,7 @@
     "Ryan Peterson",
     "Tavi Carvajal"
    ],
-   "notes": "14,471 of TravelPerk bookings near it name no traveller.",
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-10-06",
@@ -4398,62 +4092,6 @@
    ],
    "notCounted": [
     {
-     "date": "2025-10-05",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1281.71,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-06",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 1576.2,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-06",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 3422.58,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-07",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 2337.14,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-07",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 791.51,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-07",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 66.95,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-07",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 875.53,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
      "date": "2025-10-07",
      "owner": "Justin Judd",
      "merchant": "TRAVELPERK",
@@ -4463,67 +4101,11 @@
     },
     {
      "date": "2025-10-08",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 528.03,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-08",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 677.95,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-08",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 802.86,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-08",
      "owner": "Justin Judd",
      "merchant": "Budget Car Rental",
      "city": "Virginia Beach, VA",
      "amount": 490.74,
      "why": "in the GDF Vertical Track 2025 window, but the merchant is in Virginia Beach, VA, not Scottsdale, AZ"
-    },
-    {
-     "date": "2025-10-08",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 791.08,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-08",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 358.06,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-09",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": -21.0,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-09",
-     "owner": "Devon Maresco",
-     "merchant": "TRAVELPERK",
-     "city": null,
-     "amount": 982.56,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
     },
     {
      "date": "2025-10-15",
@@ -4585,7 +4167,7 @@
     "Taylor Roberts",
     "Blake Fenn"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-10-13",
@@ -5154,7 +4736,7 @@
    "attendees": [
     "Justin Judd"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-10-16",
@@ -5309,7 +4891,7 @@
    "attendees": [
     "Ryan Fenn"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-10-17",
@@ -5445,7 +5027,7 @@
    "attendees": [
     "Justin Judd"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-10-17",
@@ -5682,7 +5264,7 @@
     "Ky Decker",
     "Tavi Carvajal"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-10-27",
@@ -5991,7 +5573,7 @@
     "Ryan Peterson",
     "Stan Wesemann"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-10-26",
@@ -6329,7 +5911,7 @@
     "Justin Judd",
     "Ryan Fenn"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-09-25",
@@ -7017,7 +6599,7 @@
     "Ryan Peterson",
     "Tavi Carvajal"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-11-02",
@@ -7291,7 +6873,7 @@
     "Justin Judd",
     "Ryan Peterson"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-11-07",
@@ -7629,7 +7211,7 @@
     "Blake Fenn",
     "Stan Wesemann"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-11-09",
@@ -8028,7 +7610,7 @@
     "Tavi Carvajal",
     "Jared Hunsaker"
    ],
-   "notes": null,
+   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
    "lines": [
     {
      "date": "2025-11-19",
