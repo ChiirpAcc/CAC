@@ -636,6 +636,11 @@ const MIN_COHORT_AGE = 6;
 const state = { ...SETTLED };
 let data = null;
 let cohorts = null;
+// The proof behind each event's cost (site/event_cost_lines.json, built by
+// scripts/build_event_cost_lines.py from the month-end cost workbook).
+let costLines = null;
+const loadCostLines = () => fetch('event_cost_lines.json', { cache: 'no-store' })
+  .then(r => (r.ok ? r.json() : null)).catch(() => null);
 
 const $ = id => document.getElementById(id);
 
@@ -4507,6 +4512,63 @@ function renderSummary() {
   }
 }
 
+// Proof of an event's cost: the fee as the Event Hub records it, and every
+// card charge matched to the event, grouped by who paid and in date order,
+// with a tie-out against the cost the event is charged on this site.
+function costProofPanel(e) {
+  const entry = costLines && costLines.events ? costLines.events.find(x => x.label === e.label) : null;
+  const money2 = v => (v === null || v === undefined ? '–' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  if (!entry) {
+    return `<section class="ev-panel"><h3>Proof of cost</h3><p class="ev-note">No transaction detail yet. The month-end cost run `
+      + `matches card charges to events from 26 Aug 2026 on; for earlier events it needs each event's attendees from the Event Hub `
+      + `first, then a Ramp export for the months around it.</p></section>`;
+  }
+  const c = e.cost || {};
+  const byOwner = new Map();
+  for (const l of entry.lines) {
+    if (!byOwner.has(l.owner)) byOwner.set(l.owner, []);
+    byOwner.get(l.owner).push(l);
+  }
+  const owners = [...byOwner.entries()].map(([owner, lines]) => ({ owner, lines: lines.sort((a, b) => String(a.date).localeCompare(String(b.date))),
+    total: lines.reduce((t, l) => t + (l.amount || 0), 0) })).sort((a, b) => b.total - a.total);
+  const byLabel = new Map();
+  for (const l of entry.lines) byLabel.set(l.label || 'Other', (byLabel.get(l.label || 'Other') || 0) + (l.amount || 0));
+  const travelSite = c.travel === null || c.travel === undefined ? null : c.travel;
+  const feeSite = c.sponsor === null || c.sponsor === undefined ? null : c.sponsor;
+  const tie = (a, b) => (a === null || b === null ? '' : Math.abs(a - b) < 1 ? '<span class="pos">ties</span>'
+    : `<span class="neg">differs by ${money2(Math.abs(a - b))}</span>`);
+  const confTag = l => (l.confidence && l.confidence !== 'High' ? ` <span class="proof-conf">${l.confidence.toLowerCase()} confidence</span>` : '');
+  return `<section class="ev-panel"><h3>Proof of cost</h3>`
+    + `<div class="ev-facts">`
+    + `<div class="ev-fact"><span class="ev-fact-label">Fee</span><span class="ev-fact-value">${money2(entry.fee.amount)}</span>`
+    + `<span class="ev-fact-sub">${[entry.fee.what, entry.fee.paymentStatus ? entry.fee.paymentStatus.toLowerCase() : '', 'Event Hub'].filter(Boolean).join(' · ')}`
+    + `${entry.fee.amount !== null && feeSite !== null ? ` · against ${money2(feeSite)} here: ${tie(entry.fee.amount, feeSite)}` : ''}</span></div>`
+    + `<div class="ev-fact"><span class="ev-fact-label">Card charges</span><span class="ev-fact-value">${money2(entry.travelTotal)}</span>`
+    + `<span class="ev-fact-sub">${fmt.int(entry.lines.length)} charges, ${fmt.int(owners.length)} cardholder${owners.length === 1 ? '' : 's'}`
+    + `${travelSite !== null ? ` · against ${money2(travelSite)} travel here: ${tie(entry.travelTotal, travelSite)}` : ''}</span></div>`
+    + `<div class="ev-fact"><span class="ev-fact-label">By label</span><span class="ev-fact-value proof-labels">`
+    + [...byLabel.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${money2(v)}`).join('<br>') + `</span></div>`
+    + `<div class="ev-fact"><span class="ev-fact-label">Attended</span><span class="ev-fact-value proof-labels">${entry.attendees.join('<br>') || '–'}</span>`
+    + `<span class="ev-fact-sub">${entry.start || ''}${entry.end && entry.end !== entry.start ? ` to ${entry.end}` : ''}${entry.location ? ` · ${entry.location}` : ''}</span></div>`
+    + `</div>`
+    + (owners.length ? `<div class="table-scroll"><table class="data-table ev-table proof-table"><thead><tr><th>Date</th><th>Merchant</th>`
+      + `<th>Label</th><th>City</th><th class="n">Amount</th><th>Why it is this event\u2019s</th></tr></thead><tbody>`
+      + owners.map(o => `<tr class="proof-owner"><td colspan="4"><strong>${o.owner}</strong> · ${fmt.int(o.lines.length)} charge${o.lines.length === 1 ? '' : 's'}</td>`
+        + `<td class="n"><strong>${money2(o.total)}</strong></td><td></td></tr>`
+        + o.lines.map(l => `<tr><td>${l.date || '–'}</td><td>${l.merchant || '–'}</td><td>${l.label || '–'}${confTag(l)}</td>`
+          + `<td>${l.city || '–'}</td><td class="n${l.amount < 0 ? ' neg' : ''}">${money2(l.amount)}</td>`
+          + `<td class="proof-why">${l.why || '<span class="muted">attendee, in the event\u2019s dates and place</span>'}</td></tr>`).join('')).join('')
+      + `<tr class="total-row"><td colspan="4"><strong>All card charges</strong></td><td class="n"><strong>${money2(entry.travelTotal)}</strong></td><td></td></tr>`
+      + `</tbody></table></div>` : '')
+    + (entry.notCounted.length ? `<details class="proof-review"><summary>${fmt.int(entry.notCounted.length)} charge${entry.notCounted.length === 1 ? '' : 's'} `
+      + `reviewed and not counted</summary><ul>` + entry.notCounted.map(l => `<li>${l.date} · ${l.owner} · ${l.merchant}${l.city ? ` (${l.city})` : ''} · `
+        + `${money2(l.amount)}: ${l.why}</li>`).join('') + `</ul></details>` : '')
+    + (entry.notes || entry.flags ? `<p class="ev-note">${[entry.notes, entry.flags].filter(Boolean).join(' ')}</p>` : '')
+    + `<p class="ev-note">From the month-end cost run (${costLines.source}, built ${costLines.built}): the fee as the Event Hub records `
+    + `it, and each Ramp card charge matched to the event because the cardholder attended, the charge falls in the event\u2019s travel `
+    + `window, and its place fits the trip. Fares bought weeks ahead are matched by hand and say why.</p></section>`;
+}
+
 // The Sales tab: setters and deal owners, from the same lead rows.
 const ratio2 = (n, d) => ({ n, d, rate: d ? n / d : null, thin: d < 10 });
 // The person the quarter's headline names (Josh, 13 Oct 2026).
@@ -5343,6 +5405,7 @@ function renderEventPage(label) {
         + `</p>`
         + (drivers ? `<div class="ev-facts">${drivers}</div>` : '') + `</section>` : '')
     + `<section class="ev-panel"><h3>What it cost</h3>${costBar}<div class="ev-facts">${costFacts}</div>${costNotes}</section>`
+    + costProofPanel(e)
     + (leadFacts ? `<section class="ev-panel"><h3>Leads</h3><div class="ev-facts">${leadFacts}</div>`
       + (lead && lead.listShare >= 0.3 ? `<p class="ev-note">${pct(lead.listShare)} of the contacts tagged to it came from a `
         + `loaded list, so the tagged total describes a file, not leads the event generated; the new leads above are what it `
@@ -7107,8 +7170,9 @@ function renderVocabularyWarning() {
 }
 
 function boot() {
-  load().then(loaded => {
+  Promise.all([load(), loadCostLines()]).then(([loaded, lines]) => {
     data = loaded;
+    costLines = lines;
     MARGIN = platformMargins(data);
     cohorts = buildCohorts(data);
     $('loading').hidden = true;

@@ -3,6 +3,8 @@
 # meant to live. Order matters here: later rules win.
 *.json
 !data/*.json
+# The proof behind each event's cost, built by scripts/build_event_cost_lines.py.
+!site/event_cost_lines.json
 
 # Re-block the credential filenames even inside data/, because the
 # negation above would otherwise let data/key.json through.

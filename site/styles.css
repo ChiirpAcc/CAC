@@ -1241,3 +1241,13 @@ span.pos { color: var(--series-pos); }
 .ev-kpis-head .ev-kpi-value { font-size: 1.7rem; }
 .ev-kpis-more .ev-kpi { padding: 0.6rem 0.85rem; }
 .ev-kpis-more .ev-kpi-value { font-size: 1.05rem; }
+
+/* Proof of cost on event pages. */
+.proof-table td { vertical-align: top; }
+.proof-owner td { background: var(--surface-sunk); }
+.proof-why { font-size: 0.85rem; color: var(--ink-mid); min-width: 220px; }
+.proof-conf { font-size: 0.75rem; color: var(--series-2); white-space: nowrap; }
+.proof-labels { font-size: 0.92rem; font-weight: 600; line-height: 1.45; }
+.proof-review { margin-top: 10px; font-size: 0.9rem; }
+.proof-review summary { cursor: pointer; color: var(--ink-mid); }
+.proof-review ul { margin: 8px 0 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
