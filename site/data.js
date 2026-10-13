@@ -3751,6 +3751,10 @@ export const EVENT_FEE_DECISIONS = [
     evidence: 'QuickBooks books $30,000 to ServiceTitan in Sep 2025, and Shepard Exposition billed a further '
       + '$1,616.25 late graphics fee (#199800, Dec 2025) on the "Pantheon - Fall 2025" booth. The $40,000 on '
       + 'the planning sheet was not paid.' },
+  { event: 'Qualified Remodeler Top 500 2026', was: 0, now: 20000, confidence: 'strong',
+    evidence: 'SOLA Group, publisher of Qualified Remodeler, billed a $20,000 Gold Sponsorship for the period of '
+      + 'October 2026 on 19 Aug 2026; Top 500 Live is 26-28 Oct 2026. SOLA\'s separate $10,000 of sponsorship '
+      + 'media (Aug 2026) stays unassigned.' },
   { event: 'Network ST Event', was: 0, now: 3660, confidence: 'moderate',
     evidence: 'Home First Services billed $3,660 of "Event Costs Australia" for Oct and Nov 2025 (expensed '
       + '$1,830 a month); Network ST, Oct 27-28 2025, is the only event in Australia then. The bill answers '
