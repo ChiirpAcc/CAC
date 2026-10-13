@@ -3838,7 +3838,9 @@ export const EVENT_META = {
   'Lennox Premier Dealer Appreciation Day': { type: 'Partner network event', organiser: 'Lennox', plan2027: OFF },
   'Nexstar Super Meeting 2025': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
   'The Huge Convention 2025': { type: 'Conference sponsorship', organiser: 'The Huge Convention', plan2027: OFF },
-  'Blue Sky Mastermind (Tradesformation) 2025': { type: 'Small room', organiser: 'Tradesformation', plan2027: OFF },
+  // Aug 5-6 2025 in Australia (2025 Events/Travel planning sheet).
+  'Blue Sky Mastermind (Tradesformation) 2025': { type: 'Small room', organiser: 'Tradesformation', plan2027: OFF,
+    eventDate: '2025-08-05' },
   'System Forward Pro Boot Camp': { type: 'Training', organiser: 'System Forward', plan2027: OFF },
   'Legacy Annual Offsite': { type: 'Small room', organiser: 'Legacy', plan2027: OFF },
   'Wealthy Plumber Hoorah 2025': { type: 'Partner network event', organiser: 'The Wealthy Plumber', plan2027: ON },
@@ -6069,7 +6071,9 @@ export function eventAuditRows(data) {
     if (weakNoRow.length) gaps.push(`${weakNoRow.length} credited on the tag alone with no lead: ${weakNoRow.map(x => x.name).join('; ')}`);
     const wins = counted.filter(l => l.won === true && winInWindow(l) && !l.wonThrough);
     const winsUnmatched = wins.filter(l => !(l.company && by(l.company)));
-    if (winsUnmatched.length) gaps.push(`${winsUnmatched.length} won lead${winsUnmatched.length === 1 ? '' : 's'} not matched to a Stripe customer`);
+    // Every won lead with a paying Stripe account is matched (13 Oct 2026), so
+    // the rest won a deal and have not paid: a question for sales.
+    if (winsUnmatched.length) gaps.push(`${winsUnmatched.length} won deal${winsUnmatched.length === 1 ? '' : 's'} with no Stripe payment yet`);
     const elsewhere = counted.filter(l => l.state === 'wonElsewhere');
     // People
     const setters = counted.filter(l => l.bookedBy).length;
