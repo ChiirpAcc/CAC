@@ -4084,6 +4084,20 @@ export const HUBSPOT_WON_DEAL_LINKS = {
   cus_PaqLTTdOxV6a3V: '2025 - Home Service Freedom', // 17778428249 genesrefrigeraton.com, 15 Aug 2025
 };
 
+// The Stripe account HubSpot's company record names ("Stripe Account",
+// stripe_id) for won event leads whose HubSpot and Stripe names differ too
+// much to match, from a live check on 13 Oct 2026. Read before the name,
+// until Event Leads carries the Stripe id itself (brief item 14). Keyed by
+// HubSpot company id; the name is how the leads carry it.
+export const HUBSPOT_COMPANY_STRIPE = {
+  21111661645: ['Tuckers HVAC & Plumbing', 'cus_TEh9PXbEucqY9z'], // Stripe: Tuckers Air Conditioning & Heating
+  313986676421: ['Doornbos Heating and Air Conditioning', 'cus_UARpCMWNsFMRcp'], // Doornboss HVAC
+  160037704403: ['First Class Heating & Air', 'cus_TpjHemjkvo2Qs5'], // First Class Home Services
+  33695089731: ['PlumbingPro Austin', 'cus_SWUL3OxBXodJXP'], // PlumbingPro
+  23553523830: ['Outdoor Lighting Perspectives', 'cus_T2IWzPcIvzDANV'], // Outdoor Lights HTX
+  25135657321: ['Lamar Heat & Air', 'cus_UA3UQKWe2MuUTs'], // never paid: not in the waterfall
+};
+
 export const HUBSPOT_USER_NAMES = {
   629850185: 'Parker Joos', // a salesperson who has left; 115 event deals
   // Inactive HubSpot users, named by Josh on 13 Oct 2026.
@@ -6202,11 +6216,34 @@ function buildStripeMatch(data) {
     by.get(k).push(x);
   }
   const keys = [...by.keys()];
+  // The same name with the spaces taken out: "TemperaturePro Kalamazoo" in
+  // HubSpot is "Temperature Pro Kalamazoo" in Stripe (13 Oct 2026).
+  const squash = k => k.replace(/ /g, '');
+  const bySquash = new Map();
+  for (const n of keys) {
+    if (!bySquash.has(squash(n))) bySquash.set(squash(n), []);
+    bySquash.get(squash(n)).push(...by.get(n));
+  }
+  // One business under the same name in two Stripe accounts (Sierra Pacific):
+  // read as one, the live account first, paying from the earliest.
+  const one = (list, how) => {
+    if (list.length === 1) return { ...list[0], how };
+    const best = [...list].sort((a, b) => Number(b.live) - Number(a.live) || String(b.last).localeCompare(String(a.last)))[0];
+    const firstPaid = list.map(x => x.firstPaid).filter(Boolean).sort()[0] || null;
+    return { ...best, firstPaid, how: `${how}, ${list.length} Stripe accounts` };
+  };
+  const linked = new Map(Object.values(HUBSPOT_COMPANY_STRIPE).map(([name, cus]) => [norm(name), cus]));
   return company => {
     const k = norm(company);
     if (!k) return null;
+    if (linked.has(k)) {
+      const x = sum.get(linked.get(k));
+      return x ? { ...x, how: 'HubSpot company’s Stripe account' } : null;
+    }
     const exact = by.get(k);
-    if (exact) return exact.length === 1 ? { ...exact[0], how: 'name' } : null;
+    if (exact) return one(exact, 'name');
+    const sq = bySquash.get(squash(k));
+    if (sq && new Set(sq.map(x => norm(x.name))).size === 1) return one(sq, 'name without spaces');
     // HubSpot often holds a business under a shorter name than Stripe ("A1
     // Plumbing" and "A1 Plumbing, Pumps & Water Treatment Inc."). The HubSpot
     // name starting the Stripe one counts when it is at least two words,
@@ -6215,7 +6252,15 @@ function buildStripeMatch(data) {
     if (k.split(' ').length < 2 || FRANCHISE.test(k)) return null;
     const fits = keys.filter(n => n.startsWith(k + ' ') && !/^of /.test(n.slice(k.length + 1)));
     const hits = fits.flatMap(n => by.get(n));
-    return hits.length === 1 ? { ...hits[0], how: 'part of the name' } : null;
+    if (hits.length === 1) return { ...hits[0], how: 'part of the name' };
+    if (hits.length) return null;
+    // Or the other way round: Stripe holds the shorter name ("Aether
+    // Mechanical" for HubSpot's "Aether Mechanical, Heating, Cooling &
+    // Plumbing"), on the same terms.
+    const shorter = keys.filter(n => n.split(' ').length >= 2 && !FRANCHISE.test(n) && k.startsWith(n + ' ')
+      && !/^of /.test(k.slice(n.length + 1)));
+    const back = shorter.flatMap(n => by.get(n));
+    return back.length === 1 ? { ...back[0], how: 'part of the name' } : null;
   };
 }
 
