@@ -116,8 +116,47 @@
     "Blake Fenn",
     "Parker Joos"
    ],
-   "notes": "2,374 of TravelPerk bookings near it name no traveller.",
+   "notes": "2,311 of TravelPerk bookings near it name no traveller.",
    "lines": [
+    {
+     "date": "2025-09-05",
+     "owner": "Devon Maresco",
+     "merchant": "SWINGERS LAS VEGAS",
+     "rampCategory": null,
+     "city": null,
+     "amount": 62.86,
+     "label": "Meals",
+     "confidence": "Medium",
+     "why": "attendee, in the event's travel window; Divvy card, no merchant city",
+     "card": "Divvy",
+     "source": "QuickBooks, Divvy card"
+    },
+    {
+     "date": "2025-09-06",
+     "owner": "Devon Maresco",
+     "merchant": "VIAsat",
+     "rampCategory": null,
+     "city": null,
+     "amount": 8.0,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "attendee, in the event's travel window; Divvy card, no merchant city",
+     "card": "Divvy",
+     "source": "QuickBooks, Divvy card"
+    },
+    {
+     "date": "2025-09-07",
+     "owner": "Devon Maresco",
+     "merchant": "Tacos el Gordo",
+     "rampCategory": null,
+     "city": null,
+     "amount": 12.72,
+     "label": "Meals",
+     "confidence": "Medium",
+     "why": "attendee, in the event's travel window; Divvy card, no merchant city",
+     "card": "Divvy",
+     "source": "QuickBooks, Divvy card"
+    },
     {
      "date": "2025-09-03",
      "owner": "Jared Hunsaker",
@@ -859,17 +898,9 @@
      "city": null,
      "amount": 355.79,
      "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-05",
-     "owner": "Devon Maresco",
-     "merchant": "SWINGERS LAS VEGAS",
-     "city": null,
-     "amount": 62.86,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
     }
    ],
-   "travelTotal": 2147.68
+   "travelTotal": 2231.26
   },
   {
    "label": "Pantheon 2025",
@@ -920,7 +951,7 @@
     "Blake Fenn",
     "Jared Walker"
    ],
-   "notes": "9,471 of TravelPerk bookings near it name no traveller.",
+   "notes": "9,450 of TravelPerk bookings near it name no traveller.",
    "lines": [
     {
      "date": "2025-09-17",
@@ -1679,22 +1710,6 @@
    ],
    "notCounted": [
     {
-     "date": "2025-09-06",
-     "owner": "Devon Maresco",
-     "merchant": "VIAsat",
-     "city": null,
-     "amount": 8.0,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-07",
-     "owner": "Devon Maresco",
-     "merchant": "Tacos el Gordo",
-     "city": null,
-     "amount": 12.72,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
      "date": "2025-09-12",
      "owner": "Devon Maresco",
      "merchant": "TRAVELPERK",
@@ -2103,7 +2118,7 @@
    "attendees": [
     "Colton Lingmann"
    ],
-   "notes": "7,016 of TravelPerk bookings near it name no traveller.",
+   "notes": "3,343 of TravelPerk bookings near it name no traveller.",
    "lines": [],
    "notCounted": [
     {
@@ -2144,38 +2159,6 @@
      "merchant": "TRAVELPERK",
      "city": null,
      "amount": 767.91,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "Gaylord Hotels",
-     "city": "Aurora, CO",
-     "amount": 1051.16,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "Gaylord Hotels",
-     "city": "Aurora, CO",
-     "amount": 519.22,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "Gaylord Hotels",
-     "city": "Aurora, CO",
-     "amount": 1051.16,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-09-30",
-     "owner": "Devon Maresco",
-     "merchant": "Gaylord Hotels",
-     "city": "Aurora, CO",
-     "amount": 1051.16,
      "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
     },
     {
@@ -2235,7 +2218,7 @@
     "Korth Rushdi",
     "Stan Wesemann"
    ],
-   "notes": "14,512 of TravelPerk bookings near it name no traveller.",
+   "notes": "9,782 of TravelPerk bookings near it name no traveller.",
    "lines": [
     {
      "date": "2025-09-29",
@@ -2976,46 +2959,6 @@
      "merchant": "TRAVELPERK",
      "city": null,
      "amount": 487.35,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-01",
-     "owner": "Devon Maresco",
-     "merchant": "Harrah's Hotel",
-     "city": "Las Vegas, NV",
-     "amount": 947.64,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-01",
-     "owner": "Devon Maresco",
-     "merchant": "Harrah's Hotel",
-     "city": "Las Vegas, NV",
-     "amount": 947.64,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-01",
-     "owner": "Devon Maresco",
-     "merchant": "Harrah's Hotel",
-     "city": "Las Vegas, NV",
-     "amount": 947.64,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-01",
-     "owner": "Devon Maresco",
-     "merchant": "Hilton Garden Inn",
-     "city": "Pensacola, FL",
-     "amount": 941.64,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-01",
-     "owner": "Devon Maresco",
-     "merchant": "Hilton Garden Inn",
-     "city": "Pensacola, FL",
-     "amount": 945.94,
      "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
     },
     {
@@ -7074,7 +7017,7 @@
     "Ryan Peterson",
     "Tavi Carvajal"
    ],
-   "notes": "-2,356 of TravelPerk bookings near it name no traveller.",
+   "notes": null,
    "lines": [
     {
      "date": "2025-11-02",
@@ -7324,32 +7267,7 @@
      "source": "QuickBooks, Ramp card"
     }
    ],
-   "notCounted": [
-    {
-     "date": "2025-10-30",
-     "owner": "Devon Maresco",
-     "merchant": "Harrah's Las Vegas",
-     "city": "Las Vegas, NV",
-     "amount": -947.64,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-31",
-     "owner": "Devon Maresco",
-     "merchant": "Harrah's Las Vegas",
-     "city": "Las Vegas, NV",
-     "amount": -703.99,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    },
-    {
-     "date": "2025-10-31",
-     "owner": "Devon Maresco",
-     "merchant": "Harrah's Las Vegas",
-     "city": "Las Vegas, NV",
-     "amount": -703.99,
-     "why": "booked through TravelPerk by Devon Maresco; QuickBooks doesn't name the traveller. Needs the TravelPerk trip report"
-    }
-   ],
+   "notCounted": [],
    "travelTotal": 474.07
   },
   {
@@ -9746,6 +9664,7 @@
    "attendees": [
     "Justin Judd",
     "Ryan Peterson",
+    "Ryan Fenn",
     "Ky Decker"
    ],
    "notes": null,
@@ -9934,6 +9853,136 @@
     },
     {
      "date": "2026-02-11",
+     "owner": "Ryan Fenn",
+     "merchant": "Frontier",
+     "rampCategory": null,
+     "city": "Denver, CO",
+     "amount": 289.96,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-11",
+     "owner": "Ryan Fenn",
+     "merchant": "Paris Las Vegas",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 252.2,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-12",
+     "owner": "Ryan Fenn",
+     "merchant": "Frontier",
+     "rampCategory": null,
+     "city": "Denver, CO",
+     "amount": 213.98,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-12",
+     "owner": "Ryan Fenn",
+     "merchant": "7-Eleven",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 24.46,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-12",
+     "owner": "Ryan Fenn",
+     "merchant": "Snacks",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 9.75,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-13",
+     "owner": "Ryan Fenn",
+     "merchant": "Snacks",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 19.51,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-13",
+     "owner": "Ryan Fenn",
+     "merchant": "Dunkin' Donuts",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 3.09,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-13",
+     "owner": "Ryan Fenn",
+     "merchant": "LA PRESSE",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 39.02,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-13",
+     "owner": "Ryan Fenn",
+     "merchant": "Shang Artisan Noodle",
+     "rampCategory": null,
+     "city": "Las Vegas, NV",
+     "amount": 137.83,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-14",
+     "owner": "Ryan Fenn",
+     "merchant": "Deseret News",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 3.49,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-11",
      "owner": "Ryan Peterson",
      "merchant": "Delta Airlines",
      "rampCategory": null,
@@ -10039,6 +10088,126 @@
    ],
    "notCounted": [
     {
+     "date": "2026-02-07",
+     "owner": "Ryan Fenn",
+     "merchant": "Embassy Suites",
+     "city": "Scottsdale, AZ",
+     "amount": 815.22,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-07",
+     "owner": "Ryan Fenn",
+     "merchant": "Embassy Suites by Hilton",
+     "city": "Scottsdale, AZ",
+     "amount": 589.63,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-07",
+     "owner": "Ryan Fenn",
+     "merchant": "Grimaldi's Pizzeria",
+     "city": "Scottsdale, AZ",
+     "amount": 56.51,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-07",
+     "owner": "Ryan Fenn",
+     "merchant": "Walgreens",
+     "city": "Paradise Valley, AZ",
+     "amount": 6.49,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-07",
+     "owner": "Ryan Fenn",
+     "merchant": "US Egg",
+     "city": "Scottsdale, AZ",
+     "amount": 81.74,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-08",
+     "owner": "Ryan Fenn",
+     "merchant": "Circle K",
+     "city": "Scottsdale, AZ",
+     "amount": 8.84,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-08",
+     "owner": "Ryan Fenn",
+     "merchant": "Burrito Express",
+     "city": "Scottsdale, AZ",
+     "amount": 47.56,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-09",
+     "owner": "Ryan Fenn",
+     "merchant": "Circle K",
+     "city": "Phoenix, AZ",
+     "amount": 34.12,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-09",
+     "owner": "Ryan Fenn",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "city": "Salt Lake City, UT",
+     "amount": 80.0,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-09",
+     "owner": "Ryan Fenn",
+     "merchant": "Bosa Donuts",
+     "city": "Phoenix, AZ",
+     "amount": 29.42,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-09",
+     "owner": "Ryan Fenn",
+     "merchant": "MCDONALD'S",
+     "city": "Scottsdale, AZ",
+     "amount": 14.35,
+     "why": "just outside the EGIA Epic 2026 travel window"
+    },
+    {
+     "date": "2026-02-10",
+     "owner": "Ryan Fenn",
+     "merchant": "Delta Airlines",
+     "city": "Atlanta, GA",
+     "amount": 916.79,
+     "why": "fare booked ahead; more than one event it could be for: EGIA Epic 2026, RynoX 2026, Raising GOATS 2026"
+    },
+    {
+     "date": "2026-02-11",
+     "owner": "Ryan Fenn",
+     "merchant": "United",
+     "city": "Houston, TX",
+     "amount": 771.35,
+     "why": "fare booked ahead; more than one event it could be for: EGIA Epic 2026, RynoX 2026, Raising GOATS 2026"
+    },
+    {
+     "date": "2026-02-11",
+     "owner": "Ryan Fenn",
+     "merchant": "United",
+     "city": "Houston, TX",
+     "amount": 310.27,
+     "why": "fare booked ahead; more than one event it could be for: EGIA Epic 2026, RynoX 2026, Raising GOATS 2026"
+    },
+    {
+     "date": "2026-02-11",
+     "owner": "Ryan Fenn",
+     "merchant": "United",
+     "city": "Houston, TX",
+     "amount": 369.61,
+     "why": "fare booked ahead; more than one event it could be for: EGIA Epic 2026, RynoX 2026, Raising GOATS 2026"
+    },
+    {
      "date": "2026-02-14",
      "owner": "Ky Decker",
      "merchant": "Salt Lake City Dept Of Ai",
@@ -10053,9 +10222,17 @@
      "city": "Salt Lake City, UT",
      "amount": 36.0,
      "why": "in the EGIA Epic 2026 window, but the merchant is in Salt Lake City, UT, not Las Vegas, NV"
+    },
+    {
+     "date": "2026-02-14",
+     "owner": "Ryan Fenn",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "city": "Salt Lake City, UT",
+     "amount": 120.0,
+     "why": "in the EGIA Epic 2026 window, but the merchant is in Salt Lake City, UT, not Las Vegas, NV"
     }
    ],
-   "travelTotal": 959.35
+   "travelTotal": 1952.64
   },
   {
    "label": "RynoX 2026",
@@ -10087,10 +10264,155 @@
    "hubTravel": null,
    "flags": null,
    "attendees": [
-    "Justin Judd"
+    "Justin Judd",
+    "Ryan Fenn",
+    "Garret Clarke"
    ],
    "notes": null,
    "lines": [
+    {
+     "date": "2026-02-16",
+     "owner": "Garret Clarke",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Buffalo, NY",
+     "amount": 646.8,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "the Ramp memo's dates fall in the event's dates",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-17",
+     "owner": "Garret Clarke",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Dallas, TX",
+     "amount": 80.0,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-17",
+     "owner": "Garret Clarke",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Buffalo, NY",
+     "amount": 409.4,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "the Ramp memo's dates fall in the event's dates",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-18",
+     "owner": "Garret Clarke",
+     "merchant": "La Quinta Inn & Suites",
+     "rampCategory": null,
+     "city": "Tempe, AZ",
+     "amount": 138.71,
+     "label": "Hotel incidentals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-18",
+     "owner": "Garret Clarke",
+     "merchant": "Nekter Juice Bar",
+     "rampCategory": null,
+     "city": "Tempe, AZ",
+     "amount": 13.67,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-18",
+     "owner": "Garret Clarke",
+     "merchant": "Tempe",
+     "rampCategory": null,
+     "city": "Tempe, AZ",
+     "amount": 3.7,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-20",
+     "owner": "Garret Clarke",
+     "merchant": "Southwest Airlines",
+     "rampCategory": null,
+     "city": "Dallas, TX",
+     "amount": 80.0,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-20",
+     "owner": "Garret Clarke",
+     "merchant": "Fairmont Hotels",
+     "rampCategory": null,
+     "city": "Scottsdale, AZ",
+     "amount": 49.25,
+     "label": "Hotel incidentals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-20",
+     "owner": "Garret Clarke",
+     "merchant": "Connections Cafe",
+     "rampCategory": null,
+     "city": "Tempe, AZ",
+     "amount": 25.66,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-23",
+     "owner": "Garret Clarke",
+     "merchant": "United",
+     "rampCategory": null,
+     "city": "Houston, TX",
+     "amount": 40.0,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-23",
+     "owner": "Garret Clarke",
+     "merchant": "United",
+     "rampCategory": null,
+     "city": "Houston, TX",
+     "amount": 50.0,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
     {
      "date": "2026-02-16",
      "owner": "Justin Judd",
@@ -10181,9 +10503,96 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-19",
+     "owner": "Ryan Fenn",
+     "merchant": "Fairmont Hotels",
+     "rampCategory": null,
+     "city": "Scottsdale, AZ",
+     "amount": 689.75,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-21",
+     "owner": "Ryan Fenn",
+     "merchant": "Frontier",
+     "rampCategory": null,
+     "city": "Denver, CO",
+     "amount": -289.96,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2026-02-21",
+     "owner": "Ryan Fenn",
+     "merchant": "Deseret News",
+     "rampCategory": null,
+     "city": "Salt Lake City, UT",
+     "amount": 4.11,
+     "label": "Meals",
+     "confidence": "High",
+     "why": "attendee, in the event's dates and place",
+     "card": "Ramp",
+     "source": "QuickBooks, Ramp card"
     }
    ],
    "notCounted": [
+    {
+     "date": "2026-02-17",
+     "owner": "Garret Clarke",
+     "merchant": "Ramp Travel",
+     "city": "Buffalo, NY",
+     "amount": 179.17,
+     "why": "in the RynoX 2026 window, but the merchant is in Buffalo, NY, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-17",
+     "owner": "Garret Clarke",
+     "merchant": "Hudson News",
+     "city": "San Jose, CA",
+     "amount": 5.29,
+     "why": "in the RynoX 2026 window, but the merchant is in San Jose, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-17",
+     "owner": "Garret Clarke",
+     "merchant": "Sushi Boat",
+     "city": "San Jose, CA",
+     "amount": 27.23,
+     "why": "in the RynoX 2026 window, but the merchant is in San Jose, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-18",
+     "owner": "Garret Clarke",
+     "merchant": "Waymo",
+     "city": "Mountain View, CA",
+     "amount": 37.48,
+     "why": "in the RynoX 2026 window, but the merchant is in Mountain View, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-18",
+     "owner": "Garret Clarke",
+     "merchant": "Waymo",
+     "city": "Mountain View, CA",
+     "amount": 8.5,
+     "why": "in the RynoX 2026 window, but the merchant is in Mountain View, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-18",
+     "owner": "Garret Clarke",
+     "merchant": "Waymo",
+     "city": "Mountain View, CA",
+     "amount": 16.61,
+     "why": "in the RynoX 2026 window, but the merchant is in Mountain View, CA, not Phoenix, AZ"
+    },
     {
      "date": "2026-02-20",
      "owner": "Justin Judd",
@@ -10191,9 +10600,201 @@
      "city": "Provo, UT",
      "amount": 48.0,
      "why": "in the RynoX 2026 window, but the merchant is in Provo, UT, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-20",
+     "owner": "Garret Clarke",
+     "merchant": "Terminal A",
+     "city": "San Jose, CA",
+     "amount": 123.0,
+     "why": "in the RynoX 2026 window, but the merchant is in San Jose, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-20",
+     "owner": "Ryan Fenn",
+     "merchant": "Maverik",
+     "city": "Riverton, UT",
+     "amount": 28.36,
+     "why": "in the RynoX 2026 window, but the merchant is in Riverton, UT, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-20",
+     "owner": "Ryan Fenn",
+     "merchant": "Salt Lake City Dept Of Ai",
+     "city": "Salt Lake City, UT",
+     "amount": 100.0,
+     "why": "in the RynoX 2026 window, but the merchant is in Salt Lake City, UT, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-20",
+     "owner": "Ryan Fenn",
+     "merchant": "JSX Air",
+     "city": "Dallas, TX",
+     "amount": 459.5,
+     "why": "fare booked ahead; more than one event it could be for: RynoX 2026, Raising GOATS 2026"
+    },
+    {
+     "date": "2026-02-21",
+     "owner": "Ryan Fenn",
+     "merchant": "Walgreens",
+     "city": "Mountain View, CA",
+     "amount": 42.35,
+     "why": "in the RynoX 2026 window, but the merchant is in Mountain View, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-21",
+     "owner": "Ryan Fenn",
+     "merchant": "Walgreens",
+     "city": "Mountain View, CA",
+     "amount": 5.49,
+     "why": "in the RynoX 2026 window, but the merchant is in Mountain View, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-21",
+     "owner": "Ryan Fenn",
+     "merchant": "SUMMER SALT",
+     "city": "Miami, FL",
+     "amount": 5.17,
+     "why": "in the RynoX 2026 window, but the merchant is in Miami, FL, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-21",
+     "owner": "Ryan Fenn",
+     "merchant": "Stagnaro Bros",
+     "city": "Santa Cruz, CA",
+     "amount": 151.88,
+     "why": "in the RynoX 2026 window, but the merchant is in Santa Cruz, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-22",
+     "owner": "Ryan Fenn",
+     "merchant": "Santa Cruz Beach Boardwalk",
+     "city": "Santa Cruz, CA",
+     "amount": 5.0,
+     "why": "in the RynoX 2026 window, but the merchant is in Santa Cruz, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-22",
+     "owner": "Ryan Fenn",
+     "merchant": "Santa Cruz Beach Boardwalk",
+     "city": "Santa Cruz, CA",
+     "amount": 5.0,
+     "why": "in the RynoX 2026 window, but the merchant is in Santa Cruz, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-22",
+     "owner": "Ryan Fenn",
+     "merchant": "Santa Cruz Beach Boardwalk",
+     "city": "Santa Cruz, CA",
+     "amount": 5.0,
+     "why": "in the RynoX 2026 window, but the merchant is in Santa Cruz, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-22",
+     "owner": "Ryan Fenn",
+     "merchant": "Santa Cruz Beach Boardwalk",
+     "city": "Santa Cruz, CA",
+     "amount": 5.0,
+     "why": "in the RynoX 2026 window, but the merchant is in Santa Cruz, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-22",
+     "owner": "Ryan Fenn",
+     "merchant": "Santa Cruz Beach Boardwalk",
+     "city": "Santa Cruz, CA",
+     "amount": 5.0,
+     "why": "in the RynoX 2026 window, but the merchant is in Santa Cruz, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-22",
+     "owner": "Ryan Fenn",
+     "merchant": "Santa Cruz Beach Boardwalk",
+     "city": "Santa Cruz, CA",
+     "amount": 5.0,
+     "why": "in the RynoX 2026 window, but the merchant is in Santa Cruz, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-22",
+     "owner": "Ryan Fenn",
+     "merchant": "Santa Cruz Beach Boardwalk",
+     "city": "Santa Cruz, CA",
+     "amount": 5.0,
+     "why": "in the RynoX 2026 window, but the merchant is in Santa Cruz, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-23",
+     "owner": "Garret Clarke",
+     "merchant": "Which Wich",
+     "city": "Houston, TX",
+     "amount": 13.98,
+     "why": "in the RynoX 2026 window, but the merchant is in Houston, TX, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-23",
+     "owner": "Ryan Fenn",
+     "merchant": "CIBO Express Gourmet Market",
+     "city": "Houston, TX",
+     "amount": 4.75,
+     "why": "in the RynoX 2026 window, but the merchant is in Houston, TX, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-23",
+     "owner": "Ryan Fenn",
+     "merchant": "Pink's Pizza",
+     "city": "Houston, TX",
+     "amount": 18.98,
+     "why": "in the RynoX 2026 window, but the merchant is in Houston, TX, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-23",
+     "owner": "Ryan Fenn",
+     "merchant": "Burger King",
+     "city": "San Francisco, CA",
+     "amount": 16.06,
+     "why": "in the RynoX 2026 window, but the merchant is in San Francisco, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-23",
+     "owner": "Ryan Fenn",
+     "merchant": "Special Noodle Restaurant",
+     "city": "Santa Cruz, CA",
+     "amount": 218.73,
+     "why": "in the RynoX 2026 window, but the merchant is in Santa Cruz, CA, not Phoenix, AZ"
+    },
+    {
+     "date": "2026-02-24",
+     "owner": "Ryan Fenn",
+     "merchant": "Super Pura Vida",
+     "city": "SANTA CRUZ, CR",
+     "amount": 7.7,
+     "why": "just outside the RynoX 2026 travel window"
+    },
+    {
+     "date": "2026-02-24",
+     "owner": "Ryan Fenn",
+     "merchant": "Dona Ana",
+     "city": "SANTA CRUZ, CR",
+     "amount": 8.72,
+     "why": "just outside the RynoX 2026 travel window"
+    },
+    {
+     "date": "2026-02-25",
+     "owner": "Ryan Fenn",
+     "merchant": "La Super Economica",
+     "city": "GUANACASTE, CR",
+     "amount": 23.39,
+     "why": "just outside the RynoX 2026 travel window"
+    },
+    {
+     "date": "2026-02-25",
+     "owner": "Ryan Fenn",
+     "merchant": "Gasolinera Rio Canas Corp",
+     "city": "GUANACASTE, CR",
+     "amount": 14.42,
+     "why": "just outside the RynoX 2026 travel window"
     }
    ],
-   "travelTotal": 1956.87
+   "travelTotal": 3897.96
   },
   {
    "label": "Lennox Live New Orleans 2026",
@@ -10955,60 +11556,12 @@
    ],
    "notCounted": [
     {
-     "date": "2026-02-10",
-     "owner": "Ryan Fenn",
-     "merchant": "Delta Airlines",
-     "city": "Atlanta, GA",
-     "amount": 916.79,
-     "why": "one of 8 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
-    },
-    {
-     "date": "2026-02-11",
-     "owner": "Ryan Fenn",
-     "merchant": "United",
-     "city": "Houston, TX",
-     "amount": 771.35,
-     "why": "one of 8 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
-    },
-    {
-     "date": "2026-02-11",
-     "owner": "Ryan Fenn",
-     "merchant": "United",
-     "city": "Houston, TX",
-     "amount": 310.27,
-     "why": "one of 8 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
-    },
-    {
-     "date": "2026-02-11",
-     "owner": "Ryan Fenn",
-     "merchant": "United",
-     "city": "Houston, TX",
-     "amount": 369.61,
-     "why": "one of 8 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
-    },
-    {
-     "date": "2026-02-18",
-     "owner": "Ryan Fenn",
-     "merchant": "JSX Air",
-     "city": "Dallas, TX",
-     "amount": 379.0,
-     "why": "one of 8 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
-    },
-    {
-     "date": "2026-02-20",
-     "owner": "Ryan Fenn",
-     "merchant": "JSX Air",
-     "city": "Dallas, TX",
-     "amount": 459.5,
-     "why": "one of 8 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
-    },
-    {
      "date": "2026-03-08",
      "owner": "Ryan Fenn",
      "merchant": "Delta Airlines",
      "city": "Atlanta, GA",
      "amount": 896.4,
-     "why": "one of 8 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
+     "why": "one of 2 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
     },
     {
      "date": "2026-03-18",
@@ -11016,7 +11569,7 @@
      "merchant": "Delta Airlines",
      "city": "Atlanta, GA",
      "amount": 453.4,
-     "why": "one of 8 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
+     "why": "one of 2 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
     },
     {
      "date": "2026-03-19",
