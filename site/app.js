@@ -5349,6 +5349,27 @@ function renderEventPage(label) {
       : `collected in Stripe from ${int(e.paid)} customer${e.paid === 1 ? '' : 's'}${e.mrrNow ? ` · ${money(e.mrrNow)}/mo now` : ''}`)
     + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', pb ? (pb.provisional ? 'provisional: cost still settling' : 'on contribution, after cost to serve')
       : e.upcoming ? 'after the event' : '', pb ? tone(pb.roiToDate) : '');
+  // The row under the headline (Josh, 14 Oct 2026): what a demo and a won
+  // deal cost, how many booked demos were won, and the return now and twelve
+  // months on, both counted from the event's date.
+  const evDay = e.eventDate || (lead && lead.eventDate) || null;
+  const dayLabel = evDay ? new Date(`${evDay}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : e.month ? fmt.monthLabel(e.month) : null;
+  const costKnown = e.costState !== 'absent' && e.spend;
+  const monthsOn = e.month && !e.upcoming ? monthDiff(e.month, data.lastMonth) : null;
+  const rateCards = kpi('Cost per demo', costKnown && demosBooked ? money(e.spend / demosBooked) : '–',
+      demosBooked ? `${money(e.spend)} over ${int(demosBooked)} demo${demosBooked === 1 ? '' : 's'} booked` : 'no demos booked yet')
+    + kpi('Cost per closed deal', costKnown && closedWon ? money(e.spend / closedWon) : '–',
+      closedWon ? `${money(e.spend)} over ${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}` : 'no deals closed yet')
+    + kpi('Booked to won', demosBooked ? pct(closedWon / demosBooked) : '–',
+      demosBooked ? `${int(closedWon)} won of ${int(demosBooked)} booked${demosSat ? ` · ${pct(closedWon / demosSat)} of ${int(demosSat)} sat` : ''}` : '')
+    + kpi('ROI now', pb ? signedPct(pb.roiToDate) : '–', pb
+      ? `${monthsOn === null ? '' : `${int(monthsOn)} month${monthsOn === 1 ? '' : 's'} `}since ${dayLabel || 'the event'}${pb.provisional ? ' · provisional' : ''}`
+      : e.upcoming ? `from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roiToDate) : '')
+    + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb
+      ? `${pb.roi12Projected ? 'projected' : 'actual'}, 12 months from ${dayLabel || 'the event'}`
+        + (pb.roi12Projected && pb.roi12Range ? `; likely ${signedPct(pb.roi12Range[0])} to ${signedPct(pb.roi12Range[1])}` : '')
+      : e.upcoming ? `12 months from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roi12) : '');
   const kpis = e.upcoming
     ? kpi('Status', 'Upcoming', `happens ${fmt.monthLabel(e.upcoming)}`)
     : kpi('Contribution', money(e.contribution), 'what customers paid, less the cost to serve them')
@@ -5356,9 +5377,6 @@ function renderEventPage(label) {
         const up = (eventUpsells(data, r.roi) || { byLabel: new Map() }).byLabel.get(e.label);
         return up && up.credited && e.net !== null ? `${signed(e.net + up.credited)} with upsells` : '';
       })(), e.costState === 'absent' ? '' : tone(e.net))
-      + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12Projected
-        ? (pb.roi12Range ? `projected; 90% range ${signedPct(pb.roi12Range[0])} to ${signedPct(pb.roi12Range[1])}` : 'projected') : 'actual',
-        pb ? tone(pb.roi12) : '')
       + kpi('Customers', int(e.paid), `${int(e.liveNow)} still live · ${money(e.mrrNow)} MRR`
         + (e.pausedNow ? ` · ${fmt.int(e.pausedNow)} on a coupon, ${money(e.pausedMrr)} paused` : ''))
       + (e.paid && e.evidence ? kpi('Direct customers', int(e.evidence.direct),
@@ -5482,6 +5500,7 @@ function renderEventPage(label) {
     + `<header class="ev-hero"><h2>${e.label}</h2><div class="ev-chips">${chips}</div>`
     + (e.source ? `<p class="ev-source">HubSpot source: ${e.source}</p>` : '') + `</header>`
     + `<div class="ev-kpis ev-kpis-head">${headCards}</div>`
+    + `<div class="ev-kpis ev-kpis-rates">${rateCards}</div>`
     + `<div class="ev-kpis ev-kpis-more">${kpis}</div>`
     + (pb && (pb.actualPath.length || pb.projectedPath.length)
       ? `<section class="ev-panel"><h3>Money back against cost</h3><div class="plot" id="event-page-curve"></div>`

@@ -1258,3 +1258,7 @@ span.pos { color: var(--series-pos); }
 .deal-toggle input { margin-top: 3px; }
 .deal-toggle:has(input:checked) { border-color: var(--series-1); }
 .proof-sub { margin: 14px 0 6px; font-size: 0.95rem; }
+
+/* Event page: the rates row under the headline cards. */
+.ev-kpis-rates { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-top: 10px; }
+.ev-kpis-rates .ev-kpi-value { font-size: 1.35rem; }
