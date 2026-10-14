@@ -1,7 +1,7 @@
 {
  "source": "CHIIRP Event Costs.xlsx",
  "olderSource": "CHIIRP Event Costs 2025-26 (QuickBooks).xlsx",
- "built": "2026-10-13",
+ "built": "2026-10-14",
  "note": "Event Hub fees and Ramp card charges matched to each event by the month-end cost run; events before the Event Hub from QuickBooks bills and card charges.",
  "events": [
   {
@@ -116,7 +116,7 @@
     "Blake Fenn",
     "Parker Joos"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
      "date": "2025-09-05",
@@ -156,6 +156,45 @@
      "why": "attendee, in the event's travel window; Divvy card, no merchant city",
      "card": "Divvy",
      "source": "QuickBooks, Divvy card"
+    },
+    {
+     "date": "2025-08-15",
+     "owner": "Devon Maresco, Jared Hunsaker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 51.85,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30636646: Las Vegas, 2-5 Sep 2025, Devon Maresco and Jared Hunsaker: HSF's dates and city",
+     "card": "TravelPerk (All travel)",
+     "source": "QuickBooks, TravelPerk (All travel) card"
+    },
+    {
+     "date": "2025-08-15",
+     "owner": "Devon Maresco, Jared Hunsaker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 15.55,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30636646: Las Vegas, 2-5 Sep 2025, Devon Maresco and Jared Hunsaker: HSF's dates and city",
+     "card": "TravelPerk (All travel)",
+     "source": "QuickBooks, TravelPerk (All travel) card"
+    },
+    {
+     "date": "2025-08-15",
+     "owner": "Devon Maresco, Jared Hunsaker",
+     "merchant": "TravelPerk Flight: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 518.5,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 30636646: Las Vegas, 2-5 Sep 2025, Devon Maresco and Jared Hunsaker: HSF's dates and city",
+     "card": "TravelPerk (All travel)",
+     "source": "QuickBooks, TravelPerk (All travel) card"
     },
     {
      "date": "2025-09-03",
@@ -377,6 +416,110 @@
      "why": "attendee, in the event's travel window; Divvy card, no merchant city",
      "card": "Divvy",
      "source": "QuickBooks, Divvy card"
+    },
+    {
+     "date": "2025-08-18",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 12.06,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30694207: Las Vegas, 2-6 Sep 2025, Ryan Fenn: HSF's dates and city",
+     "card": "TravelPerk (NEW - all travel)",
+     "source": "QuickBooks, TravelPerk (NEW - all travel) card"
+    },
+    {
+     "date": "2025-08-18",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 4.67,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30694207: Las Vegas, 2-6 Sep 2025, Ryan Fenn: HSF's dates and city",
+     "card": "TravelPerk (NEW - all travel)",
+     "source": "QuickBooks, TravelPerk (NEW - all travel) card"
+    },
+    {
+     "date": "2025-08-18",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 10.04,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 30694207: Las Vegas, 2-6 Sep 2025, Ryan Fenn: HSF's dates and city",
+     "card": "TravelPerk (NEW - all travel)",
+     "source": "QuickBooks, TravelPerk (NEW - all travel) card"
+    },
+    {
+     "date": "2025-08-18",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk Flight: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 391.92,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 30694207: Las Vegas, 2-6 Sep 2025, Ryan Fenn: HSF's dates and city",
+     "card": "TravelPerk (NEW - all travel)",
+     "source": "QuickBooks, TravelPerk (NEW - all travel) card"
+    },
+    {
+     "date": "2025-08-18",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 40.2,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30694207: Las Vegas, 2-6 Sep 2025, Ryan Fenn: HSF's dates and city",
+     "card": "TravelPerk (NEW - all travel)",
+     "source": "QuickBooks, TravelPerk (NEW - all travel) card"
+    },
+    {
+     "date": "2025-08-29",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 84.5,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 30694207: Las Vegas, 2-6 Sep 2025, Ryan Fenn: HSF's dates and city",
+     "card": "TravelPerk (NEW - all travel)",
+     "source": "QuickBooks, TravelPerk (NEW - all travel) card"
+    },
+    {
+     "date": "2025-08-29",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 84.5,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 30694207: Las Vegas, 2-6 Sep 2025, Ryan Fenn: HSF's dates and city",
+     "card": "TravelPerk (NEW - all travel)",
+     "source": "QuickBooks, TravelPerk (NEW - all travel) card"
+    },
+    {
+     "date": "2025-08-29",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 5.07,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30694207: Las Vegas, 2-6 Sep 2025, Ryan Fenn: HSF's dates and city",
+     "card": "TravelPerk (NEW - all travel)",
+     "source": "QuickBooks, TravelPerk (NEW - all travel) card"
     },
     {
      "date": "2025-09-03",
@@ -832,10 +975,75 @@
      "why": "attendee, in the event's travel window; Divvy card, no merchant city",
      "card": "Divvy",
      "source": "QuickBooks, Divvy card"
+    },
+    {
+     "date": "2025-08-15",
+     "owner": "Ryan Peterson, Justin Judd, Parker Joos, Blake Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30636534: Las Vegas, 2-5 Sep 2025, Blake, Justin, Parker and Ryan Peterson: HSF's dates and city",
+     "card": "TravelPerk (All travel)",
+     "source": "QuickBooks, TravelPerk (All travel) card"
+    },
+    {
+     "date": "2025-08-15",
+     "owner": "Ryan Peterson, Justin Judd, Parker Joos, Blake Fenn",
+     "merchant": "TravelPerk Flight: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1119.49,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 30636534: Las Vegas, 2-5 Sep 2025, Blake, Justin, Parker and Ryan Peterson: HSF's dates and city",
+     "card": "TravelPerk (All travel)",
+     "source": "QuickBooks, TravelPerk (All travel) card"
+    },
+    {
+     "date": "2025-08-15",
+     "owner": "Ryan Peterson, Justin Judd, Parker Joos, Blake Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 158.77,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30636534: Las Vegas, 2-5 Sep 2025, Blake, Justin, Parker and Ryan Peterson: HSF's dates and city",
+     "card": "TravelPerk (All travel)",
+     "source": "QuickBooks, TravelPerk (All travel) card"
+    },
+    {
+     "date": "2025-08-15",
+     "owner": "Ryan Peterson, Justin Judd, Parker Joos, Blake Fenn",
+     "merchant": "TravelPerk Flight: Las Vegas to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 468.25,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 30636534: Las Vegas, 2-5 Sep 2025, Blake, Justin, Parker and Ryan Peterson: HSF's dates and city",
+     "card": "TravelPerk (All travel)",
+     "source": "QuickBooks, TravelPerk (All travel) card"
+    },
+    {
+     "date": "2025-08-26",
+     "owner": "Ryan Peterson, Justin Judd, Parker Joos, Blake Fenn",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 90.0,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 30636534: Las Vegas, 2-5 Sep 2025, Blake, Justin, Parker and Ryan Peterson: HSF's dates and city",
+     "card": "TravelPerk (All travel)",
+     "source": "QuickBooks, TravelPerk (All travel) card"
     }
    ],
    "notCounted": [],
-   "travelTotal": 2231.26
+   "travelTotal": 5316.63
   },
   {
    "label": "Pantheon 2025",
@@ -886,8 +1094,47 @@
     "Blake Fenn",
     "Jared Walker"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
+    {
+     "date": "2025-09-03",
+     "owner": "Blake Fenn",
+     "merchant": "TravelPerk Flight: Provo to Orange",
+     "rampCategory": null,
+     "city": null,
+     "amount": 314.85,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31263032: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Blake Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 9.45,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31263032: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Blake Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 31.49,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31263032: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
     {
      "date": "2025-09-17",
      "owner": "Blake Fenn",
@@ -1058,6 +1305,45 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-09-03",
+     "owner": "Jared Hunsaker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 27.75,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262933: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Jared Hunsaker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 8.32,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262933: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Jared Hunsaker",
+     "merchant": "TravelPerk Flight: Provo to Orange",
+     "rampCategory": null,
+     "city": null,
+     "amount": 277.45,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262933: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
      "date": "2025-09-17",
      "owner": "Jared Hunsaker",
      "merchant": "Aramark",
@@ -1095,6 +1381,45 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Jared Walker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 9.45,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31263170: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Jared Walker",
+     "merchant": "TravelPerk Flight: Provo to Orange",
+     "rampCategory": null,
+     "city": null,
+     "amount": 314.85,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31263170: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Jared Walker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 31.49,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31263170: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-09-18",
@@ -1160,6 +1485,45 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Provo to Orange",
+     "rampCategory": null,
+     "city": null,
+     "amount": 292.52,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262417: Provo to Orange County, 16-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 29.25,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262417: Provo to Orange County, 16-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 8.78,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262417: Provo to Orange County, 16-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-09-16",
@@ -1240,6 +1604,84 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-08-26",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 44.05,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30954938: Hilton Anaheim, Justin Judd and Ryan Peterson: Pantheon 2025's city",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-08-26",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk Hotel: Hilton Anaheim",
+     "rampCategory": null,
+     "city": null,
+     "amount": 440.53,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 30954938: Hilton Anaheim, Justin Judd and Ryan Peterson: Pantheon 2025's city",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-08-26",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 13.22,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 30954938: Hilton Anaheim, Justin Judd and Ryan Peterson: Pantheon 2025's city",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 27.75,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262761: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 8.32,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262761: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk Flight: Provo to Orange",
+     "rampCategory": null,
+     "city": null,
+     "amount": 277.45,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262761: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
      "date": "2025-09-17",
      "owner": "Ryan Fenn",
      "merchant": "Sixt",
@@ -1251,6 +1693,32 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-17",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk Car",
+     "rampCategory": null,
+     "city": null,
+     "amount": 495.08,
+     "label": "Ground transport",
+     "confidence": "High",
+     "why": "TravelPerk trip 31826940: Ryan Fenn's car, booked 17 Sep 2025, the first day of Pantheon 2025",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-17",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 14.85,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31826940: Ryan Fenn's car, booked 17 Sep 2025, the first day of Pantheon 2025",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-09-18",
@@ -1316,6 +1784,71 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 27.38,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262251: Provo to Orange County, 16-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 8.21,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262251: Provo to Orange County, 16-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Flight: Provo to Orange",
+     "rampCategory": null,
+     "city": null,
+     "amount": 273.82,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262251: Provo to Orange County, 16-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-04",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra: Provo to Orange",
+     "rampCategory": null,
+     "city": null,
+     "amount": 18.6,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262251: Provo to Orange County, 16-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-04",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 0.56,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262251: Provo to Orange County, 16-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-09-16",
@@ -1420,6 +1953,45 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Taylor Roberts",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 8.32,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262879: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Taylor Roberts",
+     "merchant": "TravelPerk Flight: Provo to Orange",
+     "rampCategory": null,
+     "city": null,
+     "amount": 277.45,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262879: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-03",
+     "owner": "Taylor Roberts",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 27.75,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31262879: Provo to Orange County, 17-19 Sep 2025: Pantheon 2025 in Anaheim",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-09-17",
@@ -1711,7 +2283,7 @@
      "why": "a meal of 1,000 or more; check before counting"
     }
    ],
-   "travelTotal": 3034.03
+   "travelTotal": 6353.02
   },
   {
    "label": "CertainPath Fall Expo 2025",
@@ -1734,7 +2306,7 @@
     "Ryan Peterson",
     "Justin Judd"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
      "date": "2025-09-24",
@@ -1917,6 +2489,45 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-12",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk Flight: Salt Lake City to Los Cabos",
+     "rampCategory": null,
+     "city": null,
+     "amount": 2019.07,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31551267: Salt Lake City to Los Cabos, 23-28 Sep 2025: the Fall Expo in Cabo",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-12",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31551267: Salt Lake City to Los Cabos, 23-28 Sep 2025: the Fall Expo in Cabo",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-12",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 201.91,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31551267: Salt Lake City to Los Cabos, 23-28 Sep 2025: the Fall Expo in Cabo",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     }
    ],
    "notCounted": [
@@ -1945,7 +2556,7 @@
      "why": "in the CertainPath Fall Expo 2025 window, but the merchant is in Los Angeles, CA, not Cabo San Lucas, Mexico"
     }
    ],
-   "travelTotal": 291.55
+   "travelTotal": 2542.53
   },
   {
    "label": "Lennox Premier Dealer Appreciation Day",
@@ -1967,10 +2578,115 @@
    "attendees": [
     "Colton Lingmann"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
-   "lines": [],
+   "notes": null,
+   "lines": [
+    {
+     "date": "2025-09-19",
+     "owner": "Colton Lingmann",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31923384: Colton Lingmann to Oklahoma City, 28-29 Sep 2025: the Lennox Premier day",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-19",
+     "owner": "Colton Lingmann",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Oklahoma City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 60.96,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31923384: Colton Lingmann to Oklahoma City, 28-29 Sep 2025: the Lennox Premier day",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-19",
+     "owner": "Colton Lingmann",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 132.79,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31923384: Colton Lingmann to Oklahoma City, 28-29 Sep 2025: the Lennox Premier day",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-19",
+     "owner": "Colton Lingmann",
+     "merchant": "TravelPerk Flight: Salt Lake City to Oklahoma City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 644.58,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31923384: Colton Lingmann to Oklahoma City, 28-29 Sep 2025: the Lennox Premier day",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-19",
+     "owner": "Colton Lingmann",
+     "merchant": "TravelPerk fee or extra: Oklahoma City to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 28.71,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31923384: Colton Lingmann to Oklahoma City, 28-29 Sep 2025: the Lennox Premier day",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-19",
+     "owner": "Colton Lingmann",
+     "merchant": "TravelPerk fee or extra: Oklahoma City to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 34.09,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31923384: Colton Lingmann to Oklahoma City, 28-29 Sep 2025: the Lennox Premier day",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-19",
+     "owner": "Colton Lingmann",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Oklahoma City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 28.71,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31923384: Colton Lingmann to Oklahoma City, 28-29 Sep 2025: the Lennox Premier day",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-19",
+     "owner": "Colton Lingmann",
+     "merchant": "TravelPerk Flight: Oklahoma City to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 530.83,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31923384: Colton Lingmann to Oklahoma City, 28-29 Sep 2025: the Lennox Premier day",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    }
+   ],
    "notCounted": [],
-   "travelTotal": 0
+   "travelTotal": 1490.67
   },
   {
    "label": "Nexstar Super Meeting 2025",
@@ -2018,8 +2734,86 @@
     "Korth Rushdi",
     "Stan Wesemann"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
+    {
+     "date": "2025-09-25",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 5.7,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32174272: Hyatt Regency Aurora-Denver, Justin Judd: Nexstar",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-25",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 50.18,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32173804: Justin Judd to Denver, 29 Sep-2 Oct 2025: Nexstar",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-25",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 19.01,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32174272: Hyatt Regency Aurora-Denver, Justin Judd: Nexstar",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-25",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Salt Lake City to Denver",
+     "rampCategory": null,
+     "city": null,
+     "amount": 501.81,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32173804: Justin Judd to Denver, 29 Sep-2 Oct 2025: Nexstar",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-25",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Hotel: Hyatt Regency Aurora-Denver Conference Center",
+     "rampCategory": null,
+     "city": null,
+     "amount": 190.05,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32174272: Hyatt Regency Aurora-Denver, Justin Judd: Nexstar",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-25",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 15.05,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32173804: Justin Judd to Denver, 29 Sep-2 Oct 2025: Nexstar",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
     {
      "date": "2025-09-29",
      "owner": "Justin Judd",
@@ -2149,6 +2943,32 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Car",
+     "rampCategory": null,
+     "city": null,
+     "amount": 256.16,
+     "label": "Ground transport",
+     "confidence": "High",
+     "why": "TravelPerk trip 32299474: Justin Judd's car, booked 30 Sep 2025, the first day of Nexstar in Denver",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 7.68,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32299474: Justin Judd's car, booked 30 Sep 2025, the first day of Nexstar in Denver",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-10-01",
@@ -2383,6 +3203,84 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-29",
+     "owner": "Richard Stanley Wesemann",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 4.45,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32291919: Hyatt Place Denver Airport, Stan Wesemann: Nexstar",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-29",
+     "owner": "Richard Stanley Wesemann",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 14.85,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32291919: Hyatt Place Denver Airport, Stan Wesemann: Nexstar",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-29",
+     "owner": "Richard Stanley Wesemann",
+     "merchant": "TravelPerk Hotel: Hyatt Place Peña Station/Denver Airport",
+     "rampCategory": null,
+     "city": null,
+     "amount": 148.45,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32291919: Hyatt Place Denver Airport, Stan Wesemann: Nexstar",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-15",
+     "owner": "Richard Stanley Wesemann, Ryan Peterson, Justin Judd, Korth Rushdi",
+     "merchant": "TravelPerk Flight: Salt Lake City to Denver",
+     "rampCategory": null,
+     "city": null,
+     "amount": 872.18,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31728816: Denver, 30 Sep-2 Oct 2025, Justin, Korth and Stan: Nexstar's dates and city",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-15",
+     "owner": "Richard Stanley Wesemann, Ryan Peterson, Justin Judd, Korth Rushdi",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 87.22,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31728816: Denver, 30 Sep-2 Oct 2025, Justin, Korth and Stan: Nexstar's dates and city",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-15",
+     "owner": "Richard Stanley Wesemann, Ryan Peterson, Justin Judd, Korth Rushdi",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 26.17,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31728816: Denver, 30 Sep-2 Oct 2025, Justin, Korth and Stan: Nexstar's dates and city",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-09-30",
@@ -2746,7 +3644,7 @@
      "why": "in the Nexstar Super Meeting 2025 window, but the merchant is in LOS CABOS BCS, MEX, not Denver, CO"
     }
    ],
-   "travelTotal": 2118.6
+   "travelTotal": 4317.56
   },
   {
    "label": "System Forward Pro Boot Camp",
@@ -2769,7 +3667,7 @@
     "Blake Fenn",
     "David Fenn"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
      "date": "2025-10-01",
@@ -2978,6 +3876,84 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-11",
+     "owner": "Blake Fenn, David Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 49.13,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31600074: Blake and David Fenn to New Orleans, 1-3 Oct 2025: System Forward",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-11",
+     "owner": "Blake Fenn, David Fenn",
+     "merchant": "TravelPerk Flight: Salt Lake City to New Orleans",
+     "rampCategory": null,
+     "city": null,
+     "amount": 491.28,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31600074: Blake and David Fenn to New Orleans, 1-3 Oct 2025: System Forward",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-11",
+     "owner": "Blake Fenn, David Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 14.74,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31600074: Blake and David Fenn to New Orleans, 1-3 Oct 2025: System Forward",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "David Fenn, Blake Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 12.94,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32353174: Hilton New Orleans Riverside, Blake and David Fenn: System Forward",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "David Fenn, Blake Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 43.13,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32353174: Hilton New Orleans Riverside, Blake and David Fenn: System Forward",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "David Fenn, Blake Fenn",
+     "merchant": "TravelPerk Hotel: Hilton New Orleans Riverside",
+     "rampCategory": null,
+     "city": null,
+     "amount": 431.28,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32353174: Hilton New Orleans Riverside, Blake and David Fenn: System Forward",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     }
    ],
    "notCounted": [
@@ -3006,7 +3982,7 @@
      "why": "in the System Forward Pro Boot Camp window, but the merchant is in Phoenix, AZ, not New Orleans, LA"
     }
    ],
-   "travelTotal": 751.45
+   "travelTotal": 1793.95
   },
   {
    "label": "Lennox Live Roadshow",
@@ -3028,8 +4004,73 @@
    "attendees": [
     "Ryan Fenn"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
+    {
+     "date": "2025-09-16",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 178.59,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31787113: Ryan Fenn to Philadelphia, 1-2 Oct 2025: the Roadshow in Atlantic City",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-16",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31787113: Ryan Fenn to Philadelphia, 1-2 Oct 2025: the Roadshow in Atlantic City",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-16",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk Flight: Salt Lake City to Philadelphia",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1785.85,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31787113: Ryan Fenn to Philadelphia, 1-2 Oct 2025: the Roadshow in Atlantic City",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-29",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk Car",
+     "rampCategory": null,
+     "city": null,
+     "amount": 233.24,
+     "label": "Ground transport",
+     "confidence": "High",
+     "why": "TravelPerk trip 32293320: Ryan Fenn's car, booked 29 Sep 2025 for the Roadshow trip",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-29",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 7.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32293320: Ryan Fenn's car, booked 29 Sep 2025 for the Roadshow trip",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
     {
      "date": "2025-10-02",
      "owner": "Ryan Fenn",
@@ -3109,6 +4150,19 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-10-02",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Philadelphia",
+     "rampCategory": null,
+     "city": null,
+     "amount": 170.0,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31787113: Ryan Fenn to Philadelphia, 1-2 Oct 2025: the Roadshow in Atlantic City",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
      "date": "2025-10-03",
      "owner": "Ryan Fenn",
      "merchant": "SLC Airport Parking",
@@ -3156,7 +4210,7 @@
      "why": "in the Lennox Live Roadshow window, but the merchant is in Lehi, UT, not Atlantic City, NJ"
     }
    ],
-   "travelTotal": 263.37
+   "travelTotal": 2668.05
   },
   {
    "label": "Wealthy Plumber Hoorah 2025",
@@ -3179,7 +4233,7 @@
     "Parker Joos",
     "Ky Decker"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
      "date": "2025-09-30",
@@ -3403,6 +4457,71 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-09-15",
+     "owner": "Ky Decker, Parker Joos",
+     "merchant": "TravelPerk Flight: Salt Lake City to Pensacola",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1023.45,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31722597: Ky Decker and Parker Joos to Pensacola, 1-4 Oct 2025: the Hoorah",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-15",
+     "owner": "Ky Decker, Parker Joos",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31722597: Ky Decker and Parker Joos to Pensacola, 1-4 Oct 2025: the Hoorah",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-15",
+     "owner": "Ky Decker, Parker Joos",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 157.26,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31722597: Ky Decker and Parker Joos to Pensacola, 1-4 Oct 2025: the Hoorah",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-15",
+     "owner": "Ky Decker, Parker Joos",
+     "merchant": "TravelPerk Flight: Pensacola to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 549.11,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31722597: Ky Decker and Parker Joos to Pensacola, 1-4 Oct 2025: the Hoorah",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-23",
+     "owner": "Ky Decker, Parker Joos",
+     "merchant": "TravelPerk Refund: Pensacola to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": -439.29,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31722597: Ky Decker and Parker Joos to Pensacola, 1-4 Oct 2025: the Hoorah",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
      "date": "2025-10-01",
      "owner": "Parker Joos",
      "merchant": "Delta Airlines",
@@ -3606,7 +4725,7 @@
      "why": "in the Wealthy Plumber Hoorah 2025 window, but the merchant is in Atlanta, GA, not Pensacola, FL"
     }
    ],
-   "travelTotal": 1599.58
+   "travelTotal": 2920.11
   },
   {
    "label": "GDF Vertical Track 2025",
@@ -3642,20 +4761,85 @@
     "Ryan Peterson",
     "Tavi Carvajal"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
-     "date": "2025-10-06",
-     "owner": "Justin Judd",
-     "merchant": "TRAVELPERK",
+     "date": "2025-09-30",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk fee or extra",
      "rampCategory": null,
-     "city": "Los Angeles, CA",
-     "amount": 178.85,
+     "city": null,
+     "amount": 55.67,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32299410: Tavi Carvajal to Phoenix, 7-10 Oct 2025: GDF in Scottsdale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk Hotel: Staybridge Suites - Scottsdale - Talking Stick by IHG",
+     "rampCategory": null,
+     "city": null,
+     "amount": 679.56,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32344176: Staybridge Suites Scottsdale Talking Stick, Tavi Carvajal: GDF",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 20.39,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32344176: Staybridge Suites Scottsdale Talking Stick, Tavi Carvajal: GDF",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 67.96,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32344176: Staybridge Suites Scottsdale Talking Stick, Tavi Carvajal: GDF",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk Flight: Salt Lake City to Phoenix",
+     "rampCategory": null,
+     "city": null,
+     "amount": 556.73,
      "label": "Flights",
      "confidence": "High",
-     "why": "attendee, in the event's dates and place",
-     "card": "Ramp",
-     "source": "QuickBooks, Ramp card"
+     "why": "TravelPerk trip 32299410: Tavi Carvajal to Phoenix, 7-10 Oct 2025: GDF in Scottsdale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 16.7,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32299410: Tavi Carvajal to Phoenix, 7-10 Oct 2025: GDF in Scottsdale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-10-08",
@@ -4074,6 +5258,45 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-09-19",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31934888: Justin and Ryan Peterson to Phoenix, 7-10 Oct 2025: GDF in Scottsdale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-19",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk Flight: Salt Lake City to Phoenix",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1059.21,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 31934888: Justin and Ryan Peterson to Phoenix, 7-10 Oct 2025: GDF in Scottsdale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-19",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 105.92,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 31934888: Justin and Ryan Peterson to Phoenix, 7-10 Oct 2025: GDF in Scottsdale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
      "date": "2025-10-10",
      "owner": "Tavi Carvajal",
      "merchant": "Panera Bread",
@@ -4141,31 +5364,15 @@
    ],
    "notCounted": [
     {
-     "date": "2025-10-07",
-     "owner": "Justin Judd",
-     "merchant": "TRAVELPERK",
-     "city": "Los Angeles, CA",
-     "amount": 2220.77,
-     "why": "fare booked ahead; more than one event it could be for: GDF Vertical Track 2025, Home and Commercial Svcs Marketing Summit, Clover Mastermind 2025"
-    },
-    {
      "date": "2025-10-08",
      "owner": "Justin Judd",
      "merchant": "Budget Car Rental",
      "city": "Virginia Beach, VA",
      "amount": 490.74,
      "why": "in the GDF Vertical Track 2025 window, but the merchant is in Virginia Beach, VA, not Scottsdale, AZ"
-    },
-    {
-     "date": "2025-10-15",
-     "owner": "Ryan Peterson",
-     "merchant": "Talking Stick Resort",
-     "city": "Scottsdale, AZ",
-     "amount": 7.94,
-     "why": "just outside the GDF Vertical Track 2025 travel window"
     }
    ],
-   "travelTotal": 1294.1
+   "travelTotal": 3707.39
   },
   {
    "label": "Legacy Annual Offsite",
@@ -4200,7 +5407,7 @@
     "Taylor Roberts",
     "Blake Fenn"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
      "date": "2025-10-13",
@@ -4769,8 +5976,112 @@
    "attendees": [
     "Justin Judd"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
+    {
+     "date": "2025-09-26",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175647: Justin Judd to Dallas, 15-17 Oct 2025, Aloft Las Colinas: the Summit in Irving",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-26",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Hotel: Aloft Hotel Las Colinas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 279.3,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175647: Justin Judd to Dallas, 15-17 Oct 2025, Aloft Las Colinas: the Summit in Irving",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-26",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Salt Lake City to Dallas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 736.62,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175647: Justin Judd to Dallas, 15-17 Oct 2025, Aloft Las Colinas: the Summit in Irving",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-26",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 101.59,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175647: Justin Judd to Dallas, 15-17 Oct 2025, Aloft Las Colinas: the Summit in Irving",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-02",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Dallas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 670.21,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175647: Justin Judd to Dallas, 15-17 Oct 2025, Aloft Las Colinas: the Summit in Irving",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Hotel: Aloft Hotel Las Colinas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 584.2,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175647: Justin Judd to Dallas, 15-17 Oct 2025, Aloft Las Colinas: the Summit in Irving",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 58.42,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175647: Justin Judd to Dallas, 15-17 Oct 2025, Aloft Las Colinas: the Summit in Irving",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Refund: Aloft Hotel Las Colinas",
+     "rampCategory": null,
+     "city": null,
+     "amount": -223.44,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175647: Justin Judd to Dallas, 15-17 Oct 2025, Aloft Las Colinas: the Summit in Irving",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
     {
      "date": "2025-10-16",
      "owner": "Justin Judd",
@@ -4890,7 +6201,7 @@
     }
    ],
    "notCounted": [],
-   "travelTotal": 99.25
+   "travelTotal": 2336.15
   },
   {
    "label": "Nuve Networks Tour",
@@ -4924,8 +6235,60 @@
    "attendees": [
     "Ryan Fenn"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32402574: Ryan Fenn to Burbank, 16-18 Oct 2025, Hilton Glendale: the Nuve tour in Glendale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk Flight: Salt Lake City to Burbank",
+     "rampCategory": null,
+     "city": null,
+     "amount": 867.28,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32402574: Ryan Fenn to Burbank, 16-18 Oct 2025, Hilton Glendale: the Nuve tour in Glendale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk Hotel: Hilton Los Angeles North-Glendale & Executive Meeting Center",
+     "rampCategory": null,
+     "city": null,
+     "amount": 483.02,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32402574: Ryan Fenn to Burbank, 16-18 Oct 2025, Hilton Glendale: the Nuve tour in Glendale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 135.03,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32402574: Ryan Fenn to Burbank, 16-18 Oct 2025, Hilton Glendale: the Nuve tour in Glendale",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
     {
      "date": "2025-10-17",
      "owner": "Ryan Fenn",
@@ -5018,7 +6381,7 @@
      "why": "just outside the Nuve Networks Tour travel window"
     }
    ],
-   "travelTotal": 448.5
+   "travelTotal": 1963.83
   },
   {
    "label": "Clover Mastermind 2025",
@@ -5050,10 +6413,89 @@
    "hubTravel": null,
    "flags": null,
    "attendees": [
-    "Justin Judd"
+    "Justin Judd",
+    "Ryan Peterson"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Nashville to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 460.77,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32494064: Justin Judd, Nashville to Salt Lake City, 20 Oct 2025: home from Clover",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 155.34,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32494655: Homewood Suites Nashville, Justin Judd, booked with his Clover flight home",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Hotel: Homewood Suites by Hilton Nashville Downtown",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1553.37,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32494655: Homewood Suites Nashville, Justin Judd, booked with his Clover flight home",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32494655: Homewood Suites Nashville, Justin Judd, booked with his Clover flight home",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 13.82,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32494064: Justin Judd, Nashville to Salt Lake City, 20 Oct 2025: home from Clover",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 46.08,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32494064: Justin Judd, Nashville to Salt Lake City, 20 Oct 2025: home from Clover",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
     {
      "date": "2025-10-17",
      "owner": "Justin Judd",
@@ -5209,9 +6651,95 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 262.32,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32403160: Ryan Peterson to Nashville, 17-20 Oct 2025: Clover's dates",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Hotel: TownePlace Suites Nashville Downtown/Capitol District",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1771.02,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32403160: Ryan Peterson to Nashville, 17-20 Oct 2025: Clover's dates",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32403160: Ryan Peterson to Nashville, 17-20 Oct 2025: Clover's dates",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Flight: Salt Lake City to Nashville",
+     "rampCategory": null,
+     "city": null,
+     "amount": 852.21,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32403160: Ryan Peterson to Nashville, 17-20 Oct 2025: Clover's dates",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-02",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Refund: TownePlace Suites Nashville Downtown/Capitol District",
+     "rampCategory": null,
+     "city": null,
+     "amount": -1771.02,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32403160: Ryan Peterson to Nashville, 17-20 Oct 2025: Clover's dates",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Refund: Salt Lake City to Nashville",
+     "rampCategory": null,
+     "city": null,
+     "amount": -852.21,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32403160: Ryan Peterson to Nashville, 17-20 Oct 2025: Clover's dates",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     }
    ],
    "notCounted": [
+    {
+     "date": "2025-10-15",
+     "owner": "Ryan Peterson",
+     "merchant": "Talking Stick Resort",
+     "city": "Scottsdale, AZ",
+     "amount": 7.94,
+     "why": "in the Clover Mastermind 2025 window, but the merchant is in Scottsdale, AZ, not Nashville, TN"
+    },
     {
      "date": "2025-10-17",
      "owner": "Justin Judd",
@@ -5253,7 +6781,7 @@
      "why": "in the Clover Mastermind 2025 window, but the merchant is in Lehi, UT, not Nashville, TN"
     }
    ],
-   "travelTotal": 205.23
+   "travelTotal": 2756.93
   },
   {
    "label": "Service World",
@@ -5289,7 +6817,7 @@
     "Ky Decker",
     "Tavi Carvajal"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
      "date": "2025-10-23",
@@ -5461,6 +6989,45 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-10-02",
+     "owner": "Gustavo Carvajal, Ky Decker, Blake Fenn",
+     "merchant": "TravelPerk Flight: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1679.23,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32406574: Blake, Tavi and Ky to Las Vegas, 26-30 Oct 2025: Service World",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-02",
+     "owner": "Gustavo Carvajal, Ky Decker, Blake Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32406574: Blake, Tavi and Ky to Las Vegas, 26-30 Oct 2025: Service World",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-02",
+     "owner": "Gustavo Carvajal, Ky Decker, Blake Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 167.92,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32406574: Blake, Tavi and Ky to Las Vegas, 26-30 Oct 2025: Service World",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
      "date": "2025-10-27",
      "owner": "Ky Decker",
      "merchant": "Delta Airlines",
@@ -5549,7 +7116,7 @@
      "why": "in the Service World window, but the merchant is in Castle Rock, CO, not Las Vegas, NV"
     }
    ],
-   "travelTotal": 1291.04
+   "travelTotal": 3168.19
   },
   {
    "label": "Zoom Drain Expo - Vortex",
@@ -5584,8 +7151,138 @@
     "Ryan Peterson",
     "Stan Wesemann"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
+    {
+     "date": "2025-10-07",
+     "owner": "Richard Stanley Wesemann",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 209.74,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32631238: Stan Wesemann to Nashville, 27-30 Oct 2025, Homewood Suites: Zoom Drain",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Richard Stanley Wesemann",
+     "merchant": "TravelPerk Hotel: Homewood Suites by Hilton Nashville Downtown",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1206.0,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32631238: Stan Wesemann to Nashville, 27-30 Oct 2025, Homewood Suites: Zoom Drain",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Richard Stanley Wesemann",
+     "merchant": "TravelPerk Flight: Salt Lake City to Nashville",
+     "rampCategory": null,
+     "city": null,
+     "amount": 891.4,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32631238: Stan Wesemann to Nashville, 27-30 Oct 2025, Homewood Suites: Zoom Drain",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Richard Stanley Wesemann",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32631238: Stan Wesemann to Nashville, 27-30 Oct 2025, Homewood Suites: Zoom Drain",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 82.41,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32404317: Ryan Peterson to Nashville, 27-30 Oct 2025: Zoom Drain's dates",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Hotel: Homewood Suites by Hilton Nashville Downtown",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1209.59,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32404436: Homewood Suites Nashville, Ryan Peterson, booked with his Zoom Drain flights",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Flight: Salt Lake City to Nashville",
+     "rampCategory": null,
+     "city": null,
+     "amount": 824.06,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32404317: Ryan Peterson to Nashville, 27-30 Oct 2025: Zoom Drain's dates",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 24.72,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32404317: Ryan Peterson to Nashville, 27-30 Oct 2025: Zoom Drain's dates",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 120.96,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32404436: Homewood Suites Nashville, Ryan Peterson, booked with his Zoom Drain flights",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32404436: Homewood Suites Nashville, Ryan Peterson, booked with his Zoom Drain flights",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
     {
      "date": "2025-10-26",
      "owner": "Ryan Peterson",
@@ -5887,7 +7584,7 @@
     }
    ],
    "notCounted": [],
-   "travelTotal": 585.66
+   "travelTotal": 5214.54
   },
   {
    "label": "Network ST Event",
@@ -5922,7 +7619,7 @@
     "Justin Judd",
     "Ryan Fenn"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
      "date": "2025-09-25",
@@ -5938,17 +7635,238 @@
      "source": "QuickBooks, Chase x8642 card"
     },
     {
-     "date": "2025-10-22",
+     "date": "2025-10-06",
      "owner": "Justin Judd",
-     "merchant": "TRAVELPERK",
+     "merchant": "TravelPerk fee or extra",
      "rampCategory": null,
-     "city": "Los Angeles, CA",
-     "amount": 797.39,
+     "city": null,
+     "amount": 15.83,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32582172: Justin Judd to Los Angeles, 24 Oct 2025, the first booking, refunded",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-06",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 4.75,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32582172: Justin Judd to Los Angeles, 24 Oct 2025, the first booking, refunded",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-06",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Salt Lake City to Los Angeles",
+     "rampCategory": null,
+     "city": null,
+     "amount": 158.27,
      "label": "Flights",
      "confidence": "High",
-     "why": "fare bought 2025-10-22 with Ryan Fenn, also going to Network ST Event",
-     "card": "Ramp",
-     "source": "QuickBooks, Ramp card"
+     "why": "TravelPerk trip 32582172: Justin Judd to Los Angeles, 24 Oct 2025, the first booking, refunded",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Los Angeles to Sydney",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1991.61,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32582020: Justin Judd, Los Angeles to Sydney, 24-26 Oct 2025: Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32582020: Justin Judd, Los Angeles to Sydney, 24-26 Oct 2025: Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 199.16,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32582020: Justin Judd, Los Angeles to Sydney, 24-26 Oct 2025: Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-14",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Salt Lake City to Los Angeles",
+     "rampCategory": null,
+     "city": null,
+     "amount": 428.62,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32914604: Justin Judd to Los Angeles, 24 Oct 2025, to fly on to Sydney",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-14",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 42.86,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32914604: Justin Judd to Los Angeles, 24 Oct 2025, to fly on to Sydney",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-14",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Refund: Salt Lake City to Los Angeles",
+     "rampCategory": null,
+     "city": null,
+     "amount": -126.62,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32582172: Justin Judd to Los Angeles, 24 Oct 2025, the first booking, refunded",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-14",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 12.86,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32914604: Justin Judd to Los Angeles, 24 Oct 2025, to fly on to Sydney",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-22",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 21.17,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 33261073: Justin Judd, Sydney to Los Angeles, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-22",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 4.36,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 33263496: Justin Judd, Los Angeles to Salt Lake City, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-22",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra: Los Angeles to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 14.34,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 33263496: Justin Judd, Los Angeles to Salt Lake City, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-22",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 14.54,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 33263496: Justin Judd, Los Angeles to Salt Lake City, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-22",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra: Los Angeles to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 45.06,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 33263496: Justin Judd, Los Angeles to Salt Lake City, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-22",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 70.57,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 33261073: Justin Judd, Sydney to Los Angeles, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-22",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Los Angeles to Salt Lake City",
+     "rampCategory": null,
+     "city": null,
+     "amount": 86.03,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 33263496: Justin Judd, Los Angeles to Salt Lake City, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-22",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Sydney to Los Angeles",
+     "rampCategory": null,
+     "city": null,
+     "amount": 705.65,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 33261073: Justin Judd, Sydney to Los Angeles, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
     },
     {
      "date": "2025-10-25",
@@ -6010,32 +7928,6 @@
      "city": "POTTS POINT, AUS",
      "amount": 4.79,
      "label": "Meals",
-     "confidence": "High",
-     "why": "attendee, in the event's dates and place",
-     "card": "Ramp",
-     "source": "QuickBooks, Ramp card"
-    },
-    {
-     "date": "2025-10-27",
-     "owner": "Justin Judd",
-     "merchant": "TRAVELPERK",
-     "rampCategory": null,
-     "city": "Los Angeles, CA",
-     "amount": 34.63,
-     "label": "Flights",
-     "confidence": "High",
-     "why": "attendee, in the event's dates and place",
-     "card": "Ramp",
-     "source": "QuickBooks, Ramp card"
-    },
-    {
-     "date": "2025-10-27",
-     "owner": "Justin Judd",
-     "merchant": "TRAVELPERK",
-     "rampCategory": null,
-     "city": "Los Angeles, CA",
-     "amount": 4.5,
-     "label": "Flights",
      "confidence": "High",
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
@@ -6118,6 +8010,45 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-27",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1.04,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 33261073: Justin Judd, Sydney to Los Angeles, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-27",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 3.46,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 33261073: Justin Judd, Sydney to Los Angeles, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
+    },
+    {
+     "date": "2025-10-27",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra: Sydney to Los Angeles",
+     "rampCategory": null,
+     "city": null,
+     "amount": 34.63,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 33261073: Justin Judd, Sydney to Los Angeles, 2 Nov 2025: home from Network ST",
+     "card": "TravelPerk (Justin Judd's Card)",
+     "source": "QuickBooks, TravelPerk (Justin Judd's Card) card"
     },
     {
      "date": "2025-10-28",
@@ -6263,6 +8194,45 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-10-07",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 77.48,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32630337: Ryan Fenn to Los Angeles, 24 Oct-5 Nov 2025, for Australia",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 23.24,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32630337: Ryan Fenn to Los Angeles, 24 Oct-5 Nov 2025, for Australia",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Ryan Fenn",
+     "merchant": "TravelPerk Flight: Salt Lake City to Los Angeles",
+     "rampCategory": null,
+     "city": null,
+     "amount": 774.81,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32630337: Ryan Fenn to Los Angeles, 24 Oct-5 Nov 2025, for Australia",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
      "date": "2025-10-17",
      "owner": "Ryan Fenn",
      "merchant": "Qantas",
@@ -6272,32 +8242,6 @@
      "label": "Flights",
      "confidence": "Low",
      "why": "judgement: Qantas fare ten days before Network ST in Australia",
-     "card": "Ramp",
-     "source": "QuickBooks, Ramp card"
-    },
-    {
-     "date": "2025-10-22",
-     "owner": "Ryan Fenn",
-     "merchant": "Virgin Australia",
-     "rampCategory": null,
-     "city": "BRISBANE, AUS",
-     "amount": 742.88,
-     "label": "Flights",
-     "confidence": "High",
-     "why": "fare bought 2025-10-22 with Justin Judd, also going to Network ST Event",
-     "card": "Ramp",
-     "source": "QuickBooks, Ramp card"
-    },
-    {
-     "date": "2025-10-24",
-     "owner": "Ryan Fenn",
-     "merchant": "Qantas",
-     "rampCategory": null,
-     "city": "NSW, AUS",
-     "amount": 721.23,
-     "label": "Flights",
-     "confidence": "Medium",
-     "why": "fare bought 3 days ahead; the cardholder's only event in the next 45 days",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
     },
@@ -6551,12 +8495,28 @@
    ],
    "notCounted": [
     {
+     "date": "2025-10-22",
+     "owner": "Ryan Fenn",
+     "merchant": "Virgin Australia",
+     "city": "BRISBANE, AUS",
+     "amount": 742.88,
+     "why": "one of 2 fares Ryan Fenn bought before Network ST Event; destination unknown"
+    },
+    {
      "date": "2025-10-23",
      "owner": "Ryan Fenn",
      "merchant": "In-N-Out Burger",
      "city": "American Fork, UT",
      "amount": 49.13,
      "why": "just outside the Network ST Event travel window"
+    },
+    {
+     "date": "2025-10-24",
+     "owner": "Ryan Fenn",
+     "merchant": "Qantas",
+     "city": "NSW, AUS",
+     "amount": 721.23,
+     "why": "one of 2 fares Ryan Fenn bought before Network ST Event; destination unknown"
     },
     {
      "date": "2025-10-25",
@@ -6615,7 +8575,7 @@
      "why": "just outside the Network ST Event travel window"
     }
    ],
-   "travelTotal": 13816.33
+   "travelTotal": 16149.42
   },
   {
    "label": "Blue Collar Success Group 2025",
@@ -6638,8 +8598,294 @@
     "Ryan Peterson",
     "Tavi Carvajal"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
+    {
+     "date": "2025-10-07",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 21.31,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32634970: Tavi Carvajal to Orlando, 2-4 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk Hotel: Hilton Grand Vacations Club Las Palmeras Orlando",
+     "rampCategory": null,
+     "city": null,
+     "amount": 316.86,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635517: Hilton Grand Vacations Las Palmeras Orlando, Tavi Carvajal: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 71.05,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32634970: Tavi Carvajal to Orlando, 2-4 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 31.69,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635517: Hilton Grand Vacations Las Palmeras Orlando, Tavi Carvajal: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk Flight: Salt Lake City to Orlando",
+     "rampCategory": null,
+     "city": null,
+     "amount": 710.5,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32634970: Tavi Carvajal to Orlando, 2-4 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 9.51,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635517: Hilton Grand Vacations Las Palmeras Orlando, Tavi Carvajal: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-30",
+     "owner": "Gustavo Carvajal",
+     "merchant": "TravelPerk Refund: Hilton Grand Vacations Club Las Palmeras Orlando",
+     "rampCategory": null,
+     "city": null,
+     "amount": -253.49,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635517: Hilton Grand Vacations Las Palmeras Orlando, Tavi Carvajal: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-04",
+     "owner": "Gustavo Carvajal, Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 113.79,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32496565: Tavi and Ryan Peterson to Orlando, 1-6 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-04",
+     "owner": "Gustavo Carvajal, Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32496565: Tavi and Ryan Peterson to Orlando, 1-6 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-04",
+     "owner": "Gustavo Carvajal, Ryan Peterson",
+     "merchant": "TravelPerk Flight: Salt Lake City to Orlando",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1137.92,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32496565: Tavi and Ryan Peterson to Orlando, 1-6 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Gustavo Carvajal, Ryan Peterson",
+     "merchant": "TravelPerk Refund: Salt Lake City to Orlando",
+     "rampCategory": null,
+     "city": null,
+     "amount": -910.34,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32496565: Tavi and Ryan Peterson to Orlando, 1-6 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 60.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32639653: Ryan Peterson to Orlando, 2-4 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 70.01,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635399: Hilton Grand Vacations Las Palmeras Orlando, Ryan Peterson: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 21.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635399: Hilton Grand Vacations Las Palmeras Orlando, Ryan Peterson: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Flight: Salt Lake City to Orlando",
+     "rampCategory": null,
+     "city": null,
+     "amount": 599.95,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32639653: Ryan Peterson to Orlando, 2-4 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Hotel: Hilton Grand Vacations Club Las Palmeras Orlando",
+     "rampCategory": null,
+     "city": null,
+     "amount": 700.07,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635399: Hilton Grand Vacations Las Palmeras Orlando, Ryan Peterson: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 18.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32639653: Ryan Peterson to Orlando, 2-4 Nov 2025: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Refund",
+     "rampCategory": null,
+     "city": null,
+     "amount": -21.0,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635399: Hilton Grand Vacations Las Palmeras Orlando, Ryan Peterson: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 8.64,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635399: Hilton Grand Vacations Las Palmeras Orlando, Ryan Peterson: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Hotel: Hilton Grand Vacations Club Las Palmeras Orlando",
+     "rampCategory": null,
+     "city": null,
+     "amount": 287.89,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635399: Hilton Grand Vacations Las Palmeras Orlando, Ryan Peterson: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 28.79,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635399: Hilton Grand Vacations Las Palmeras Orlando, Ryan Peterson: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Refund: Hilton Grand Vacations Club Las Palmeras Orlando",
+     "rampCategory": null,
+     "city": null,
+     "amount": -560.06,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32635399: Hilton Grand Vacations Las Palmeras Orlando, Ryan Peterson: BCSG",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
     {
      "date": "2025-11-02",
      "owner": "Ryan Peterson",
@@ -6889,7 +9135,7 @@
     }
    ],
    "notCounted": [],
-   "travelTotal": 474.07
+   "travelTotal": 2966.16
   },
   {
    "label": "WinSupply AOR Summit 2025",
@@ -6912,8 +9158,125 @@
     "Justin Judd",
     "Ryan Peterson"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
+    {
+     "date": "2025-10-01",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Salt Lake City to Austin",
+     "rampCategory": null,
+     "city": null,
+     "amount": 464.28,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32397096: Justin Judd to Austin, 6-8 Nov 2025: WinSupply (a second booking)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 46.43,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32397096: Justin Judd to Austin, 6-8 Nov 2025: WinSupply (a second booking)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-01",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 13.93,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32397096: Justin Judd to Austin, 6-8 Nov 2025: WinSupply (a second booking)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.97,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32397350: Hilton Garden Inn Austin, Justin Judd: WinSupply",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 9.29,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32397350: Hilton Garden Inn Austin, Justin Judd: WinSupply",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Hotel: Hilton Garden Inn Austin North-Near the Domain",
+     "rampCategory": null,
+     "city": null,
+     "amount": 309.71,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32397350: Hilton Garden Inn Austin, Justin Judd: WinSupply",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 14.02,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32638476: Justin Judd to Austin, 6-8 Nov 2025: WinSupply",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 46.73,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32638476: Justin Judd to Austin, 6-8 Nov 2025: WinSupply",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-07",
+     "owner": "Justin Judd",
+     "merchant": "TravelPerk Flight: Salt Lake City to Austin",
+     "rampCategory": null,
+     "city": null,
+     "amount": 467.28,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32638476: Justin Judd to Austin, 6-8 Nov 2025: WinSupply",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
     {
      "date": "2025-11-07",
      "owner": "Justin Judd",
@@ -7071,6 +9434,58 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2025-10-30",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 119.29,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 33573426: Ryan Peterson to Austin, 6-8 Nov 2025, Hilton Garden Inn Austin: WinSupply",
+     "card": "TravelPerk (Taylor's Ramp Card)",
+     "source": "QuickBooks, TravelPerk (Taylor's Ramp Card) card"
+    },
+    {
+     "date": "2025-10-30",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 33573426: Ryan Peterson to Austin, 6-8 Nov 2025, Hilton Garden Inn Austin: WinSupply",
+     "card": "TravelPerk (Taylor's Ramp Card)",
+     "source": "QuickBooks, TravelPerk (Taylor's Ramp Card) card"
+    },
+    {
+     "date": "2025-10-30",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Flight: Salt Lake City to Austin",
+     "rampCategory": null,
+     "city": null,
+     "amount": 871.28,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 33573426: Ryan Peterson to Austin, 6-8 Nov 2025, Hilton Garden Inn Austin: WinSupply",
+     "card": "TravelPerk (Taylor's Ramp Card)",
+     "source": "QuickBooks, TravelPerk (Taylor's Ramp Card) card"
+    },
+    {
+     "date": "2025-10-30",
+     "owner": "Ryan Peterson",
+     "merchant": "TravelPerk Hotel: Hilton Garden Inn Austin North-Near the Domain, TX",
+     "rampCategory": null,
+     "city": null,
+     "amount": 321.62,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 33573426: Ryan Peterson to Austin, 6-8 Nov 2025, Hilton Garden Inn Austin: WinSupply",
+     "card": "TravelPerk (Taylor's Ramp Card)",
+     "source": "QuickBooks, TravelPerk (Taylor's Ramp Card) card"
+    },
+    {
      "date": "2025-11-07",
      "owner": "Ryan Peterson",
      "merchant": "Uber",
@@ -7215,7 +9630,7 @@
     }
    ],
    "notCounted": [],
-   "travelTotal": 503.27
+   "travelTotal": 3248.1
   },
   {
    "label": "We Mean Business Conference",
@@ -7250,7 +9665,7 @@
     "Blake Fenn",
     "Stan Wesemann"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
      "date": "2025-10-24",
@@ -7688,7 +10103,7 @@
     "Tavi Carvajal",
     "Jared Hunsaker"
    ],
-   "notes": "Some of its flights and hotels may sit in the 45,572 TravelPerk pool (see the TravelPerk Pool sheet).",
+   "notes": null,
    "lines": [
     {
      "date": "2025-11-07",
@@ -7959,35 +10374,179 @@
    "flags": null,
    "attendees": [
     "Ryan Peterson",
-    "Ky Decker"
+    "Ky Decker",
+    "Justin Judd"
    ],
    "notes": null,
    "lines": [
     {
-     "date": "2025-12-02",
-     "owner": "Alicia Schmaling",
-     "merchant": "Delta Airlines",
+     "date": "2025-10-03",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
      "rampCategory": null,
-     "city": "Atlanta, GA",
-     "amount": 1433.94,
-     "label": "Flights",
-     "confidence": "Low",
-     "why": "judgement: booked by Alicia Schmaling the day before LB Roofing (Marco Island, FL) on Delta; judged to be that trip",
-     "card": "Ramp",
-     "source": "QuickBooks, Ramp card"
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498557: Justin and Ryan Peterson to Fort Myers, 2-6 Dec 2025: LB Roofing on Marco Island",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
-     "date": "2025-12-02",
-     "owner": "Alicia Schmaling",
-     "merchant": "Delta Airlines",
+     "date": "2025-10-03",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
      "rampCategory": null,
-     "city": "Atlanta, GA",
-     "amount": 9.99,
+     "city": null,
+     "amount": 110.56,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498557: Justin and Ryan Peterson to Fort Myers, 2-6 Dec 2025: LB Roofing on Marco Island",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk Flight: Salt Lake City to Fort Myers",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1105.56,
      "label": "Flights",
-     "confidence": "Low",
-     "why": "judgement: fee on the Delta booking judged to be LB Roofing's",
-     "card": "Ramp",
-     "source": "QuickBooks, Ramp card"
+     "confidence": "High",
+     "why": "TravelPerk trip 32498557: Justin and Ryan Peterson to Fort Myers, 2-6 Dec 2025: LB Roofing on Marco Island",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-10",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Fort Myers",
+     "rampCategory": null,
+     "city": null,
+     "amount": 442.22,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498557: Justin and Ryan Peterson to Fort Myers, 2-6 Dec 2025: LB Roofing on Marco Island",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-10",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk Refund: Salt Lake City to Fort Myers",
+     "rampCategory": null,
+     "city": null,
+     "amount": -884.45,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498557: Justin and Ryan Peterson to Fort Myers, 2-6 Dec 2025: LB Roofing on Marco Island",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ky Decker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 163.34,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32690046: Ky Decker to Fort Myers, 2-6 Dec 2025, Hilton Marco Island: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ky Decker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 4.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32690046: Ky Decker to Fort Myers, 2-6 Dec 2025, Hilton Marco Island: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ky Decker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 4.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32690046: Ky Decker to Fort Myers, 2-6 Dec 2025, Hilton Marco Island: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ky Decker",
+     "merchant": "TravelPerk Hotel: Hilton Marco Island Beach Resort and Spa",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1149.54,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32690046: Ky Decker to Fort Myers, 2-6 Dec 2025, Hilton Marco Island: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ky Decker",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Fort Myers",
+     "rampCategory": null,
+     "city": null,
+     "amount": 29.16,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32690046: Ky Decker to Fort Myers, 2-6 Dec 2025, Hilton Marco Island: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ky Decker",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32690046: Ky Decker to Fort Myers, 2-6 Dec 2025, Hilton Marco Island: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ky Decker",
+     "merchant": "TravelPerk fee or extra: Salt Lake City to Fort Myers",
+     "rampCategory": null,
+     "city": null,
+     "amount": 16.19,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32690046: Ky Decker to Fort Myers, 2-6 Dec 2025, Hilton Marco Island: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-08",
+     "owner": "Ky Decker",
+     "merchant": "TravelPerk Flight: Salt Lake City to Fort Myers",
+     "rampCategory": null,
+     "city": null,
+     "amount": 438.54,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32690046: Ky Decker to Fort Myers, 2-6 Dec 2025, Hilton Marco Island: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-12-02",
@@ -8300,6 +10859,110 @@
      "why": "judgement: Uber on the day Ryan Peterson left Marco Island",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175055: JW Marriott Marco Island, Justin and Ryan Peterson, net of its refund: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk Hotel: JW Marriott Marco Island Beach Resort",
+     "rampCategory": null,
+     "city": null,
+     "amount": 1576.2,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175055: JW Marriott Marco Island, Justin and Ryan Peterson, net of its refund: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-09-30",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 157.62,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175055: JW Marriott Marco Island, Justin and Ryan Peterson, net of its refund: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-06",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra: JW Marriott Marco Island Beach Resort",
+     "rampCategory": null,
+     "city": null,
+     "amount": 788.1,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175055: JW Marriott Marco Island, Justin and Ryan Peterson, net of its refund: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-06",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra: JW Marriott Marco Island Beach Resort",
+     "rampCategory": null,
+     "city": null,
+     "amount": 788.1,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175055: JW Marriott Marco Island, Justin and Ryan Peterson, net of its refund: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-12-15",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 15.54,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175055: JW Marriott Marco Island, Justin and Ryan Peterson, net of its refund: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-12-15",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra: JW Marriott Marco Island Beach Resort",
+     "rampCategory": null,
+     "city": null,
+     "amount": 155.4,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175055: JW Marriott Marco Island, Justin and Ryan Peterson, net of its refund: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-12-24",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk Refund: JW Marriott Marco Island Beach Resort",
+     "rampCategory": null,
+     "city": null,
+     "amount": -1576.2,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32175055: JW Marriott Marco Island, Justin and Ryan Peterson, net of its refund: LB Roofing",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     }
    ],
    "notCounted": [
@@ -8312,7 +10975,7 @@
      "why": "in the LB Roofing Process Conference window, but the merchant is in Denver, CO, not Marco Island, FL"
     }
    ],
-   "travelTotal": 2998.43
+   "travelTotal": 6127.92
   },
   {
    "label": "Hardi Annual Conference",
@@ -8345,7 +11008,8 @@
    "flags": null,
    "attendees": [
     "Korth Rushdi",
-    "Ryan Peterson"
+    "Ryan Peterson",
+    "Justin Judd"
    ],
    "notes": null,
    "lines": [
@@ -8374,6 +11038,58 @@
      "why": "judgement: booked by Alicia Schmaling three days before Hardi (Las Vegas) on Southwest, the airline she booked for Las Vegas",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 15.37,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498775: Justin and Ryan Peterson to Las Vegas, 7-12 Dec 2025, net of its refund: Hardi",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 51.25,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498775: Justin and Ryan Peterson to Las Vegas, 7-12 Dec 2025, net of its refund: Hardi",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-03",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk Flight: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 512.47,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498775: Justin and Ryan Peterson to Las Vegas, 7-12 Dec 2025, net of its refund: Hardi",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-12-02",
+     "owner": "Justin Judd, Ryan Peterson",
+     "merchant": "TravelPerk Refund: Salt Lake City to Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": -409.98,
+     "label": "Flights",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498775: Justin and Ryan Peterson to Las Vegas, 7-12 Dec 2025, net of its refund: Hardi",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
     {
      "date": "2025-12-07",
@@ -8673,10 +11389,114 @@
      "why": "attendee, in the event's dates and place",
      "card": "Ramp",
      "source": "QuickBooks, Ramp card"
+    },
+    {
+     "date": "2025-10-06",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 30.0,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-06",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 308.42,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-06",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk Hotel: Wynn and Encore Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 3084.16,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-09",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra",
+     "rampCategory": null,
+     "city": null,
+     "amount": 51.02,
+     "label": "Other",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-09",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra: Wynn and Encore Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 255.11,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-10-09",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk fee or extra: Wynn and Encore Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": 255.11,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-12-04",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk Refund: Wynn and Encore Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": -204.09,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
+    },
+    {
+     "date": "2025-12-04",
+     "owner": "Ryan Peterson, Justin Judd",
+     "merchant": "TravelPerk Refund: Wynn and Encore Las Vegas",
+     "rampCategory": null,
+     "city": null,
+     "amount": -2467.33,
+     "label": "Lodging",
+     "confidence": "High",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "card": "TravelPerk (New Bill.com travel virtual cc)",
+     "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     }
    ],
    "notCounted": [],
-   "travelTotal": 5873.66
+   "travelTotal": 7355.17
   },
   {
    "label": "BDR Spark 2026",
