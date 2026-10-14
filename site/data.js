@@ -3709,6 +3709,34 @@ export const EVENT_TRAVEL_DECISIONS = {
     evidence: 'The card and TravelPerk charges matched to the event: 26 charges, each listed under Proof of cost with who paid and why it is this event’s.' },
   'Nuve 2026': { was: 1228, now: 1597.52,
     evidence: 'The card and TravelPerk charges matched to the event: 12 charges, each listed under Proof of cost with who paid and why it is this event’s.' },
+  // Estimated where the cards and TravelPerk leave pieces of a trip unpaid
+  // anywhere we can see (Josh, 14 Oct 2026: if the information doesn't exist,
+  // estimate). A missing piece is priced at the median of the trips proven
+  // in full: $662 a return flight, $260 a hotel night. Used only where the
+  // tab's figure falls outside the estimate's range (25th to 75th percentile);
+  // HSF 2025's $12,270 falls inside its range ($8,950 to $14,242) and stays.
+  'Nexstar Super Meeting 2025': { was: 7669, now: 5358, estimate: true,
+    evidence: 'Estimate. $4,318 is proven on cards and TravelPerk; added: 2 hotel stays (Ryan Peterson, Korth Rushdi) of 2 nights at $260 a night, none of which is on any card we have. Likely range $5,010 to $6,018; the tab had $7,669, outside it.' },
+  'Wealthy Plumber Hoorah 2025': { was: 5312, now: 3960, estimate: true,
+    evidence: 'Estimate. $2,920 is proven on cards and TravelPerk; added: 2 hotel stays (Parker Joos, Ky Decker) of 2 nights at $260 a night, none of which is on any card we have. Likely range $3,612 to $4,620; the tab had $5,312, outside it.' },
+  'Service World': { was: 4606, now: 6288, estimate: true,
+    evidence: 'Estimate. $3,168 is proven on cards and TravelPerk; added: 3 hotel stays (Blake Fenn, Ky Decker, Tavi Carvajal) of 4 nights at $260 a night, none of which is on any card we have. Likely range $5,244 to $8,268; the tab had $4,606, outside it.' },
+  'Raising GOATS 2026': { was: 1547, now: 1839, estimate: true,
+    evidence: 'Estimate. $1,177 is proven on cards and TravelPerk; added: 1 flight (Ryan Fenn) at $662, none of which is on any card we have. Likely range $1,587 to $2,161; the tab had $1,547, outside it.' },
+  // Upcoming events: travel committed, estimated from what is booked and the
+  // same medians until the costs come in; the tab's figure replaces it.
+  'CertainPath Connect 2026': { was: null, now: 5565, estimate: true,
+    evidence: 'Estimate. Booked in the Event Hub: hotels $2,628 and a car $104. Added: flights to Cancun for Ryan Peterson and Justin Judd at $1,125 each, what the same pair paid to Cabo for the Fall Expo, and meals and ground at $97 a person a day.' },
+  'Qualified Remodeler Top 500 2026': { was: null, now: 6932, estimate: true,
+    evidence: 'Estimate. Flights for four at $662 each ($1,230 is booked so far), hotels for four at $260 a night for three nights, and meals and ground at $97 a person a day.' },
+  'Home Service Freedom 2026': { was: null, now: 6713, estimate: true,
+    evidence: 'Estimate. Hotels $2,901 booked in the Event Hub; flights for four at $662 each, and meals and ground at $97 a person a day.' },
+  'Table of Titans 2027': { was: null, now: 3466, estimate: true,
+    evidence: 'Estimate for Justin Judd and Ryan Fenn, not yet registered: a $662 flight, three nights at $260 and $97 a day each.' },
+  'Build it to Sell it 2026': { was: null, now: 3466, estimate: true,
+    evidence: 'Guess: no attendees listed yet; two people at the median trip, a $662 flight, three nights at $260 and $97 a day each.' },
+  'EGIA Epic 2027': { was: null, now: 3153, estimate: true,
+    evidence: 'Guess: what EGIA Epic 2026 cost in travel, proven on cards ($3,153); no attendees listed yet.' },
 };
 
 // Any table keyed by event name is read by the name, or failing that by the
@@ -3776,6 +3804,12 @@ export const EVENT_FEE_DECISIONS = [
     evidence: 'QuickBooks books $30,000 to ServiceTitan in Sep 2025, and Shepard Exposition billed a further '
       + '$1,616.25 late graphics fee (#199800, Dec 2025) on the "Pantheon - Fall 2025" booth. The $40,000 on '
       + 'the planning sheet was not paid.' },
+  { event: 'CertainPath Connect 2026', was: null, now: 0, confidence: 'strong',
+    evidence: 'The Event Hub records the sponsorship as covered: "Costs will be travel only".' },
+  { event: 'EGIA Epic 2027', was: null, now: 16445, confidence: 'weak',
+    evidence: 'Estimate: no fee is recorded yet. EGIA Epic 2026 cost $16,445 (trade show $10,945 and $5,500), taken as the 2027 price until the bill comes.' },
+  { event: 'Build it to Sell it 2026', was: null, now: 10000, confidence: 'weak',
+    evidence: 'Guess: no fee is recorded in the Event Hub or QuickBooks. $10,000 is the middle fee of the 2026 events that had one.' },
   { event: 'Qualified Remodeler Top 500 2026', was: 0, now: 20000, confidence: 'strong',
     evidence: 'SOLA Group, publisher of Qualified Remodeler, billed a $20,000 Gold Sponsorship for the period of '
       + 'October 2026 on 19 Aug 2026; Top 500 Live is 26-28 Oct 2026. SOLA\'s separate $10,000 of sponsorship '
@@ -4319,11 +4353,12 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       : c.extra ? `Added here until the Event Costs tab carries it. ${c.note || ''}`
       : `Event Costs tab, ${c.costSource || 'source not stated'}.`;
     const basis = decided
-      ? `Settled at $${decision.now.toLocaleString()} (the tab had $${decision.was.toLocaleString()}): ${decision.evidence}`
+      ? `Settled at $${decision.now.toLocaleString()} (${decision.was === null ? 'the tab had none' : `the tab had $${decision.was.toLocaleString()}`}): ${decision.evidence}`
       : sponsorBasis;
     // Travel settled here while the tab still carries the old figure.
     const td = byEventName(EVENT_TRAVEL_DECISIONS, c.event, c.month);
-    const travelDecided = Boolean(td && c.travel !== null && Math.abs(c.travel - td.was) < 1);
+    const travelDecided = Boolean(td && (td.was === null ? c.travel === null || c.travel === undefined
+      : c.travel !== null && Math.abs(c.travel - td.was) < 1));
     const travel = travelDecided ? td.now : c.travel;
     const known = sponsor !== null || travel !== null;
     return {

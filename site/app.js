@@ -5368,8 +5368,8 @@ function renderEventPage(label) {
       + `${c.decision.evidence}</p>` : '')
     + (pack ? `<p class="ev-note"><strong>${pack.label}.</strong> One fee of ${money(pack.fee)} covering `
       + `${fmt.int(pack.covers)} event${pack.covers === 1 ? '' : 's'}; this one carries ${money(pack.fee / pack.covers)}. ${pack.basis}</p>` : '')
-    + (c && c.travelDecision ? `<p class="ev-note"><strong>Travel set to ${money(c.travel)} (the tab had `
-      + `${money(c.travelDecision.was)}).</strong> ${c.travelDecision.evidence}</p>` : '')
+    + (c && c.travelDecision ? `<p class="ev-note"><strong>Travel ${c.travelDecision.estimate ? 'estimated at' : 'set to'} ${money(c.travel)} `
+      + `(${c.travelDecision.was === null ? 'none recorded yet' : `the tab had ${money(c.travelDecision.was)}`}).</strong> ${c.travelDecision.evidence}</p>` : '')
     + (e.report2025 ? `<p class="ev-note"><strong>Partnerships report, Nov 2025.</strong> ${e.report2025}</p>` : '');
 
   // Leads.
