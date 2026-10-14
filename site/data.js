@@ -6222,6 +6222,28 @@ export function eventAuditRows(data) {
 // a roll-up of the same event figures the Events tab shows, over a range of
 // event months. Revenue is Stripe's, cost is QuickBooks', and the funnel is
 // the Event Leads funnel; nothing is computed a second way here.
+// The counts behind an event page's headline cards, shared with the Events
+// summary so the two always agree (Josh, 14 Oct 2026). A demo is booked when
+// the lead booked through a meetings link, has a setter or reached a deal;
+// closed deals are the customers Stripe bills plus won deals not billed yet.
+export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo = stripeByCompany(data)) {
+  const fe = f ? f.events.find(x => x.source === e.source || x.label === e.label) : null;
+  const leads = fe ? fe.leads.filter(l => ['won', 'wonLate', 'wonElsewhere', 'lost', 'sat', 'booked', 'unworked', 'undated'].includes(l.state)) : [];
+  const credited = new Set((e.customerRows || []).map(x => x.id));
+  const wonNotBilled = new Set(leads.filter(l => l.state === 'won' && !(l.company && byCo(l.company)
+    && credited.has(byCo(l.company).id))).map(l => l.company || l)).size;
+  return {
+    leads: leads.length,
+    demosBooked: leads.filter(l => l.bookedBy || l.dealCreated || l.conversionType === 'meetings link').length,
+    demosSat: leads.filter(l => l.dealCreated).length,
+    wonNotBilled,
+    closedWon: (e.paid || 0) + wonNotBilled,
+    closedLost: leads.filter(l => l.state === 'lost').length,
+    stillOpen: leads.filter(l => l.state === 'sat').length,
+    leadRows: leads,
+  };
+}
+
 export function eventsOverview(data, { from = null, to = null, creditRule = DEFAULT_CREDIT_RULE } = {}) {
   const r = eventReports(data, { creditRule });
   const roi = r.roi;
@@ -6262,6 +6284,19 @@ export function eventsOverview(data, { from = null, to = null, creditRule = DEFA
   const f = eventFunnel(data, roi);
   const labels = new Set(ran.map(e => e.label));
   const fe = f ? f.events.filter(x => labels.has(x.label)) : [];
+  // The event pages' cards, summed: demos booked and deals closed.
+  const byCoCards = stripeByCompany(data);
+  const cards = ran.map(e => ({ e, k: eventCardFigures(data, roi, e, f, byCoCards) }));
+  const demosBooked = cards.reduce((t, x) => t + x.k.demosBooked, 0);
+  const demosSatCards = cards.reduce((t, x) => t + x.k.demosSat, 0);
+  const closedWon = cards.reduce((t, x) => t + x.k.closedWon, 0);
+  const rates = {
+    demosBooked, demosSat: demosSatCards, closedWon,
+    costPerDemo: demosBooked ? spend / demosBooked : null,
+    costPerClosed: closedWon ? spend / closedWon : null,
+    bookedToWon: demosBooked ? closedWon / demosBooked : null,
+    satToWon: demosSatCards ? closedWon / demosSatCards : null,
+  };
   const funnel = { leads: fe.reduce((t, x) => t + x.base, 0), demos: fe.reduce((t, x) => t + x.sat.n, 0),
     sales: fe.reduce((t, x) => t + x.won.n, 0),
     // Organisers' lists loaded after the event: shown beside it, never in its
@@ -6311,7 +6346,7 @@ export function eventsOverview(data, { from = null, to = null, creditRule = DEFA
     companyPerCustomer: coLogos ? coCost / coLogos : null,
     roi12: spend12 ? at12 / spend12 - 1 : null, roi12Range: spend12 ? [at12Low / spend12 - 1, at12High / spend12 - 1] : null,
     paidBack: paidBack.length, onTrack: onTrack.length,
-    funnel, timeline, ranked, byKind, ahead,
+    funnel, rates, timeline, ranked, byKind, ahead,
   };
 }
 

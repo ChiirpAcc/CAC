@@ -14,7 +14,7 @@ import {
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
-  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
+  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, eventCardFigures, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
   stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, eventsOverview, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
@@ -4456,6 +4456,16 @@ function renderSummary() {
     + tile('Cost per new customer', money(o.perCustomer), vs === null ? '' : `${vs >= 0 ? fmt.pct(vs, 0) + ' more' : fmt.pct(-vs, 0) + ' less'} than the company\u2019s ${money(o.companyPerCustomer)}`,
       vs !== null && vs > 0.1 ? 'neg' : vs !== null && vs < -0.1 ? 'pos' : '')
     + tile('Paid for themselves', `${fmt.int(o.paidBack)} of ${fmt.int(o.scored)}`, `${fmt.int(o.onTrack)} more on track within a year`);
+  // The event pages' rates row, over every event in the range (14 Oct 2026).
+  const rt = o.rates || {};
+  if ($('summary-rates')) $('summary-rates').innerHTML =
+    tile('Cost per demo', rt.costPerDemo === null ? '–' : money(rt.costPerDemo), `${short(o.spend)} over ${fmt.int(rt.demosBooked || 0)} demos booked`)
+    + tile('Cost per closed deal', rt.costPerClosed === null ? '–' : money(rt.costPerClosed), `${short(o.spend)} over ${fmt.int(rt.closedWon || 0)} closed deals`)
+    + tile('Booked to won', rt.bookedToWon === null ? '–' : fmt.pct(rt.bookedToWon, 0),
+      `${fmt.int(rt.closedWon || 0)} won of ${fmt.int(rt.demosBooked || 0)} booked${rt.satToWon !== null ? ` · ${fmt.pct(rt.satToWon, 0)} of ${fmt.int(rt.demosSat)} sat` : ''}`)
+    + tile('ROI now', pct(o.roiToDate), 'on contribution, each event counted from its own date', o.roiToDate !== null && o.roiToDate < 0 ? 'neg' : 'pos')
+    + tile('12-month ROI', pct(o.roi12), `12 months from each event’s date${o.roi12Range ? `; likely ${pct(o.roi12Range[0])} to ${pct(o.roi12Range[1])}` : ''}`,
+      o.roi12 !== null && o.roi12 < 0 ? 'neg' : 'pos');
   // Cumulative spend and contribution.
   const t = o.timeline;
   multiLineChart($('summary-curve'), {
@@ -5317,23 +5327,9 @@ function renderEventPage(label) {
   // lead booked through the event's meetings link, a setter is recorded, or
   // a deal opened (HubSpot opens one only once the demo is sat). Closed
   // deals are wins Stripe agrees with; revenue is what Stripe collected.
-  const headFun = (() => { const f = eventFunnel(data, r.roi); return f && f.events.find(x => x.source === e.source || x.label === e.label); })();
-  const headLeads = headFun ? headFun.leads.filter(l => ['won', 'wonLate', 'wonElsewhere', 'lost', 'sat', 'booked', 'unworked', 'undated'].includes(l.state)) : [];
-  const demosBooked = headLeads.filter(l => l.bookedBy || l.dealCreated || l.conversionType === 'meetings link').length;
-  const demosSat = headLeads.filter(l => l.dealCreated).length;
-  // Closed deals are the customers Stripe confirms the event won, so the card
-  // agrees with the revenue beside it; won deals Stripe has not billed yet
-  // are said underneath.
-  const byCoHead = stripeByCompany(data);
-  const creditedIds = new Set((e.customerRows || []).map(x => x.id));
-  const wonNotBilled = new Set(headLeads.filter(l => l.state === 'won' && !(l.company && byCoHead(l.company)
-    && creditedIds.has(byCoHead(l.company).id))).map(l => l.company || l)).size;
-  // Closed deals: every deal won in HubSpot that counts for the event, billed
-  // or not yet (Josh, 13 Oct 2026: Hoorah 2026 had three won, the card showed
-  // the one Stripe had billed). Revenue stays Stripe's.
-  const closedWon = (e.paid || 0) + wonNotBilled;
-  const closedLost = headLeads.filter(l => l.state === 'lost').length;
-  const stillOpen = headLeads.filter(l => l.state === 'sat').length;
+  const cardFig = eventCardFigures(data, r.roi, e);
+  const headLeads = cardFig.leadRows;
+  const { demosBooked, demosSat, wonNotBilled, closedWon, closedLost, stillOpen } = cardFig;
   const costCard = e.costState === 'absent'
     ? kpi('Total cost', c && c.travel ? `${money(c.travel)} +` : 'Not found',
       c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')

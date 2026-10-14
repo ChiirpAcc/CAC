@@ -1262,3 +1262,6 @@ span.pos { color: var(--series-pos); }
 /* Event page: the rates row under the headline cards. */
 .ev-kpis-rates { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-top: 10px; }
 .ev-kpis-rates .ev-kpi-value { font-size: 1.35rem; }
+
+/* Events summary: the event pages' rates row, summed. */
+.summary-rates { margin-top: 10px; }
