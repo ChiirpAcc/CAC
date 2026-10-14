@@ -28,6 +28,9 @@
    "notes": "Before the QuickBooks detail (starts 1 Sep 2025): no proof yet.",
    "lines": [],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 0
   },
   {
@@ -54,6 +57,9 @@
    "notes": "Before the QuickBooks detail (starts 1 Sep 2025): no proof yet.",
    "lines": [],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 0
   },
   {
@@ -1043,6 +1049,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 5316.63
   },
   {
@@ -2283,6 +2292,9 @@
      "why": "a meal of 1,000 or more; check before counting"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 6353.02
   },
   {
@@ -2556,6 +2568,9 @@
      "why": "in the CertainPath Fall Expo 2025 window, but the merchant is in Los Angeles, CA, not Cabo San Lucas, Mexico"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2542.53
   },
   {
@@ -2686,6 +2701,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 1490.67
   },
   {
@@ -3644,6 +3662,9 @@
      "why": "in the Nexstar Super Meeting 2025 window, but the merchant is in LOS CABOS BCS, MEX, not Denver, CO"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 4317.56
   },
   {
@@ -3982,6 +4003,9 @@
      "why": "in the System Forward Pro Boot Camp window, but the merchant is in Phoenix, AZ, not New Orleans, LA"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 1793.95
   },
   {
@@ -4210,6 +4234,9 @@
      "why": "in the Lennox Live Roadshow window, but the merchant is in Lehi, UT, not Atlantic City, NJ"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2668.05
   },
   {
@@ -4725,6 +4752,9 @@
      "why": "in the Wealthy Plumber Hoorah 2025 window, but the merchant is in Atlanta, GA, not Pensacola, FL"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2920.11
   },
   {
@@ -5372,6 +5402,9 @@
      "why": "in the GDF Vertical Track 2025 window, but the merchant is in Virginia Beach, VA, not Scottsdale, AZ"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 3707.39
   },
   {
@@ -5954,6 +5987,9 @@
      "why": "in the Legacy Annual Offsite window, but the merchant is in Salt Lake City, UT, not Nashville, TN"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 3184.72
   },
   {
@@ -6201,6 +6237,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2336.15
   },
   {
@@ -6381,6 +6420,9 @@
      "why": "just outside the Nuve Networks Tour travel window"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 1963.83
   },
   {
@@ -6781,6 +6823,9 @@
      "why": "in the Clover Mastermind 2025 window, but the merchant is in Lehi, UT, not Nashville, TN"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2756.93
   },
   {
@@ -7116,6 +7161,9 @@
      "why": "in the Service World window, but the merchant is in Castle Rock, CO, not Las Vegas, NV"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 3168.19
   },
   {
@@ -7584,6 +7632,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 5214.54
   },
   {
@@ -8575,6 +8626,9 @@
      "why": "just outside the Network ST Event travel window"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 16149.42
   },
   {
@@ -9135,6 +9189,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2966.16
   },
   {
@@ -9630,6 +9687,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 3248.1
   },
   {
@@ -10079,6 +10139,9 @@
      "why": "in the We Mean Business Conference window, but the merchant is in Atlanta, GA, not Charleston, SC"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 4190.98
   },
   {
@@ -10341,6 +10404,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 4514.4
   },
   {
@@ -10975,6 +11041,9 @@
      "why": "in the LB Roofing Process Conference window, but the merchant is in Denver, CO, not Marco Island, FL"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 6127.92
   },
   {
@@ -11496,6 +11565,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 7355.17
   },
   {
@@ -11834,6 +11906,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 3581.09
   },
   {
@@ -12547,6 +12622,9 @@
      "why": "in the Generac 2026 window, but the merchant is in Troy, MI, not Las Vegas, NV"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2702.96
   },
   {
@@ -13227,6 +13305,9 @@
      "why": "fare booked ahead; more than one event it could be for: EGIA Epic 2026, RynoX 2026, Raising GOATS 2026"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 3153.04
   },
   {
@@ -13804,6 +13885,9 @@
      "why": "just outside the RynoX 2026 travel window"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 4225.13
   },
   {
@@ -14320,6 +14404,9 @@
      "why": "in the Lennox Live New Orleans 2026 window, but the merchant is in Atlanta, GA, not New Orleans, LA"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 5472.41
   },
   {
@@ -14592,6 +14679,9 @@
      "why": "just outside the Raising GOATS 2026 travel window"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 1176.94
   },
   {
@@ -15222,6 +15312,9 @@
      "why": "just outside the Lennox Live Anaheim 2026 travel window"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 4500.34
   },
   {
@@ -15544,6 +15637,9 @@
      "why": "in the CertainPath Spring Expo 2026 window, but the merchant is in Des Plaines, IL, not Uncasville, CT (Mohegan Sun)"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2648.13
   },
   {
@@ -15951,6 +16047,9 @@
      "why": "in the Redwood Leadership Summit window, but the merchant is in Atlanta, GA, not Memphis, TN"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 4048.57
   },
   {
@@ -16180,6 +16279,9 @@
      "why": "in the BCSG Acceleration Days 2026 window, but the merchant is in Provo, UT, not Glendale, AZ"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 1285.74
   },
   {
@@ -16557,6 +16659,9 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2695.95
   },
   {
@@ -16760,6 +16865,9 @@
      "why": "in the Nuve 2026 window, but the merchant is in Provo, UT, not Anaheim, CA"
     }
    ],
+   "pending": [],
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 1597.52
   },
   {
@@ -17134,7 +17242,10 @@
      "why": "In the Grosso University Extreme Leadership Workshop window but doesn't fit it (merchant in Lehi, UT)"
     }
    ],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 5270.11
   },
   {
@@ -17501,7 +17612,10 @@
      "why": "not part of the Hoorah team (Josh, 13 Oct 2026)"
     }
    ],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2360.45
   },
   {
@@ -17904,7 +18018,10 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 6495.27
   },
   {
@@ -18041,7 +18158,10 @@
     }
    ],
    "notCounted": [],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 946.75
   },
   {
@@ -18425,7 +18545,10 @@
      "why": "In the CCN ELEVATE 2026 window but doesn't fit it (merchant in Lehi, UT)"
     }
    ],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 2651.16
   },
   {
@@ -19665,7 +19788,10 @@
      "why": "In the Service Titan Pantheon window but doesn't fit it (merchant in Eagle Mountain, UT)"
     }
    ],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": false,
+   "pendingTotal": 0,
    "travelTotal": 21150.59
   },
   {
@@ -19694,7 +19820,29 @@
    "notes": null,
    "lines": [],
    "notCounted": [],
+   "pending": [
+    {
+     "date": "2026-10-02",
+     "owner": "Justin Judd",
+     "merchant": "Hilton Hotels",
+     "city": "Cancun, MX",
+     "amount": 1314.0,
+     "why": "Hilton Cancun prepayment for CertainPath Connect (Oct 14, upcoming)",
+     "label": "Lodging"
+    },
+    {
+     "date": "2026-09-29",
+     "owner": "Ryan Peterson",
+     "merchant": "Hilton Hotels",
+     "city": "Cancun, MX",
+     "amount": 1314.0,
+     "why": "Hilton Cancun prepayment for CertainPath Connect (Oct 14, upcoming)",
+     "label": "Lodging"
+    }
+   ],
    "basis": "event hub",
+   "upcoming": false,
+   "pendingTotal": 2628.0,
    "travelTotal": 0
   },
   {
@@ -19724,14 +19872,16 @@
    ],
    "notes": null,
    "lines": [],
-   "notCounted": [
+   "notCounted": [],
+   "pending": [
     {
      "date": "2026-09-16",
      "owner": "Justin Judd",
      "merchant": "Caesars Palace",
      "city": "Las Vegas, NV",
      "amount": 225.63,
-     "why": "Caesars Palace deposit, likely for Qualified Remodeler Top 500 (Oct 26, Las Vegas, upcoming), not in scope"
+     "why": "Caesars Palace deposit, likely for Qualified Remodeler Top 500 (Oct 26, Las Vegas, upcoming)",
+     "label": "Lodging"
     },
     {
      "date": "2026-09-16",
@@ -19739,10 +19889,13 @@
      "merchant": "Caesars Palace",
      "city": "Las Vegas, NV",
      "amount": 225.63,
-     "why": "Caesars Palace deposit, likely for Qualified Remodeler Top 500 (Oct 26, Las Vegas, upcoming), not in scope"
+     "why": "Caesars Palace deposit, likely for Qualified Remodeler Top 500 (Oct 26, Las Vegas, upcoming)",
+     "label": "Lodging"
     }
    ],
    "basis": "event hub",
+   "upcoming": true,
+   "pendingTotal": 451.26,
    "travelTotal": 0
   },
   {
@@ -19773,7 +19926,10 @@
    "notes": null,
    "lines": [],
    "notCounted": [],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": true,
+   "pendingTotal": 0,
    "travelTotal": 0
   },
   {
@@ -19799,7 +19955,10 @@
    "notes": null,
    "lines": [],
    "notCounted": [],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": true,
+   "pendingTotal": 0,
    "travelTotal": 0
   },
   {
@@ -19828,7 +19987,10 @@
    "notes": null,
    "lines": [],
    "notCounted": [],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": true,
+   "pendingTotal": 0,
    "travelTotal": 0
   },
   {
@@ -19854,7 +20016,10 @@
    "notes": null,
    "lines": [],
    "notCounted": [],
+   "pending": [],
    "basis": "event hub",
+   "upcoming": true,
+   "pendingTotal": 0,
    "travelTotal": 0
   }
  ]

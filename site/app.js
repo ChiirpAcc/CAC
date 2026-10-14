@@ -4578,17 +4578,40 @@ function costProofPanel(e) {
   const tie = (a, b) => (a === null || b === null ? '' : Math.abs(a - b) < 1 ? '<span class="pos">ties</span>'
     : `<span class="neg">differs by ${money2(Math.abs(a - b))}</span>`);
   const confTag = l => (l.confidence && l.confidence !== 'High' ? ` <span class="proof-conf">${l.confidence.toLowerCase()} confidence</span>` : '');
+  // Charges made ahead of an event that has not happened yet: listed as
+  // pending, not as its cost, and not tied out (Josh, 14 Oct 2026).
+  const pending = entry.pending || [];
+  const ahead = Boolean(entry.upcoming) || (!entry.lines.length && pending.length > 0);
+  const pendingTotal = pending.reduce((t, l) => t + (l.amount || 0), 0);
+  const estimated = c.travelDecision && c.travelDecision.estimate;
+  const chargesFact = ahead
+    ? `<div class="ev-fact"><span class="ev-fact-label">Pending charges</span><span class="ev-fact-value">${money2(pendingTotal)}</span>`
+      + `<span class="ev-fact-sub">${pending.length ? `${fmt.int(pending.length)} charged ahead of the event` : 'nothing charged yet'}`
+      + `${travelSite !== null ? ` · ${estimated ? 'estimated' : 'expected'} travel ${money2(travelSite)}` : ''}</span></div>`
+    : `<div class="ev-fact"><span class="ev-fact-label">Card charges</span><span class="ev-fact-value">${money2(entry.travelTotal)}</span>`
+      + `<span class="ev-fact-sub">${fmt.int(entry.lines.length)} charges, ${fmt.int(owners.length)} cardholder${owners.length === 1 ? '' : 's'}`
+      + `${travelSite !== null ? ` · against ${money2(travelSite)} travel here: ${tie(entry.travelTotal, travelSite)}` : ''}</span></div>`;
+  const pendingTable = pending.length ? `<h4 class="proof-sub">Pending: charged ahead of the event</h4>`
+    + `<div class="table-scroll"><table class="data-table ev-table proof-table"><thead><tr><th>Date</th><th>Who paid</th><th>Merchant</th>`
+    + `<th>Label</th><th>City</th><th class="n">Amount</th><th>Why it is this event’s</th></tr></thead><tbody>`
+    + pending.map(l => `<tr><td>${l.date || '–'}</td><td>${l.owner || '–'}</td><td>${l.merchant || '–'}</td><td>${l.label || '–'}</td>`
+      + `<td>${l.city || '–'}</td><td class="n${l.amount < 0 ? ' neg' : ''}">${money2(l.amount)}</td><td class="proof-why">${l.why || ''}</td></tr>`).join('')
+    + `<tr class="total-row"><td colspan="5"><strong>Pending</strong></td><td class="n"><strong>${money2(pendingTotal)}</strong></td><td></td></tr>`
+    + `</tbody></table></div><p class="ev-note">Pending until the event has happened and the month-end cost run matches its charges; `
+    + `deposits and prepaid rooms usually become part of its travel then.</p>` : '';
   return `<section class="ev-panel"><h3>Proof of cost</h3>`
     + `<div class="ev-facts">`
-    + `<div class="ev-fact"><span class="ev-fact-label">Fee</span><span class="ev-fact-value">${money2(entry.fee.amount)}</span>`
+    + (entry.fee.amount === null && feeSite !== null
+      ? `<div class="ev-fact"><span class="ev-fact-label">Fee</span><span class="ev-fact-value">${money2(feeSite)}</span>`
+        + `<span class="ev-fact-sub">${c.decision && c.decision.confidence === 'weak' ? 'an estimate' : c.decided ? 'from the bill' : 'from the Event Costs tab'}`
+        + ` · the Event Hub has none yet</span></div>`
+      : `<div class="ev-fact"><span class="ev-fact-label">Fee</span><span class="ev-fact-value">${money2(entry.fee.amount)}</span>`
     + `<span class="ev-fact-sub">${fromQb
       ? (entry.feeLines && entry.feeLines.length ? `${fmt.int(entry.feeLines.length)} QuickBooks line${entry.feeLines.length === 1 ? '' : 's'}`
         : 'no bill in QuickBooks from Sep 2025')
       : [entry.fee.what, entry.fee.paymentStatus ? entry.fee.paymentStatus.toLowerCase() : '', 'Event Hub'].filter(Boolean).join(' · ')}`
-    + `${entry.fee.amount !== null && feeSite !== null ? ` · against ${money2(feeSite)} here: ${tie(entry.fee.amount, feeSite)}` : ''}</span></div>`
-    + `<div class="ev-fact"><span class="ev-fact-label">Card charges</span><span class="ev-fact-value">${money2(entry.travelTotal)}</span>`
-    + `<span class="ev-fact-sub">${fmt.int(entry.lines.length)} charges, ${fmt.int(owners.length)} cardholder${owners.length === 1 ? '' : 's'}`
-    + `${travelSite !== null ? ` · against ${money2(travelSite)} travel here: ${tie(entry.travelTotal, travelSite)}` : ''}</span></div>`
+    + `${entry.fee.amount !== null && feeSite !== null ? ` · against ${money2(feeSite)} here: ${tie(entry.fee.amount, feeSite)}` : ''}</span></div>`)
+    + chargesFact
     + `<div class="ev-fact"><span class="ev-fact-label">By label</span><span class="ev-fact-value proof-labels">`
     + [...byLabel.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${money2(v)}`).join('<br>') + `</span></div>`
     + `<div class="ev-fact"><span class="ev-fact-label">Attended</span><span class="ev-fact-value proof-labels">${entry.attendees.join('<br>') || '–'}</span>`
@@ -4613,6 +4636,7 @@ function costProofPanel(e) {
           + `<td class="proof-why">${l.why || '<span class="muted">attendee, in the event\u2019s dates and place</span>'}</td></tr>`).join('')).join('')
       + `<tr class="total-row"><td colspan="4"><strong>All card charges</strong></td><td class="n"><strong>${money2(entry.travelTotal)}</strong></td><td></td></tr>`
       + `</tbody></table></div>` : '')
+    + pendingTable
     + (entry.notCounted.length ? `<details class="proof-review"><summary>${fmt.int(entry.notCounted.length)} charge${entry.notCounted.length === 1 ? '' : 's'} `
       + `reviewed and not counted</summary><ul>` + entry.notCounted.map(l => `<li>${l.date} · ${l.owner} · ${l.merchant}${l.city ? ` (${l.city})` : ''} · `
         + `${money2(l.amount)}: ${l.why}</li>`).join('') + `</ul></details>` : '')
@@ -4623,7 +4647,7 @@ function costProofPanel(e) {
         + `company Chase card) matched to it because the cardholder attended (2026 Events/Travel planning sheet), the charge falls in `
         + `the event\u2019s travel window, and, where the Ramp export gives a city, its place fits the trip. Divvy charges carry no `
         + `city and are medium confidence. Fares bought weeks ahead count only when they are the person\u2019s one fare before the `
-        + `event; flights booked through TravelPerk name no traveller and wait for its trip report.</p></section>`
+        + `event. TravelPerk bookings come from TravelPerk’s own report, which names each trip’s travellers, route and dates.</p></section>`
       : `<p class="ev-note">From the month-end cost run (${costLines.source}, built ${costLines.built}): the fee as the Event Hub records `
         + `it, and each Ramp card charge matched to the event because the cardholder attended, the charge falls in the event\u2019s travel `
         + `window, and its place fits the trip. Fares bought weeks ahead are matched by hand and say why.</p></section>`);

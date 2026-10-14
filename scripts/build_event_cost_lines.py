@@ -16,6 +16,7 @@ card (Ramp, Divvy, the company Chase card) from QuickBooks' travel accounts,
 with the merchant city from the Ramp export, matched by the same rules.
 """
 import json
+import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -59,6 +60,10 @@ HUB_NOTES = {
 # Cardholders whose matched charges are taken off an event after the cost
 # run; they are listed as reviewed and not counted.
 HUB_EXCLUDE = {"Home Service Hoorah": {"Ryan Fenn": "not part of the Hoorah team (Josh, 13 Oct 2026)"}}
+
+
+LABEL_OF = {"Lodging": "Lodging", "Airlines": "Flights", "Restaurants": "Meals", "Taxi and Rideshare": "Ground transport",
+            "Car Rental": "Ground transport", "Parking": "Parking"}
 
 
 def iso(v):
@@ -133,7 +138,7 @@ def main(path):
                     "what": r.get("Cost notes (from app)"), "source": "Event Hub, Budget & payment"},
             "hubTravel": {"flights": num(r.get("Flights ($)")), "hotels": num(r.get("Hotels ($)")),
                           "rentalCars": num(r.get("Rental cars ($)"))},
-            "flags": r.get("Notes / flags"), "attendees": [], "notes": None, "lines": [], "notCounted": [],
+            "flags": r.get("Notes / flags"), "attendees": [], "notes": None, "lines": [], "notCounted": [], "pending": [],
         }
     for r in rows(wb["Ramp Travel Summary"]):
         e = events.get(str(r["Event"]).strip())
@@ -150,12 +155,23 @@ def main(path):
                            "confidence": r.get("Confidence"), "why": r.get("Why it was matched / note"),
                            "source": "Ramp card"})
     # Reviewed and not counted: the review tab names the event in its reason.
+    # A charge made ahead of an event that has not happened yet (a hotel
+    # deposit, a prepaid room) is that event's, pending: it is listed on the
+    # event as a pending charge rather than left out (Josh, 14 Oct 2026). The
+    # review tab names the event by its Event Hub name or its first two words.
+    short = lambda n: " ".join(n.replace("/", " ").split()[:2])
     for r in rows(wb["Ramp Needs Review"]):
         why = str(r.get("Why it is not counted") or "")
         for name, e in events.items():
-            if name in why:
-                e["notCounted"].append({"date": iso(r.get("Date")), "owner": r.get("Cardholder"), "merchant": r.get("Merchant"),
-                                        "city": r.get("Merchant city"), "amount": num(r.get("Amount ($)")), "why": why})
+            if name in why or (re.search(r"upcoming", why, re.I) and short(name) in why):
+                item = {"date": iso(r.get("Date")), "owner": r.get("Cardholder"), "merchant": r.get("Merchant"),
+                        "city": r.get("Merchant city"), "amount": num(r.get("Amount ($)")), "why": why}
+                if re.search(r"upcoming", why, re.I):
+                    e["pending"].append(dict(item, label=LABEL_OF.get(r.get("Ramp category"), "Other"),
+                                             why=re.sub(r",?\s*not in scope\.?$", "", why).strip()))
+                else:
+                    e["notCounted"].append(item)
+                break
     qb = Path(path).with_name("CHIIRP Event Costs 2025-26 (QuickBooks).xlsx")
     if qb.exists():
         for label, e in older(qb).items():
@@ -175,6 +191,15 @@ def main(path):
     for e in events.values():
         e.setdefault("basis", "event hub")
         e["lines"].sort(key=lambda x: (str(x["owner"]), str(x["date"])))
+        # An event still ahead has only pending charges: whatever matched it so
+        # far is listed as pending, not as its cost.
+        e.setdefault("pending", [])
+        e["upcoming"] = bool(e["start"] and e["start"] > date.today().isoformat())
+        if e["upcoming"] and e["lines"]:
+            e["pending"] += e["lines"]
+            e["lines"] = []
+        e["pending"].sort(key=lambda x: (str(x["owner"]), str(x["date"])))
+        e["pendingTotal"] = round(sum(x["amount"] or 0 for x in e["pending"]), 2)
         e["travelTotal"] = round(sum(x["amount"] or 0 for x in e["lines"]), 2)
     out = {"source": Path(path).name, "olderSource": qb.name if qb.exists() else None, "built": date.today().isoformat(),
            "note": "Event Hub fees and Ramp card charges matched to each event by the month-end cost run; events before "
