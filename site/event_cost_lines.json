@@ -1,7 +1,7 @@
 {
  "source": "CHIIRP Event Costs.xlsx",
  "olderSource": "CHIIRP Event Costs 2025-26 (QuickBooks).xlsx",
- "built": "2026-10-14",
+ "built": "2026-10-15",
  "note": "Event Hub fees and Ramp card charges matched to each event by the month-end cost run; events before the Event Hub from QuickBooks bills and card charges.",
  "events": [
   {
@@ -7681,7 +7681,7 @@
      "amount": 6109.21,
      "label": "Flights",
      "confidence": "Medium",
-     "why": "company Chase card, no cardholder; a Qantas fare for October 2025, the Australia trip",
+     "why": "company Chase card, no cardholder. Judged to be Ryan Fenn's Los Angeles-Sydney ticket: the TravelPerk report has only his Salt Lake City-Los Angeles leg for 24 Oct-5 Nov, Justin Judd's long-haul is on TravelPerk, and this Qantas fare was bought on 25 Sep for October",
      "card": "Chase x8642",
      "source": "QuickBooks, Chase x8642 card"
     },
@@ -11468,7 +11468,7 @@
      "amount": 30.0,
      "label": "Other",
      "confidence": "High",
-     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson: $3,983 booked, $2,671 refunded on 4 Dec when Alicia Schmaling rebooked on her card; the $1,312 kept is taken as the cancellation cost, a real cost of the trip",
      "card": "TravelPerk (New Bill.com travel virtual cc)",
      "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
@@ -11481,7 +11481,7 @@
      "amount": 308.42,
      "label": "Other",
      "confidence": "High",
-     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson: $3,983 booked, $2,671 refunded on 4 Dec when Alicia Schmaling rebooked on her card; the $1,312 kept is taken as the cancellation cost, a real cost of the trip",
      "card": "TravelPerk (New Bill.com travel virtual cc)",
      "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
@@ -11494,7 +11494,7 @@
      "amount": 3084.16,
      "label": "Lodging",
      "confidence": "High",
-     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson: $3,983 booked, $2,671 refunded on 4 Dec when Alicia Schmaling rebooked on her card; the $1,312 kept is taken as the cancellation cost, a real cost of the trip",
      "card": "TravelPerk (New Bill.com travel virtual cc)",
      "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
@@ -11507,7 +11507,7 @@
      "amount": 51.02,
      "label": "Other",
      "confidence": "High",
-     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson: $3,983 booked, $2,671 refunded on 4 Dec when Alicia Schmaling rebooked on her card; the $1,312 kept is taken as the cancellation cost, a real cost of the trip",
      "card": "TravelPerk (New Bill.com travel virtual cc)",
      "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
@@ -11520,7 +11520,7 @@
      "amount": 255.11,
      "label": "Lodging",
      "confidence": "High",
-     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson: $3,983 booked, $2,671 refunded on 4 Dec when Alicia Schmaling rebooked on her card; the $1,312 kept is taken as the cancellation cost, a real cost of the trip",
      "card": "TravelPerk (New Bill.com travel virtual cc)",
      "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
@@ -11533,7 +11533,7 @@
      "amount": 255.11,
      "label": "Lodging",
      "confidence": "High",
-     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson: $3,983 booked, $2,671 refunded on 4 Dec when Alicia Schmaling rebooked on her card; the $1,312 kept is taken as the cancellation cost, a real cost of the trip",
      "card": "TravelPerk (New Bill.com travel virtual cc)",
      "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
@@ -11546,7 +11546,7 @@
      "amount": -204.09,
      "label": "Lodging",
      "confidence": "High",
-     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson: $3,983 booked, $2,671 refunded on 4 Dec when Alicia Schmaling rebooked on her card; the $1,312 kept is taken as the cancellation cost, a real cost of the trip",
      "card": "TravelPerk (New Bill.com travel virtual cc)",
      "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     },
@@ -11559,7 +11559,7 @@
      "amount": -2467.33,
      "label": "Lodging",
      "confidence": "High",
-     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson, net of its refunds: Hardi (rebooked on Alicia Schmaling's card)",
+     "why": "TravelPerk trip 32498879: Wynn Las Vegas, Justin and Ryan Peterson: $3,983 booked, $2,671 refunded on 4 Dec when Alicia Schmaling rebooked on her card; the $1,312 kept is taken as the cancellation cost, a real cost of the trip",
      "card": "TravelPerk (New Bill.com travel virtual cc)",
      "source": "QuickBooks, TravelPerk (New Bill.com travel virtual cc) card"
     }
