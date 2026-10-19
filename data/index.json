@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-10-19T14:01:17",
+  "pushed_at": "2026-10-19T15:00:33",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -14,17 +14,17 @@
     {
       "tab": "Serve Monthly",
       "file": "serve_monthly.json",
-      "rows": 33
+      "rows": 34
     },
     {
       "tab": "QB Expenses",
       "file": "qb_expenses.json",
-      "rows": 2243
+      "rows": 2348
     },
     {
       "tab": "QB Accounts",
       "file": "qb_accounts.json",
-      "rows": 119
+      "rows": 117
     },
     {
       "tab": "Customer Waterfall",
@@ -81,6 +81,6 @@
   "failed": [],
   "pull_version": "hs-v89",
   "row_format": "arrays",
-  "pipeline_version": "v173",
+  "pipeline_version": "v176",
   "push_version": "gh-v15"
 }
