@@ -3731,6 +3731,8 @@ export const EVENT_TRAVEL_DECISIONS = {
     evidence: 'Estimate. Flights for four at $662 each ($1,230 is booked so far), hotels for four at $260 a night for three nights, and meals and ground at $97 a person a day.' },
   'Home Service Freedom 2026': { was: null, now: 6713, estimate: true,
     evidence: 'Estimate. Hotels $2,901 booked in the Event Hub; flights for four at $662 each, and meals and ground at $97 a person a day.' },
+  'Wealthy Contractor ACC 2027': { was: null, now: 3466, estimate: true,
+    evidence: 'Guess: no attendees or dates yet; two people at the median trip, a $662 flight, three nights at $260 and $97 a day each.' },
   'Table of Titans 2027': { was: null, now: 3466, estimate: true,
     evidence: 'Estimate for Justin Judd and Ryan Fenn, not yet registered: a $662 flight, three nights at $260 and $97 a day each.' },
   'Build it to Sell it 2026': { was: null, now: 3466, estimate: true,
@@ -3961,6 +3963,7 @@ export const EVENT_META = {
   'CertainPath Connect 2026': { type: 'Partner network event', organiser: 'CertainPath' },
   'Build it to Sell it 2026': { type: 'Not yet classified' },
   'Table of Titans 2027': { type: 'Small room', organiser: 'Table of Titans' },
+  'Wealthy Contractor ACC 2027': { type: 'Conference sponsorship', organiser: 'The Wealthy Contractor' },
   'EGIA Epic 2027': { type: 'Conference sponsorship', organiser: 'EGIA' },
   'Pantheon 2026': { type: 'Conference sponsorship', organiser: 'ServiceTitan', plan2027: ON },
 };
@@ -4033,6 +4036,13 @@ export const EVENT_EXTRA_COSTS = [
       + 'No booth fee entered; $2,628 of hotels already booked.' },
   { event: 'Build it to Sell it 2026', month: '2026-12', sponsor: null, travel: null, costState: 'not yet',
     costSource: 'not yet', note: 'Event Hub: 7 to 9 Dec 2026, The Diplomat Beach Resort, Hollywood FL. No fee entered; unpaid.' },
+  // Found in the QuickBooks Transaction Detail export of 19 Oct 2026, on no
+  // calendar yet: The Wealthy Contractor (Jered Williams, the Hoorah's
+  // organiser) billed a Gold annual sponsorship of its ACC27 for Feb 2027.
+  { event: 'Wealthy Contractor ACC 2027', month: '2027-02', sponsor: 29950, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'QuickBooks: a 2 Oct 2026 bill from The Wealthy Contractor Inc., "GOLD Annual '
+      + 'Sponsorship ACC27 for the period of February 2027", $29,950, deferred to Feb 2027. Not on the Event Hub yet; '
+      + 'dates and place to come.' },
   { event: 'Table of Titans 2027', month: '2027-01', sponsor: 7995, travel: null, costState: 'not yet',
     costSource: 'not yet', note: 'Event Hub: Table of Titans (Tony Hoty Mastermind), 13 to 15 Jan 2027, The Don Cesar, '
       + 'St. Pete Beach FL. Fee $7,995, unpaid.' },
