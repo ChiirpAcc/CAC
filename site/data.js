@@ -4270,6 +4270,15 @@ export const HUBSPOT_WON_DEAL_BY_COMPANY = {
   171537775330: '2025 - The Wealthy Plumber Hoorah', // Charlotte Plumbing, won 3 Dec 2025
 };
 
+// Won deals tagged to an event whose company has no Event Leads row (no
+// contact carries the event's tag) and no Stripe payment in the data yet, so
+// nothing else puts them on the event; from a live HubSpot check. Counted on
+// the event's Closed deals as won and not billed, until Event Leads or Stripe
+// carries them (brief item 2, Event Deals).
+export const HUBSPOT_EVENT_WINS = [
+  { source: '2026 - Pantheon', company: 'Mac 5 Services', dealId: '354407388899', closed: '2026-10-15', amount: 2300 }, // checked 19 Oct 2026
+];
+
 export const HUBSPOT_USER_NAMES = {
   629850185: 'Parker Joos', // a salesperson who has left; 115 event deals
   // Inactive HubSpot users, named by Josh on 13 Oct 2026.
@@ -6240,9 +6249,16 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
   const fe = f ? f.events.find(x => x.source === e.source || x.label === e.label) : null;
   const leads = fe ? fe.leads.filter(l => ['won', 'wonLate', 'wonElsewhere', 'lost', 'sat', 'booked', 'unworked', 'undated'].includes(l.state)) : [];
   const credited = new Set((e.customerRows || []).map(x => x.id));
-  const wonNotBilled = new Set(leads.filter(l => l.state === 'won' && !(l.company && byCo(l.company)
-    && credited.has(byCo(l.company).id))).map(l => l.company || l)).size;
+  const notBilled = new Set(leads.filter(l => l.state === 'won' && !(l.company && byCo(l.company)
+    && credited.has(byCo(l.company).id))).map(l => l.company || l));
+  // HubSpot wins with no lead row and no Stripe customer credited here yet.
+  const known = new Set([...leads.map(l => companyKey(l.company)), ...(e.customerRows || []).map(x => companyKey(x.name))]);
+  const extraWins = HUBSPOT_EVENT_WINS.filter(w => w.source === e.source
+    && !known.has(companyKey(w.company)) && !(byCo(w.company) && credited.has(byCo(w.company).id)));
+  for (const w of extraWins) notBilled.add(w.company);
+  const wonNotBilled = notBilled.size;
   return {
+    extraWins,
     leads: leads.length,
     demosBooked: leads.filter(l => l.bookedBy || l.dealCreated || l.conversionType === 'meetings link').length,
     demosSat: leads.filter(l => l.dealCreated).length,
