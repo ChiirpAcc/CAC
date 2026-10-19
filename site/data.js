@@ -8232,10 +8232,9 @@ export function leverProjection(data, cohorts, {
 // staffing that has already gone, and support has fallen a third in that time.
 // Platform cost of sales follows the customer and is a rate per active logo.
 // Revenue share follows the bill and is a rate on revenue; its rate is the
-// median of the trailing six rather than the mean, because this push pulled
-// August before its revenue-share credit was posted, so August carries the
-// invoice without the reversal and the mean would carry that forward for a
-// year. Depreciation is shown and left out of
+// median of the trailing six rather than the mean, so a month whose
+// revenue-share credit posts late (August 2026's arrived with the September
+// close, 19 Oct 2026) cannot carry an invoice without its credit for a year. Depreciation is shown and left out of
 // the total, because it is not cash.
 export const COST_DRIVERS = {
   acquisition: { driver: 'fixed', window: 3,

@@ -2660,9 +2660,9 @@ function renderCostForecast(projection) {
     + 'follows the customer and is a rate per '
     + 'active logo over the last six months, applied to the customers chart 47 projects. '
     + 'Merchant fees and revenue share follow the bill and are a rate on recurring revenue; the rate is the '
-    + 'median of the last six months rather than the mean, because this push pulled August '
-    + 'before its revenue-share credit was posted, so August carries the invoice without the '
-    + 'credit and the mean would carry it for a year. Depreciation is shown and left out of every total, because it is not '
+    + 'median of the last six months rather than the mean, so one month whose revenue-share '
+    + 'credit posts late (August 2026’s came with the September close) cannot carry an '
+    + 'invoice without its credit for a year. Depreciation is shown and left out of every total, because it is not '
     + 'cash. Revenue here is recurring only; usage, one-off and pass-through run at about a '
     + 'tenth on top and are not in the contribution line. Chart 47’s after-costs view '
     + 'uses exactly this rollup, so the two agree to the dollar.';
@@ -3783,8 +3783,8 @@ function renderOngoing() {
     + `subscription, usage, setup and pass-through together, went `
     + `from ${fmt.money(a.arpa)} to ${fmt.money(typicalArpa)}.</strong> `
     + `Both figures are the median of the last six months rather than the last one, `
-    + `because ${fmt.monthLabel(b.month)} was pulled before its revenue-share credit was `
-    + `posted, so it carries the invoice without the credit and reads ${fmt.money(b.total)} as a result. `
+    + `so a single month’s timing, such as a revenue-share credit posted a month late, cannot `
+    + `swing them; ${fmt.monthLabel(b.month)} on its own reads ${fmt.money(b.total)}. `
     + `Cost per logo has risen `
     + `${fmt.pct((typical - a.total) / a.total, 0)} against `
     + `${fmt.pct((typicalArpa - a.arpa) / a.arpa, 0)} on price, which is `
