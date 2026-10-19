@@ -4462,7 +4462,7 @@ function renderSummary() {
     tile('Cost per demo', rt.costPerDemo === null ? '–' : money(rt.costPerDemo), `${short(o.spend)} over ${fmt.int(rt.demosBooked || 0)} demos booked`)
     + tile('Cost per closed deal', rt.costPerClosed === null ? '–' : money(rt.costPerClosed), `${short(o.spend)} over ${fmt.int(rt.closedWon || 0)} closed deals`)
     + tile('Booked to won', rt.bookedToWon === null ? '–' : fmt.pct(rt.bookedToWon, 0),
-      `${fmt.int(rt.closedWon || 0)} won of ${fmt.int(rt.demosBooked || 0)} booked${rt.satToWon !== null ? ` · ${fmt.pct(rt.satToWon, 0)} of ${fmt.int(rt.demosSat)} sat` : ''}`)
+      `${fmt.int(rt.wonFromDemos || 0)} won of ${fmt.int(rt.demosBooked || 0)} booked${rt.satToWon !== null ? ` · ${fmt.pct(rt.satToWon, 0)} of ${fmt.int(rt.demosSat)} sat` : ''}`)
     + tile('ROI now', pct(o.roiToDate), 'on contribution, each event counted from its own date', o.roiToDate !== null && o.roiToDate < 0 ? 'neg' : 'pos')
     + tile('12-month ROI', pct(o.roi12), `12 months from each event’s date${o.roi12Range ? `; likely ${pct(o.roi12Range[0])} to ${pct(o.roi12Range[1])}` : ''}`,
       o.roi12 !== null && o.roi12 < 0 ? 'neg' : 'pos');
@@ -4607,7 +4607,7 @@ function costProofPanel(e) {
     + pending.map(l => `<tr><td>${l.date || '–'}</td><td>${l.owner || '–'}</td><td>${l.merchant || '–'}</td><td>${l.label || '–'}</td>`
       + `<td>${l.city || '–'}</td><td class="n${l.amount < 0 ? ' neg' : ''}">${money2(l.amount)}</td><td class="proof-why">${l.why || ''}</td></tr>`).join('')
     + `<tr class="total-row"><td colspan="5"><strong>Pending</strong></td><td class="n"><strong>${money2(pendingTotal)}</strong></td><td></td></tr>`
-    + `</tbody></table></div><p class="ev-note">Pending until the event has happened and the month-end cost run matches its charges; `
+    + `</tbody></table></div><p class="ev-note">${entry.upcoming ? 'Pending until the event has happened and' : 'The event has happened; these stay pending until'} the month-end cost run matches its charges; `
     + `deposits and prepaid rooms usually become part of its travel then.</p>` : '';
   return `<section class="ev-panel"><h3>Proof of cost</h3>`
     + `<div class="ev-facts">`
@@ -5304,6 +5304,13 @@ function renderEventPage(label) {
   const pb = r.payback.find(x => x.label === label);
   const el = eventLeads(data, r.roi);
   const lead = el ? el.events.find(x => x.label === label) : null;
+  // An event can be held and still be past the last month of revenue data
+  // (Pantheon 2026, 5 Oct, with data to September): it is not "happening".
+  const heldDay = e.eventDate || (lead && lead.eventDate) || null;
+  const heldAlready = Boolean(e.upcoming && heldDay && heldDay <= new Date().toISOString().slice(0, 10));
+  const aheadWords = e.upcoming ? (heldAlready
+    ? `held ${new Date(`${heldDay}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}; revenue shows with ${fmt.monthLabel(e.upcoming)}\u2019s data`
+    : `happens ${fmt.monthLabel(e.upcoming)}`) : '';
   const pack = c && c.packageKey ? r.roi.packages.find(p => p.key === c.packageKey) : null;
   const kpi = (k, v, sub = '', cls = '') => `<div class="ev-kpi ${cls}"><span class="ev-kpi-label">${k}</span>`
     + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
@@ -5341,10 +5348,10 @@ function renderEventPage(label) {
     + kpi('Closed deals', e.upcoming && !headLeads.length ? '–' : int(closedWon),
       [e.paid ? `${int(e.paid)} billed in Stripe` : '', wonNotBilled ? `${int(wonNotBilled)} won, not billed yet` : '',
         headLeads.length ? `${int(closedLost)} lost` : ''].filter(Boolean).join(' · '))
-    + kpi('Revenue', e.upcoming ? '–' : money(e.collected), e.upcoming ? `happens ${fmt.monthLabel(e.upcoming)}`
+    + kpi('Revenue', e.upcoming ? '–' : money(e.collected), e.upcoming ? aheadWords
       : `collected in Stripe from ${int(e.paid)} customer${e.paid === 1 ? '' : 's'}${e.mrrNow ? ` · ${money(e.mrrNow)}/mo now` : ''}`)
     + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', pb ? (pb.provisional ? 'provisional: cost still settling' : 'on contribution, after cost to serve')
-      : e.upcoming ? 'after the event' : '', pb ? tone(pb.roiToDate) : '');
+      : e.upcoming ? (heldAlready ? 'from its first month of data' : 'after the event') : '', pb ? tone(pb.roiToDate) : '');
   // The row under the headline (Josh, 14 Oct 2026): what a demo and a won
   // deal cost, how many booked demos were won, and the return now and twelve
   // months on, both counted from the event's date.
@@ -5357,17 +5364,21 @@ function renderEventPage(label) {
       demosBooked ? `${money(e.spend)} over ${int(demosBooked)} demo${demosBooked === 1 ? '' : 's'} booked` : 'no demos booked yet')
     + kpi('Cost per closed deal', costKnown && closedWon ? money(e.spend / closedWon) : '–',
       closedWon ? `${money(e.spend)} over ${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}` : 'no deals closed yet')
-    + kpi('Booked to won', demosBooked ? pct(closedWon / demosBooked) : '–',
-      demosBooked ? `${int(closedWon)} won of ${int(demosBooked)} booked${demosSat ? ` · ${pct(closedWon / demosSat)} of ${int(demosSat)} sat` : ''}` : '')
-    + kpi('ROI now', pb ? signedPct(pb.roiToDate) : '–', pb
-      ? `${monthsOn === null ? '' : `${int(monthsOn)} month${monthsOn === 1 ? '' : 's'} `}since ${dayLabel || 'the event'}${pb.provisional ? ' · provisional' : ''}`
+    + kpi('Booked to won', demosBooked ? pct(cardFig.wonFromDemos / demosBooked) : '–',
+      demosBooked ? `${int(cardFig.wonFromDemos)} won of ${int(demosBooked)} booked${demosSat ? ` · ${pct(cardFig.wonFromDemos / demosSat)} of ${int(demosSat)} sat` : ''}`
+        + (closedWon > cardFig.wonFromDemos ? ` · ${int(closedWon - cardFig.wonFromDemos)} more won with no demo recorded` : '')
+        : closedWon ? `${int(closedWon)} won with no demo recorded` : '')
+    + kpi('ROI now', pb ? signedPct(pb.roiToDate) : '–', pb && pb.roiToDate === null
+      ? 'too early: no customer yet, under three months on'
+      : pb ? `${monthsOn === null ? '' : `${int(monthsOn)} month${monthsOn === 1 ? '' : 's'} `}since ${dayLabel || 'the event'}${pb.provisional ? ' · provisional' : ''}`
       : e.upcoming ? `from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roiToDate) : '')
-    + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb
-      ? `${pb.roi12Projected ? 'projected' : 'actual'}, 12 months from ${dayLabel || 'the event'}`
+    + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12 === null
+      ? 'too early to project: no customer yet'
+      : pb ? `${pb.roi12Projected ? 'projected' : 'actual'}, 12 months from ${dayLabel || 'the event'}`
         + (pb.roi12Projected && pb.roi12Range ? `; likely ${signedPct(pb.roi12Range[0])} to ${signedPct(pb.roi12Range[1])}` : '')
       : e.upcoming ? `12 months from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roi12) : '');
   const kpis = e.upcoming
-    ? kpi('Status', 'Upcoming', `happens ${fmt.monthLabel(e.upcoming)}`)
+    ? kpi('Status', heldAlready ? 'Held' : 'Upcoming', aheadWords)
     : kpi('Contribution', money(e.contribution), 'what customers paid, less the cost to serve them')
       + kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), (() => {
         const up = (eventUpsells(data, r.roi) || { byLabel: new Map() }).byLabel.get(e.label);
@@ -5406,7 +5417,7 @@ function renderEventPage(label) {
       + `${c.decision.evidence}</p>` : '')
     + (pack ? `<p class="ev-note"><strong>${pack.label}.</strong> One fee of ${money(pack.fee)} covering `
       + `${fmt.int(pack.covers)} event${pack.covers === 1 ? '' : 's'}; this one carries ${money(pack.fee / pack.covers)}. ${pack.basis}</p>` : '')
-    + (c && c.travelDecision ? `<p class="ev-note"><strong>Travel ${c.travelDecision.estimate ? 'estimated at' : 'set to'} ${money(c.travel)} `
+    + (c && c.travelDecision ? `<p class="ev-note"><strong>Travel ${c.travelDecision.kept ? 'kept at' : c.travelDecision.estimate ? 'estimated at' : 'set to'} ${money(c.travel)} `
       + `(${c.travelDecision.was === null ? 'none recorded yet' : `the tab had ${money(c.travelDecision.was)}`}).</strong> ${c.travelDecision.evidence}</p>` : '')
     + (e.report2025 ? `<p class="ev-note"><strong>Partnerships report, Nov 2025.</strong> ${e.report2025}</p>` : '');
 
@@ -5417,13 +5428,19 @@ function renderEventPage(label) {
   const funRow = (() => { const f = eventFunnel(data, r.roi); return f && f.events.find(x => x.source === e.source || x.label === e.label); })();
   const own = funRow ? funRow.conv.own : lead ? lead.confirmed : null;
   const other = funRow ? funRow.conv.other : null;
+  // The new-lead count the rest of the page uses (the funnel's, under the
+  // rules here), so the Leads panel and the headline agree (Nexstar 2026 read
+  // 8 here and 5 above; 19 Oct 2026).
+  const newShown = lead && funRow && lead.dated && !lead.ahead ? funRow.produced : lead ? lead.leads : null;
+  const costPerShown = lead && lead.costPerLead !== null && newShown ? e.spend / newShown : null;
   const leadFacts = lead
     ? (lead.ahead
       ? fact('New leads from the event', '–', `none yet: it runs from ${lead.eventDate}`)
         + fact('Tagged ahead of it', int(lead.taggedAhead), 'contacts HubSpot already held, re-tagged or registered before it; not leads it produced')
-      : fact(lead.dated ? 'New leads from the event' : 'Leads that did something', int(lead.leads),
-        lead.dated ? `new to HubSpot on or after ${lead.eventDate}, by a meeting, form, rep, chat or scan`
-          : 'a meeting, form, rep, chat or scan; no event date, so it may include earlier contacts'))
+      : fact(lead.dated ? 'New leads from the event' : 'Leads that did something', int(newShown),
+        (lead.dated ? `new to HubSpot on or after ${lead.eventDate}, by a meeting, form, rep, chat or scan`
+          : 'a meeting, form, rep, chat or scan; no event date, so it may include earlier contacts')
+        + (newShown !== lead.leads ? `; the pipeline counts ${fmt.int(lead.leads)}, the rules here leave out lists and re-tags` : '')))
       + fact('Tagged contacts in all', int(lead.total), 'everyone HubSpot tags with this event')
       + (lead.dated ? fact('Already in HubSpot before it', int(lead.before),
         funRow && funRow.reengaged ? `tagged, not new; ${fmt.int(funRow.reengaged)} re-engaged by it are counted` : 'tagged, not new; not counted') : '')
@@ -5432,7 +5449,7 @@ function renderEventPage(label) {
         funRow ? `of the ${fmt.int(funRow.base)} counted; a meetings link or form named for it` : 'a form at the event names it') : '')
       + (other !== null ? fact('Through something else', int(other),
         `another form, link or campaign${funRow.conv.none ? `; ${fmt.int(funRow.conv.none)} have none recorded` : ''}`) : '')
-      + fact('Cost per new lead', money(lead.costPerLead), lead.costPerLead === null && (lead.costState || e.upcoming) ? 'held back while the cost is settling' : '')
+      + fact('Cost per new lead', money(costPerShown), costPerShown === null && (lead.costState || e.upcoming) ? 'held back while the cost is settling' : '')
       + (lead.fromCampaign ? fact('From the event\u2019s campaign, no tag', int(lead.fromCampaign), 'real leads nobody recorded a source for') : '')
     : '';
   // How strong the evidence behind each credited customer is.

@@ -3647,6 +3647,14 @@ export const EVENT_TRAVEL_DECISIONS = {
   'Home Service Hoorah 2026': { was: 5812, now: 2360.45,
     evidence: 'Ryan Fenn\'s $3,451.73 (a Delta flight, a Hilton Gulf Breeze stay, a rental car, meals) is not '
       + 'this event\'s: he was not part of the Hoorah team (Josh, 13 Oct 2026).' },
+  // Kept at the tab, with the reason, where the cards prove only part of the
+  // trip and the tab sits inside the estimate's range or is the only record.
+  'HSF 2025': { was: 12270, now: 12270, kept: true,
+    evidence: 'Kept. Cards and TravelPerk prove $5,317, all seven attendees\u2019 flights, and no hotel: the rooms were paid before the QuickBooks detail starts (Mandalay Bay deposits on the company card were refunded in early September). Seven stays of three nights at the median $260 put the trip at $10,777 (likely $8,950 to $14,242), and the tab\u2019s $12,270 sits inside that range.' },
+  'Blue Sky Mastermind (Tradesformation) 2025': { was: 5801, now: 5801, kept: true,
+    evidence: 'Kept. The trip to Australia (5-6 Aug 2025, Justin Judd and Ryan Peterson) is before the QuickBooks detail starts, so the tab\u2019s figure is the only record.' },
+  'The Huge Convention 2025': { was: 4170, now: 4170, kept: true,
+    evidence: 'Kept. Nashville, 20-22 Aug 2025 (Ryan Peterson, Jared Walker), before the QuickBooks detail starts. Two people at the median trip come to $3,466 (likely $2,500 to $5,100), and the tab\u2019s figure sits inside that range.' },
   // Set to the card charges proven against each event (Josh, 13-14 Oct 2026:
   // use your judgement): every event from Sep 2025 whose proof reaches 80% of
   // the tab or more, now that the TravelPerk report names each trip's
@@ -5200,14 +5208,17 @@ export function eventReports(data, options = {}) {
       actualPath, projectedPath, projectedLow, projectedHigh, projectedAtRange,
       // Return on cost: to date, and at twelve months from the event, actual
       // where the event is that old and projected (as above) where it is not.
-      roiToDate: (running - e.spend) / e.spend,
-      roi12: (() => {
+      // An event under three months old with no customer yet has no return
+      // to state: "-100% projected" a week after CCN read as a verdict
+      // (Josh, 19 Oct 2026). Both stay blank until a customer or three months.
+      roiToDate: isTooNew(e) ? null : (running - e.spend) / e.spend,
+      roi12: isTooNew(e) ? null : (() => {
         const at12 = age >= 12 ? actualPath[11]
           : projectedPath.length >= 12 - age ? projectedPath[12 - age - 1] : running;
         return (at12 - e.spend) / e.spend;
       })(),
       roi12Projected: age < 12,
-      roi12Range: age >= 12 || !projectedLow.length ? null : (() => {
+      roi12Range: isTooNew(e) || age >= 12 || !projectedLow.length ? null : (() => {
         const k = Math.min(12 - age, projectedLow.length) - 1;
         return k < 0 ? null : [(projectedLow[k] - e.spend) / e.spend, (projectedHigh[k] - e.spend) / e.spend];
       })(),
@@ -6265,10 +6276,15 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
     && !known.has(companyKey(w.company)) && !(byCo(w.company) && credited.has(byCo(w.company).id)));
   for (const w of extraWins) notBilled.add(w.company);
   const wonNotBilled = notBilled.size;
+  const booked = l => l.bookedBy || l.dealCreated || l.conversionType === 'meetings link';
   return {
     extraWins,
     leads: leads.length,
-    demosBooked: leads.filter(l => l.bookedBy || l.dealCreated || l.conversionType === 'meetings link').length,
+    demosBooked: leads.filter(booked).length,
+    // Wins among the booked demos, so booked-to-won cannot pass 100%: a
+    // customer credited on the tag with no demo recorded is a closed deal but
+    // not a booked demo won (Network ST read 4 won of 3 booked; 19 Oct 2026).
+    wonFromDemos: new Set(leads.filter(l => booked(l) && ['won', 'wonLate'].includes(l.state)).map(l => l.company || l)).size,
     demosSat: leads.filter(l => l.dealCreated).length,
     wonNotBilled,
     closedWon: (e.paid || 0) + wonNotBilled,
@@ -6324,12 +6340,14 @@ export function eventsOverview(data, { from = null, to = null, creditRule = DEFA
   const demosBooked = cards.reduce((t, x) => t + x.k.demosBooked, 0);
   const demosSatCards = cards.reduce((t, x) => t + x.k.demosSat, 0);
   const closedWon = cards.reduce((t, x) => t + x.k.closedWon, 0);
+  const wonFromDemos = cards.reduce((t, x) => t + x.k.wonFromDemos, 0);
   const rates = {
     demosBooked, demosSat: demosSatCards, closedWon,
     costPerDemo: demosBooked ? spend / demosBooked : null,
     costPerClosed: closedWon ? spend / closedWon : null,
-    bookedToWon: demosBooked ? closedWon / demosBooked : null,
-    satToWon: demosSatCards ? closedWon / demosSatCards : null,
+    wonFromDemos,
+    bookedToWon: demosBooked ? wonFromDemos / demosBooked : null,
+    satToWon: demosSatCards ? wonFromDemos / demosSatCards : null,
   };
   const funnel = { leads: fe.reduce((t, x) => t + x.base, 0), demos: fe.reduce((t, x) => t + x.sat.n, 0),
     sales: fe.reduce((t, x) => t + x.won.n, 0),
