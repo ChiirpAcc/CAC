@@ -5799,7 +5799,7 @@ function renderEvents() {
       const perDirect = direct ? x.spend / direct : null;
       return `<td class="n">${money(x.spend)}<br><span class="muted">`
         + `${perLead !== null ? `${fmt.int(lead.leads)} new lead${lead.leads === 1 ? '' : 's'}, ${money(perLead)} each`
-          : lead && lead.ahead ? 'no leads yet: it is still ahead' : lead && lead.leads ? `${fmt.int(lead.leads)} lead${lead.leads === 1 ? '' : 's'} so far` : 'no leads counted'}<br>`
+          : (lead && lead.ahead) || x.upcoming ? 'no leads yet: it is still ahead' : lead && lead.leads ? `${fmt.int(lead.leads)} lead${lead.leads === 1 ? '' : 's'} so far` : 'no leads counted'}<br>`
         + `${perCustomer === null ? 'no customer yet'
           : `${perDirect === null ? (isDated(x, lead) ? 'no direct customer' : 'undated, no direct test') : `${money(perDirect)} a direct customer`}<br>`
             + `${money(perCustomer)} a tagged customer`}</span></td>`;

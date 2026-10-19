@@ -3735,16 +3735,15 @@ export const EVENT_TRAVEL_DECISIONS = {
   // same medians until the costs come in; the tab's figure replaces it. Only
   // for an event someone is listed as going to. A fee is never guessed: an
   // upcoming event with no fee in the tab, the Event Hub or a bill reads
-  // "fee unknown", and one with no attendees has travel unknown too (Josh,
-  // 20 Oct 2026; this applies to every future event).
-  'CertainPath Connect 2026': { was: null, now: 5565, estimate: true,
+  // "fee unknown", and one with no confirmed attendees (none listed, or
+  // listed as not registered) has travel unknown too (Josh, 20 Oct 2026;
+  // this applies to every future event).
+  'CertainPath Connect 2026': { was: null, now: 5565, estimate: true, attendees: ['Ryan Peterson', 'Justin Judd'],
     evidence: 'Estimate. Booked in the Event Hub: hotels $2,628 and a car $104. Added: flights to Cancun for Ryan Peterson and Justin Judd at $1,125 each, what the same pair paid to Cabo for the Fall Expo, and meals and ground at $97 a person a day.' },
-  'Qualified Remodeler Top 500 2026': { was: null, now: 6932, estimate: true,
+  'Qualified Remodeler Top 500 2026': { was: null, now: 6932, estimate: true, attendees: ['Justin Judd', 'Ryan Fenn', 'Ky Decker', 'Ryan Peterson'],
     evidence: 'Estimate. Flights for four at $662 each ($1,230 is booked so far), hotels for four at $260 a night for three nights, and meals and ground at $97 a person a day.' },
-  'Home Service Freedom 2026': { was: null, now: 6713, estimate: true,
+  'Home Service Freedom 2026': { was: null, now: 6713, estimate: true, attendees: ['Colton Lingmann', 'Blake Fenn', 'Taylor Roberts', 'Ryan Fenn'],
     evidence: 'Estimate. Hotels $2,901 booked in the Event Hub; flights for four at $662 each, and meals and ground at $97 a person a day.' },
-  'Table of Titans 2027': { was: null, now: 3466, estimate: true,
-    evidence: 'Estimate for Justin Judd and Ryan Fenn, not yet registered: a $662 flight, three nights at $260 and $97 a day each.' },
 };
 
 // Any table keyed by event name is read by the name, or failing that by the
@@ -4364,7 +4363,13 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     // place. A shared fee is still split across the events it paid for.
     const qb = byEventName(EVENT_FEES_QB, c.event, c.month);
     const pk = packaged.get(c.event);
-    const decision = byEventName(decisions, c.event, c.month);
+    // An event past the last month of data is still ahead or just held. It
+    // never takes a guessed fee (a weak or estimate decision), and never
+    // estimated travel unless the estimate names confirmed attendees (Josh,
+    // 20 Oct 2026). Checked again by the audit's no-guess-ahead.
+    const ahead = Boolean(c.month && data.lastMonth && c.month > data.lastMonth);
+    const decisionAny = byEventName(decisions, c.event, c.month);
+    const decision = ahead && decisionAny && (decisionAny.estimate || decisionAny.confidence === 'weak') ? null : decisionAny;
     const decided = Boolean(decision && decision.now !== decision.was
       && Math.abs((c.sponsor || 0) - decision.was) < 1);
     const sponsor = pk ? pk.share : decided ? decision.now : c.sponsor;
@@ -4380,7 +4385,8 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       ? `Settled at $${decision.now.toLocaleString()} (${decision.was === null ? 'the tab had none' : `the tab had $${decision.was.toLocaleString()}`}): ${decision.evidence}`
       : sponsorBasis;
     // Travel settled here while the tab still carries the old figure.
-    const td = byEventName(EVENT_TRAVEL_DECISIONS, c.event, c.month);
+    const tdAny = byEventName(EVENT_TRAVEL_DECISIONS, c.event, c.month);
+    const td = ahead && tdAny && tdAny.estimate && !(tdAny.attendees && tdAny.attendees.length) ? null : tdAny;
     const travelDecided = Boolean(td && (td.was === null ? c.travel === null || c.travel === undefined
       : c.travel !== null && Math.abs(c.travel - td.was) < 1));
     const travel = travelDecided ? td.now : c.travel;
@@ -6177,6 +6183,20 @@ export function attributionAudit(data) {
         ...(u.credited > u.rows.reduce((t, r) => t + (r.extraContribution || 0), 0) + 0.01 ? [`${u.label}: credited above the increase`] : []),
       ]));
   }
+  // No guess on an event still ahead: its fee comes from the tab, the Event
+  // Hub or a bill, and estimated travel names confirmed attendees.
+  check('no-guess-ahead', 'No event still ahead carries a guessed fee, or estimated travel without confirmed attendees',
+    roi.events.filter(e => e.cost && e.month && e.month > data.lastMonth).flatMap(e => {
+      const c = e.cost; const out = [];
+      if (c.decided && c.decision && (c.decision.estimate || c.decision.confidence === 'weak')) out.push(`${e.label}: fee is a guess`);
+      if (c.travelDecision && c.travelDecision.estimate && !(c.travelDecision.attendees && c.travelDecision.attendees.length)) out.push(`${e.label}: travel estimated with no confirmed attendees`);
+      if (c.costSource === 'modelled') out.push(`${e.label}: cost is modelled`);
+      return out;
+    }).concat(EVENT_FEE_DECISIONS.filter(d => (d.estimate || d.confidence === 'weak') && roi.events.some(e => e.label === d.event && e.month > data.lastMonth))
+      .map(d => `${d.event}: a guessed fee decision is on file`))
+      .concat(Object.entries(EVENT_TRAVEL_DECISIONS).filter(([name, d]) => d.estimate && !(d.attendees && d.attendees.length)
+        && roi.events.some(e => e.label === name && e.month > data.lastMonth))
+      .map(([name]) => `${name}: estimated travel with no confirmed attendees is on file`)));
   return { checks, passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length };
 }
 

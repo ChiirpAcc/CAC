@@ -76,6 +76,16 @@ contact's or company's tag is ignored, there is no window, and a customer
 whose won deal names no event is credited to none. The default rule above
 stays the figure of record; the audit runs on it.
 
+### 1.3.7 Cost of an event still ahead: no guesses
+
+An event past the last month of data takes its fee only from the Event Costs
+tab, the Event Hub or a bill; with none it reads "fee unknown" and adds
+nothing to committed. Its travel is what is booked, or an estimate only when
+the estimate names attendees confirmed as going (not "not registered"). The
+code ignores any other estimate for such an event, and `no-guess-ahead`
+fails if one is put on file (Josh, 20 Oct 2026). Past events with partial
+records can still be estimated, labelled as estimates.
+
 ### 1.4 Upsells
 
 - An existing customer (paying the month before the event) whose contact came
@@ -214,7 +224,7 @@ site actually computed. It runs in three places, always with the same code:
 - **GitHub**, on every data push and every change to `site/data.js`
   (`.github/workflows/validate-data.yml` runs `scripts/audit_attribution.mjs`).
   A failure is added to the open "Data push did not validate" issue.
-- **The Events tab**, under Attribution checks ("Rule audit: all 15 checks pass",
+- **The Events tab**, under Attribution checks ("Rule audit: all 16 checks pass",
   or the failures, opened).
 - **By hand:** `node scripts/audit_attribution.mjs`.
 
@@ -235,6 +245,7 @@ site actually computed. It runs in three places, always with the same code:
 | `sales-matches-events` | The Sales tab counts the same leads as the Events tab. |
 | `upsell-not-new` | No upsell customer is also credited as a new customer of the same event. |
 | `upsell-baseline` | Every upsell was paying going in and is credited no more than its increase. |
+| `no-guess-ahead` | No event still ahead (past the last month of data) carries a guessed fee, or estimated travel without confirmed attendees; no such guess is on file either. |
 
 The audit was tested by breaking the code on purpose: dropping the win window
 failed `credit-window` on the 9 late payers, and counting lists as leads failed
