@@ -3957,6 +3957,9 @@ export const EVENT_META = {
   // Plumber campaign contacts are read as this event (SOURCE_MERGE).
   'Home Service Hoorah 2026': { type: 'Partner network event', organiser: 'The Wealthy Plumber', plan2027: ON },
   'Nexstar Super Meeting 2026': { type: 'Partner network event', organiser: 'Nexstar', plan2027: ON },
+  'CCN Elevate 2026': { type: 'Conference sponsorship', organiser: 'Certified Contractors Network' },
+  'Dirty Dozen Retreat 2026': { type: 'Small room', organiser: 'The Dirty Dozen' },
+  'Qualified Remodeler Top 500 2026': { type: 'Conference sponsorship', organiser: 'Qualified Remodeler (SOLA Group)' },
   'HSF 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   'Home Service Freedom 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   // From the Event Hub, upcoming (9 Oct 2026).
@@ -5409,15 +5412,20 @@ export function eventLeads(data, roi = eventRoi(data)) {
     // HubSpot re-tags contacts it already holds, so earned alone counts
     // people the event re-engaged as if they were new (316 of Pantheon 2026's
     // 338 predate it). An undated event can only be read on earned.
-    // An event still to come has no "after" yet, so it is read on earned.
+    // An event still to come has produced no leads yet: every contact tagged
+    // with it is someone HubSpot already held, re-tagged or registered ahead
+    // (Home Service Freedom 2026 showed 82 "new leads" a week before it ran,
+    // 50 of them contacts from HSF 2025; Josh, 19 Oct 2026). They are kept
+    // apart as tagged ahead of it and counted from the event's date on.
     const ahead = dated && r.eventDate > new Date().toISOString().slice(0, 10);
     const newKnown = dated && !ahead && r.earnedAfter !== null && r.earnedAfter !== undefined;
-    const leads = newKnown ? r.earnedAfter : r.earned;
+    const leads = ahead ? 0 : newKnown ? r.earnedAfter : r.earned;
     const spend = e ? e.spend : null;
     const costState = e ? e.costState : null;
     return {
       source: r.source, label: e ? e.label : r.source, eventDate: r.eventDate, month: e ? e.month : null,
-      dated, leads, leadsBasis: newKnown ? 'new' : 'earned', total: r.total, earned: r.earned, list: r.list,
+      dated, leads, leadsBasis: ahead ? 'ahead' : newKnown ? 'new' : 'earned', ahead, taggedAhead: ahead ? r.earned : null,
+      total: r.total, earned: r.earned, list: r.list,
       before: r.before, after: r.after, customersTotal: r.customersTotal,
       confirmed: r.confirmed, contradicted: r.contradicted, withStripe: r.withStripe, readAs: r.readAs,
       fromCampaign: r.fromCampaign ?? null,

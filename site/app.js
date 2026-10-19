@@ -5418,9 +5418,12 @@ function renderEventPage(label) {
   const own = funRow ? funRow.conv.own : lead ? lead.confirmed : null;
   const other = funRow ? funRow.conv.other : null;
   const leadFacts = lead
-    ? fact(lead.dated ? 'New leads from the event' : 'Leads that did something', int(lead.leads),
+    ? (lead.ahead
+      ? fact('New leads from the event', '–', `none yet: it runs from ${lead.eventDate}`)
+        + fact('Tagged ahead of it', int(lead.taggedAhead), 'contacts HubSpot already held, re-tagged or registered before it; not leads it produced')
+      : fact(lead.dated ? 'New leads from the event' : 'Leads that did something', int(lead.leads),
         lead.dated ? `new to HubSpot on or after ${lead.eventDate}, by a meeting, form, rep, chat or scan`
-          : 'a meeting, form, rep, chat or scan; no event date, so it may include earlier contacts')
+          : 'a meeting, form, rep, chat or scan; no event date, so it may include earlier contacts'))
       + fact('Tagged contacts in all', int(lead.total), 'everyone HubSpot tags with this event')
       + (lead.dated ? fact('Already in HubSpot before it', int(lead.before),
         funRow && funRow.reengaged ? `tagged, not new; ${fmt.int(funRow.reengaged)} re-engaged by it are counted` : 'tagged, not new; not counted') : '')
@@ -5776,7 +5779,8 @@ function renderEvents() {
       const direct = x.evidence ? x.evidence.direct : 0;
       const perDirect = direct ? x.spend / direct : null;
       return `<td class="n">${money(x.spend)}<br><span class="muted">`
-        + `${perLead !== null ? `${money(perLead)} a lead` : lead && lead.leads ? `${fmt.int(lead.leads)} lead${lead.leads === 1 ? '' : 's'} so far` : 'no leads counted'}<br>`
+        + `${perLead !== null ? `${fmt.int(lead.leads)} new lead${lead.leads === 1 ? '' : 's'}, ${money(perLead)} each`
+          : lead && lead.ahead ? 'no leads yet: it is still ahead' : lead && lead.leads ? `${fmt.int(lead.leads)} lead${lead.leads === 1 ? '' : 's'} so far` : 'no leads counted'}<br>`
         + `${perCustomer === null ? 'no customer yet'
           : `${perDirect === null ? (isDated(x, lead) ? 'no direct customer' : 'undated, no direct test') : `${money(perDirect)} a direct customer`}<br>`
             + `${money(perCustomer)} a tagged customer`}</span></td>`;
