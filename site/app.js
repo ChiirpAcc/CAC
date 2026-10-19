@@ -4510,7 +4510,7 @@ function renderSummary() {
   $('summary-ahead').innerHTML = !o.ahead.length ? '<tbody><tr><td class="muted">Nothing booked ahead.</td></tr></tbody>'
     : '<thead><tr><th>Event</th><th>When</th><th class="n">Committed</th></tr></thead><tbody>'
       + o.ahead.map(a => `<tr><td><a href="#event=${encodeURIComponent(a.label)}">${a.label}</a></td><td>${a.month ? fmt.monthLabel(a.month) : '–'}</td>`
-        + `<td class="n">${a.committed ? money(a.committed) : '<span class="muted">fee not set</span>'}${a.committed && !a.feeKnown ? '<br><span class="muted">travel only so far</span>' : ''}</td></tr>`).join('')
+        + `<td class="n">${a.committed ? money(a.committed) : '<span class="muted">fee unknown</span>'}${a.committed && !a.feeKnown ? '<br><span class="muted">fee unknown; travel only so far</span>' : ''}</td></tr>`).join('')
       + `<tr class="total-row"><td><strong>Total committed</strong></td><td></td><td class="n"><strong>${money(o.ahead.reduce((x, a) => x + a.committed, 0))}</strong></td></tr></tbody>`;
   $('summary-note').textContent = `Revenue is what Stripe billed; cost is QuickBooks. ` + (creditRule === 'deal'
     ? `Deal attribution only: a customer counts for an event only if their won deal names it.`
@@ -5340,8 +5340,10 @@ function renderEventPage(label) {
   const costCard = e.costState === 'absent'
     ? kpi('Total cost', c && c.travel ? `${money(c.travel)} +` : 'Not found',
       c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')
-    : kpi('Total cost', money(e.spend), c ? `fee ${money(c.sponsor)} · travel ${money(c.travel)}`
-      + (e.costState === 'settling' ? ' · still settling' : e.upcoming ? ' · committed' : '') : '');
+    : kpi('Total cost', c && e.upcoming && (c.sponsor === null || c.sponsor === undefined) && (c.travel === null || c.travel === undefined)
+      ? 'Unknown' : money(e.spend), c ? `fee ${c.sponsor === null || c.sponsor === undefined ? 'unknown' : money(c.sponsor)} · travel `
+        + `${c.travel === null || c.travel === undefined ? 'unknown' : money(c.travel)}`
+      + (e.costState === 'settling' ? ' · still settling' : e.upcoming && e.spend ? ' · committed so far' : '') : '');
   const headCards = costCard
     + kpi('Demos booked', e.upcoming && !headLeads.length ? '–' : int(demosBooked),
       headLeads.length ? `${int(demosSat)} sat, from ${int(headLeads.length)} leads` : 'no event leads yet')

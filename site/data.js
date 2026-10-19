@@ -3732,21 +3732,19 @@ export const EVENT_TRAVEL_DECISIONS = {
   'Raising GOATS 2026': { was: 1547, now: 1839, estimate: true,
     evidence: 'Estimate. $1,177 is proven on cards and TravelPerk; added: 1 flight (Ryan Fenn) at $662, none of which is on any card we have. Likely range $1,587 to $2,161; the tab had $1,547, outside it.' },
   // Upcoming events: travel committed, estimated from what is booked and the
-  // same medians until the costs come in; the tab's figure replaces it.
+  // same medians until the costs come in; the tab's figure replaces it. Only
+  // for an event someone is listed as going to. A fee is never guessed: an
+  // upcoming event with no fee in the tab, the Event Hub or a bill reads
+  // "fee unknown", and one with no attendees has travel unknown too (Josh,
+  // 20 Oct 2026; this applies to every future event).
   'CertainPath Connect 2026': { was: null, now: 5565, estimate: true,
     evidence: 'Estimate. Booked in the Event Hub: hotels $2,628 and a car $104. Added: flights to Cancun for Ryan Peterson and Justin Judd at $1,125 each, what the same pair paid to Cabo for the Fall Expo, and meals and ground at $97 a person a day.' },
   'Qualified Remodeler Top 500 2026': { was: null, now: 6932, estimate: true,
     evidence: 'Estimate. Flights for four at $662 each ($1,230 is booked so far), hotels for four at $260 a night for three nights, and meals and ground at $97 a person a day.' },
   'Home Service Freedom 2026': { was: null, now: 6713, estimate: true,
     evidence: 'Estimate. Hotels $2,901 booked in the Event Hub; flights for four at $662 each, and meals and ground at $97 a person a day.' },
-  'Wealthy Contractor ACC 2027': { was: null, now: 3466, estimate: true,
-    evidence: 'Guess: no attendees or dates yet; two people at the median trip, a $662 flight, three nights at $260 and $97 a day each.' },
   'Table of Titans 2027': { was: null, now: 3466, estimate: true,
     evidence: 'Estimate for Justin Judd and Ryan Fenn, not yet registered: a $662 flight, three nights at $260 and $97 a day each.' },
-  'Build it to Sell it 2026': { was: null, now: 3466, estimate: true,
-    evidence: 'Guess: no attendees listed yet; two people at the median trip, a $662 flight, three nights at $260 and $97 a day each.' },
-  'EGIA Epic 2027': { was: null, now: 3153, estimate: true,
-    evidence: 'Guess: what EGIA Epic 2026 cost in travel, proven on cards ($3,153); no attendees listed yet.' },
 };
 
 // Any table keyed by event name is read by the name, or failing that by the
@@ -3816,10 +3814,6 @@ export const EVENT_FEE_DECISIONS = [
       + 'the planning sheet was not paid.' },
   { event: 'CertainPath Connect 2026', was: null, now: 0, confidence: 'strong',
     evidence: 'The Event Hub records the sponsorship as covered: "Costs will be travel only".' },
-  { event: 'EGIA Epic 2027', was: null, now: 16445, confidence: 'weak',
-    evidence: 'Estimate: no fee is recorded yet. EGIA Epic 2026 cost $16,445 (trade show $10,945 and $5,500), taken as the 2027 price until the bill comes.' },
-  { event: 'Build it to Sell it 2026', was: null, now: 10000, confidence: 'weak',
-    evidence: 'Guess: no fee is recorded in the Event Hub or QuickBooks. $10,000 is the middle fee of the 2026 events that had one.' },
   { event: 'Qualified Remodeler Top 500 2026', was: 0, now: 20000, confidence: 'strong',
     evidence: 'SOLA Group, publisher of Qualified Remodeler, billed a $20,000 Gold Sponsorship for the period of '
       + 'October 2026 on 19 Aug 2026; Top 500 Live is 26-28 Oct 2026. SOLA\'s separate $10,000 of sponsorship '
