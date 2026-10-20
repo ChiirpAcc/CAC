@@ -4520,7 +4520,9 @@ function renderSummary() {
     const ch = scr.churn;
     $('summary-score-lede').innerHTML = `Event customers leave at ${fmt.pct(ch.avgRate || 0, 1)} a month on average, `
       + `${ch.avgRatio.toFixed(1)}× what the whole book’s customers do at the same ages. Each event’s churn is set against `
-      + `that average, and called only where the difference is more than chance.`;
+      + `that average, and called only where the difference is more than chance. <strong>Churn</strong> is how many of its customers `
+      + `have left; <strong>average event would have lost</strong> is how many the average event’s customers would have lost by `
+      + `the same point; <strong>churn vs average</strong> divides the two, so 0.5× is half as many and 2× twice as many.`;
     const verdictCell = c => (!c ? '<span class="muted">none paying a full month</span>'
       : `<span class="${/worse/.test(c.verdict) ? 'neg' : /better/.test(c.verdict) ? 'pos' : 'muted'}">${c.verdict}</span>`);
     // Sortable by any column, by score to start (Josh, 20 Oct 2026); a second
@@ -4532,10 +4534,10 @@ function renderSummary() {
       { key: 'score12', label: 'At 12 months', n: true, get: x => x.score12, dir: -1 },
       { key: 'customers', label: 'Customers', n: true, get: x => x.customers, dir: -1 },
       { key: 'roi12', label: '12-month ROI', n: true, get: x => x.roi12, dir: -1 },
-      { key: 'left', label: 'Left', n: true, get: x => (x.churn ? x.churn.left : null), dir: -1 },
-      { key: 'expected', label: 'Expected at the average', n: true, get: x => (x.churn ? x.churn.expectedAtAverage : null), dir: -1 },
-      { key: 'ratio', label: 'Against the average', n: true, get: x => (x.churn && x.churn.expectedAtAverage ? x.churn.ratio : null), dir: -1 },
-      { key: 'verdict', label: 'Churn', get: x => (x.churn ? x.churn.verdict : 'zz'), dir: 1 },
+      { key: 'left', label: 'Churn', n: true, get: x => (x.churn ? x.churn.left : null), dir: -1 },
+      { key: 'expected', label: 'Average event would have lost', n: true, get: x => (x.churn ? x.churn.expectedAtAverage : null), dir: -1 },
+      { key: 'ratio', label: 'Churn vs average', n: true, get: x => (x.churn && x.churn.expectedAtAverage ? x.churn.ratio : null), dir: -1 },
+      { key: 'verdict', label: 'Verdict', get: x => (x.churn ? x.churn.verdict : 'zz'), dir: 1 },
     ];
     const table = $('summary-score');
     if (!table.dataset.sort) { table.dataset.sort = 'score'; table.dataset.dir = '-1'; }
@@ -4558,7 +4560,7 @@ function renderSummary() {
             + `<td class="n"><span class="score-pill ${x.grade}">${Math.round(x.score)}</span><br>`
             + `<span class="score-12 ${x.grade12}">(${Math.round(x.score12)})</span></td><td class="n">${fmt.int(x.customers)}</td>`
             + `<td class="n">${x.roi12 !== null ? pct(x.roi12) : '–'}</td>`
-            + `<td class="n">${c ? fmt.int(c.left) : '–'}</td><td class="n">${c ? c.expectedAtAverage.toFixed(1) : '–'}</td>`
+            + `<td class="n">${c ? `${fmt.int(c.left)} of ${fmt.int(x.customers)}` : '–'}</td><td class="n">${c ? c.expectedAtAverage.toFixed(1) : '–'}</td>`
             + `<td class="n">${c && c.expectedAtAverage ? `${c.ratio.toFixed(1)}\u00d7` : '–'}</td><td>${verdictCell(c)}</td></tr>`;
         }).join('') + '</tbody>';
     };
