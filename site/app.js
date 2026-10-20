@@ -14,7 +14,7 @@ import {
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
-  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, eventCardFigures, eventCustomerLedger, eventStaying, eventScorecard, EVENT_SCORE_WEIGHTS, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
+  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, eventCardFigures, eventCustomerLedger, eventStaying, eventScorecard, EVENT_SCORE_WEIGHTS, CHURN_CHECK_MONTHS, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
   stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, eventsOverview, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
@@ -4520,8 +4520,8 @@ function renderSummary() {
     const ch = scr.churn;
     $('summary-score-lede').innerHTML = `Event customers leave at ${fmt.pct(ch.avgRate || 0, 1)} a month on average, `
       + `${ch.avgRatio.toFixed(1)}× what the whole book’s customers do at the same ages. Each event’s churn is set against `
-      + `that average, and called only where the difference is more than chance. <strong>Churn</strong> is how many of its customers `
-      + `have left; <strong>average event would have lost</strong> is how many the average event’s customers would have lost by `
+      + `that average, and called only where the difference is more than chance. <strong>Churn to date</strong> is how many of its customers `
+      + `have left so far; <strong>average event would have lost</strong> is how many the average event’s customers would have lost by `
       + `the same point; <strong>churn vs average</strong> divides the two, so 0.5× is half as many and 2× twice as many.`;
     const verdictCell = c => (!c ? '<span class="muted">none paying a full month</span>'
       : `<span class="${/worse/.test(c.verdict) ? 'neg' : /better/.test(c.verdict) ? 'pos' : 'muted'}">${c.verdict}</span>`);
@@ -4530,11 +4530,13 @@ function renderSummary() {
     const cols = [
       { key: 'place', label: '#', n: true, get: x => x.place, dir: 1 },
       { key: 'label', label: 'Event', get: x => x.label.toLowerCase(), dir: 1 },
-      { key: 'score', label: 'Score (12-month)', n: true, get: x => x.score, dir: -1 },
-      { key: 'score12', label: 'At 12 months', n: true, get: x => x.score12, dir: -1 },
+      { key: 'score', label: 'Score', n: true, get: x => x.score, dir: -1 },
       { key: 'customers', label: 'Customers', n: true, get: x => x.customers, dir: -1 },
       { key: 'roi12', label: '12-month ROI', n: true, get: x => x.roi12, dir: -1 },
-      { key: 'left', label: 'Churn', n: true, get: x => (x.churn ? x.churn.left : null), dir: -1 },
+      { key: 'churn4', label: `Churn in ${CHURN_CHECK_MONTHS} months`, n: true, get: x => (x.churn4.of ? x.churn4.left / x.churn4.of : null), dir: 1 },
+      { key: 'cpl', label: 'Cost per lead', n: true, get: x => x.costPerLead, dir: 1 },
+      { key: 'l2w', label: 'Lead to won', n: true, get: x => x.leadToWon, dir: -1 },
+      { key: 'left', label: 'Churn to date', n: true, get: x => (x.churn ? x.churn.left : null), dir: -1 },
       { key: 'expected', label: 'Average event would have lost', n: true, get: x => (x.churn ? x.churn.expectedAtAverage : null), dir: -1 },
       { key: 'ratio', label: 'Churn vs average', n: true, get: x => (x.churn && x.churn.expectedAtAverage ? x.churn.ratio : null), dir: -1 },
       { key: 'verdict', label: 'Verdict', get: x => (x.churn ? x.churn.verdict : 'zz'), dir: 1 },
@@ -4550,16 +4552,18 @@ function renderSummary() {
         if (vb === null || vb === undefined) return -1;
         return (va < vb ? -1 : va > vb ? 1 : 0) * dir;
       });
-      table.innerHTML = '<thead><tr>' + cols.filter(c => c.key !== 'score12').map(c => `<th class="${c.n ? 'n ' : ''}sortable${c.key === col.key || (c.key === 'score' && col.key === 'score12') ? ' sorted' : ''}" data-key="${c.key}">`
-          + `${c.key === 'score' ? 'Score <span class="muted">(at 12 months)</span>' : c.label}${c.key === col.key ? (dir < 0 ? ' \u2193' : ' \u2191') : ''}</th>`).join('')
+      table.innerHTML = '<thead><tr>' + cols.map(c => `<th class="${c.n ? 'n ' : ''}sortable${c.key === col.key ? ' sorted' : ''}" data-key="${c.key}">`
+          + `${c.label}${c.key === col.key ? (dir < 0 ? ' \u2193' : ' \u2191') : ''}</th>`).join('')
         + '</tr></thead><tbody>'
         + sorted.map(x => {
           const c = x.churn;
           return `<tr><td class="n">${x.place}</td><td><a href="#event=${encodeURIComponent(x.label)}">${x.label}</a>`
             + `<br><span class="muted">${fmt.monthLabel(x.month)} · ${x.sample}</span></td>`
             + `<td class="n"><span class="score-pill ${x.grade}">${Math.round(x.score)}</span><br>`
-            + `<span class="score-12 ${x.grade12}">(${Math.round(x.score12)})</span></td><td class="n">${fmt.int(x.customers)}</td>`
+            + `${x.projected ? '<span class="score-12">(projected)</span>' : ''}</td><td class="n">${fmt.int(x.customers)}</td>`
             + `<td class="n">${x.roi12 !== null ? pct(x.roi12) : '–'}</td>`
+            + `<td class="n">${x.churn4.of ? `${fmt.int(x.churn4.left)} of ${fmt.int(x.churn4.of)}${x.churn4.soFar ? ' so far' : ''}` : '–'}</td>`
+            + `<td class="n">${money(x.costPerLead)}</td><td class="n">${fmt.pct(x.leadToWon, 0)}</td>`
             + `<td class="n">${c ? `${fmt.int(c.left)} of ${fmt.int(x.customers)}` : '–'}</td><td class="n">${c ? c.expectedAtAverage.toFixed(1) : '–'}</td>`
             + `<td class="n">${c && c.expectedAtAverage ? `${c.ratio.toFixed(1)}\u00d7` : '–'}</td><td>${verdictCell(c)}</td></tr>`;
         }).join('') + '</tbody>';
@@ -5400,28 +5404,24 @@ function eventReportsFor(options) {
 // event page (Josh, 20 Oct 2026). The weights come from EVENT_SCORE_WEIGHTS,
 // so the table cannot drift from the score.
 const SCORE_MEANS = {
-  roi: ['Return on the event\u2019s cost: to date in the score, at 12 months (projected if younger) in brackets', 'Higher'],
-  churn: ['How many of its customers left, against how many the average event\u2019s customers would have lost by the same point', 'Lower'],
-  costPerClosed: ['Event cost divided by the deals it closed', 'Lower'],
-  leadToWon: ['Share of its leads that became customers', 'Higher'],
+  roi12: ['Return on the event\u2019s cost 12 months after it; projected where the event is younger', 'Higher'],
+  churn4: ['Share of its customers who stopped paying within 4 months of the event; so far, where it is younger', 'Lower'],
   costPerLead: ['Event cost divided by the leads it brought in', 'Lower'],
-  revenuePerCustomer: ['What a typical customer from the event pays each month', 'Higher'],
-  monthsToPay: ['How long customers took to start paying: 100 when every customer paid in the event month, 0 at 6 months (a fixed scale, not a rank)', 'Sooner'],
+  leadToWon: ['Share of its leads that became customers', 'Higher'],
 };
 function scoreGuide(n) {
   return `<p class="ev-note">Each event gets a score from 0 to 100. Each measure ranks the event against the other `
     + `${n ? fmt.int(n) : ''} scored events (100 the best, 50 the middle, 0 the worst), and the weights decide how much each rank counts. `
-    + `The number in brackets is the same score on 12-month ROI: where the event is heading.</p>`
+    + `A score marked projected rests on a 12-month ROI or a 4-month churn the event has not reached yet, so it will move.</p>`
     + `<div class="table-scroll"><table class="data-table score-guide"><thead><tr><th>Measure</th><th class="n">Weight</th>`
     + `<th>What it means</th><th>Better when</th></tr></thead><tbody>`
-    + EVENT_SCORE_WEIGHTS.map(m => `<tr><td>${m.key === 'roi' ? 'ROI (12-month ROI in brackets)' : m.label}</td><td class="n">${m.weight}%</td>`
+    + EVENT_SCORE_WEIGHTS.map(m => `<tr><td>${m.label}</td><td class="n">${m.weight}%</td>`
       + `<td>${(SCORE_MEANS[m.key] || [''])[0]}</td><td>${(SCORE_MEANS[m.key] || ['', ''])[1]}</td></tr>`).join('')
     + `</tbody></table></div>`
     + `<ul class="score-rules"><li><strong>70 and up is strong, 40 to 69 middling, under 40 weak.</strong></li>`
     + `<li><strong>Few customers pull a score toward 50.</strong> An event with one to four customers cannot come out the best or the worst on a lucky or unlucky result; it is tagged thin or very thin.</li>`
     + `<li><strong>Small samples are smoothed.</strong> Lead to won and churn are nudged toward the average where they rest on few leads or customers.</li>`
-    + `<li><strong>Churn is called only when it is beyond chance.</strong> Otherwise it reads in line, or too few to tell.</li>`
-    + `<li><strong>No deals or no leads ranks last</strong> on cost per closed deal or cost per lead.</li>`
+    + `<li><strong>Churn against the average event</strong> is shown beside the score as a check, and called only when it is beyond chance.</li>`
     + `<li><strong>Only lead-generation events are scored:</strong> an event that got no leads was not one. A scored event also needs a `
     + `known, final cost, and three months since the event or a customer.</li></ul>`;
 }
@@ -5711,30 +5711,25 @@ function renderEventPage(label) {
             : `A lean, not proof (p = ${ch.pValue.toFixed(2)}): ${ch.left > ch.expectedAtAverage ? 'more' : 'fewer'} leave than the average, but chance could do it.`)
       + `</p>`
     : `<p class="ev-note">Churn: no customer has paid a full month yet, so there is nothing to compare.</p>`;
-  const partValue = q => (q.value === null ? '–' : q.key === 'roi' ? signedPct(q.value)
-    : q.key === 'churn' ? (ch ? `${int(ch.left)} of ${int(sc.customers)} left` : '–')
-      : q.key === 'leadToWon' ? pct(q.value) : q.key === 'monthsToPay' ? `${q.value <= 0 ? 'event month' : `${q.value} mo`}`
-        : Number.isFinite(q.value) ? money(q.value) : 'none');
+  const partValue = q => (q.value === null ? (q.key === 'churn4' ? `none paying by month ${CHURN_CHECK_MONTHS}` : '–') : q.key === 'roi12' ? signedPct(q.value)
+    : q.key === 'churn4' ? `${int(sc.churn4.left)} of ${int(sc.churn4.of)}${sc.churn4.soFar ? ' so far' : ''}`
+      : q.key === 'leadToWon' ? pct(sc.leadToWon) : money(q.value));
   // A few words under each measure (Josh, 20 Oct 2026): what it is, and the
   // middle event's figure it is ranked against.
   const partContext = q => {
-    const mid = scorecard.middle[q.key] || {};
-    const md = mid.median;
-    const none = mid.none ? `; ${int(mid.none)} event${mid.none === 1 ? '' : 's'} with none rank last` : '';
+    const md = (scorecard.middle[q.key] || {}).median;
     switch (q.key) {
-      case 'roi': return `return on cost to date · middle event ${signedPct(md)} · at 12 months ${signedPct(sc && sc.roi12)}`
-        + `${pb && pb.roi12Projected ? ' projected' : ''}`;
-      case 'churn': return ch ? `the average event’s customers would have lost ${ch.expectedAtAverage.toFixed(1)} by now; ${ch.verdict}`
-        : 'no customer has paid a full month yet';
-      case 'costPerClosed': return `cost over closed deals; lower is better · middle event ${money(md)}${none}`;
-      case 'leadToWon': return `closed deals over leads, pulled to the average on few leads · middle event ${pct(md)}`;
-      case 'costPerLead': return `cost over leads; lower is better · middle event ${money(md)}${none}`;
-      case 'revenuePerCustomer': return `what a paying customer pays in an average month · middle event ${money(md)}`;
-      case 'monthsToPay': return `from the event to first payment: 100 when every customer paid in the event month, 0 at `
-        + `${WIN_WINDOW_MONTHS} months · middle event ${md === null ? '–' : md <= 0 ? 'the event month' : `${md} month${md === 1 ? '' : 's'}`}`;
+      case 'roi12': return `return on cost 12 months from the event${pb && pb.roi12Projected ? ', projected' : ''} · middle event ${signedPct(md)}`;
+      case 'churn4': return `customers who stopped paying within ${CHURN_CHECK_MONTHS} months of the event, pulled toward the average `
+        + `on few customers · ${pct((scorecard.middle.churn4 || {}).mean)} across all scored events (most lose none)`;
+      case 'costPerLead': return `cost over leads; lower is better · middle event ${money(md)}`;
+      case 'leadToWon': return `closed deals over leads, pulled toward the average on few leads · middle event ${pct(md)}`;
       default: return '';
     }
   };
+  // With no customer by four months, churn has nothing to rank: the score
+  // rests on the other three.
+  const churnPart = q => (q.key === 'churn4' && q.rank === null ? 'no customer yet' : null);
   const scorePanel = !sc ? (e.upcoming ? '' : `<section class="ev-panel"><h3>Event score</h3><p class="ev-note">`
       + (!newLeadsN ? `Not scored: it got no leads, so it was not a lead-generation event${e.presence ? ` (${e.presence.replace(/\.$/, '')})` : ''}. `
         + `Only events that got leads are scored.`
@@ -5742,14 +5737,14 @@ function renderEventPage(label) {
       + `</p></section>`)
     : `<section class="ev-panel"><h3>Event score</h3><div class="ev-score-head">`
       + `<span class="ev-score-n ${sc.grade}">${Math.round(sc.score)}</span><span class="ev-score-of">/ 100</span>`
-      + `<span class="ev-score-12 ${sc.grade12}" title="The same score on 12-month ROI">(${Math.round(sc.score12)} at 12 months${pb && pb.roi12Projected ? ', projected' : ''})</span>`
+      + (sc.projected ? `<span class="ev-score-12" title="Rests on a 12-month ROI or 4-month churn not reached yet">(projected)</span>` : '')
       + `<span class="ev-score-words"><strong>${sc.grade.charAt(0).toUpperCase() + sc.grade.slice(1)}</strong> · ${ord(sc.place)} of ${int(scorecard.n)} scored events`
       + ` · rests on ${int(sc.customers)} customer${sc.customers === 1 ? '' : 's'} (${sc.sample})</span></div>`
       + churnLine
       + `<div class="ev-score-parts">` + sc.parts.map(q => `<div class="ev-score-part"><span class="ev-score-k"><span>${q.label} <span class="muted">${q.weight}%</span></span>`
         + `<span class="ev-score-ctx">${partContext(q)}</span></span>`
         + `<span class="ev-score-v">${partValue(q)}</span><div class="ev-score-track"><span class="${q.rank === null ? '' : q.rank >= 60 ? 'pos' : q.rank < 40 ? 'neg' : ''}" `
-        + `style="width:${Math.max(q.rank || 0, 1).toFixed(0)}%"></span><i></i></div><span class="ev-score-r">${q.rank === null ? 'n/a' : Math.round(q.rank)}</span></div>`).join('')
+        + `style="width:${Math.max(q.rank || 0, 1).toFixed(0)}%"></span><i></i></div><span class="ev-score-r">${q.rank === null ? (churnPart(q) ? '–' : 'n/a') : Math.round(q.rank)}</span></div>`).join('')
       + `</div><p class="ev-note">Each measure is ranked among the ${int(scorecard.n)} scored events, 100 the best and 0 the worst `
       + `(the tick is the middle), and the ranks are weighted as shown. Lead to won and churn are pulled toward the average where `
       + `they rest on few leads or customers${sc.customers && sc.customers < 5 ? `, and with ${int(sc.customers)} customer${sc.customers === 1 ? '' : 's'} the whole score is `

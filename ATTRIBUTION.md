@@ -129,20 +129,21 @@ test says whether the gap is more than chance: significant at p < 0.05, a
 lean at p < 0.2, otherwise in line; with under two departures expected and
 fewer than three seen it is "too few to tell", never a verdict.
 
-**Score.** 0 to 100. Each measure is ranked among every scored event (100
-the best, 0 the worst) and the ranks are weighted (`EVENT_SCORE_WEIGHTS` in
-site/data.js): ROI 30% (ROI to date in the score; 12-month ROI, projected
-where the event is younger, in the 12-month projection shown in brackets), churn against the events' average 20%, cost
-per closed deal 15%, lead to won 10%, cost per lead 10%, revenue per customer
-a month 10%, months to first payment 5%. Lead to won is pulled toward the
-events' rate with ten leads of weight, churn toward the average with two
-departures; a score resting on one to four customers is pulled toward 50 by
-customers / (customers + 2). An event with no customer is not pulled.
-Scored: lead-generation events only, which is to say events that got leads
-(an event with none was not one), with a known, settled cost and either three months old or a customer. Months
-to first payment is on a fixed scale, not a rank: 100 when every customer paid
-in the event month, falling to 0 at six months.
-70 and up is strong, under 40 weak.
+**Score.** 0 to 100, on four measures (Josh, 20 Oct 2026), each weighted 25%
+(`EVENT_SCORE_WEIGHTS` in site/data.js): 12-month ROI (projected where the
+event is younger), churn within four months of the event (of the customers
+paying by then, the share who had stopped; so far where the event is
+younger), cost per lead, and lead to won. Each is ranked among every scored
+event (100 the best, 0 the worst). Lead to won is pulled toward the events'
+rate with ten leads of weight, four-month churn with two customers; a score
+resting on one to four customers is pulled toward 50 by customers /
+(customers + 2). An event with no customer by month four has no churn rank
+and is scored on the other three. A score resting on a 12-month ROI or a
+4-month churn the event has not reached is marked projected. Scored:
+lead-generation events only, that is events that got leads, with a known,
+settled cost and either three months old or a customer. 70 and up is strong,
+under 40 weak. Churn against the events' average stays beside the score as a
+check.
 
 ## 2. What people must do in HubSpot
 
