@@ -14,7 +14,7 @@ import {
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
-  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, eventCardFigures, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
+  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, eventCardFigures, eventCustomerLedger, eventStaying, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
   stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, eventsOverview, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
@@ -4482,10 +4482,36 @@ function renderSummary() {
   const step = (label, n, of) => `<div class="funnel-step"><div class="funnel-bar" style="width:${Math.max(4, fu.leads ? (n / fu.leads) * 100 : 0).toFixed(1)}%"></div>`
     + `<span class="funnel-label">${label}</span><span class="funnel-value">${fmt.int(n)}</span>`
     + `<span class="funnel-rate">${of ? `${fmt.pct(of ? n / of : 0, 0)} of the step before` : ''}</span></div>`;
-  $('summary-funnel').innerHTML = step('Leads', fu.leads, null) + step('Demos', fu.demos, fu.leads) + step('Sales', fu.sales, fu.demos)
+  $('summary-funnel').innerHTML = step('Leads', fu.leads, null) + step('Sat', fu.demos, fu.leads) + step('Won', fu.sales, fu.demos)
     + (fu.listLoaded ? `<p class="funnel-aside"><strong>Beside it, not in it:</strong> organisers’ lists added ${fmt.int(fu.listLoaded)} `
       + `contacts after these events, and ${fmt.int(fu.listWon)} of them later won. The booth earned the leads above; a list is a file `
       + `the organiser handed over, so its wins are shown here and kept out of each event’s return.</p>` : '');
+  // Where each event's customers came from (chart A on each event page),
+  // then how the leads arrived and whether the customers stay, pooled.
+  const oTop = Math.max(1, ...o.origins.map(x => x.closed));
+  if ($('summary-origins')) $('summary-origins').innerHTML = !o.origins.length ? '<p class="empty">No closed deals in these months.</p>'
+    : `<div class="sum-origins">` + o.origins.map(x => `<div class="sum-origin"><a href="#event=${encodeURIComponent(x.label)}">${x.label}</a>`
+      + `<div class="sum-origin-bar"><span class="ev-fun-new" style="width:${(x.fromLeads / oTop * 100).toFixed(1)}%"></span>`
+      + `<span class="ev-fun-known" style="width:${(x.known / oTop * 100).toFixed(1)}%"></span></div>`
+      + `<span class="sum-origin-n">${fmt.int(x.closed)}</span></div>`).join('') + `</div>`
+      + `<div class="ev-split-key"><span><i class="ev-fun-new"></i>New lead ${fmt.int(o.origins.reduce((t, x) => t + x.fromLeads, 0))}</span>`
+      + `<span><i class="ev-fun-known"></i>Known prospect ${fmt.int(o.origins.reduce((t, x) => t + x.known, 0))}</span></div>`
+      + `<p class="note">Closed deals by event. A known prospect is a company HubSpot already held, or whose contact carries no `
+      + `event tag, that the event closed: a new customer, not an upsell.</p>`;
+  const wTop = Math.max(1, ...o.ways.map(([, w]) => w.leads));
+  if ($('summary-ways')) $('summary-ways').innerHTML = `<table class="data-table ev-table ev-ways"><thead><tr><th>Arrived as</th><th>Leads</th>`
+    + `<th class="n">Sat</th><th class="n">Won</th><th class="n">Lead to won</th></tr></thead><tbody>`
+    + o.ways.map(([k, w]) => `<tr><td>${k.charAt(0).toUpperCase() + k.slice(1)}</td><td><span class="ev-way-bar" style="width:${(w.leads / wTop * 100).toFixed(1)}%"></span>`
+      + `<span class="ev-way-n">${fmt.int(w.leads)}</span></td><td class="n">${fmt.int(w.sat)}</td><td class="n">${fmt.int(w.won)}</td>`
+      + `<td class="n">${w.leads ? fmt.pct(w.won / w.leads, 0) : '–'}</td></tr>`).join('') + `</tbody></table>`;
+  const stay = eventStaying(o.ledgerRows, cohorts ? blendedRetention(cohorts) : [], data.lastMonth);
+  const stayBar = (k, share, sub, cls) => `<div class="ev-stay-row"><span class="ev-stay-k">${k}</span><div class="ev-stay-track">`
+    + `<span class="${cls}" style="width:${(share * 100).toFixed(1)}%"></span></div><span class="ev-stay-v">${fmt.pct(share, 0)}</span><span class="ev-fun-sub">${sub}</span></div>`;
+  if ($('summary-stay')) $('summary-stay').innerHTML = !stay.n ? '' : `<h4 class="proof-sub">Do they stay</h4>`
+    + stayBar('Event customers', stay.staying / stay.n, `${fmt.int(stay.staying)} of ${fmt.int(stay.n)} still paying`, 'ev-fun-new')
+    + stayBar('The whole book', stay.expected / stay.n, `kept at the same ages: ${stay.expected.toFixed(1)} of ${fmt.int(stay.n)}`, 'ev-stay-book')
+    + `<p class="note">Each customer is set against the share of all customers still paying at the same age, median `
+    + `${fmt.int(stay.medianAge)} months since first payment.</p>`;
   // Best and worst.
   const r = o.ranked;
   const pick = r.length > 10 ? [...r.slice(0, 5), ...r.slice(-5)] : r;
@@ -4624,7 +4650,8 @@ function costProofPanel(e) {
     + `<div class="ev-fact"><span class="ev-fact-label">Attended</span><span class="ev-fact-value proof-labels">${entry.attendees.join('<br>') || '–'}</span>`
     + `<span class="ev-fact-sub">${entry.start || ''}${entry.end && entry.end !== entry.start ? ` to ${entry.end}` : ''}${entry.location ? ` · ${entry.location}` : ''}</span></div>`
     + `</div>`
-    + (entry.feeLines && entry.feeLines.length ? `<h4 class="proof-sub">The fee, bill by bill</h4>`
+    + (entry.feeLines && entry.feeLines.length ? `<details class="proof-person"><summary><strong>The fee, bill by bill</strong> · `
+      + `${fmt.int(entry.feeLines.length)} line${entry.feeLines.length === 1 ? '' : 's'} · ${money2(entry.fee.amount)}</summary>`
       + `<div class="table-scroll"><table class="data-table ev-table proof-table"><thead><tr><th>Date</th><th>Vendor</th><th>What</th>`
       + `<th>Number</th><th class="n">Amount</th><th>Note</th></tr></thead><tbody>`
       + entry.feeLines.map(l => `<tr><td>${l.date || '–'}</td><td>${l.vendor || '–'}</td><td>${l.what || '–'}`
@@ -4633,17 +4660,16 @@ function costProofPanel(e) {
         + `<td class="n${l.amount < 0 ? ' neg' : ''}">${money2(l.amount)}</td>`
         + `<td class="proof-why">${[l.confidence && l.confidence !== 'High' ? `<span class="proof-conf">${l.confidence.toLowerCase()} confidence</span>` : '', l.note || ''].filter(Boolean).join(' ')}</td></tr>`).join('')
       + `<tr class="total-row"><td colspan="4"><strong>Fee</strong></td><td class="n"><strong>${money2(entry.fee.amount)}</strong></td><td></td></tr>`
-      + `</tbody></table></div><h4 class="proof-sub">Card charges, by who paid</h4>` : '')
-    + (owners.length ? `<div class="table-scroll"><table class="data-table ev-table proof-table"><thead><tr><th>Date</th><th>Merchant</th>`
-      + `<th>Label</th><th>City</th><th class="n">Amount</th><th>Why it is this event\u2019s</th></tr></thead><tbody>`
-      + owners.map(o => `<tr class="proof-owner"><td colspan="4"><strong>${o.owner}</strong> · ${fmt.int(o.lines.length)} charge${o.lines.length === 1 ? '' : 's'}</td>`
-        + `<td class="n"><strong>${money2(o.total)}</strong></td><td></td></tr>`
+      + `</tbody></table></div></details>` : '')
+    + (owners.length ? `<h4 class="proof-sub">Card charges, by who paid: ${money2(entry.travelTotal)}</h4>`
+      + owners.map(o => `<details class="proof-person"><summary><strong>${o.owner}</strong> · ${fmt.int(o.lines.length)} charge${o.lines.length === 1 ? '' : 's'}`
+        + ` · ${money2(o.total)}</summary><div class="table-scroll"><table class="data-table ev-table proof-table"><thead><tr><th>Date</th><th>Merchant</th>`
+        + `<th>Label</th><th>City</th><th class="n">Amount</th><th>Why it is this event\u2019s</th></tr></thead><tbody>`
         + o.lines.map(l => `<tr><td>${l.date || '–'}</td><td>${l.merchant || '–'}${l.card ? `<br><span class="muted">${l.card} card</span>` : ''}</td><td>${l.label || '–'}${confTag(l)}</td>`
           + `<td>${l.city || '–'}</td><td class="n${l.amount < 0 ? ' neg' : ''}">${money2(l.amount)}</td>`
-          + `<td class="proof-why">${l.why || '<span class="muted">attendee, in the event\u2019s dates and place</span>'}</td></tr>`).join('')).join('')
-      + `<tr class="total-row"><td colspan="4"><strong>All card charges</strong></td><td class="n"><strong>${money2(entry.travelTotal)}</strong></td><td></td></tr>`
-      + `</tbody></table></div>` : '')
-    + pendingTable
+          + `<td class="proof-why">${l.why || '<span class="muted">attendee, in the event\u2019s dates and place</span>'}</td></tr>`).join('')
+        + `</tbody></table></div></details>`).join('') : '')
+    + (pendingTable ? `<details class="proof-person"><summary><strong>Pending</strong> · ${fmt.int(pending.length)} charge${pending.length === 1 ? '' : 's'} · ${money2(pendingTotal)}</summary>${pendingTable}</details>` : '')
     + (entry.notCounted.length ? `<details class="proof-review"><summary>${fmt.int(entry.notCounted.length)} charge${entry.notCounted.length === 1 ? '' : 's'} `
       + `reviewed and not counted</summary><ul>` + entry.notCounted.map(l => `<li>${l.date} · ${l.owner} · ${l.merchant}${l.city ? ` (${l.city})` : ''} · `
         + `${money2(l.amount)}: ${l.why}</li>`).join('') + `</ul></details>` : '')
@@ -5136,6 +5162,16 @@ function eventUpsellPanel(e, roi) {
     + (x.former.length ? `<p class="ev-note"><strong>Former customers who came through it:</strong> `
       + x.former.map(f => `${extLink(f.url, f.name || f.id)} (last paid ${fmt.monthLabel(f.lastPaid)})`).join('; ')
       + `. If they return they are a win-back, credited as a new customer from the event\u2019s month, not an upsell.</p>` : '');
+  // MRR the month before the event against the window's end, one pair of
+  // bars per customer (Josh, 20 Oct 2026).
+  const upTop = Math.max(1, ...x.rows.map(r => Math.max(r.baseMrr || 0, r.endMrr || 0)));
+  const upW = v => `${(Math.max(v || 0, 0) / upTop * 100).toFixed(1)}%`;
+  const upBars = x.watching || !x.rows.length ? '' : `<div class="ev-up">` + x.rows.map(r => `<div class="ev-up-row"><span class="ev-up-name">${r.name || r.id}</span>`
+      + `<div class="ev-up-bars"><span class="ev-up-before" style="width:${upW(r.baseMrr)}"></span>`
+      + `<span class="ev-up-after ${r.added > 0 ? 'pos' : r.added < 0 ? 'neg' : ''}" style="width:${upW(r.endMrr)}"></span></div>`
+      + `<span class="ev-up-value">${money(r.baseMrr)} → ${money(r.endMrr)}</span></div>`).join('')
+    + `</div><div class="ev-split-key"><span><i class="ev-up-before"></i>MRR the month before</span>`
+    + `<span><i class="ev-up-after"></i>${x.windowDone ? `${WIN_WINDOW_MONTHS} months on` : 'now'}</span></div>`;
   if (x.watching) {
     return `<section class="ev-panel"><h3>Upsells</h3>`
       + `<p class="ev-note"><strong>${fmt.int(x.existing)} existing customer${x.existing === 1 ? '' : 's'}, paying ${money(x.baseMrr)} a month `
@@ -5157,9 +5193,11 @@ function eventUpsellPanel(e, roi) {
       + `The contribution on the increase above that is ${money(x.credited)}. ` : 'None pays more yet. ')
     + (x.fell ? `${fmt.int(x.fell)} pay${x.fell === 1 ? 's' : ''} less or left. ` : '')
     + (x.windowDone ? '' : `The ${WIN_WINDOW_MONTHS}-month window is still open. `)
-    + `</p><div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>Came through</th>`
+    + `</p>` + upBars
+    + `<details class="proof-person"><summary><strong>Customer by customer</strong></summary>`
+    + `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>Came through</th>`
     + `<th class="n">MRR before</th><th class="n">MRR at the window\u2019s end</th><th class="n">Change</th>`
-    + `<th class="n">Expected anyway</th><th class="n">Contribution on the increase</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    + `<th class="n">Expected anyway</th><th class="n">Contribution on the increase</th></tr></thead><tbody>${rows}</tbody></table></div></details>`
     + `<p class="ev-note">An upsell needs an existing customer (paying the month before the event) whose contact came in `
     + `through a form or meetings link named for the event; a tag alone is not enough. The increase is measured from the `
     + `month before the event to ${WIN_WINDOW_MONTHS} months after it, and only the part above the book\u2019s usual expansion is `
@@ -5168,8 +5206,8 @@ function eventUpsellPanel(e, roi) {
 }
 
 // One event's leads from the Event Leads tab: the funnel, then each lead.
-function eventLeadsPanel(e) {
-  const f = eventFunnel(data);
+function eventLeadsPanel(e, roi) {
+  const f = eventFunnel(data, roi);
   const ev = f && f.events.find(x => x.source === e.source || x.label === e.label);
   if (!ev) return '';
   // Contacts outside the attribution window are left off the page: they are
@@ -5229,8 +5267,7 @@ function eventLeadsPanel(e) {
       + `cannot be split into before and after.`}${ev.loaded.n ? ` ${fmt.int(ev.loaded.n)} arrived in a list loaded into HubSpot `
       + `${ev.dated ? 'after the event' : ''}; a file is not someone who did something, so they are not counted, as Lead Counts `
       + `does not count them (${fmt.int(ev.loaded.deals)} of them reached a deal and ${fmt.int(ev.loaded.won)} won).` : ''}`
-      + ` Of the ${fmt.int(ev.base)} counted, booked `
-      + `${rateCell(ev.booked, { cell: false }).replace('<br>', ' ')}, sat ${rateCell(ev.sat, { cell: false }).replace('<br>', ' ')}, `
+      + ` Of the ${fmt.int(ev.base)} counted, sat ${rateCell(ev.sat, { cell: false }).replace('<br>', ' ')}, `
       + `won ${rateCell(ev.won, { cell: false }).replace('<br>', ' ')}.</p>`
     + `<div class="ev-facts">${states}</div>`
     + signalFacts
@@ -5331,7 +5368,7 @@ function renderEventPage(label) {
   // lead booked through the event's meetings link, a setter is recorded, or
   // a deal opened (HubSpot opens one only once the demo is sat). Closed
   // deals are wins Stripe agrees with; revenue is what Stripe collected.
-  const cardFig = eventCardFigures(data, r.roi, e);
+  const cardFig = eventCardFigures(data, r.roi, e, eventFunnel(data, r.roi));
   const headLeads = cardFig.leadRows;
   const { demosSat, wonNotBilled, closedWon, closedLost, stillOpen } = cardFig;
   const newLeadsN = cardFig.leads;
@@ -5346,6 +5383,17 @@ function renderEventPage(label) {
       ? 'Unknown' : money(e.spend), c ? `fee ${c.sponsor === null || c.sponsor === undefined ? 'unknown' : money(c.sponsor)} · travel `
         + `${c.travel === null || c.travel === undefined ? 'unknown' : money(c.travel)}`
       + (e.costState === 'settling' ? ' · still settling' : e.upcoming && e.spend ? ' · committed so far' : '') : '');
+  const evDay = e.eventDate || (lead && lead.eventDate) || null;
+  const dayLabel = evDay ? new Date(`${evDay}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : e.month ? fmt.monthLabel(e.month) : null;
+  const costKnown = e.costState !== 'absent' && e.spend;
+  const monthsOn = e.month && !e.upcoming ? monthDiff(e.month, data.lastMonth) : null;
+  // The page as a report, top to bottom (Josh chose template 1, 20 Oct 2026):
+  // what it cost and returned, the funnel, who paid and for how long, what
+  // they paid each month against the cost, then the detail, folded away.
+  const ledger = eventCustomerLedger(data, e, cardFig);
+  const payingCos = ledger.rows.length;
+  const stillPaying = ledger.rows.filter(x => x.live).length;
   const headCards = costCard
     + kpi('Leads', e.upcoming && !newLeadsN ? '–' : int(newLeadsN),
       newLeadsN ? [leadsWord, `${int(demosSat)} sat · ${int(closedWon)} won`].filter(Boolean).join(' · ') : 'no event leads yet')
@@ -5354,42 +5402,34 @@ function renderEventPage(label) {
         headLeads.length ? `${int(closedLost)} lost` : ''].filter(Boolean).join(' · '))
     + kpi('Revenue', e.upcoming ? '–' : money(e.collected), e.upcoming ? aheadWords
       : `collected in Stripe from ${int(e.paid)} customer${e.paid === 1 ? '' : 's'}${e.mrrNow ? ` · ${money(e.mrrNow)}/mo now` : ''}`)
-    + kpi('ROI to date', pb ? signedPct(pb.roiToDate) : '–', pb ? (pb.provisional ? 'provisional: cost still settling' : 'on contribution, after cost to serve')
+    + kpi('ROI now', pb ? signedPct(pb.roiToDate) : '–', pb && pb.roiToDate === null
+      ? 'too early: no customer yet, under three months on'
+      : pb ? `${monthsOn === null ? '' : `${int(monthsOn)} month${monthsOn === 1 ? '' : 's'} `}since ${dayLabel || 'the event'}${pb.provisional ? ' · provisional: cost still settling' : ''}`
       : e.upcoming ? (heldAlready ? 'from its first month of data' : 'after the event') : '', pb ? tone(pb.roiToDate) : '');
   // The row under the headline (Josh, 14 Oct 2026): what a demo and a won
   // deal cost, how many booked demos were won, and the return now and twelve
   // months on, both counted from the event's date.
-  const evDay = e.eventDate || (lead && lead.eventDate) || null;
-  const dayLabel = evDay ? new Date(`${evDay}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : e.month ? fmt.monthLabel(e.month) : null;
-  const costKnown = e.costState !== 'absent' && e.spend;
-  const monthsOn = e.month && !e.upcoming ? monthDiff(e.month, data.lastMonth) : null;
   const rateCards = kpi('Cost per lead', costKnown && newLeadsN ? money(e.spend / newLeadsN) : '–',
       newLeadsN ? `${money(e.spend)} over ${int(newLeadsN)} lead${newLeadsN === 1 ? '' : 's'}` : 'no leads yet')
     + kpi('Cost per closed deal', costKnown && closedWon ? money(e.spend / closedWon) : '–',
       closedWon ? `${money(e.spend)} over ${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}` : 'no deals closed yet')
     + kpi('Lead to won', newLeadsN ? pct(closedWon / newLeadsN) : '–',
       newLeadsN ? `${int(closedWon)} won of ${int(newLeadsN)} leads${demosSat ? ` · ${pct(closedWon / demosSat)} of ${int(demosSat)} sat` : ''}` : '')
-    + kpi('ROI now', pb ? signedPct(pb.roiToDate) : '–', pb && pb.roiToDate === null
-      ? 'too early: no customer yet, under three months on'
-      : pb ? `${monthsOn === null ? '' : `${int(monthsOn)} month${monthsOn === 1 ? '' : 's'} `}since ${dayLabel || 'the event'}${pb.provisional ? ' · provisional' : ''}`
-      : e.upcoming ? `from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roiToDate) : '')
     + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12 === null
       ? 'too early to project: no customer yet'
       : pb ? `${pb.roi12Projected ? 'projected' : 'actual'}, 12 months from ${dayLabel || 'the event'}`
         + (pb.roi12Projected && pb.roi12Range ? `; likely ${signedPct(pb.roi12Range[0])} to ${signedPct(pb.roi12Range[1])}` : '')
-      : e.upcoming ? `12 months from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roi12) : '');
-  const kpis = e.upcoming
-    ? kpi('Status', heldAlready ? 'Held' : 'Upcoming', aheadWords)
+      : e.upcoming ? `12 months from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roi12) : '')
+    + kpi('Still paying', e.upcoming || !payingCos ? '–' : `${int(stillPaying)} of ${int(payingCos)}`,
+      e.upcoming ? aheadWords : payingCos ? `${money(e.mrrNow)}/mo now${ledger.notBilled.length ? ` · ${int(ledger.notBilled.length)} won, not billed yet` : ''}`
+        : ledger.notBilled.length ? `${int(ledger.notBilled.length)} won, not billed yet` : 'no customer paying yet');
+  const kpis = e.upcoming ? ''
     : kpi('Contribution', money(e.contribution), 'what customers paid, less the cost to serve them')
       + kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), (() => {
         const up = (eventUpsells(data, r.roi) || { byLabel: new Map() }).byLabel.get(e.label);
         return up && up.credited && e.net !== null ? `${signed(e.net + up.credited)} with upsells` : '';
       })(), e.costState === 'absent' ? '' : tone(e.net))
-      + kpi('Customers', int(e.paid), `${int(e.liveNow)} still live · ${money(e.mrrNow)} MRR`
-        + (e.pausedNow ? ` · ${fmt.int(e.pausedNow)} on a coupon, ${money(e.pausedMrr)} paused` : ''))
-      + (e.paid && e.evidence ? kpi('Direct customers', int(e.evidence.direct),
-        e.evidence.direct ? `${money(e.spend / e.evidence.direct)} each${evDated ? '' : ', undated'}` : evDated ? 'none closed by its own deal' : 'undated, cannot be tested') : '')
+      + (e.pausedNow ? kpi('On a coupon', int(e.pausedNow), `${money(e.pausedMrr)} a month paused`) : '')
       + kpi('Pays for itself', payWords, paySub, pb && (pb.status === 'paid' || pb.status === 'projected') ? 'pos' : '');
 
   // Cost: a bar of what the total is made of, then the sources.
@@ -5491,15 +5531,6 @@ function renderEventPage(label) {
         ? fact('On company averages alone', `Month ${pb.companyOnlyAt}`) : '')
     : '';
 
-  const custRows = (e.customerRows || []).map(x => `<tr><td><span class="ev-dot ${x.live ? 'live' : 'gone'}"></span>${x.name}`
-    + `${x.winback ? ' <span class="ev-chip">won back</span>' : ''}`
-    + `${x.wonElsewhere ? `<br><span class="muted">won on another deal: ${x.wonElsewhere}</span>` : ''}</td>`
-    + `<td>${x.firstPaid ? fmt.monthLabel(x.firstPaid) : '–'}</td>`
-    + `<td class="n">${money(x.signedMrr)}</td><td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
-    + `<td class="n">${money(x.contribution)}</td>`
-    + `<td>${x.credit || '–'}${x.lag !== null && x.lag !== undefined ? `<br><span class="muted">${x.lag === 0 ? 'the event month'
-      : `${Math.abs(x.lag)} month${Math.abs(x.lag) === 1 ? '' : 's'} ${x.lag < 0 ? 'before' : 'after'}`}</span>` : ''}</td>`
-    + `<td>${x.leadDate || '–'}</td><td>${x.leadSetAt || '–'}</td></tr>`).join('');
   // Expected against actual: what won deals were signed at, against what the
   // same customers pay now. Only customers with a won deal carry a signed figure.
   const signed2 = (e.customerRows || []).filter(x => x.signedMrr !== null);
@@ -5512,6 +5543,194 @@ function renderEventPage(label) {
       + `The gap is a discount, a downgrade or a customer who has left.</p>`
     : '';
 
+  const fold = (title, body) => `<details class="ev-panel ev-fold"><summary>${title}</summary><div class="ev-fold-body">${body}</div></details>`;
+  const known = cardFig.wonOutsideLeads;
+  const mHead = m => new Date(`${m}-15T12:00:00`).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', ' \u2019');
+  const whole = v => (v === null || v === undefined ? '' : `${v < 0 ? '−' : ''}${fmt.int(Math.round(Math.abs(v)))}`);
+
+  // 1. From lead to customer: leads, sat, won, with the known prospects the
+  // event won shaded and what dropped off in grey.
+  const funnelPanel = !newLeadsN ? '' : (() => {
+    const w = v => `${(Math.max(v, 0) / newLeadsN * 100).toFixed(2)}%`;
+    const step = (k, n, prev, sub) => `<div class="ev-fun-row"><span class="ev-fun-label">${k}</span><div class="ev-fun-track">`
+      + `<span class="ev-fun-new" style="width:${w(n - known)}"></span>${known ? `<span class="ev-fun-known" style="width:${w(known)}"></span>` : ''}`
+      + (prev !== null && prev > n ? `<span class="ev-fun-drop" style="width:${w(prev - n)}"></span>` : '')
+      + `</div><span class="ev-fun-value">${int(n)}</span><span class="ev-fun-sub">${sub}</span></div>`;
+    return `<section class="ev-panel"><h3>From lead to customer</h3><div class="ev-fun">`
+      + step('Leads', newLeadsN, null, leadsWord || 'new to HubSpot from the event')
+      + step('Sat', demosSat, newLeadsN, `${pct(demosSat / newLeadsN)} of leads held a demo`
+        + (closedLost || stillOpen ? ` · ${int(closedLost)} lost, ${int(stillOpen)} still open` : ''))
+      + step('Won', closedWon, demosSat, `${demosSat ? `${pct(closedWon / demosSat)} of those who sat · ` : ''}${int(payingCos)} paying in Stripe`
+        + (ledger.notBilled.length ? `, ${int(ledger.notBilled.length)} not billed yet` : ''))
+      + `</div><div class="ev-split-key"><span><i class="ev-fun-new"></i>New lead</span>`
+      + (known ? `<span><i class="ev-fun-known"></i>Known prospect won</span>` : '')
+      + `<span><i class="ev-fun-drop"></i>Dropped off</span></div>`
+      + (known ? `<p class="ev-note">A known prospect is a company HubSpot already held before the event, or whose contact carries `
+        + `no event tag, that the event closed: a new customer, not an upsell. It is counted in leads and sat too, so won is the `
+        + `Closed deals count.</p>` : '') + `</section>`;
+  })();
+
+  // 2. Customers credited: where each came from, when it started and stopped
+  // paying, and the evidence it is the event's.
+  const custById = new Map((e.customerRows || []).map(x => [x.id, x]));
+  const stripeOf = new Map();
+  for (const x of data.customers) if (x.stripeLink && custById.has(x.id) && !stripeOf.has(x.id)) stripeOf.set(x.id, x.stripeLink);
+  const CREDIT_WORDS = { direct: 'its own won deal', indirect: 'touched by it; another deal closed it', 'tag only': 'the event tag alone' };
+  const fromWord = o => (o === 'new' ? 'New lead' : 'Known prospect');
+  const ledgerRows = ledger.rows.map(x => `<tr><td><span class="ev-dot ${x.live ? 'live' : 'gone'}"></span>${x.name}`
+      + (custById.get(x.id) && custById.get(x.id).wonElsewhere ? `<br><span class="muted">won on another deal: ${custById.get(x.id).wonElsewhere}</span>` : '') + `</td>`
+      + `<td>${fromWord(x.origin)}${x.winback ? '<br><span class="muted">won back</span>' : ''}</td>`
+      + `<td>${fmt.monthLabel(x.firstPaid)}${x.lag !== null ? `<br><span class="muted">${x.lag <= 0 ? 'the event month' : `${x.lag} month${x.lag === 1 ? '' : 's'} after`}</span>` : ''}</td>`
+      + `<td>${x.live ? '<span class="pos">Still paying</span>' : x.end ? `${fmt.monthLabel(x.end.slice(0, 7))}<br><span class="muted">`
+        + `${x.endFrom === 'stripe' ? 'subscription ended' : 'last payment'}</span>` : '–'}</td>`
+      + `<td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
+      + `<td>${CREDIT_WORDS[x.credit] || 'not graded'}<br>${x.ids.map(id => extLink(stripeOf.get(id) || `https://dashboard.stripe.com/customers/${id}`, 'Stripe')).join(' · ')}</td></tr>`).join('')
+    + ledger.notBilled.map(x => `<tr><td><span class="ev-dot wait"></span>${x.link ? extLink(x.link, x.name) : x.name}</td><td>${fromWord(x.origin)}</td>`
+      + `<td><span class="muted">not billed yet</span>${x.won ? `<br><span class="muted">won ${x.won}</span>` : ''}</td><td>–</td><td class="n">–</td><td class="n">–</td>`
+      + `<td>a won deal in HubSpot</td></tr>`).join('');
+  const ledgerMrr = ledger.rows.reduce((t, x) => t + (x.mrrNow || 0), 0);
+  const ledgerCash = ledger.rows.reduce((t, x) => t + (x.collected || 0), 0);
+  const customersPanel = `<section class="ev-panel"><h3>Customers credited</h3>`
+    + (ledgerRows
+      ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>From</th><th>First paid</th>`
+        + `<th>Ended</th><th class="n">MRR now</th><th class="n">Collected</th><th>Evidence</th></tr></thead><tbody>${ledgerRows}`
+        + `<tr class="total-row"><td colspan="4"><strong>${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'} · ${int(stillPaying)} still paying</strong></td>`
+        + `<td class="n"><strong>${money(ledgerMrr)}</strong></td><td class="n"><strong>${money(ledgerCash)}</strong></td><td></td></tr></tbody></table></div>`
+        + signedLine
+        + (e.alreadyPaying ? `<p class="ev-note">${int(e.alreadyPaying)} more carry the tag but were paying before the event, so they are not credited.</p>` : '')
+        + ((e.customerRows || []).some(x => x.wonElsewhere)
+          ? `<p class="ev-note">A customer marked won on another deal had this event’s deal lost and was won through `
+            + `another source. Set "Credit an event with" to "Only customers no other source's deal won" to leave them out.</p>` : '')
+      : `<p class="empty">${e.upcoming ? `No customer yet: it ${aheadWords}.` : 'No tagged customer has started paying since this event.'}</p>`)
+    + `</section>`;
+
+  // 3. Paid back against the cost: the contribution curve, then what Stripe
+  // collected from each customer month by month, with the running total.
+  const gridHtml = ledger.rows.length && ledger.months.length ? (() => {
+    const sums = ledger.rows.map(x => x.cells.reduce((t, v) => t + (v || 0), 0));
+    const all = sums.reduce((t, v) => t + v, 0);
+    const passI = ledger.passedAt ? ledger.months.indexOf(ledger.passedAt) : -1;
+    const last = ledger.running[ledger.running.length - 1] || 0;
+    return `<h4 class="proof-sub">Paid each month, from the event\u2019s month</h4>`
+      + `<div class="table-scroll"><table class="data-table ev-table ev-grid"><thead><tr><th>Customer</th>`
+      + ledger.months.map(m => `<th class="n">${mHead(m)}</th>`).join('') + `<th class="n">Total</th></tr></thead><tbody>`
+      + ledger.rows.map((x, j) => `<tr><td>${x.name}</td>` + x.cells.map((v, i) => `<td class="n">${v === null
+        ? (i && x.cells[i - 1] !== null ? '<span class="muted">ended</span>' : '') : whole(v)}</td>`).join('')
+        + `<td class="n"><strong>${whole(sums[j])}</strong></td></tr>`).join('')
+      + `<tr class="total-row"><td>Paid that month</td>${ledger.totals.map(v => `<td class="n">${whole(v)}</td>`).join('')}`
+      + `<td class="n"><strong>${whole(all)}</strong></td></tr>`
+      + `<tr class="ev-run"><td>Running total</td>${ledger.running.map((v, i) => `<td class="n${i === passI ? ' ev-passed' : ''}">${whole(v)}</td>`).join('')}`
+      + `<td class="n">${ledger.cost ? `<span class="muted">cost ${whole(ledger.cost)}</span>` : ''}</td></tr>`
+      + `</tbody></table></div>`
+      + `<p class="ev-note">Dollars Stripe collected. ${ledger.cost ? (ledger.passedAt
+        ? `<strong>The running total passed the cost of ${money(ledger.cost)} in ${fmt.monthLabel(ledger.passedAt)}.</strong> `
+        : `<strong>The running total is ${money(last)}, ${pct(last / ledger.cost)} of the ${money(ledger.cost)} cost.</strong> `)
+        : 'The cost is not known yet. '}This is revenue; the line above and the ROI count contribution, what is left after the `
+      + `cost to serve the customer, so they cross the cost later.</p>`;
+  })() : '';
+  const curveNote = `<details class="proof-review"><summary>How the projection works</summary><p class="ev-note">Solid is contribution actually received, month by month from the event; dashed is the `
+    + `projection from this event’s own churn, and the shaded band is its 90% range: in nine of ten simulated futures `
+    + `the line ends up inside it. Each future lets every customer leave, downgrade or upgrade month by month as the book\u2019s `
+    + `customers actually did, so with few customers one early departure or plan cut moves it a lot. Revenue is never `
+    + `assumed to grow on average; it is held flat, or falls where the record says it does. The line it has to cross is the cost.`
+    + (pb && pb.projectedAtRange && pb.paidAt === null ? ` ${pb.projectedAtRange.share >= 0.9
+      ? `It pays back in nine of ten futures, between month ${pb.projectedAtRange.early} and month ${pb.projectedAtRange.late}.`
+      : pb.projectedAtRange.share > 0 ? `It pays back within ${36} months in ${fmt.pct(pb.projectedAtRange.share, 0)} of futures.`
+        : 'It does not pay back within 36 months in any simulated future.'}` : '')
+    + `</p>${drivers ? `<div class="ev-facts">${drivers}</div>` : ''}</details>`;
+  const hasCurve = pb && (pb.actualPath.length || pb.projectedPath.length);
+  const moneyPanel = e.upcoming || (!hasCurve && !gridHtml) ? ''
+    : `<section class="ev-panel"><h3>Paid back against the cost</h3><div class="ev-kpis ev-kpis-more">${kpis}</div>`
+      + (hasCurve ? `<div class="plot" id="event-page-curve"></div>`
+        + (pb.provisional ? `<p class="ev-note"><strong>Provisional.</strong> The cost is still settling, so the line it has `
+          + `to cross may move; the event is not ranked until it settles.</p>` : '') + curveNote : '')
+      + gridHtml + `</section>`;
+
+  // 4. Beside the return: what the event touched that is not in its return.
+  const upNow = (eventUpsells(data, r.roi) || { byLabel: new Map() }).byLabel.get(e.label);
+  const besideFacts = (upNow ? fact('Upsells', upNow.watching ? 'Watching' : upNow.credited ? money(upNow.credited) : 'None',
+      upNow.watching ? `${int(upNow.existing)} existing customer${upNow.existing === 1 ? '' : 's'} came through it; no month after has closed`
+        : upNow.credited ? `contribution from ${int(upNow.grew)} customer${upNow.grew === 1 ? '' : 's'} paying more, above the book\u2019s usual growth`
+          : `${int(upNow.existing)} existing customer${upNow.existing === 1 ? '' : 's'} came through it; none pays more`) : '')
+    + (funRow && funRow.loaded && funRow.loaded.won ? fact('Won from a loaded list', int(funRow.loaded.won), 'a file loaded into HubSpot, not a lead') : '')
+    + (funRow && funRow.byState && funRow.byState.wonElsewhere ? fact('Won through another source', int(funRow.byState.wonElsewhere),
+      'its lead, closed by another source\u2019s deal; credited there') : '')
+    + (e.alreadyPaying ? fact('Already paying', int(e.alreadyPaying), 'tagged, but paying before the event') : '');
+  const besidePanel = besideFacts ? `<section class="ev-panel"><h3>Beside the return</h3><div class="ev-facts">${besideFacts}</div>`
+    + `<p class="ev-note">Shown beside the event, not added to its closed deals or its return.</p></section>` : '';
+
+  // 5. Four charts: where the customers came from, how long they took to
+  // pay, how the leads arrived, and whether the customers stay.
+  const nNew = cardFig.wonLeads.length;
+  const chartA = closedWon ? `<div class="ev-chart"><h4>A · Where the customers came from</h4>`
+    + `<div class="ev-split ev-split-tall"><span class="ev-fun-new" style="width:${(nNew / closedWon * 100).toFixed(1)}%"></span>`
+    + `<span class="ev-fun-known" style="width:${(known / closedWon * 100).toFixed(1)}%"></span></div>`
+    + `<div class="ev-split-key"><span><i class="ev-fun-new"></i>New lead ${int(nNew)}</span><span><i class="ev-fun-known"></i>Known prospect ${int(known)}</span></div>`
+    + `<p class="ev-note">${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}: ${pct(nNew / closedWon)} from leads the event produced.</p></div>` : '';
+  const lagBuckets = [['Event month', v => v <= 0], ['1', v => v === 1], ['2', v => v === 2], ['3', v => v === 3], ['4–6', v => v >= 4 && v <= 6], ['7+', v => v >= 7]];
+  const lagCounts = lagBuckets.map(([k, test]) => [k, ledger.rows.filter(x => x.lag !== null && test(x.lag)).length]);
+  const lagMax = Math.max(1, ...lagCounts.map(([, n]) => n));
+  const chartB = ledger.rows.length ? `<div class="ev-chart"><h4>B · Months from the event to first payment</h4><div class="ev-cols">`
+    + lagCounts.map(([k, n]) => `<div class="ev-col"><span class="ev-col-n">${n || ''}</span><span class="ev-col-bar" style="height:${(n / lagMax * 70).toFixed(1)}%"></span>`
+      + `<span class="ev-col-k">${k}</span></div>`).join('') + `</div></div>` : '';
+  const wonSet = new Set(cardFig.wonLeads);
+  const ways = new Map();
+  for (const l of headLeads) {
+    // A listed contact counts only when a deal opened after the event, so it
+    // was re-engaged by it, not loaded.
+    const k = l.arrivedAs === 'list' ? 'list, re-engaged' : l.arrivedAs || 'not recorded';
+    if (!ways.has(k)) ways.set(k, { leads: 0, sat: 0, won: 0 });
+    const b = ways.get(k);
+    b.leads += 1; if (l.dealCreated || wonSet.has(l)) b.sat += 1; if (wonSet.has(l)) b.won += 1;
+  }
+  const wayRows = [...ways.entries()].sort((a, b) => b[1].leads - a[1].leads);
+  if (known) wayRows.push(['known prospect', { leads: known, sat: known, won: known }]);
+  const wayMax = Math.max(1, ...wayRows.map(([, b]) => b.leads));
+  const chartC = wayRows.length ? `<div class="ev-chart"><h4>C · How the leads arrived</h4><table class="data-table ev-table ev-ways"><thead><tr><th>Arrived as</th>`
+    + `<th>Leads</th><th class="n">Sat</th><th class="n">Won</th></tr></thead><tbody>`
+    + wayRows.map(([k, b]) => `<tr><td>${k.charAt(0).toUpperCase() + k.slice(1)}</td><td><span class="ev-way-bar" style="width:${(b.leads / wayMax * 100).toFixed(1)}%"></span>`
+      + `<span class="ev-way-n">${int(b.leads)}</span></td><td class="n">${int(b.sat)}</td><td class="n">${b.won ? `<strong>${int(b.won)}</strong>` : '0'}</td></tr>`).join('')
+    + `</tbody></table></div>` : '';
+  const stay = eventStaying(ledger.rows, cohorts ? blendedRetention(cohorts) : [], data.lastMonth);
+  const stayBar = (k, share, sub, cls) => `<div class="ev-stay-row"><span class="ev-stay-k">${k}</span><div class="ev-stay-track">`
+    + `<span class="${cls}" style="width:${(share * 100).toFixed(1)}%"></span></div><span class="ev-stay-v">${pct(share)}</span><span class="ev-fun-sub">${sub}</span></div>`;
+  const chartD = stay.n ? `<div class="ev-chart"><h4>D · Do they stay</h4>`
+    + stayBar('This event', stay.staying / stay.n, `${int(stay.staying)} of ${int(stay.n)} still paying`, 'ev-fun-new')
+    + stayBar('The whole book', stay.expected / stay.n, `kept at the same ages: ${stay.expected.toFixed(1)} of ${int(stay.n)}`, 'ev-stay-book')
+    + `<p class="ev-note">Median ${int(stay.medianAge)} month${stay.medianAge === 1 ? '' : 's'} since first payment.`
+    + `${stay.n < 10 ? ' With few customers, one departure moves it a lot.' : ''}</p></div>` : '';
+  const chartsPanel = chartA || chartB || chartC || chartD
+    ? `<section class="ev-panel"><h3>Who came, and do they stay</h3><div class="ev-charts">${chartA}${chartB}${chartC}${chartD}</div></section>` : '';
+
+  // 6. Folded away: the leads list and how everything is counted.
+  const leadsPanel = eventLeadsPanel(e, r.roi);
+  const leadsFold = leadFacts || leadsPanel ? fold(`Leads list${newLeadsN ? ` (${int(newLeadsN)})` : ''}`,
+    (leadFacts ? `<div class="ev-facts">${leadFacts}</div>` : '')
+    + (lead && lead.listShare >= 0.3 ? `<p class="ev-note">${pct(lead.listShare)} of the contacts tagged to it came from a `
+      + `loaded list, so the tagged total describes a file, not leads the event generated; the new leads above are what it `
+      + `produced.</p>` : '') + leadsPanel) : '';
+  const howFold = fold('How we count', `<dl class="ev-defs">`
+    + `<dt>Leads</dt><dd>Contacts new to HubSpot on or after the event through its meetings link, a form, a rep, chat or a booth `
+    + `scan, plus the known prospects it won. A list loaded into HubSpot, or a contact tagged before the event, is not a lead.</dd>`
+    + `<dt>Sat</dt><dd>A demo held. HubSpot opens a deal only once the demo is held, so there is no booked count.</dd>`
+    + `<dt>Won, Closed deals</dt><dd>The customers Stripe bills that the event is credited with, counted by company, plus won `
+    + `deals not billed yet. Won and Closed deals are the same number.</dd>`
+    + `<dt>New lead, known prospect</dt><dd>A new lead is one of the event\u2019s leads. A known prospect is a company HubSpot held `
+    + `before the event, or whose contact carries no event tag, that the event closed: a new customer, not an upsell.</dd>`
+    + `<dt>Revenue</dt><dd>Cash Stripe collected from the credited customers, from the event\u2019s month on.</dd>`
+    + `<dt>ROI now, 12-month ROI</dt><dd>Contribution (revenue less the cost to serve) less the event\u2019s cost, over the cost: `
+    + `to date, and twelve months from the event, projected where twelve months have not passed.</dd>`
+    + `<dt>Ended</dt><dd>Stripe\u2019s subscription end date; where Stripe has none, the last month a payment arrived.</dd>`
+    + `<dt>Evidence</dt><dd>Its own won deal closed the customer (direct), the event touched it and another deal closed it `
+    + `(indirect), or the event tag is all there is.</dd></dl>`
+    + confidencePanel(evConf, 'this result', e.paid
+      ? 'Nothing in the inputs lowers it: the cost is recorded, the event is dated, and most of its customers were closed by its own deals.'
+      : 'Nothing in the inputs lowers it: the cost is recorded. No customer is credited to it yet, so there is no attribution to check.')
+    + (evidenceFacts ? `<h4 class="proof-sub">How strong the evidence is</h4><div class="ev-facts">${evidenceFacts}</div>`
+      + `<p class="ev-note">Every figure here is a floor: nothing sets the lead source automatically, so a customer this event `
+      + `brought who was never tagged is not counted at all.</p>` : '')
+    + (tagFacts ? `<h4 class="proof-sub">How the tags were made</h4><div class="ev-facts">${tagFacts}</div>` : ''));
+
   box.innerHTML =
     `<a href="#events" class="ev-back">All events</a>`
     + dealToggle('event-deal-only')
@@ -5519,49 +5738,16 @@ function renderEventPage(label) {
     + (e.source ? `<p class="ev-source">HubSpot source: ${e.source}</p>` : '') + `</header>`
     + `<div class="ev-kpis ev-kpis-head">${headCards}</div>`
     + `<div class="ev-kpis ev-kpis-rates">${rateCards}</div>`
-    + `<div class="ev-kpis ev-kpis-more">${kpis}</div>`
-    + (pb && (pb.actualPath.length || pb.projectedPath.length)
-      ? `<section class="ev-panel"><h3>Money back against cost</h3><div class="plot" id="event-page-curve"></div>`
-        + (pb.provisional ? `<p class="ev-note"><strong>Provisional.</strong> The cost is still settling, so the line it has `
-          + `to cross may move; the event is not ranked until it settles.</p>` : '')
-        + `<p class="ev-note">Solid is contribution actually received, month by month from the event; dashed is the `
-        + `projection from this event’s own churn, and the shaded band is its 90% range: in nine of ten simulated futures `
-        + `the line ends up inside it. Each future lets every customer leave, downgrade or upgrade month by month as the book\u2019s `
-        + `customers actually did, so with few customers one early departure or plan cut moves it a lot. Revenue is never `
-        + `assumed to grow on average; it is held flat, or falls where the record says it does. The line it has to cross is the cost.`
-        + (pb.projectedAtRange && pb.paidAt === null ? ` ${pb.projectedAtRange.share >= 0.9
-          ? `It pays back in nine of ten futures, between month ${pb.projectedAtRange.early} and month ${pb.projectedAtRange.late}.`
-          : pb.projectedAtRange.share > 0 ? `It pays back within ${36} months in ${fmt.pct(pb.projectedAtRange.share, 0)} of futures.`
-            : 'It does not pay back within 36 months in any simulated future.'}` : '')
-        + `</p>`
-        + (drivers ? `<div class="ev-facts">${drivers}</div>` : '') + `</section>` : '')
+    + funnelPanel
+    + customersPanel
+    + moneyPanel
+    + eventUpsellPanel(e, r.roi)
+    + besidePanel
+    + chartsPanel
     + `<section class="ev-panel"><h3>What it cost</h3>${costBar}<div class="ev-facts">${costFacts}</div>${costNotes}</section>`
     + costProofPanel(e)
-    + (leadFacts ? `<section class="ev-panel"><h3>Leads</h3><div class="ev-facts">${leadFacts}</div>`
-      + (lead && lead.listShare >= 0.3 ? `<p class="ev-note">${pct(lead.listShare)} of the contacts tagged to it came from a `
-        + `loaded list, so the tagged total describes a file, not leads the event generated; the new leads above are what it `
-        + `produced.</p>` : '') + `</section>` : '')
-    + eventLeadsPanel(e)
-    + eventUpsellPanel(e, r.roi)
-    + confidencePanel(evConf, 'this result', e.paid
-      ? 'Nothing in the inputs lowers it: the cost is recorded, the event is dated, and most of its customers were closed by its own deals.'
-      : 'Nothing in the inputs lowers it: the cost is recorded. No customer is credited to it yet, so there is no attribution to check.')
-    + (evidenceFacts ? `<section class="ev-panel"><h3>How strong the evidence is</h3><div class="ev-facts">${evidenceFacts}</div>`
-      + `<p class="ev-note">Every figure here is a floor: nothing sets the lead source automatically, so a customer this event `
-      + `brought who was never tagged is not counted at all.</p></section>` : '')
-    + (tagFacts ? `<section class="ev-panel"><h3>How the tags were made</h3><div class="ev-facts">${tagFacts}</div></section>` : '')
-    + `<section class="ev-panel"><h3>Customers credited</h3>`
-    + (custRows
-      ? signedLine + `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>First paid</th>`
-        + `<th class="n">Signed MRR</th><th class="n">MRR now</th><th class="n">Collected</th><th class="n">Contribution</th>`
-        + `<th>Evidence</th><th>HubSpot record</th><th>Tag written</th></tr></thead><tbody>${custRows}</tbody></table></div>`
-        + (e.alreadyPaying ? `<p class="ev-note">${int(e.alreadyPaying)} more carry the tag but were paying before the `
-          + `event, so they are not credited.</p>` : '')
-        + ((e.customerRows || []).some(x => x.wonElsewhere)
-          ? `<p class="ev-note">A customer marked won on another deal had this event’s deal lost and was won through `
-            + `another source. Set "Credit an event with" to "Only customers no other source's deal won" to leave them out.</p>` : '')
-      : '<p class="empty">No tagged customer has started paying since this event.</p>')
-    + `</section>`;
+    + leadsFold
+    + howFold;
 
   if (pb && $('event-page-curve')) {
     // Far enough to show the crossing, and no further: a 36-month line

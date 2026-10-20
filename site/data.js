@@ -4647,6 +4647,8 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
         leadDate: leadDateOf.get(id) || null,
         leadSetAt: leadSetOf.get(id) || null,
         signedMrr: (allRows.find(r => r.id === id && r.signedMrr !== null) || {}).signedMrr ?? null,
+        // Cash by month, for the payment grid on the event's page.
+        months: own.map(r => ({ month: r.month, cash: r.netCash || 0 })).sort((a, b) => a.month.localeCompare(b.month)),
       };
     }).sort((a, b) => (b.contribution || 0) - (a.contribution || 0));
     return {
@@ -5840,7 +5842,16 @@ export function leadState(r) {
 // with its numerator and denominator, and marked thin under ten, so a rate
 // on four leads cannot pass for a measurement.
 const ratio = (n, d) => ({ n, d, rate: d ? n / d : null, thin: d < 10 });
+// One event page asks for the funnel four times over the same figures.
+const funnelCache = new WeakMap();
 export function eventFunnel(data, roi = eventRoi(data)) {
+  if (funnelCache.has(data) && funnelCache.get(data).roi === roi) return funnelCache.get(data).out;
+  const out = eventFunnelOf(data, roi);
+  funnelCache.set(data, { roi, out });
+  return out;
+}
+
+function eventFunnelOf(data, roi) {
   const rows = data.eventLeadRows;
   if (!rows || !rows.length) return null;
   // A source is matched to its event the way Lead Counts is (cost rows,
@@ -6291,8 +6302,9 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
   const fe = f ? f.events.find(x => x.source === e.source || x.label === e.label) : null;
   const leads = fe ? fe.leads.filter(l => ['won', 'wonLate', 'wonElsewhere', 'lost', 'sat', 'booked', 'unworked', 'undated'].includes(l.state)) : [];
   const credited = new Set((e.customerRows || []).map(x => x.id));
-  const notBilled = new Set(leads.filter(l => l.state === 'won' && !(l.company && byCo(l.company)
-    && credited.has(byCo(l.company).id))).map(l => l.company || l));
+  const wonLeadsNotBilled = leads.filter(l => l.state === 'won' && !(l.company && byCo(l.company)
+    && credited.has(byCo(l.company).id)));
+  const notBilled = new Set(wonLeadsNotBilled.map(l => l.company || l));
   // HubSpot wins with no lead row and no Stripe customer credited here yet.
   const known = new Set([...leads.map(l => companyKey(l.company)), ...(e.customerRows || []).map(x => companyKey(x.name))]);
   const extraWins = HUBSPOT_EVENT_WINS.filter(w => w.source === e.source
@@ -6308,9 +6320,19 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
   // there is no booked stage.
   const custOf = l => (l.company && byCo(l.company) ? byCo(l.company).id : null);
   const leadCust = new Map(); for (const l of leads) { const id = custOf(l); if (id && !leadCust.has(id)) leadCust.set(id, l); }
-  const paying = (e.customerRows || []).filter(x => x.firstPaid);
-  const outsideLeads = paying.filter(x => !leadCust.has(x.id)).length + extraWins.length;
-  const wonUnsat = paying.filter(x => leadCust.has(x.id) && !leadCust.get(x.id).dealCreated).length;
+  // Counted by company, as Closed deals is: a company with an account in
+  // each Stripe environment is one win (Sierra Pacific, Lennox Live Anaheim).
+  const payingCo = new Map();
+  for (const x of (e.customerRows || []).filter(y => y.firstPaid)) {
+    const key = companyKey(x.name) || x.id;
+    if (!payingCo.has(key)) payingCo.set(key, []);
+    payingCo.get(key).push(x.id);
+  }
+  const leadOfCo = ids => ids.map(id => leadCust.get(id)).find(Boolean) || null;
+  const coLeads = [...payingCo.values()].map(leadOfCo);
+  const outsideLeads = coLeads.filter(l => !l).length + extraWins.length;
+  const wonUnsat = coLeads.filter(l => l && !l.dealCreated).length;
+  const notBilledLeads = [...new Map(wonLeadsNotBilled.map(l => [l.company || l, l])).values()];
   const sat = leads.filter(l => l.dealCreated).length;
   const closedWon = (e.paid || 0) + wonNotBilled;
   return {
@@ -6326,6 +6348,92 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
     closedLost: leads.filter(l => l.state === 'lost').length,
     stillOpen: leads.filter(l => l.state === 'sat').length,
     leadRows: leads,
+    // Who each closed deal is, for the customers table: paying customers
+    // found among the leads are new leads, the rest known prospects.
+    leadCustomerIds: [...leadCust.keys()],
+    // The lead behind each closed deal found among the leads, one per company.
+    wonLeads: [...coLeads.filter(Boolean), ...notBilledLeads],
+    notBilledRows: [
+      ...notBilledLeads.map(l => ({ name: l.company || 'A lead with no company',
+        origin: 'new', link: l.companyLink || null, won: l.dealCreated || null })),
+      ...extraWins.map(w => ({ name: w.company, origin: 'known', link: null,
+        won: w.closed || null })),
+    ],
+  };
+}
+
+// One event's closed deals as a ledger, for its page (Josh, 20 Oct 2026):
+// where each customer came from, when it started and stopped paying, and
+// what Stripe collected from it each month from the event's month, with the
+// running total against the cost. The end date is Stripe's subscription end
+// where the customer has left; without one, the last month it paid.
+export function eventCustomerLedger(data, e, card) {
+  const fromLead = new Set(card.leadCustomerIds || []);
+  const life = new Map((data.lifetimeRecords || []).map(r => [r.id, r]));
+  const months = [];
+  if (e.month && !e.upcoming && data.lastMonth) for (let m = e.month; m <= data.lastMonth; m = monthAdd(m, 1)) months.push(m);
+  let rows = (e.customerRows || []).filter(x => x.firstPaid).map(x => {
+    const cash = new Map((x.months || []).map(r => [r.month, r.cash]));
+    const paid = (x.months || []).filter(r => r.cash > 0).map(r => r.month);
+    const rec = life.get(x.id);
+    const stripeEnd = rec && String(rec.status || '').toLowerCase() === 'churned' && rec.end ? rec.end : null;
+    const end = x.live ? null : stripeEnd || (paid.length ? paid[paid.length - 1] : null);
+    const endMonth = end ? end.slice(0, 7) : null;
+    return {
+      id: x.id, name: x.name, origin: fromLead.has(x.id) ? 'new' : 'known', credit: x.credit || null,
+      winback: x.winback, firstPaid: x.firstPaid, live: x.live, end, endFrom: x.live ? null : stripeEnd ? 'stripe' : 'last paid',
+      mrrNow: x.mrrNow, collected: x.collected, contribution: x.contribution,
+      lag: e.month ? monthDiff(e.month, x.firstPaid) : null,
+      cells: months.map(m => (endMonth && m > endMonth && !(cash.get(m) > 0) ? null : cash.get(m) || 0)),
+    };
+  });
+  // One company with an account in each Stripe environment is one closed
+  // deal (Sierra Pacific, Lennox Live Anaheim 2026), so its accounts are one row.
+  const byCompany = new Map();
+  for (const x of rows) {
+    const key = companyKey(x.name) || x.id;
+    const had = byCompany.get(key);
+    if (!had) { byCompany.set(key, { ...x, ids: [x.id] }); continue; }
+    had.ids.push(x.id);
+    if (x.origin === 'new') had.origin = 'new';
+    had.firstPaid = had.firstPaid < x.firstPaid ? had.firstPaid : x.firstPaid;
+    had.live = had.live || x.live;
+    had.end = had.live ? null : [had.end, x.end].filter(Boolean).sort().pop() || null;
+    had.endFrom = had.live ? null : had.endFrom === 'stripe' || x.endFrom === 'stripe' ? 'stripe' : 'last paid';
+    had.mrrNow += x.mrrNow; had.collected += x.collected;
+    had.contribution = had.contribution === null && x.contribution === null ? null : (had.contribution || 0) + (x.contribution || 0);
+    had.lag = Math.min(had.lag, x.lag);
+    had.cells = had.cells.map((v, i) => (v === null && x.cells[i] === null ? null : (v || 0) + (x.cells[i] || 0)));
+  }
+  rows = [...byCompany.values()].sort((a, b) => a.firstPaid.localeCompare(b.firstPaid) || b.collected - a.collected);
+  const totals = months.map((_, i) => rows.reduce((t, r) => t + (r.cells[i] || 0), 0));
+  const running = [];
+  totals.forEach((v, i) => running.push((running[i - 1] || 0) + v));
+  const cost = e.costState === 'absent' ? null : e.spend || null;
+  const passedAt = cost ? running.findIndex(v => v >= cost) : -1;
+  return { months, rows, totals, running, cost, passedAt: passedAt >= 0 ? months[passedAt] : null,
+    notBilled: card.notBilledRows || [] };
+}
+
+// Do an event's customers stay (Josh, 20 Oct 2026): how many of them are
+// still paying, against how many the whole book keeps at the same ages.
+// The book's share is the blended logo retention at each customer's age,
+// indexed to its second month; past the curve's end its last point holds.
+export function eventStaying(customers, blended, lastMonth) {
+  const atAge = age => {
+    if (age <= 1 || !blended.length) return 1;
+    const p = blended.find(b => b.offset === age) || blended[blended.length - 1];
+    return p.logos;
+  };
+  const list = customers.filter(x => x.firstPaid);
+  return {
+    n: list.length,
+    staying: list.filter(x => x.live).length,
+    expected: list.reduce((t, x) => t + atAge(monthDiff(x.firstPaid, lastMonth)), 0),
+    medianAge: (() => {
+      const ages = list.map(x => monthDiff(x.firstPaid, lastMonth)).sort((a, b) => a - b);
+      return ages.length ? ages[ages.length >> 1] : null;
+    })(),
   };
 }
 
@@ -6384,12 +6492,29 @@ export function eventsOverview(data, { from = null, to = null, creditRule = DEFA
     leadToWon: newLeads ? wonFromLeads / newLeads : null,
     satToWon: demosSatCards ? wonFromLeads / demosSatCards : null,
   };
-  const funnel = { leads: fe.reduce((t, x) => t + x.base, 0), demos: fe.reduce((t, x) => t + x.sat.n, 0),
-    sales: fe.reduce((t, x) => t + x.won.n, 0),
+  // The same leads, sat and won the event pages show, summed (20 Oct 2026).
+  const funnel = { leads: newLeads, demos: demosSatCards, sales: closedWon,
     // Organisers' lists loaded after the event: shown beside it, never in its
     // return (decided 13 Oct 2026).
     listLoaded: fe.reduce((t, x) => t + (x.loaded ? x.loaded.n : 0), 0),
     listWon: fe.reduce((t, x) => t + (x.loaded ? x.loaded.won : 0), 0) };
+  // Where each event's customers came from, how the leads arrived across
+  // every event, and each event's customers for the staying chart.
+  const origins = cards.filter(x => x.k.closedWon).map(x => ({ label: x.e.label, month: x.e.month,
+    fromLeads: x.k.wonLeads.length, known: x.k.wonOutsideLeads, closed: x.k.closedWon }))
+    .sort((a, b) => b.closed - a.closed || a.label.localeCompare(b.label));
+  const ways = new Map();
+  for (const { k } of cards) {
+    const won = new Set(k.wonLeads);
+    for (const l of k.leadRows) {
+      const key = l.arrivedAs === 'list' ? 'list, re-engaged' : l.arrivedAs || 'not recorded';
+      if (!ways.has(key)) ways.set(key, { leads: 0, sat: 0, won: 0 });
+      const w = ways.get(key);
+      w.leads += 1; if (l.dealCreated || won.has(l)) w.sat += 1; if (won.has(l)) w.won += 1;
+    }
+  }
+  if (wonOutsideLeads) ways.set('known prospect', { leads: wonOutsideLeads, sat: wonOutsideLeads, won: wonOutsideLeads });
+  const ledgerRows = cards.flatMap(x => eventCustomerLedger(data, x.e, x.k).rows);
   // Cumulative spend and contribution by calendar month.
   const spendBy = new Map();
   for (const e of ran) spendBy.set(e.month, (spendBy.get(e.month) || 0) + e.spend);
@@ -6434,6 +6559,7 @@ export function eventsOverview(data, { from = null, to = null, creditRule = DEFA
     roi12: spend12 ? at12 / spend12 - 1 : null, roi12Range: spend12 ? [at12Low / spend12 - 1, at12High / spend12 - 1] : null,
     paidBack: paidBack.length, onTrack: onTrack.length,
     funnel, rates, timeline, ranked, byKind, ahead,
+    origins, ways: [...ways.entries()].sort((x, y) => (x[0] === 'known prospect') - (y[0] === 'known prospect') || y[1].leads - x[1].leads), ledgerRows,
   };
 }
 

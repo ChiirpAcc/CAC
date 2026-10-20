@@ -102,6 +102,23 @@ records can still be estimated, labelled as estimates.
 - **Indirect:** touched by the event; something else closed them.
 - **Tag only:** no won deal; the tag is the only link (and must pass rule 1.3.4).
 
+### 1.6 How an event page reads (20 Oct 2026)
+
+Top to bottom, as a report: the headline (total cost, leads, closed deals,
+revenue, ROI now) and the rates (cost per lead, cost per closed deal, lead to
+won, 12-month ROI, still paying); the funnel, leads to sat to won, with the
+known prospects it won shaded; the customers credited, each with where it came
+from (new lead or known prospect), first payment and end date (Stripe's
+subscription end, or the last month it paid); what each paid month by month
+from the event's month, with the running total against the cost; upsells and
+what sits beside the return; four charts (where the customers came from,
+months to first payment, how the leads arrived, whether the customers stay
+against the whole book at the same ages); the cost and its proof, each
+cardholder's charges folded; then, folded, the leads list and how everything
+is counted. The customers table and the payment grid count a company once
+across Stripe environments, so their rows are the Closed deals count, and the
+grid's total is what Stripe collected.
+
 ## 2. What people must do in HubSpot
 
 These are what make the rules above find the right answer. Without them, every
