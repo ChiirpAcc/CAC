@@ -5625,6 +5625,23 @@ function renderEventPage(label) {
     : q.key === 'churn' ? (ch ? `${int(ch.left)} left of ${ch.expectedAtAverage.toFixed(1)}` : '–')
       : q.key === 'leadToWon' ? pct(q.value) : q.key === 'monthsToPay' ? `${q.value <= 0 ? 'event month' : `${q.value} mo`}`
         : Number.isFinite(q.value) ? money(q.value) : 'none');
+  // A few words under each measure (Josh, 20 Oct 2026): what it is, and the
+  // middle event's figure it is ranked against.
+  const partContext = q => {
+    const mid = scorecard.middle[q.key] || {};
+    const md = mid.median;
+    const none = mid.none ? `; ${int(mid.none)} event${mid.none === 1 ? '' : 's'} with none rank last` : '';
+    switch (q.key) {
+      case 'roi12': return `return on cost 12 months from the event, projected if younger · middle event ${signedPct(md)}`;
+      case 'churn': return `customers leaving, against the average event’s at the same ages · middle event ${md === null ? '–' : `${md.toFixed(1)}×`}`;
+      case 'costPerClosed': return `cost over closed deals; lower is better · middle event ${money(md)}${none}`;
+      case 'leadToWon': return `closed deals over leads, pulled to the average on few leads · middle event ${pct(md)}`;
+      case 'costPerLead': return `cost over leads; lower is better · middle event ${money(md)}${none}`;
+      case 'revenuePerCustomer': return `what a paying customer pays in an average month · middle event ${money(md)}`;
+      case 'monthsToPay': return `from the event to a customer’s first payment, the median · middle event ${md === null ? '–' : md <= 0 ? 'the event month' : `${md} month${md === 1 ? '' : 's'}`}`;
+      default: return '';
+    }
+  };
   const scorePanel = !sc ? (e.upcoming ? '' : `<section class="ev-panel"><h3>Event score</h3><p class="ev-note">Not scored yet: `
       + `${e.costState === 'absent' ? 'its cost is not known' : pb && pb.provisional ? 'its cost is still settling' : 'under three months old with no customer'}.</p></section>`)
     : `<section class="ev-panel"><h3>Event score</h3><div class="ev-score-head">`
@@ -5632,7 +5649,8 @@ function renderEventPage(label) {
       + `<span class="ev-score-words"><strong>${sc.grade.charAt(0).toUpperCase() + sc.grade.slice(1)}</strong> · ${ord(sc.place)} of ${int(scorecard.n)} scored events`
       + ` · rests on ${int(sc.customers)} customer${sc.customers === 1 ? '' : 's'} (${sc.sample})</span></div>`
       + churnLine
-      + `<div class="ev-score-parts">` + sc.parts.map(q => `<div class="ev-score-part"><span class="ev-score-k">${q.label} <span class="muted">${q.weight}%</span></span>`
+      + `<div class="ev-score-parts">` + sc.parts.map(q => `<div class="ev-score-part"><span class="ev-score-k"><span>${q.label} <span class="muted">${q.weight}%</span></span>`
+        + `<span class="ev-score-ctx">${partContext(q)}</span></span>`
         + `<span class="ev-score-v">${partValue(q)}</span><div class="ev-score-track"><span class="${q.rank === null ? '' : q.rank >= 60 ? 'pos' : q.rank < 40 ? 'neg' : ''}" `
         + `style="width:${Math.max(q.rank || 0, 1).toFixed(0)}%"></span><i></i></div><span class="ev-score-r">${q.rank === null ? 'n/a' : Math.round(q.rank)}</span></div>`).join('')
       + `</div><p class="ev-note">Each measure is ranked among the ${int(scorecard.n)} scored events, 100 the best and 0 the worst `

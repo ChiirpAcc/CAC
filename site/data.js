@@ -10533,6 +10533,15 @@ export function eventScorecard(data, reports) {
       grade: score === null ? null : score >= 70 ? 'strong' : score >= 40 ? 'middling' : 'weak' };
   }).sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
   rows.forEach((r, i) => { r.place = i + 1; });
-  return { rows, byLabel: new Map(rows.map(r => [r.label, r])), churn, n: rows.length };
+  // The middle event on each measure, and how many have none (no deal
+  // closed, no lead), so each part of a score can say what it is set against.
+  const middle = {};
+  for (const m of EVENT_SCORE_WEIGHTS) {
+    const vals = raw.map(x => x[m.key]).filter(v => v !== null && v !== undefined && Number.isFinite(v)).sort((a, b) => a - b);
+    const n = vals.length;
+    middle[m.key] = { median: n ? (n % 2 ? vals[n >> 1] : (vals[n / 2 - 1] + vals[n / 2]) / 2) : null,
+      none: raw.filter(x => x[m.key] === Infinity).length, n };
+  }
+  return { rows, byLabel: new Map(rows.map(r => [r.label, r])), churn, n: rows.length, middle };
 }
 

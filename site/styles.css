@@ -1390,3 +1390,6 @@ span.pos { color: var(--series-pos); }
   .ev-score-track { grid-column: 1 / -1; grid-row: 2; }
   .ev-score-r { display: none; }
 }
+.ev-score-k { display: flex; flex-direction: column; }
+.ev-score-ctx { font-size: 0.7rem; color: var(--ink-soft); line-height: 1.35; }
+@media (min-width: 641px) { .ev-score-part { grid-template-columns: minmax(14rem, 22rem) 8rem 1fr 2.5rem; padding: 0.15rem 0; } }
