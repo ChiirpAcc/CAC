@@ -4456,10 +4456,10 @@ function renderSummary() {
   // The event pages' rates row, over every event in the range (14 Oct 2026).
   const rt = o.rates || {};
   if ($('summary-rates')) $('summary-rates').innerHTML =
-    tile('Cost per lead', rt.costPerLead === null ? '–' : money(rt.costPerLead), `${short(o.spend)} over ${fmt.int(rt.newLeads || 0)} new leads`)
+    tile('Cost per lead', rt.costPerLead === null ? '–' : money(rt.costPerLead), `${short(o.spend)} over ${fmt.int(rt.newLeads || 0)} leads`)
     + tile('Cost per closed deal', rt.costPerClosed === null ? '–' : money(rt.costPerClosed), `${short(o.spend)} over ${fmt.int(rt.closedWon || 0)} closed deals`)
     + tile('Lead to won', rt.leadToWon === null ? '–' : fmt.pct(rt.leadToWon, 0),
-      `${fmt.int(rt.wonFromLeads || 0)} won of ${fmt.int(rt.newLeads || 0)} new leads${rt.satToWon !== null ? ` · ${fmt.pct(rt.satToWon, 0)} of ${fmt.int(rt.demosSat)} sat` : ''}`)
+      `${fmt.int(rt.wonFromLeads || 0)} won of ${fmt.int(rt.newLeads || 0)} leads${rt.satToWon !== null ? ` · ${fmt.pct(rt.satToWon, 0)} of ${fmt.int(rt.demosSat)} sat` : ''}`)
     + tile('ROI now', pct(o.roiToDate), 'on contribution, each event counted from its own date', o.roiToDate !== null && o.roiToDate < 0 ? 'neg' : 'pos')
     + tile('12-month ROI', pct(o.roi12), `12 months from each event’s date${o.roi12Range ? `; likely ${pct(o.roi12Range[0])} to ${pct(o.roi12Range[1])}` : ''}`,
       o.roi12 !== null && o.roi12 < 0 ? 'neg' : 'pos');
@@ -5335,6 +5335,7 @@ function renderEventPage(label) {
   const headLeads = cardFig.leadRows;
   const { demosSat, wonNotBilled, closedWon, closedLost, stillOpen } = cardFig;
   const newLeadsN = cardFig.leads;
+  const leadsWord = cardFig.wonOutsideLeads ? `${int(cardFig.newLeads)} new + ${int(cardFig.wonOutsideLeads)} existing contact${cardFig.wonOutsideLeads === 1 ? '' : 's'} won` : '';
   const costCard = e.costState === 'absent'
     ? kpi('Total cost', c && c.travel ? `${money(c.travel)} +` : 'Not found',
       c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')
@@ -5343,8 +5344,8 @@ function renderEventPage(label) {
         + `${c.travel === null || c.travel === undefined ? 'unknown' : money(c.travel)}`
       + (e.costState === 'settling' ? ' · still settling' : e.upcoming && e.spend ? ' · committed so far' : '') : '');
   const headCards = costCard
-    + kpi('New leads', e.upcoming && !headLeads.length ? '–' : int(newLeadsN),
-      headLeads.length ? `${int(demosSat)} sat · ${int(cardFig.wonFromLeads)} won` : 'no event leads yet')
+    + kpi('Leads', e.upcoming && !newLeadsN ? '–' : int(newLeadsN),
+      newLeadsN ? [leadsWord, `${int(demosSat)} sat · ${int(closedWon)} won`].filter(Boolean).join(' · ') : 'no event leads yet')
     + kpi('Closed deals', e.upcoming && !headLeads.length ? '–' : int(closedWon),
       [e.paid ? `${int(e.paid)} billed in Stripe` : '', wonNotBilled ? `${int(wonNotBilled)} won, not billed yet` : '',
         headLeads.length ? `${int(closedLost)} lost` : ''].filter(Boolean).join(' · '))
@@ -5361,13 +5362,11 @@ function renderEventPage(label) {
   const costKnown = e.costState !== 'absent' && e.spend;
   const monthsOn = e.month && !e.upcoming ? monthDiff(e.month, data.lastMonth) : null;
   const rateCards = kpi('Cost per lead', costKnown && newLeadsN ? money(e.spend / newLeadsN) : '–',
-      newLeadsN ? `${money(e.spend)} over ${int(newLeadsN)} new lead${newLeadsN === 1 ? '' : 's'}` : 'no new leads yet')
+      newLeadsN ? `${money(e.spend)} over ${int(newLeadsN)} lead${newLeadsN === 1 ? '' : 's'}` : 'no leads yet')
     + kpi('Cost per closed deal', costKnown && closedWon ? money(e.spend / closedWon) : '–',
       closedWon ? `${money(e.spend)} over ${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}` : 'no deals closed yet')
-    + kpi('Lead to won', newLeadsN ? pct(cardFig.wonFromLeads / newLeadsN) : '–',
-      newLeadsN ? `${int(cardFig.wonFromLeads)} won of ${int(newLeadsN)} new leads${demosSat ? ` · ${pct(cardFig.wonFromLeads / demosSat)} of ${int(demosSat)} sat` : ''}`
-        + (closedWon > cardFig.wonFromLeads ? ` · ${int(closedWon - cardFig.wonFromLeads)} more won, not from a new lead` : '')
-        : closedWon ? `${int(closedWon)} won, not from a new lead` : '')
+    + kpi('Lead to won', newLeadsN ? pct(closedWon / newLeadsN) : '–',
+      newLeadsN ? `${int(closedWon)} won of ${int(newLeadsN)} leads${demosSat ? ` · ${pct(closedWon / demosSat)} of ${int(demosSat)} sat` : ''}` : '')
     + kpi('ROI now', pb ? signedPct(pb.roiToDate) : '–', pb && pb.roiToDate === null
       ? 'too early: no customer yet, under three months on'
       : pb ? `${monthsOn === null ? '' : `${int(monthsOn)} month${monthsOn === 1 ? '' : 's'} `}since ${dayLabel || 'the event'}${pb.provisional ? ' · provisional' : ''}`

@@ -6183,6 +6183,15 @@ export function attributionAudit(data) {
         ...(u.credited > u.rows.reduce((t, r) => t + (r.extraContribution || 0), 0) + 0.01 ? [`${u.label}: credited above the increase`] : []),
       ]));
   }
+  // The funnel ends on Closed deals: leads at least sat, sat at least won,
+  // and won equal to Closed deals, on every event (Josh, 20 Oct 2026).
+  {
+    const fAll = eventFunnel(data, roi); const byAll = stripeByCompany(data);
+    check('funnel-ends-on-closed', 'Every event’s funnel runs leads ≥ sat ≥ won, and won equals its Closed deals',
+      roi.events.flatMap(e => { const k = eventCardFigures(data, roi, e, fAll, byAll);
+        return k.demosSat > k.leads || k.closedWon > k.demosSat || k.wonFromLeads !== k.closedWon
+          ? [`${e.label}: ${k.leads} leads, ${k.demosSat} sat, ${k.wonFromLeads} won, ${k.closedWon} closed`] : []; }));
+  }
   // No guess on an event still ahead: its fee comes from the tab, the Event
   // Hub or a bill, and estimated travel names confirmed attendees.
   check('no-guess-ahead', 'No event still ahead carries a guessed fee, or estimated travel without confirmed attendees',
@@ -6290,18 +6299,30 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
     && !known.has(companyKey(w.company)) && !(byCo(w.company) && credited.has(byCo(w.company).id)));
   for (const w of extraWins) notBilled.add(w.company);
   const wonNotBilled = notBilled.size;
-  // The funnel is new leads, then sat, then won (Josh, 20 Oct 2026): every
-  // counted lead is a demo to book, and HubSpot opens a deal only once the
-  // demo is held, so "booked" was a setter field, not a booking. Won from
-  // leads counts companies, so lead-to-won cannot pass 100%; customers won
-  // with no lead row are said beside it.
+  // The funnel is leads, then sat, then won, and won is the Closed deals
+  // count (Josh, 20 Oct 2026): every company the event won is one of its
+  // leads and sat a demo, so a customer won from a contact HubSpot already
+  // held, or whose contact carries no event tag (Edison Electric at
+  // CertainPath Spring Expo), is added to leads and sat as "won from an
+  // existing contact". HubSpot opens a deal only once a demo is held, so
+  // there is no booked stage.
+  const custOf = l => (l.company && byCo(l.company) ? byCo(l.company).id : null);
+  const leadCust = new Map(); for (const l of leads) { const id = custOf(l); if (id && !leadCust.has(id)) leadCust.set(id, l); }
+  const paying = (e.customerRows || []).filter(x => x.firstPaid);
+  const outsideLeads = paying.filter(x => !leadCust.has(x.id)).length + extraWins.length;
+  const wonUnsat = paying.filter(x => leadCust.has(x.id) && !leadCust.get(x.id).dealCreated).length;
+  const sat = leads.filter(l => l.dealCreated).length;
+  const closedWon = (e.paid || 0) + wonNotBilled;
   return {
     extraWins,
-    leads: leads.length,
-    wonFromLeads: new Set(leads.filter(l => ['won', 'wonLate'].includes(l.state)).map(l => l.company || l)).size,
-    demosSat: leads.filter(l => l.dealCreated).length,
+    newLeads: leads.length,
+    wonOutsideLeads: outsideLeads,
+    // Leads and sat include every win, so the funnel always ends on Closed deals.
+    leads: leads.length + outsideLeads,
+    demosSat: sat + outsideLeads + wonUnsat,
+    wonFromLeads: closedWon,
     wonNotBilled,
-    closedWon: (e.paid || 0) + wonNotBilled,
+    closedWon,
     closedLost: leads.filter(l => l.state === 'lost').length,
     stillOpen: leads.filter(l => l.state === 'sat').length,
     leadRows: leads,
@@ -6352,11 +6373,12 @@ export function eventsOverview(data, { from = null, to = null, creditRule = DEFA
   const byCoCards = stripeByCompany(data);
   const cards = ran.map(e => ({ e, k: eventCardFigures(data, roi, e, f, byCoCards) }));
   const newLeads = cards.reduce((t, x) => t + x.k.leads, 0);
+  const wonOutsideLeads = cards.reduce((t, x) => t + x.k.wonOutsideLeads, 0);
   const demosSatCards = cards.reduce((t, x) => t + x.k.demosSat, 0);
   const closedWon = cards.reduce((t, x) => t + x.k.closedWon, 0);
   const wonFromLeads = cards.reduce((t, x) => t + x.k.wonFromLeads, 0);
   const rates = {
-    newLeads, demosSat: demosSatCards, closedWon, wonFromLeads,
+    newLeads, wonOutsideLeads, demosSat: demosSatCards, closedWon, wonFromLeads,
     costPerLead: newLeads ? spend / newLeads : null,
     costPerClosed: closedWon ? spend / closedWon : null,
     leadToWon: newLeads ? wonFromLeads / newLeads : null,

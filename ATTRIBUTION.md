@@ -224,7 +224,7 @@ site actually computed. It runs in three places, always with the same code:
 - **GitHub**, on every data push and every change to `site/data.js`
   (`.github/workflows/validate-data.yml` runs `scripts/audit_attribution.mjs`).
   A failure is added to the open "Data push did not validate" issue.
-- **The Events tab**, under Attribution checks ("Rule audit: all 16 checks pass",
+- **The Events tab**, under Attribution checks ("Rule audit: all 17 checks pass",
   or the failures, opened).
 - **By hand:** `node scripts/audit_attribution.mjs`.
 
@@ -245,6 +245,7 @@ site actually computed. It runs in three places, always with the same code:
 | `sales-matches-events` | The Sales tab counts the same leads as the Events tab. |
 | `upsell-not-new` | No upsell customer is also credited as a new customer of the same event. |
 | `upsell-baseline` | Every upsell was paying going in and is credited no more than its increase. |
+| `funnel-ends-on-closed` | Every event's funnel runs leads ≥ sat ≥ won, and won equals its Closed deals: a company the event won from an existing or untagged contact is added to its leads and sat. |
 | `no-guess-ahead` | No event still ahead (past the last month of data) carries a guessed fee, or estimated travel without confirmed attendees; no such guess is on file either. |
 
 The audit was tested by breaking the code on purpose: dropping the win window
