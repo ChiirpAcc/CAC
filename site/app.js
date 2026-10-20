@@ -5405,8 +5405,8 @@ function scoreGuide(n) {
     + `<li><strong>Small samples are smoothed.</strong> Lead to won and churn are nudged toward the average where they rest on few leads or customers.</li>`
     + `<li><strong>Churn is called only when it is beyond chance.</strong> Otherwise it reads in line, or too few to tell.</li>`
     + `<li><strong>No deals or no leads ranks last</strong> on cost per closed deal or cost per lead.</li>`
-    + `<li><strong>Only lead-generation events are scored:</strong> a booth or lead capture, a known, final cost, and three months since `
-    + `the event or a customer. Attending or speaking with no booth, and events no leads were expected of, are left out.</li></ul>`;
+    + `<li><strong>Only lead-generation events are scored:</strong> an event that got no leads was not one. A scored event also needs a `
+    + `known, final cost, and three months since the event or a customer.</li></ul>`;
 }
 
 const scoreMemo = new WeakMap();
@@ -5719,8 +5719,8 @@ function renderEventPage(label) {
     }
   };
   const scorePanel = !sc ? (e.upcoming ? '' : `<section class="ev-panel"><h3>Event score</h3><p class="ev-note">`
-      + (!e.leadGen ? `Not scored: not a lead-generation event${e.presence ? ` (${e.presence.replace(/\.$/, '')})` : ', no leads were expected of it'}. `
-        + `Only events with a booth or lead capture are scored.`
+      + (!newLeadsN ? `Not scored: it got no leads, so it was not a lead-generation event${e.presence ? ` (${e.presence.replace(/\.$/, '')})` : ''}. `
+        + `Only events that got leads are scored.`
         : `Not scored yet: ${e.costState === 'absent' ? 'its cost is not known' : pb && pb.provisional ? 'its cost is still settling' : 'under three months old with no customer'}.`)
       + `</p></section>`)
     : `<section class="ev-panel"><h3>Event score</h3><div class="ev-score-head">`

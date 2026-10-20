@@ -3926,9 +3926,7 @@ export const EVENT_META = {
   // leads is not a failure. Their cost is travel only.
   'Lennox Live Roadshow': { type: 'Partner network event', organiser: 'Lennox', plan2027: ON,
     presence: 'Free; Ryan spoke. No booth, no swag.', eventDate: '2025-10-02' },
-  // Not lead generation: no leads were expected of these three (Josh, 19 Oct
-  // 2026: "no leads is right"), so they are not scored (20 Oct 2026).
-  'Clover Mastermind 2025': { type: 'Small room', organiser: 'Clover', plan2027: OFF, leadGen: false },
+  'Clover Mastermind 2025': { type: 'Small room', organiser: 'Clover', plan2027: OFF },
   'Home and Commercial Svcs Marketing Summit': { type: 'Conference sponsorship', organiser: 'Home and Commercial Services Marketing Summit', plan2027: OFF,
     presence: 'A free breakout session. No booth, no swag.', eventDate: '2025-10-16' },
   'Blue Collar Success Group 2025': { type: 'Partner network event', organiser: 'Blue Collar Success Group', plan2027: OFF },
@@ -3946,11 +3944,11 @@ export const EVENT_META = {
   'Lennox Live New Orleans 2026': { type: 'Partner network event', organiser: 'Lennox', plan2027: ON },
   'Raising GOATS 2026': { type: 'Conference sponsorship', organiser: 'EGIA', plan2027: ON },
   'CertainPath Spring Expo 2026': { type: 'Partner network event', organiser: 'CertainPath', plan2027: ON },
-  'BCSG Acceleration Days 2026': { type: 'Partner network event', organiser: 'Blue Collar Success Group', plan2027: ON, leadGen: false },
+  'BCSG Acceleration Days 2026': { type: 'Partner network event', organiser: 'Blue Collar Success Group', plan2027: ON },
   // The planning sheet shows registration only; QuickBooks books $10,000 to
   // Redwood Services as the summit's sponsorship. QuickBooks is the ledger, so
   // the cost stands, and the conflict is said on the event (13 Oct 2026).
-  'Redwood Leadership Summit': { type: 'Partner network event', organiser: 'Redwood', plan2027: ON, eventDate: '2026-04-21', leadGen: false,
+  'Redwood Leadership Summit': { type: 'Partner network event', organiser: 'Redwood', plan2027: ON, eventDate: '2026-04-21',
     conflict: 'The planning sheet shows registration only, but QuickBooks books $10,000 to Redwood Services as the summit’s sponsorship, and no lead capture was set up. Confirm what the $10,000 bought.' },
   'GDF Vertical Track 2026': { type: 'Partner network event', organiser: 'Garage Door Freedom', plan2027: ON },
   'Nuve 2026': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
@@ -4840,10 +4838,6 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     e.plan2027 = meta ? meta.plan2027 : null;
     e.presence = meta && meta.presence ? meta.presence : null;
     e.conflict = meta && meta.conflict ? meta.conflict : null;
-    // A lead-generation event: one with a booth or lead capture. Attending or
-    // speaking with no booth (presence), or an event no leads were expected
-    // of, is not, and is not scored (Josh, 20 Oct 2026).
-    e.leadGen = !(meta && (meta.presence || meta.leadGen === false));
     if (!e.eventDate && meta && meta.eventDate) e.eventDate = meta.eventDate;
     e.report2025 = e.cost ? byEventName(EVENT_REPORT_NOV2025, e.cost.event, e.cost.month) : null;
   }
@@ -10483,11 +10477,12 @@ export function eventScorecard(data, reports) {
   const byCo = stripeByCompany(data);
   const scored = roi.events.filter(e => {
     const p = pbOf.get(e.label);
-    return e.leadGen && p && !p.provisional && p.roi12 !== null && e.spend > 0 && e.costState !== 'absent';
-  });
-  const raw = scored.map(e => {
+    return p && !p.provisional && p.roi12 !== null && e.spend > 0 && e.costState !== 'absent';
+  // A lead-generation event is one that got leads (Josh, 20 Oct 2026: "if it
+  // got no leads then it was not a lead gen event"); only those are scored.
+  }).map(e => ({ e, k: eventCardFigures(data, roi, e, f, byCo) })).filter(x => x.k.leads > 0);
+  const raw = scored.map(({ e, k }) => {
     const p = pbOf.get(e.label);
-    const k = eventCardFigures(data, roi, e, f, byCo);
     const ledger = eventCustomerLedger(data, e, k);
     const paidMonths = ledger.rows.reduce((t, x) => t + x.cells.filter(v => v > 0).length, 0);
     const paid = ledger.rows.reduce((t, x) => t + x.cells.reduce((a, v) => a + (v > 0 ? v : 0), 0), 0);
