@@ -4587,11 +4587,15 @@ document.addEventListener('change', ev => {
 // Proof of an event's cost: the fee as the Event Hub records it, and every
 // card charge matched to the event, grouped by who paid and in date order,
 // with a tie-out against the cost the event is charged on this site.
-function costProofPanel(e) {
+// What an event cost and the proof, as one section (20 Oct 2026): the bar of
+// fee and travel, the proof's facts (or the cost's own, with no proof on
+// file), the notes on how it was settled, then each bill and card folded.
+function costProofPanel(e, { bar = '', facts = '', extraFacts = '', notes = '' } = {}) {
   const entry = costLines && costLines.events ? costLines.events.find(x => x.label === e.label) : null;
   const money2 = v => (v === null || v === undefined ? '–' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
   if (!entry) {
-    return `<section class="ev-panel"><h3>Proof of cost</h3><p class="ev-note">No transaction detail yet. Events from 26 Aug 2026 `
+    return `<section class="ev-panel"><h3>What it cost</h3>${bar}<div class="ev-facts">${facts}</div>${notes}`
+      + `<p class="ev-note">No transaction detail yet. Events from 26 Aug 2026 `
       + `come from the Event Hub and Ramp; events from Sep 2025 come from QuickBooks bills and card charges. This one falls outside `
       + `both, or has not been matched.</p></section>`;
   }
@@ -4608,8 +4612,9 @@ function costProofPanel(e) {
   for (const l of entry.lines) byLabel.set(l.label || 'Other', (byLabel.get(l.label || 'Other') || 0) + (l.amount || 0));
   const travelSite = c.travel === null || c.travel === undefined ? null : c.travel;
   const feeSite = c.sponsor === null || c.sponsor === undefined ? null : c.sponsor;
-  const tie = (a, b) => (a === null || b === null ? '' : Math.abs(a - b) < 1 ? '<span class="pos">ties</span>'
-    : `<span class="neg">differs by ${money2(Math.abs(a - b))}</span>`);
+  // Said once: "ties" where the proof matches the figure used, else both.
+  const tie = (a, b) => (a === null || b === null ? '' : Math.abs(a - b) < 1 ? '<span class="pos">ties to the cost used</span>'
+    : `<span class="neg">the cost uses ${money2(b)}, ${money2(Math.abs(a - b))} apart</span>`);
   const confTag = l => (l.confidence && l.confidence !== 'High' ? ` <span class="proof-conf">${l.confidence.toLowerCase()} confidence</span>` : '');
   // Charges made ahead of an event that has not happened yet: listed as
   // pending, not as its cost, and not tied out (Josh, 14 Oct 2026).
@@ -4623,7 +4628,7 @@ function costProofPanel(e) {
       + `${travelSite !== null ? ` · ${estimated ? 'estimated' : 'expected'} travel ${money2(travelSite)}` : ''}</span></div>`
     : `<div class="ev-fact"><span class="ev-fact-label">Card charges</span><span class="ev-fact-value">${money2(entry.travelTotal)}</span>`
       + `<span class="ev-fact-sub">${fmt.int(entry.lines.length)} charges, ${fmt.int(owners.length)} cardholder${owners.length === 1 ? '' : 's'}`
-      + `${travelSite !== null ? ` · against ${money2(travelSite)} travel here: ${tie(entry.travelTotal, travelSite)}` : ''}</span></div>`;
+      + `${travelSite !== null ? ` · ${tie(entry.travelTotal, travelSite)}` : ''}</span></div>`;
   const pendingTable = pending.length ? `<h4 class="proof-sub">Pending: charged ahead of the event</h4>`
     + `<div class="table-scroll"><table class="data-table ev-table proof-table"><thead><tr><th>Date</th><th>Who paid</th><th>Merchant</th>`
     + `<th>Label</th><th>City</th><th class="n">Amount</th><th>Why it is this event’s</th></tr></thead><tbody>`
@@ -4632,7 +4637,7 @@ function costProofPanel(e) {
     + `<tr class="total-row"><td colspan="5"><strong>Pending</strong></td><td class="n"><strong>${money2(pendingTotal)}</strong></td><td></td></tr>`
     + `</tbody></table></div><p class="ev-note">${entry.upcoming ? 'Pending until the event has happened and' : 'The event has happened; these stay pending until'} the month-end cost run matches its charges; `
     + `deposits and prepaid rooms usually become part of its travel then.</p>` : '';
-  return `<section class="ev-panel"><h3>Proof of cost</h3>`
+  return `<section class="ev-panel"><h3>What it cost</h3>${bar}`
     + `<div class="ev-facts">`
     + (entry.fee.amount === null && feeSite !== null
       ? `<div class="ev-fact"><span class="ev-fact-label">Fee</span><span class="ev-fact-value">${money2(feeSite)}</span>`
@@ -4643,13 +4648,13 @@ function costProofPanel(e) {
       ? (entry.feeLines && entry.feeLines.length ? `${fmt.int(entry.feeLines.length)} QuickBooks line${entry.feeLines.length === 1 ? '' : 's'}`
         : 'no bill in QuickBooks from Sep 2025')
       : [entry.fee.what, entry.fee.paymentStatus ? entry.fee.paymentStatus.toLowerCase() : '', 'Event Hub'].filter(Boolean).join(' · ')}`
-    + `${entry.fee.amount !== null && feeSite !== null ? ` · against ${money2(feeSite)} here: ${tie(entry.fee.amount, feeSite)}` : ''}</span></div>`)
+    + `${entry.fee.amount !== null && feeSite !== null ? ` · ${tie(entry.fee.amount, feeSite)}` : ''}</span></div>`)
     + chargesFact
     + `<div class="ev-fact"><span class="ev-fact-label">By label</span><span class="ev-fact-value proof-labels">`
     + [...byLabel.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${money2(v)}`).join('<br>') + `</span></div>`
     + `<div class="ev-fact"><span class="ev-fact-label">Attended</span><span class="ev-fact-value proof-labels">${entry.attendees.join('<br>') || '–'}</span>`
     + `<span class="ev-fact-sub">${entry.start || ''}${entry.end && entry.end !== entry.start ? ` to ${entry.end}` : ''}${entry.location ? ` · ${entry.location}` : ''}</span></div>`
-    + `</div>`
+    + extraFacts + `</div>` + notes
     + (entry.feeLines && entry.feeLines.length ? `<details class="proof-person"><summary><strong>The fee, bill by bill</strong> · `
       + `${fmt.int(entry.feeLines.length)} line${entry.feeLines.length === 1 ? '' : 's'} · ${money2(entry.fee.amount)}</summary>`
       + `<div class="table-scroll"><table class="data-table ev-table proof-table"><thead><tr><th>Date</th><th>Vendor</th><th>What</th>`
@@ -5197,8 +5202,6 @@ function eventLeadsPanel(e, roi) {
   // Contacts outside the attribution window are left off the page: they are
   // not the event's, and only their number is said.
   const outside = new Set(['earlier', 'predates', 'list']); // upsell leads stay listed, labelled
-  const states = LEAD_STATES.filter(s => ev.byState[s.key] && !outside.has(s.key)).map(s => `<div class="ev-fact"><span class="ev-fact-label">${s.label}</span>`
-    + `<span class="ev-fact-value">${fmt.int(ev.byState[s.key])}</span><span class="ev-fact-sub">${s.note}</span></div>`).join('');
   const order = ['won', 'wonLate', 'wonElsewhere', 'lost', 'sat', 'booked', 'unworked', 'upsell', 'undated', 'predates', 'earlier'];
   // With no company on the rows, a list of every lead says nothing; the
   // deals are listed, and the rest are in the counts above.
@@ -5251,9 +5254,7 @@ function eventLeadsPanel(e, roi) {
       + `cannot be split into before and after.`}${ev.loaded.n ? ` ${fmt.int(ev.loaded.n)} arrived in a list loaded into HubSpot `
       + `${ev.dated ? 'after the event' : ''}; a file is not someone who did something, so they are not counted, as Lead Counts `
       + `does not count them (${fmt.int(ev.loaded.deals)} of them reached a deal and ${fmt.int(ev.loaded.won)} won).` : ''}`
-      + ` Of the ${fmt.int(ev.base)} counted, sat ${rateCell(ev.sat, { cell: false }).replace('<br>', ' ')}, `
-      + `won ${rateCell(ev.won, { cell: false }).replace('<br>', ' ')}.</p>`
-    + `<div class="ev-facts">${states}</div>`
+      + `</p>`
     + signalFacts
     + (rows.length ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr>${withCompany ? '<th>Company</th>' : ''}`
     + `<th>Arrived</th><th>How</th><th>Deal opened</th><th>Where it stands</th>`
@@ -5296,6 +5297,18 @@ function eventLeadsPanel(e, roi) {
     + `record, not no work.</p></section>`;
 }
 
+// The figures behind every event page come from the same push, so they are
+// worked out once per setting and kept: opening a page took 5 to 7 seconds
+// when each one recomputed every event (20 Oct 2026).
+const reportsMemo = new WeakMap();
+function eventReportsFor(options) {
+  if (!reportsMemo.has(data)) reportsMemo.set(data, new Map());
+  const memo = reportsMemo.get(data);
+  const key = JSON.stringify(options);
+  if (!memo.has(key)) memo.set(key, eventReports(data, options));
+  return memo.get(key);
+}
+
 function renderEventPage(label) {
   const box = $('event-page');
   if (!box) return;
@@ -5304,7 +5317,7 @@ function renderEventPage(label) {
   if ($('events-deal-only')) $('events-deal-only').checked = dealOnlyNow();
   if ($('events-credit')) $('events-credit').disabled = dealOnlyNow();
   const touch = ($('events-touch') && $('events-touch').value) || 'last';
-  const r = eventReports(data, { promptTagsOnly: promptOnly, creditRule, touch });
+  const r = eventReportsFor({ promptTagsOnly: promptOnly, creditRule, touch });
   const e = r ? r.roi.events.find(x => x.label === label) : null;
   if (!e) {
     box.innerHTML = `<p><a href="#events" class="ev-back">All events</a></p>`
@@ -5359,7 +5372,7 @@ function renderEventPage(label) {
   // A company won from a contact HubSpot already knew (an earlier demo, an
   // organiser's list) is a known prospect the event closed: a new customer,
   // not an existing one and not an upsell (Edison Electric, Josh 20 Oct 2026).
-  const leadsWord = cardFig.wonOutsideLeads ? `${int(cardFig.newLeads)} new + ${int(cardFig.wonOutsideLeads)} known prospect${cardFig.wonOutsideLeads === 1 ? '' : 's'} won` : '';
+  const leadsWord = cardFig.wonOutsideLeads ? `${int(cardFig.newLeads)} new + ${int(cardFig.wonOutsideLeads)} known prospect${cardFig.wonOutsideLeads === 1 ? '' : 's'}` : '';
   const costCard = e.costState === 'absent'
     ? kpi('Total cost', c && c.travel ? `${money(c.travel)} +` : 'Not found',
       c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')
@@ -5380,12 +5393,12 @@ function renderEventPage(label) {
   const stillPaying = ledger.rows.filter(x => x.live).length;
   const headCards = costCard
     + kpi('Leads', e.upcoming && !newLeadsN ? '–' : int(newLeadsN),
-      newLeadsN ? [leadsWord, `${int(demosSat)} sat · ${int(closedWon)} won`].filter(Boolean).join(' · ') : 'no event leads yet')
+      newLeadsN ? leadsWord || 'new to HubSpot from the event' : 'no event leads yet')
     + kpi('Closed deals', e.upcoming && !headLeads.length ? '–' : int(closedWon),
       [e.paid ? `${int(e.paid)} billed in Stripe` : '', wonNotBilled ? `${int(wonNotBilled)} won, not billed yet` : '',
         headLeads.length ? `${int(closedLost)} lost` : ''].filter(Boolean).join(' · '))
     + kpi('Revenue', e.upcoming ? '–' : money(e.collected), e.upcoming ? aheadWords
-      : `collected in Stripe from ${int(e.paid)} customer${e.paid === 1 ? '' : 's'}${e.mrrNow ? ` · ${money(e.mrrNow)}/mo now` : ''}`)
+      : `collected in Stripe from ${int(e.paid)} customer${e.paid === 1 ? '' : 's'}`)
     + kpi('ROI now', pb ? signedPct(pb.roiToDate) : '–', pb && pb.roiToDate === null
       ? 'too early: no customer yet, under three months on'
       : pb ? `${monthsOn === null ? '' : `${int(monthsOn)} month${monthsOn === 1 ? '' : 's'} `}since ${dayLabel || 'the event'}${pb.provisional ? ' · provisional: cost still settling' : ''}`
@@ -5403,15 +5416,12 @@ function renderEventPage(label) {
       ? 'too early to project: no customer yet'
       : pb ? `${pb.roi12Projected ? 'projected' : 'actual'}, 12 months from ${dayLabel || 'the event'}`
         + (pb.roi12Projected && pb.roi12Range ? `; likely ${signedPct(pb.roi12Range[0])} to ${signedPct(pb.roi12Range[1])}` : '')
-      : e.upcoming ? `12 months from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roi12) : '')
-    + kpi('Still paying', e.upcoming || !payingCos ? '–' : `${int(stillPaying)} of ${int(payingCos)}`,
-      e.upcoming ? aheadWords : payingCos ? `${money(e.mrrNow)}/mo now${ledger.notBilled.length ? ` · ${int(ledger.notBilled.length)} won, not billed yet` : ''}`
-        : ledger.notBilled.length ? `${int(ledger.notBilled.length)} won, not billed yet` : 'no customer paying yet');
+      : e.upcoming ? `12 months from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roi12) : '');
   const kpis = e.upcoming ? ''
-    : kpi('Contribution', money(e.contribution), 'what customers paid, less the cost to serve them')
-      + kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), (() => {
+    : kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), (() => {
         const up = (eventUpsells(data, r.roi) || { byLabel: new Map() }).byLabel.get(e.label);
-        return up && up.credited && e.net !== null ? `${signed(e.net + up.credited)} with upsells` : '';
+        return `${money(e.contribution)} contribution, less the cost`
+          + (up && up.credited && e.net !== null ? ` · ${signed(e.net + up.credited)} with upsells` : '');
       })(), e.costState === 'absent' ? '' : tone(e.net))
       + (e.pausedNow ? kpi('On a coupon', int(e.pausedNow), `${money(e.pausedMrr)} a month paused`) : '')
       + kpi('Pays for itself', payWords, paySub, pb && (pb.status === 'paid' || pb.status === 'projected') ? 'pos' : '');
@@ -5423,8 +5433,8 @@ function renderEventPage(label) {
   const costBar = c && total > 0
     ? `<div class="ev-split"><span style="width:${(fee / total * 100).toFixed(1)}%" class="ev-split-fee"></span>`
       + `<span style="width:${(travel / total * 100).toFixed(1)}%" class="ev-split-travel"></span></div>`
-      + `<div class="ev-split-key"><span><i class="ev-split-fee"></i>Fee ${money(fee)}</span>`
-      + `<span><i class="ev-split-travel"></i>Travel ${money(travel)}</span></div>`
+      + `<div class="ev-split-key"><span><i class="ev-split-fee"></i>Fee ${pct(fee / total)}</span>`
+      + `<span><i class="ev-split-travel"></i>Travel ${pct(travel / total)}</span></div>`
     : '';
   const feeFrom = !c ? '' : c.feeFrom === 'settled' ? 'Settled on the evidence below'
     : c.feeFrom === 'shared fee' ? (pack && pack.covers === 1 ? 'CHIIRP’s share of a booth shared with another company'
@@ -5436,9 +5446,11 @@ function renderEventPage(label) {
       + (c.tabSponsor !== c.sponsor ? fact('Tab carries', money(c.tabSponsor), 'replaced by the fee used') : '')
       + fact('Travel', money(c.travel), c.travel === null ? 'not known yet'
         : c.extra && c.costSource === 'modelled' ? 'modelled estimate' : 'airfare, ground, lodging, meals')
-      + fact('Recorded as', c.costSource || '–', c.note || '')
     : fact('Cost', '–', e.upcoming ? 'after the data' : 'no row on the Event Costs tab');
-  const costNotes = (c && !c.decided && !pack ? `<p class="ev-note">${c.sponsorBasis || ''}</p>` : '')
+  // "Event Costs tab, recorded." says nothing; any other basis is kept.
+  const costNotes = (c && !c.decided && !pack && c.sponsorBasis && !/^Event Costs tab, recorded\.?$/i.test(c.sponsorBasis.trim())
+    ? `<p class="ev-note">${c.sponsorBasis}</p>` : '')
+    + (c && c.note ? `<p class="ev-note">${c.note}</p>` : '')
     + (c && c.decision ? `<p class="ev-note"><strong>${c.decided ? 'Settled fee' : 'Fee checked'} · ${c.decision.confidence}.</strong> `
       + `${c.decision.evidence}</p>` : '')
     + (pack ? `<p class="ev-note"><strong>${pack.label}.</strong> One fee of ${money(pack.fee)} covering `
@@ -5458,7 +5470,6 @@ function renderEventPage(label) {
   // rules here), so the Leads panel and the headline agree (Nexstar 2026 read
   // 8 here and 5 above; 19 Oct 2026).
   const newShown = lead && funRow && lead.dated && !lead.ahead ? funRow.produced : lead ? lead.leads : null;
-  const costPerShown = lead && lead.costPerLead !== null && newShown ? e.spend / newShown : null;
   const leadFacts = lead
     ? (lead.ahead
       ? fact('New leads from the event', '–', `none yet: it runs from ${lead.eventDate}`)
@@ -5475,23 +5486,7 @@ function renderEventPage(label) {
         funRow ? `of the ${fmt.int(funRow.base)} counted; a meetings link or form named for it` : 'a form at the event names it') : '')
       + (other !== null ? fact('Through something else', int(other),
         `another form, link or campaign${funRow.conv.none ? `; ${fmt.int(funRow.conv.none)} have none recorded` : ''}`) : '')
-      + fact('Cost per new lead', money(costPerShown), costPerShown === null && (lead.costState || e.upcoming) ? 'held back while the cost is settling' : '')
       + (lead.fromCampaign ? fact('From the event\u2019s campaign, no tag', int(lead.fromCampaign), 'real leads nobody recorded a source for') : '')
-    : '';
-  // How strong the evidence behind each credited customer is.
-  const ev = e.evidence;
-  const lagWords = ev && ev.lag ? (ev.lag.min === ev.lag.max ? `${ev.lag.median} month${ev.lag.median === 1 ? '' : 's'}`
-    : `median ${ev.lag.median}, range ${ev.lag.min} to ${ev.lag.max}`) : null;
-  const lagSub = ev && ev.lag ? `${fmt.int(ev.lag.n)} customer${ev.lag.n === 1 ? '' : 's'} with a lag`
-    + (ev.lag.min < 0 ? '; below zero is a first payment before the event, a win-back' : '') : '';
-  const evidenceFacts = ev && e.paid
-    ? fact('Direct', int(ev.direct), 'the event’s own won deal closed them')
-      + fact('Indirect', int(ev.indirect), 'touched by the event; something else closed them')
-      + fact('Tag only', int(ev.tagOnly), 'no won deal; the tag is the only evidence')
-      + (ev.ungraded ? fact('Not graded', int(ev.ungraded), 'the tag read is not the current one') : '')
-      + fact('Event date', e.eventDate || (lead && lead.eventDate) || (evDated ? 'held by the pipeline' : 'none'),
-        evDated ? 'from a campaign or the Event Dates tab' : 'without one, the grades cannot be checked against the event')
-      + (lagWords ? fact('Months to first payment', lagWords, lagSub) : '')
     : '';
   const t = e.tags;
   const dated = t && t.setPrompt + t.setLater > 0;
@@ -5520,7 +5515,7 @@ function renderEventPage(label) {
   const signed2 = (e.customerRows || []).filter(x => x.signedMrr !== null);
   const signedTotal = signed2.reduce((t, x) => t + x.signedMrr, 0);
   const nowTotal = signed2.reduce((t, x) => t + x.mrrNow, 0);
-  const signedLine = signed2.length
+  const signedLine = signed2.length && signedTotal && Math.abs(nowTotal / signedTotal - 1) > 0.1
     ? `<p class="ev-note"><strong>Signed against now.</strong> ${fmt.int(signed2.length)} of these customers have a won `
       + `deal, signed at ${money(signedTotal)} a month; the same customers pay ${money(nowTotal)} a month now`
       + `${signedTotal ? `, ${(nowTotal >= signedTotal ? '+' : '−') + fmt.pct(Math.abs(nowTotal / signedTotal - 1), 0)}` : ''}. `
@@ -5595,13 +5590,12 @@ function renderEventPage(label) {
       + `<td><span class="muted">not billed yet</span>${x.won ? `<br><span class="muted">won ${x.won}</span>` : ''}</td><td>–</td><td class="n">–</td><td class="n">–</td>`
       + `<td>a won deal in HubSpot</td></tr>`).join('');
   const ledgerMrr = ledger.rows.reduce((t, x) => t + (x.mrrNow || 0), 0);
-  const ledgerCash = ledger.rows.reduce((t, x) => t + (x.collected || 0), 0);
   const customersPanel = `<section class="ev-panel"><h3>Customers credited</h3>`
     + (ledgerRows
       ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>From</th><th>First paid</th>`
         + `<th>Ended</th><th class="n">MRR now</th><th class="n">Collected</th><th>Evidence</th></tr></thead><tbody>${ledgerRows}`
-        + `<tr class="total-row"><td colspan="4"><strong>${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'} · ${int(stillPaying)} still paying</strong></td>`
-        + `<td class="n"><strong>${money(ledgerMrr)}</strong></td><td class="n"><strong>${money(ledgerCash)}</strong></td><td></td></tr></tbody></table></div>`
+        + `<tr class="total-row"><td colspan="4"><strong>${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}</strong></td>`
+        + `<td class="n"><strong>${money(ledgerMrr)}</strong></td><td></td><td></td></tr></tbody></table></div>`
         + signedLine
         + (e.alreadyPaying ? `<p class="ev-note">${int(e.alreadyPaying)} more carry the tag but were paying before the event, so they are not credited.</p>` : '')
         + ((e.customerRows || []).some(x => x.wonElsewhere)
@@ -5652,28 +5646,14 @@ function renderEventPage(label) {
           + `to cross may move; the event is not ranked until it settles.</p>` : '') + curveNote : '')
       + gridHtml + `</section>`;
 
-  // 4. Beside the return: what the event touched that is not in its return.
-  // Upsell leads have their own panel just above, so they are not repeated here.
-  const besideFacts = ''
-    + (funRow && funRow.loaded && funRow.loaded.won ? fact('Won from a loaded list', int(funRow.loaded.won), 'a file loaded into HubSpot, not a lead') : '')
-    + (funRow && funRow.byState && funRow.byState.wonElsewhere ? fact('Won through another source', int(funRow.byState.wonElsewhere),
-      'its lead, closed by another source\u2019s deal; credited there') : '')
-    + (e.alreadyPaying ? fact('Already paying', int(e.alreadyPaying), 'tagged, but paying before the event') : '');
-  const besidePanel = besideFacts ? `<section class="ev-panel"><h3>Beside the return</h3><div class="ev-facts">${besideFacts}</div>`
-    + `<p class="ev-note">Shown beside the event, not added to its closed deals or its return.</p></section>` : '';
-
-  // 5. Four charts: where the customers came from, how long they took to
-  // pay, how the leads arrived, and whether the customers stay.
-  const nNew = cardFig.wonLeads.length;
-  const chartA = closedWon ? `<div class="ev-chart"><h4>A · Where the customers came from</h4>`
-    + `<div class="ev-split ev-split-tall"><span class="ev-fun-new" style="width:${(nNew / closedWon * 100).toFixed(1)}%"></span>`
-    + `<span class="ev-fun-known" style="width:${(known / closedWon * 100).toFixed(1)}%"></span></div>`
-    + `<div class="ev-split-key"><span><i class="ev-fun-new"></i>New lead ${int(nNew)}</span><span><i class="ev-fun-known"></i>Known prospect ${int(known)}</span></div>`
-    + `<p class="ev-note">${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}: ${pct(nNew / closedWon)} from leads the event produced.</p></div>` : '';
+  // 4. Charts: how the leads arrived, whether the customers stay and, from
+  // five customers, how long they took to pay. Where the customers came from
+  // is the funnel's shading and the table's From column, so it is drawn only
+  // on the Events summary (20 Oct 2026).
   const lagBuckets = [['Event month', v => v <= 0], ['1', v => v === 1], ['2', v => v === 2], ['3', v => v === 3], ['4–6', v => v >= 4 && v <= 6], ['7+', v => v >= 7]];
   const lagCounts = lagBuckets.map(([k, test]) => [k, ledger.rows.filter(x => x.lag !== null && test(x.lag)).length]);
   const lagMax = Math.max(1, ...lagCounts.map(([, n]) => n));
-  const chartB = ledger.rows.length ? `<div class="ev-chart"><h4>B · Months from the event to first payment</h4><div class="ev-cols">`
+  const chartB = ledger.rows.length >= 5 ? `<div class="ev-chart"><h4>Months from the event to first payment</h4><div class="ev-cols">`
     + lagCounts.map(([k, n]) => `<div class="ev-col"><span class="ev-col-n">${n || ''}</span><span class="ev-col-bar" style="height:${(n / lagMax * 70).toFixed(1)}%"></span>`
       + `<span class="ev-col-k">${k}</span></div>`).join('') + `</div></div>` : '';
   const wonSet = new Set(cardFig.wonLeads);
@@ -5687,23 +5667,23 @@ function renderEventPage(label) {
     b.leads += 1; if (l.dealCreated || wonSet.has(l)) b.sat += 1; if (wonSet.has(l)) b.won += 1;
   }
   const wayRows = [...ways.entries()].sort((a, b) => b[1].leads - a[1].leads);
-  if (known) wayRows.push(['known prospect', { leads: known, sat: known, won: known }]);
   const wayMax = Math.max(1, ...wayRows.map(([, b]) => b.leads));
-  const chartC = wayRows.length ? `<div class="ev-chart"><h4>C · How the leads arrived</h4><table class="data-table ev-table ev-ways"><thead><tr><th>Arrived as</th>`
+  const chartC = wayRows.length ? `<div class="ev-chart"><h4>How the leads arrived</h4><table class="data-table ev-table ev-ways"><thead><tr><th>Arrived as</th>`
     + `<th>Leads</th><th class="n">Sat</th><th class="n">Won</th></tr></thead><tbody>`
     + wayRows.map(([k, b]) => `<tr><td>${k.charAt(0).toUpperCase() + k.slice(1)}</td><td><span class="ev-way-bar" style="width:${(b.leads / wayMax * 100).toFixed(1)}%"></span>`
       + `<span class="ev-way-n">${int(b.leads)}</span></td><td class="n">${int(b.sat)}</td><td class="n">${b.won ? `<strong>${int(b.won)}</strong>` : '0'}</td></tr>`).join('')
-    + `</tbody></table></div>` : '';
+    + `</tbody></table>${known ? `<p class="ev-note">Not here: the ${int(known)} known prospect${known === 1 ? '' : 's'} it won, `
+      + `who came in before the event.</p>` : ''}</div>` : '';
   const stay = eventStaying(ledger.rows, cohorts ? blendedRetention(cohorts) : [], data.lastMonth);
   const stayBar = (k, share, sub, cls) => `<div class="ev-stay-row"><span class="ev-stay-k">${k}</span><div class="ev-stay-track">`
     + `<span class="${cls}" style="width:${(share * 100).toFixed(1)}%"></span></div><span class="ev-stay-v">${pct(share)}</span><span class="ev-fun-sub">${sub}</span></div>`;
-  const chartD = stay.n ? `<div class="ev-chart"><h4>D · Do they stay</h4>`
+  const chartD = stay.n ? `<div class="ev-chart"><h4>Do they stay</h4>`
     + stayBar('This event', stay.staying / stay.n, `${int(stay.staying)} of ${int(stay.n)} still paying`, 'ev-fun-new')
     + stayBar('The whole book', stay.expected / stay.n, `kept at the same ages: ${stay.expected.toFixed(1)} of ${int(stay.n)}`, 'ev-stay-book')
     + `<p class="ev-note">Median ${int(stay.medianAge)} month${stay.medianAge === 1 ? '' : 's'} since first payment.`
     + `${stay.n < 10 ? ' With few customers, one departure moves it a lot.' : ''}</p></div>` : '';
-  const chartsPanel = chartA || chartB || chartC || chartD
-    ? `<section class="ev-panel"><h3>Who came, and do they stay</h3><div class="ev-charts">${chartA}${chartB}${chartC}${chartD}</div></section>` : '';
+  const chartsPanel = chartB || chartC || chartD
+    ? `<section class="ev-panel"><h3>How they came, and do they stay</h3><div class="ev-charts">${chartC}${chartD}${chartB}</div></section>` : '';
 
   // 6. Folded away: the leads list and how everything is counted.
   const leadsPanel = eventLeadsPanel(e, r.roi);
@@ -5733,9 +5713,8 @@ function renderEventPage(label) {
     + confidencePanel(evConf, 'this result', e.paid
       ? 'Nothing in the inputs lowers it: the cost is recorded, the event is dated, and most of its customers were closed by its own deals.'
       : 'Nothing in the inputs lowers it: the cost is recorded. No customer is credited to it yet, so there is no attribution to check.')
-    + (evidenceFacts ? `<h4 class="proof-sub">How strong the evidence is</h4><div class="ev-facts">${evidenceFacts}</div>`
-      + `<p class="ev-note">Every figure here is a floor: nothing sets the lead source automatically, so a customer this event `
-      + `brought who was never tagged is not counted at all.</p>` : '')
+    + `<p class="ev-note">Every figure is a floor: nothing sets the lead source automatically, so a customer this event `
+    + `brought who was never tagged is not counted at all.</p>`
     + (tagFacts ? `<h4 class="proof-sub">How the tags were made</h4><div class="ev-facts">${tagFacts}</div>` : ''));
 
   box.innerHTML =
@@ -5749,10 +5728,9 @@ function renderEventPage(label) {
     + customersPanel
     + moneyPanel
     + eventUpsellPanel(e, r.roi)
-    + besidePanel
     + chartsPanel
-    + `<section class="ev-panel"><h3>What it cost</h3>${costBar}<div class="ev-facts">${costFacts}</div>${costNotes}</section>`
-    + costProofPanel(e)
+    + costProofPanel(e, { bar: costBar, facts: costFacts, notes: costNotes,
+      extraFacts: c && c.tabSponsor !== c.sponsor ? fact('Tab carries', money(c.tabSponsor), 'replaced by the fee used') : '' })
     + leadsFold
     + howFold;
 
