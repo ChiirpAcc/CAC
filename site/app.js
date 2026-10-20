@@ -4287,20 +4287,17 @@ function renderEventAttribution() {
     `<strong>Events produced ${fmt.int(t.produced)} new leads and re-engaged ${fmt.int(t.reengaged)} existing contacts `
     + `whose deal opened around the event; another ${fmt.int(t.earlier)} carry an event tag but were in HubSpot before it `
     + `with no deal near it, and ${fmt.int(t.loaded)} arrived in a list loaded into HubSpot after the event; neither is `
-    + `counted.</strong> Of the leads counted, ${fmt.int(t.booked)} have a setter `
-    + `recorded, ${fmt.int(t.sat)} reached a deal and ${fmt.int(t.won)} won. The setter field is filled on `
-    + `${fmt.pct(f.setterFill.rate || 0, 0)} of them, so most leads carry no booking record: that is a gap in the record, `
-    + `not leads nobody worked.`;
+    + `counted.</strong> Of the leads counted, ${fmt.int(t.sat)} sat a demo (a deal opened) and ${fmt.int(t.won)} won.`;
   $('event-attribution-table').innerHTML =
     '<thead><tr><th>Event</th><th class="n">New leads</th><th class="n">Re-engaged</th><th class="n">Tagged, not counted</th>'
-    + '<th class="n">Booked</th><th class="n">Sat (a deal)</th><th class="n">Won</th><th class="n">Sat to won</th>'
+    + '<th class="n">Sat (a deal)</th><th class="n">Won</th><th class="n">Sat to won</th>'
     + '<th class="n">Won deal amount</th><th class="n">Upsells</th></tr></thead><tbody>'
     + f.events.map(e => `<tr><td>${e.event ? `<a href="${eventHref(e.label)}">${e.label}</a>` : e.label}`
       + `<br><span class="muted">${e.dated ? (e.eventDate || '') : 'undated: every tagged contact, before or after'}</span></td>`
       + `<td class="n">${e.dated ? fmt.int(e.produced) : `${fmt.int(e.tagged)}<br><span class="muted">all tagged</span>`}</td>`
       + `<td class="n">${e.dated ? fmt.int(e.reengaged) : '–'}</td>`
       + `<td class="n">${e.dated ? (e.earlier ? `<span class="${e.earlier > e.produced ? 'notviable' : ''}">${fmt.int(e.earlier)}</span>` : '0') : '–'}</td>`
-      + rateCell(e.booked) + rateCell(e.sat) + rateCell(e.won) + rateCell(e.satToWon)
+      + rateCell(e.sat) + rateCell(e.won) + rateCell(e.satToWon)
       + `<td class="n">${money(e.wonDealAmount)}${e.wonDealAmount ? '<br><span class="muted">deal amount, est.</span>' : ''}</td>`
       + (() => { const up = upsellBy.get(e.label); return `<td class="n">${!up ? '–' : up.grew
         ? `+${fmt.money(up.added)}/mo<br><span class="muted">${fmt.int(up.grew)} of ${fmt.int(up.existing)} existing</span>`
@@ -4313,7 +4310,7 @@ function renderEventAttribution() {
     + `event, or in the ${REENGAGE_BEFORE_DAYS} days before through the event’s own meetings link or form: an existing `
     + `contact the event converted. Tagged, not counted are contacts `
     + 'already held with no deal, or a deal opened well before the event or long after: back-tagging, not the event\u2019s. An undated event cannot be split, so it shows every tagged contact and is not comparable '
-    + 'with a dated one. Booked is a setter recorded; sat is a deal existing, since HubSpot creates a deal only once a demo '
+    + 'with a dated one. Every counted lead is a demo to book; sat is a deal existing, since HubSpot creates a deal only once a demo '
     + 'is sat; won is the deal winning. Each rate shows what it rests on and is faded under ten. Won deal amount is what the '
     + 'deal said, not what Stripe billed; revenue per event is on the ranking above.';
   renderEventChecks(f);
@@ -4459,10 +4456,10 @@ function renderSummary() {
   // The event pages' rates row, over every event in the range (14 Oct 2026).
   const rt = o.rates || {};
   if ($('summary-rates')) $('summary-rates').innerHTML =
-    tile('Cost per demo', rt.costPerDemo === null ? '–' : money(rt.costPerDemo), `${short(o.spend)} over ${fmt.int(rt.demosBooked || 0)} demos booked`)
+    tile('Cost per lead', rt.costPerLead === null ? '–' : money(rt.costPerLead), `${short(o.spend)} over ${fmt.int(rt.newLeads || 0)} new leads`)
     + tile('Cost per closed deal', rt.costPerClosed === null ? '–' : money(rt.costPerClosed), `${short(o.spend)} over ${fmt.int(rt.closedWon || 0)} closed deals`)
-    + tile('Booked to won', rt.bookedToWon === null ? '–' : fmt.pct(rt.bookedToWon, 0),
-      `${fmt.int(rt.wonFromDemos || 0)} won of ${fmt.int(rt.demosBooked || 0)} booked${rt.satToWon !== null ? ` · ${fmt.pct(rt.satToWon, 0)} of ${fmt.int(rt.demosSat)} sat` : ''}`)
+    + tile('Lead to won', rt.leadToWon === null ? '–' : fmt.pct(rt.leadToWon, 0),
+      `${fmt.int(rt.wonFromLeads || 0)} won of ${fmt.int(rt.newLeads || 0)} new leads${rt.satToWon !== null ? ` · ${fmt.pct(rt.satToWon, 0)} of ${fmt.int(rt.demosSat)} sat` : ''}`)
     + tile('ROI now', pct(o.roiToDate), 'on contribution, each event counted from its own date', o.roiToDate !== null && o.roiToDate < 0 ? 'neg' : 'pos')
     + tile('12-month ROI', pct(o.roi12), `12 months from each event’s date${o.roi12Range ? `; likely ${pct(o.roi12Range[0])} to ${pct(o.roi12Range[1])}` : ''}`,
       o.roi12 !== null && o.roi12 < 0 ? 'neg' : 'pos');
@@ -5077,7 +5074,7 @@ function eventsOnSourcePage() {
     .sort((a, b) => String((b.cost && b.cost.month) || '').localeCompare(String((a.cost && a.cost.month) || '')) || a.label.localeCompare(b.label));
   return `<section class="ev-panel"><h3>Each event</h3><div class="table-scroll"><table class="data-table ev-table">`
     + `<thead><tr><th>Event</th><th class="n">Cost</th><th class="n">Leads</th>`
-    + (fun ? '<th class="n">Booked</th><th class="n">Sat</th><th class="n">Won</th>' : '')
+    + (fun ? '<th class="n">Sat</th><th class="n">Won</th>' : '')
     + `<th class="n">Paying customers</th><th class="n">Contribution</th><th>Confidence</th></tr></thead><tbody>`
     + rows.map(e => {
       const l = leadsBy.get(e.label);
@@ -5087,12 +5084,12 @@ function eventsOnSourcePage() {
         + `<td class="n">${money(e.spend)}</td>`
         + `<td class="n">${l && l.leads !== null ? fmt.int(l.leads) : '–'}${l && l.fromCampaign ? `<br><span class="muted">${fmt.int(l.fromCampaign)} from a campaign</span>` : ''}`
         + `${!(l && l.fromCampaign) && e.source && campaignBy.get(e.source) ? `<br><span class="muted">+${fmt.int(campaignBy.get(e.source))} via its campaign</span>` : ''}</td>`
-        + (fun ? (f ? rateCell(f.booked) + rateCell(f.sat) + rateCell(f.won) : '<td class="n">–</td><td class="n">–</td><td class="n">–</td>') : '')
+        + (fun ? (f ? rateCell(f.sat) + rateCell(f.won) : '<td class="n">–</td><td class="n">–</td>') : '')
         + `<td class="n">${fmt.int(e.paid || 0)}</td><td class="n">${e.contribution === null || e.contribution === undefined ? '–' : money(e.contribution)}</td>`
         + `<td>${confidenceChip(eventConfidence(e))}</td></tr>`;
     }).join('')
     + `</tbody></table></div><p class="ev-note">The same figures as the Events tab, newest first. Leads are earned leads `
-    + `(for a dated event, those new on or after it)${fun ? '; booked, sat and won come from the Event Leads tab, with what each rate rests on' : ''}. `
+    + `(for a dated event, those new on or after it)${fun ? '; sat and won come from the Event Leads tab, with what each rate rests on' : ''}. `
     + `Paying customers and contribution use the Events tab’s credit rule.</p></section>`;
 }
 
@@ -5336,7 +5333,8 @@ function renderEventPage(label) {
   // deals are wins Stripe agrees with; revenue is what Stripe collected.
   const cardFig = eventCardFigures(data, r.roi, e);
   const headLeads = cardFig.leadRows;
-  const { demosBooked, demosSat, wonNotBilled, closedWon, closedLost, stillOpen } = cardFig;
+  const { demosSat, wonNotBilled, closedWon, closedLost, stillOpen } = cardFig;
+  const newLeadsN = cardFig.leads;
   const costCard = e.costState === 'absent'
     ? kpi('Total cost', c && c.travel ? `${money(c.travel)} +` : 'Not found',
       c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')
@@ -5345,8 +5343,8 @@ function renderEventPage(label) {
         + `${c.travel === null || c.travel === undefined ? 'unknown' : money(c.travel)}`
       + (e.costState === 'settling' ? ' · still settling' : e.upcoming && e.spend ? ' · committed so far' : '') : '');
   const headCards = costCard
-    + kpi('Demos booked', e.upcoming && !headLeads.length ? '–' : int(demosBooked),
-      headLeads.length ? `${int(demosSat)} sat, from ${int(headLeads.length)} leads` : 'no event leads yet')
+    + kpi('New leads', e.upcoming && !headLeads.length ? '–' : int(newLeadsN),
+      headLeads.length ? `${int(demosSat)} sat · ${int(cardFig.wonFromLeads)} won` : 'no event leads yet')
     + kpi('Closed deals', e.upcoming && !headLeads.length ? '–' : int(closedWon),
       [e.paid ? `${int(e.paid)} billed in Stripe` : '', wonNotBilled ? `${int(wonNotBilled)} won, not billed yet` : '',
         headLeads.length ? `${int(closedLost)} lost` : ''].filter(Boolean).join(' · '))
@@ -5362,14 +5360,14 @@ function renderEventPage(label) {
     : e.month ? fmt.monthLabel(e.month) : null;
   const costKnown = e.costState !== 'absent' && e.spend;
   const monthsOn = e.month && !e.upcoming ? monthDiff(e.month, data.lastMonth) : null;
-  const rateCards = kpi('Cost per demo', costKnown && demosBooked ? money(e.spend / demosBooked) : '–',
-      demosBooked ? `${money(e.spend)} over ${int(demosBooked)} demo${demosBooked === 1 ? '' : 's'} booked` : 'no demos booked yet')
+  const rateCards = kpi('Cost per lead', costKnown && newLeadsN ? money(e.spend / newLeadsN) : '–',
+      newLeadsN ? `${money(e.spend)} over ${int(newLeadsN)} new lead${newLeadsN === 1 ? '' : 's'}` : 'no new leads yet')
     + kpi('Cost per closed deal', costKnown && closedWon ? money(e.spend / closedWon) : '–',
       closedWon ? `${money(e.spend)} over ${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}` : 'no deals closed yet')
-    + kpi('Booked to won', demosBooked ? pct(cardFig.wonFromDemos / demosBooked) : '–',
-      demosBooked ? `${int(cardFig.wonFromDemos)} won of ${int(demosBooked)} booked${demosSat ? ` · ${pct(cardFig.wonFromDemos / demosSat)} of ${int(demosSat)} sat` : ''}`
-        + (closedWon > cardFig.wonFromDemos ? ` · ${int(closedWon - cardFig.wonFromDemos)} more won with no demo recorded` : '')
-        : closedWon ? `${int(closedWon)} won with no demo recorded` : '')
+    + kpi('Lead to won', newLeadsN ? pct(cardFig.wonFromLeads / newLeadsN) : '–',
+      newLeadsN ? `${int(cardFig.wonFromLeads)} won of ${int(newLeadsN)} new leads${demosSat ? ` · ${pct(cardFig.wonFromLeads / demosSat)} of ${int(demosSat)} sat` : ''}`
+        + (closedWon > cardFig.wonFromLeads ? ` · ${int(closedWon - cardFig.wonFromLeads)} more won, not from a new lead` : '')
+        : closedWon ? `${int(closedWon)} won, not from a new lead` : '')
     + kpi('ROI now', pb ? signedPct(pb.roiToDate) : '–', pb && pb.roiToDate === null
       ? 'too early: no customer yet, under three months on'
       : pb ? `${monthsOn === null ? '' : `${int(monthsOn)} month${monthsOn === 1 ? '' : 's'} `}since ${dayLabel || 'the event'}${pb.provisional ? ' · provisional' : ''}`

@@ -5756,8 +5756,8 @@ export const LEAD_STATES = [
   { key: 'wonElsewhere', label: 'Won, credited elsewhere', note: 'the deal says won, but in Stripe the customer was won through another source, so the win is not the event\u2019s' },
   { key: 'upsell', label: 'Upsell lead', note: 'already a paying customer, or came through the event\u2019s upsell form or link; watched as an upsell, not counted as a new lead' },
   { key: 'undated', label: 'Undated event', note: 'the event has no date, so before and after cannot be told apart' },
-  { key: 'unworked', label: 'Lead, no booking recorded', note: 'no setter recorded and no deal; silence is no record, not no effort' },
-  { key: 'booked', label: 'Booked, no sit', note: 'a setter is recorded and no deal followed' },
+  { key: 'unworked', label: 'Not sat yet', note: 'no deal yet and no setter recorded' },
+  { key: 'booked', label: 'Not sat yet, setter recorded', note: 'a setter is recorded and no deal followed' },
   { key: 'lost', label: 'Sat and lost', note: 'a deal exists and did not win' },
   { key: 'sat', label: 'Sat, still open', note: 'a deal exists and has not closed' },
   { key: 'won', label: 'Won', note: 'a deal exists and won, within six months of the event' },
@@ -6290,15 +6290,15 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
     && !known.has(companyKey(w.company)) && !(byCo(w.company) && credited.has(byCo(w.company).id)));
   for (const w of extraWins) notBilled.add(w.company);
   const wonNotBilled = notBilled.size;
-  const booked = l => l.bookedBy || l.dealCreated || l.conversionType === 'meetings link';
+  // The funnel is new leads, then sat, then won (Josh, 20 Oct 2026): every
+  // counted lead is a demo to book, and HubSpot opens a deal only once the
+  // demo is held, so "booked" was a setter field, not a booking. Won from
+  // leads counts companies, so lead-to-won cannot pass 100%; customers won
+  // with no lead row are said beside it.
   return {
     extraWins,
     leads: leads.length,
-    demosBooked: leads.filter(booked).length,
-    // Wins among the booked demos, so booked-to-won cannot pass 100%: a
-    // customer credited on the tag with no demo recorded is a closed deal but
-    // not a booked demo won (Network ST read 4 won of 3 booked; 19 Oct 2026).
-    wonFromDemos: new Set(leads.filter(l => booked(l) && ['won', 'wonLate'].includes(l.state)).map(l => l.company || l)).size,
+    wonFromLeads: new Set(leads.filter(l => ['won', 'wonLate'].includes(l.state)).map(l => l.company || l)).size,
     demosSat: leads.filter(l => l.dealCreated).length,
     wonNotBilled,
     closedWon: (e.paid || 0) + wonNotBilled,
@@ -6348,20 +6348,19 @@ export function eventsOverview(data, { from = null, to = null, creditRule = DEFA
   const f = eventFunnel(data, roi);
   const labels = new Set(ran.map(e => e.label));
   const fe = f ? f.events.filter(x => labels.has(x.label)) : [];
-  // The event pages' cards, summed: demos booked and deals closed.
+  // The event pages' cards, summed: new leads, sat and closed deals.
   const byCoCards = stripeByCompany(data);
   const cards = ran.map(e => ({ e, k: eventCardFigures(data, roi, e, f, byCoCards) }));
-  const demosBooked = cards.reduce((t, x) => t + x.k.demosBooked, 0);
+  const newLeads = cards.reduce((t, x) => t + x.k.leads, 0);
   const demosSatCards = cards.reduce((t, x) => t + x.k.demosSat, 0);
   const closedWon = cards.reduce((t, x) => t + x.k.closedWon, 0);
-  const wonFromDemos = cards.reduce((t, x) => t + x.k.wonFromDemos, 0);
+  const wonFromLeads = cards.reduce((t, x) => t + x.k.wonFromLeads, 0);
   const rates = {
-    demosBooked, demosSat: demosSatCards, closedWon,
-    costPerDemo: demosBooked ? spend / demosBooked : null,
+    newLeads, demosSat: demosSatCards, closedWon, wonFromLeads,
+    costPerLead: newLeads ? spend / newLeads : null,
     costPerClosed: closedWon ? spend / closedWon : null,
-    wonFromDemos,
-    bookedToWon: demosBooked ? wonFromDemos / demosBooked : null,
-    satToWon: demosSatCards ? wonFromDemos / demosSatCards : null,
+    leadToWon: newLeads ? wonFromLeads / newLeads : null,
+    satToWon: demosSatCards ? wonFromLeads / demosSatCards : null,
   };
   const funnel = { leads: fe.reduce((t, x) => t + x.base, 0), demos: fe.reduce((t, x) => t + x.sat.n, 0),
     sales: fe.reduce((t, x) => t + x.won.n, 0),
