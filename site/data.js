@@ -6331,28 +6331,45 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
   const leadOfCo = ids => ids.map(id => leadCust.get(id)).find(Boolean) || null;
   const coLeads = [...payingCo.values()].map(leadOfCo);
   const outsideLeads = coLeads.filter(l => !l).length + extraWins.length;
-  const wonUnsat = coLeads.filter(l => l && !l.dealCreated).length;
   const notBilledLeads = [...new Map(wonLeadsNotBilled.map(l => [l.company || l, l])).values()];
-  const sat = leads.filter(l => l.dealCreated).length;
   const closedWon = (e.paid || 0) + wonNotBilled;
+  const wonLeads = [...coLeads.filter(Boolean), ...notBilledLeads];
+  // Every demo sat ends in exactly one place, so the Sat bar splits without a
+  // remainder (Josh, 20 Oct 2026: the sat numbers did not add up): won here,
+  // lost, still open, another contact at a company it won (sat counts
+  // contacts, won counts companies), won through another source, or won too
+  // long after the event to count.
+  const wonSet = new Set(wonLeads);
+  const wonCos = new Set(wonLeads.map(l => companyKey(l.company)).filter(Boolean));
+  const satLeads = leads.filter(l => l.dealCreated || wonSet.has(l));
+  const satSplit = { won: outsideLeads, lost: 0, open: 0, sameCompany: 0, elsewhere: 0, late: 0 };
+  for (const l of satLeads) {
+    if (wonSet.has(l)) satSplit.won += 1;
+    else if (l.company && wonCos.has(companyKey(l.company))) satSplit.sameCompany += 1;
+    else if (l.state === 'wonElsewhere') satSplit.elsewhere += 1;
+    else if (l.won === true) satSplit.late += 1;
+    else if (l.won === false) satSplit.lost += 1;
+    else satSplit.open += 1;
+  }
   return {
     extraWins,
     newLeads: leads.length,
     wonOutsideLeads: outsideLeads,
     // Leads and sat include every win, so the funnel always ends on Closed deals.
     leads: leads.length + outsideLeads,
-    demosSat: sat + outsideLeads + wonUnsat,
+    demosSat: satLeads.length + outsideLeads,
+    satSplit,
     wonFromLeads: closedWon,
     wonNotBilled,
     closedWon,
-    closedLost: leads.filter(l => l.state === 'lost').length,
-    stillOpen: leads.filter(l => l.state === 'sat').length,
+    closedLost: satSplit.lost,
+    stillOpen: satSplit.open,
     leadRows: leads,
     // Who each closed deal is, for the customers table: paying customers
     // found among the leads are new leads, the rest known prospects.
     leadCustomerIds: [...leadCust.keys()],
     // The lead behind each closed deal found among the leads, one per company.
-    wonLeads: [...coLeads.filter(Boolean), ...notBilledLeads],
+    wonLeads,
     notBilledRows: [
       ...notBilledLeads.map(l => ({ name: l.company || 'A lead with no company',
         origin: 'new', link: l.companyLink || null, won: l.dealCreated || null })),
