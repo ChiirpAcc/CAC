@@ -1347,3 +1347,46 @@ span.pos { color: var(--series-pos); }
 .ev-fun-lost, .ev-split-key i.ev-fun-lost { background: color-mix(in srgb, var(--series-neg) 55%, transparent); }
 .ev-fun-open, .ev-split-key i.ev-fun-open { background: color-mix(in srgb, var(--series-2) 45%, transparent); }
 .ev-split-key { flex-wrap: wrap; row-gap: 0.3rem; }
+.x-mark { stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 2 3; }
+.x-mark.x-mark-strong { stroke: var(--series-2); stroke-width: 1.5; stroke-dasharray: none; }
+.x-mark-band { fill: color-mix(in srgb, var(--series-2) 12%, transparent); }
+.x-mark-label { font-size: 10.5px; fill: var(--ink-soft); }
+.x-mark-label.x-mark-strong { fill: var(--series-2); font-weight: 600; }
+/* The funnel, centred bars narrowing step by step (20 Oct 2026). */
+.ev-fn { display: grid; gap: 0.15rem; }
+.ev-fn-row { display: grid; grid-template-columns: 3.5rem 1fr 3rem; grid-template-areas: "label lane value" ". sub ."; align-items: center; column-gap: 0.75rem; }
+.ev-fn-label { grid-area: label; font-size: 0.82rem; font-weight: 600; }
+.ev-fn-lane { grid-area: lane; display: flex; justify-content: center; }
+.ev-fn-bar { display: flex; height: 28px; border-radius: 4px; overflow: hidden; }
+.ev-fn-bar span { display: block; height: 100%; min-width: 3px; }
+.ev-fn-value { grid-area: value; text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; }
+.ev-fn-sub { grid-area: sub; text-align: center; font-size: 0.72rem; color: var(--ink-soft); min-height: 0.2rem; }
+.ev-fn-drop { display: grid; grid-template-columns: 3.5rem 1fr 3rem; column-gap: 0.75rem; }
+.ev-fn-drop-text { grid-column: 2; text-align: center; font-size: 0.75rem; color: var(--ink-mid); padding: 0.1rem 0 0.25rem; }
+/* The event score. */
+.ev-score-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.4rem 0.6rem; margin-bottom: 0.4rem; }
+.ev-score-n { font-size: 2.4rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.ev-score-n.strong { color: var(--series-pos); }
+.ev-score-n.weak { color: var(--series-neg); }
+.ev-score-of { color: var(--ink-soft); font-size: 0.9rem; }
+.ev-score-words { font-size: 0.85rem; color: var(--ink-mid); }
+.ev-churn { font-size: 0.85rem; margin: 0.4rem 0 0.8rem; padding: 0.55rem 0.75rem; border-radius: 8px; background: var(--surface-sunk); line-height: 1.45; border-left: 3px solid var(--rule-strong); }
+.ev-churn.neg { border-left-color: var(--series-neg); }
+.ev-churn.pos { border-left-color: var(--series-pos); }
+.ev-score-parts { display: grid; gap: 0.35rem; }
+.ev-score-part { display: grid; grid-template-columns: minmax(10rem, 16rem) 8rem 1fr 2.5rem; align-items: center; gap: 0.6rem; font-size: 0.8rem; }
+.ev-score-v { font-variant-numeric: tabular-nums; text-align: right; color: var(--ink-mid); }
+.ev-score-track { position: relative; height: 10px; border-radius: 3px; background: var(--surface-sunk); }
+.ev-score-track span { display: block; height: 100%; border-radius: 3px; background: var(--series-3); }
+.ev-score-track span.pos { background: var(--series-pos); }
+.ev-score-track span.neg { background: var(--series-neg); }
+.ev-score-track i { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--ink-soft); }
+.ev-score-r { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.score-pill { display: inline-block; min-width: 2.2rem; text-align: center; padding: 0.1rem 0.4rem; border-radius: 6px; font-weight: 650; font-variant-numeric: tabular-nums; background: var(--surface-sunk); }
+.score-pill.strong { color: var(--series-pos); }
+.score-pill.weak { color: var(--series-neg); }
+@media (max-width: 640px) {
+  .ev-score-part { grid-template-columns: 1fr auto; }
+  .ev-score-track { grid-column: 1 / -1; grid-row: 2; }
+  .ev-score-r { display: none; }
+}

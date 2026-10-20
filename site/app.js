@@ -14,7 +14,7 @@ import {
   projectBase, arrivalScenarios, priceFloors, repriceOutcomes, upgradeList,
   ongoingCostPerLogo, costLedger, neverPaidIds, accountServeCost, eventRoi, eventReports, EVENT_FEE_DECISIONS, WINBACK_GAP,
   eventLeads, marketingReport, MARKETING_CATEGORIES,
-  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, eventCardFigures, eventCustomerLedger, eventStaying, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
+  EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, eventCardFigures, eventCustomerLedger, eventStaying, eventScorecard, EVENT_SCORE_WEIGHTS, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
   stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, eventsOverview, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
@@ -4512,6 +4512,34 @@ function renderSummary() {
     + stayBar('The whole book', stay.expected / stay.n, `kept at the same ages: ${stay.expected.toFixed(1)} of ${fmt.int(stay.n)}`, 'ev-stay-book')
     + `<p class="note">Each customer is set against the share of all customers still paying at the same age, median `
     + `${fmt.int(stay.medianAge)} months since first payment.</p>`;
+  // The event scorecard, with churn against the events' average (Josh,
+  // 20 Oct 2026): every event in the range, ranked among all scored events.
+  if ($('summary-score')) {
+    const scr = scorecardFor(eventReportsFor({ promptTagsOnly: false, creditRule, touch: 'last' }));
+    const rows = scr.rows.filter(x => x.month && x.month >= o.from && x.month <= o.to);
+    const ch = scr.churn;
+    $('summary-score-lede').innerHTML = `Event customers leave at ${fmt.pct(ch.avgRate || 0, 1)} a month on average, `
+      + `${ch.avgRatio.toFixed(1)}× what the whole book’s customers do at the same ages. Each event’s churn is set against `
+      + `that average, and called only where the difference is more than chance.`;
+    const verdictCell = c => (!c ? '<span class="muted">none paying a full month</span>'
+      : `<span class="${/worse/.test(c.verdict) ? 'neg' : /better/.test(c.verdict) ? 'pos' : 'muted'}">${c.verdict}</span>`);
+    $('summary-score').innerHTML = '<thead><tr><th class="n">#</th><th>Event</th><th class="n">Score</th><th class="n">Customers</th>'
+      + '<th class="n">12-month ROI</th><th class="n">Left</th><th class="n">Expected at the average</th><th class="n">Against the average</th><th>Churn</th></tr></thead><tbody>'
+      + rows.map(x => {
+        const roiPart = x.parts.find(q => q.key === 'roi12');
+        const c = x.churn;
+        return `<tr><td class="n">${x.place}</td><td><a href="#event=${encodeURIComponent(x.label)}">${x.label}</a>`
+          + `<br><span class="muted">${fmt.monthLabel(x.month)} · ${x.sample}</span></td>`
+          + `<td class="n"><span class="score-pill ${x.grade}">${Math.round(x.score)}</span></td><td class="n">${fmt.int(x.customers)}</td>`
+          + `<td class="n">${roiPart && roiPart.value !== null ? pct(roiPart.value) : '–'}</td>`
+          + `<td class="n">${c ? fmt.int(c.left) : '–'}</td><td class="n">${c ? c.expectedAtAverage.toFixed(1) : '–'}</td>`
+          + `<td class="n">${c && c.expectedAtAverage ? `${c.ratio.toFixed(1)}×` : '–'}</td><td>${verdictCell(c)}</td></tr>`;
+      }).join('') + '</tbody>';
+    $('summary-score-note').textContent = `The score is 0 to 100: each measure is ranked among the ${scr.n} scored events and the ranks are `
+      + `weighted (${EVENT_SCORE_WEIGHTS.map(q => `${q.label.toLowerCase()} ${q.weight}%`).join(', ')}). 70 and up is strong, under 40 weak. `
+      + `Scores resting on one to four customers are pulled toward 50, as one customer cannot make an event, nor one departure break it. `
+      + `Churn is called significant at p < 0.05 and a lean at p < 0.2; with under two departures expected it is too few to tell.`;
+  }
   // Best and worst.
   const r = o.ranked;
   const pick = r.length > 10 ? [...r.slice(0, 5), ...r.slice(-5)] : r;
@@ -5309,6 +5337,12 @@ function eventReportsFor(options) {
   return memo.get(key);
 }
 
+const scoreMemo = new WeakMap();
+function scorecardFor(reports) {
+  if (!scoreMemo.has(reports)) scoreMemo.set(reports, eventScorecard(data, reports));
+  return scoreMemo.get(reports);
+}
+
 function renderEventPage(label) {
   const box = $('event-page');
   if (!box) return;
@@ -5416,7 +5450,12 @@ function renderEventPage(label) {
       ? 'too early to project: no customer yet'
       : pb ? `${pb.roi12Projected ? 'projected' : 'actual'}, 12 months from ${dayLabel || 'the event'}`
         + (pb.roi12Projected && pb.roi12Range ? `; likely ${signedPct(pb.roi12Range[0])} to ${signedPct(pb.roi12Range[1])}` : '')
-      : e.upcoming ? `12 months from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roi12) : '');
+      : e.upcoming ? `12 months from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roi12) : '')
+    + kpi('24-month ROI', pb ? signedPct(pb.roi24) : '–', pb && pb.roi24 === null
+      ? 'too early to project: no customer yet'
+      : pb ? `${pb.roi24Projected ? 'projected' : 'actual'}, 24 months from ${dayLabel || 'the event'}`
+        + (pb.roi24Projected && pb.roi24Range ? `; likely ${signedPct(pb.roi24Range[0])} to ${signedPct(pb.roi24Range[1])}` : '')
+      : e.upcoming ? `24 months from ${dayLabel || 'the event'}` : '', pb ? tone(pb.roi24) : '');
   const kpis = e.upcoming ? ''
     : kpi('Net so far', e.costState === 'absent' ? '–' : signed(e.net), (() => {
         const up = (eventUpsells(data, r.roi) || { byLabel: new Map() }).byLabel.get(e.label);
@@ -5527,49 +5566,79 @@ function renderEventPage(label) {
   const mHead = m => new Date(`${m}-15T12:00:00`).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', ' \u2019');
   const whole = v => (v === null || v === undefined ? '' : `${v < 0 ? '−' : ''}${fmt.int(Math.round(Math.abs(v)))}`);
 
-  // 1. From lead to customer. Leads and Sat are split by where the lead came
-  // from; Won by where the customer stands now, with the churned marked; and
-  // each bar's grey is what did not go on (Josh, 20 Oct 2026): leads that did
-  // not sit, and on the Won row every sat demo that was not won, so each
-  // row's parts add up to the row above.
+  // 1. From lead to customer, drawn as a funnel (Josh, 20 Oct 2026): each
+  // bar is as wide as its own count and centred, so it narrows step by step,
+  // and what fell away between two steps is said between them. Leads and Sat
+  // are split by where the lead came from; Won by where the customer stands.
   const funnelPanel = !newLeadsN ? '' : (() => {
-    const w = v => `${(Math.max(v, 0) / newLeadsN * 100).toFixed(2)}%`;
-    const seg = (cls, n, title) => (n > 0 ? `<span class="${cls}" style="width:${w(n)}" title="${title}: ${int(n)}"></span>` : '');
     const sp = cardFig.satSplit;
     const churned = payingCos - stillPaying;
     const other = sp.sameCompany + sp.elsewhere + sp.late;
-    const row = (k, n, segs, sub) => `<div class="ev-fun-row"><span class="ev-fun-label">${k}</span><div class="ev-fun-track">${segs}</div>`
-      + `<span class="ev-fun-value">${int(n)}</span><span class="ev-fun-sub">${sub}</span></div>`;
-    const leadsKey = known ? `${int(cardFig.newLeads)} new leads, ${int(known)} known prospect${known === 1 ? '' : 's'} won` : `${int(newLeadsN)} new leads`;
-    const satNew = demosSat - known;
-    const otherWords = [sp.sameCompany ? `${int(sp.sameCompany)} another contact at a company it won` : '',
+    const w = v => `${Math.max(v / newLeadsN * 100, v ? 2 : 0).toFixed(2)}%`;
+    const seg = (cls, n, title) => (n > 0 ? `<span class="${cls}" style="flex:${n}" title="${title}: ${int(n)}"></span>` : '');
+    const bar = (k, n, segs, sub) => `<div class="ev-fn-row"><span class="ev-fn-label">${k}</span><div class="ev-fn-lane">`
+      + `<div class="ev-fn-bar" style="width:${w(n)}">${segs}</div></div><span class="ev-fn-value">${int(n)}</span>`
+      + `<span class="ev-fn-sub">${sub}</span></div>`;
+    const drop = text => `<div class="ev-fn-drop"><span class="ev-fn-drop-text">\u2193 ${text}</span></div>`;
+    const lostWords = [sp.lost ? `${int(sp.lost)} lost` : '', sp.open ? `${int(sp.open)} still open` : '',
+      sp.sameCompany ? `${int(sp.sameCompany)} another contact at a company it won` : '',
       sp.elsewhere ? `${int(sp.elsewhere)} won through another source` : '',
       sp.late ? `${int(sp.late)} won after the ${WIN_WINDOW_MONTHS}-month window` : ''].filter(Boolean);
     const wonWords = [stillPaying ? `${int(stillPaying)} still paying` : '', churned ? `${int(churned)} churned` : '',
       ledger.notBilled.length ? `${int(ledger.notBilled.length)} not billed yet` : ''].filter(Boolean);
-    return `<section class="ev-panel"><h3>From lead to customer</h3><div class="ev-fun">`
-      + row('Leads', newLeadsN, seg('ev-fun-new', newLeadsN - known, 'New lead') + seg('ev-fun-known', known, 'Known prospect won'), leadsKey)
-      + row('Sat', demosSat, seg('ev-fun-new', satNew, 'New lead sat') + seg('ev-fun-known', known, 'Known prospect won')
-        + seg('ev-fun-drop', newLeadsN - demosSat, 'Not sat'),
-        `${int(demosSat)} of ${int(newLeadsN)} held a demo (${pct(demosSat / newLeadsN)}) · ${int(newLeadsN - demosSat)} not sat`)
-      + row('Won', closedWon, seg('ev-fun-paying', stillPaying, 'Still paying') + seg('ev-fun-churned', churned, 'Churned')
-        + seg('ev-fun-wait', ledger.notBilled.length, 'Not billed yet') + seg('ev-fun-lost', sp.lost, 'Lost')
-        + seg('ev-fun-open', sp.open, 'Still open') + seg('ev-fun-drop', other, 'Not won here'),
-        `of ${int(demosSat)} sat: ${int(closedWon)} won${wonWords.length ? ` (${wonWords.join(', ')})` : ''}`
-        + (sp.lost ? ` · ${int(sp.lost)} lost` : '') + (sp.open ? ` · ${int(sp.open)} still open` : '')
-        + (otherWords.length ? ` · ${otherWords.join(', ')}` : ''))
+    return `<section class="ev-panel"><h3>From lead to customer</h3><div class="ev-fn">`
+      + bar('Leads', newLeadsN, seg('ev-fun-new', newLeadsN - known, 'New lead') + seg('ev-fun-known', known, 'Known prospect won'),
+        known ? `${int(cardFig.newLeads)} new, ${int(known)} known prospect${known === 1 ? '' : 's'} won` : 'new leads')
+      + drop(`${pct(demosSat / newLeadsN)} sat a demo · ${int(newLeadsN - demosSat)} did not`)
+      + bar('Sat', demosSat, seg('ev-fun-new', demosSat - known, 'New lead sat') + seg('ev-fun-known', known, 'Known prospect won'), '')
+      + drop(`${demosSat ? pct(closedWon / demosSat) : '–'} won${lostWords.length ? ` · ${lostWords.join(' · ')}` : ''}`)
+      + bar('Won', closedWon, seg('ev-fun-paying', stillPaying, 'Still paying') + seg('ev-fun-churned', churned, 'Churned')
+        + seg('ev-fun-wait', ledger.notBilled.length, 'Not billed yet'), wonWords.join(' · '))
       + `</div><div class="ev-split-key"><span><i class="ev-fun-new"></i>New lead</span>`
       + (known ? `<span><i class="ev-fun-known"></i>Known prospect won</span>` : '')
       + `<span><i class="ev-fun-paying"></i>Still paying</span>`
       + (churned ? `<span><i class="ev-fun-churned"></i>Churned</span>` : '')
-      + (ledger.notBilled.length ? `<span><i class="ev-fun-wait"></i>Not billed yet</span>` : '')
-      + (sp.lost ? `<span><i class="ev-fun-lost"></i>Lost</span>` : '')
-      + (sp.open ? `<span><i class="ev-fun-open"></i>Still open</span>` : '')
-      + `<span><i class="ev-fun-drop"></i>Not sat${other ? ', or not won here' : ''}</span></div>`
+      + (ledger.notBilled.length ? `<span><i class="ev-fun-wait"></i>Not billed yet</span>` : '') + `</div>`
       + (known ? `<p class="ev-note">A known prospect is a company HubSpot already held before the event, or whose contact carries `
         + `no event tag, that the event closed: a new customer, not an upsell. It is counted in leads and sat too, so won is the `
         + `Closed deals count.</p>` : '') + `</section>`;
   })();
+
+  // The event score and its churn against the events' average (Josh,
+  // 20 Oct 2026), ranked among every scored event under the same credit rule.
+  const scorecard = scorecardFor(eventReportsFor({ promptTagsOnly: false, creditRule, touch: 'last' }));
+  const sc = scorecard.byLabel.get(e.label);
+  const ch = scorecard.churn.byLabel.get(e.label);
+  const ord = n => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+  const churnLine = ch ? `<p class="ev-churn ${/worse/.test(ch.verdict) ? 'neg' : /better/.test(ch.verdict) ? 'pos' : ''}">`
+      + `<strong>Churn: ${int(ch.left)} left, ${ch.expectedAtAverage.toFixed(1)} expected at the events\u2019 average`
+      + `${ch.ratio !== null && ch.expectedAtAverage ? ` (${ch.ratio.toFixed(1)}\u00d7)` : ''}.</strong> `
+      + `${pct(ch.rate)} a month, against ${pct(scorecard.churn.avgRate)} for event customers overall. `
+      + (ch.verdict === 'too few to tell' ? `Too few to tell: ${ch.expectedAtAverage < 1 ? 'under one departure' : `about ${Math.round(ch.expectedAtAverage)} departures`} `
+        + `expected, so one more or one fewer swings it. Not a verdict on the event.`
+        : ch.verdict === 'in line' ? `In line with the average event (p = ${ch.pValue.toFixed(2)}).`
+          : /significant/.test(ch.verdict) ? `<strong>Significant</strong> (p = ${ch.pValue.toFixed(2)}): its customers leave ${ch.left > ch.expectedAtAverage ? 'faster' : 'slower'} than the average event\u2019s.`
+            : `A lean, not proof (p = ${ch.pValue.toFixed(2)}): ${ch.left > ch.expectedAtAverage ? 'more' : 'fewer'} leave than the average, but chance could do it.`)
+      + `</p>`
+    : `<p class="ev-note">Churn: no customer has paid a full month yet, so there is nothing to compare.</p>`;
+  const partValue = q => (q.value === null ? '–' : q.key === 'roi12' ? signedPct(q.value)
+    : q.key === 'churn' ? (ch ? `${int(ch.left)} left of ${ch.expectedAtAverage.toFixed(1)}` : '–')
+      : q.key === 'leadToWon' ? pct(q.value) : q.key === 'monthsToPay' ? `${q.value <= 0 ? 'event month' : `${q.value} mo`}`
+        : Number.isFinite(q.value) ? money(q.value) : 'none');
+  const scorePanel = !sc ? (e.upcoming ? '' : `<section class="ev-panel"><h3>Event score</h3><p class="ev-note">Not scored yet: `
+      + `${e.costState === 'absent' ? 'its cost is not known' : pb && pb.provisional ? 'its cost is still settling' : 'under three months old with no customer'}.</p></section>`)
+    : `<section class="ev-panel"><h3>Event score</h3><div class="ev-score-head">`
+      + `<span class="ev-score-n ${sc.grade}">${Math.round(sc.score)}</span><span class="ev-score-of">/ 100</span>`
+      + `<span class="ev-score-words"><strong>${sc.grade.charAt(0).toUpperCase() + sc.grade.slice(1)}</strong> · ${ord(sc.place)} of ${int(scorecard.n)} scored events`
+      + ` · rests on ${int(sc.customers)} customer${sc.customers === 1 ? '' : 's'} (${sc.sample})</span></div>`
+      + churnLine
+      + `<div class="ev-score-parts">` + sc.parts.map(q => `<div class="ev-score-part"><span class="ev-score-k">${q.label} <span class="muted">${q.weight}%</span></span>`
+        + `<span class="ev-score-v">${partValue(q)}</span><div class="ev-score-track"><span class="${q.rank === null ? '' : q.rank >= 60 ? 'pos' : q.rank < 40 ? 'neg' : ''}" `
+        + `style="width:${Math.max(q.rank || 0, 1).toFixed(0)}%"></span><i></i></div><span class="ev-score-r">${q.rank === null ? 'n/a' : Math.round(q.rank)}</span></div>`).join('')
+      + `</div><p class="ev-note">Each measure is ranked among the ${int(scorecard.n)} scored events, 100 the best and 0 the worst `
+      + `(the tick is the middle), and the ranks are weighted as shown. Lead to won and churn are pulled toward the average where `
+      + `they rest on few leads or customers${sc.customers && sc.customers < 5 ? `, and with ${int(sc.customers)} customer${sc.customers === 1 ? '' : 's'} the whole score is `
+        + `pulled toward 50 (it is ${Math.round(sc.rawScore)} before that)` : ''}. 70 and up is strong, under 40 weak.</p></section>`;
 
   // 2. Customers credited: where each came from, when it started and stopped
   // paying, and the evidence it is the event's.
@@ -5724,6 +5793,7 @@ function renderEventPage(label) {
     + (e.source ? `<p class="ev-source">HubSpot source: ${e.source}</p>` : '') + `</header>`
     + `<div class="ev-kpis ev-kpis-head">${headCards}</div>`
     + `<div class="ev-kpis ev-kpis-rates">${rateCards}</div>`
+    + scorePanel
     + funnelPanel
     + customersPanel
     + moneyPanel
@@ -5738,12 +5808,17 @@ function renderEventPage(label) {
     // Far enough to show the crossing, and no further: a 36-month line
     // flattens the months that decide it.
     const crossing = pb.paidAt || pb.projectedAt || 0;
-    const n = Math.min(pb.age + pb.projectedPath.length || 12,
-      Math.max(12, pb.actualPath.length + 3, crossing + 4));
+    // Always twelve months past now, so the projection is in view (Josh,
+    // 20 Oct 2026), and as far as the crossing, within the 36 projected.
+    const n = Math.min(r.paybackHorizon || 36, Math.max(12, pb.age + 12, crossing + 4));
     const labels = Array.from({ length: n }, (_, i) => `M${i + 1}`);
     const actual = labels.map((_, i) => (i < pb.actualPath.length ? pb.actualPath[i] : null));
+    // With no customer still paying there is nothing to project but what is
+    // in: the line holds flat.
+    const flat = pb.projectedPath.length ? null : pb.soFar;
     const projected = labels.map((_, i) => (i === pb.actualPath.length - 1 ? pb.actualPath[i]
-      : i >= pb.actualPath.length && i - pb.age < pb.projectedPath.length ? pb.projectedPath[i - pb.age] : null));
+      : i >= pb.actualPath.length && i - pb.age < pb.projectedPath.length ? pb.projectedPath[i - pb.age]
+        : i >= pb.actualPath.length ? flat : null));
     // The 90% band starts from the last actual month, like the dashed line.
     const bandAt = (arr, i) => (i === pb.actualPath.length - 1 ? pb.actualPath[i]
       : i >= pb.actualPath.length && i - pb.age < arr.length ? arr[i - pb.age] : null);
@@ -5758,6 +5833,8 @@ function renderEventPage(label) {
         { label: 'Projected', colour: INK.primary, dashed: true, values: projected },
       ],
       bands: (pb.projectedLow || []).length ? [{ label: '90% range', colour: INK.primary, low, high }] : [],
+      xMarks: [{ index: pb.age - 1, label: 'Now' }, { index: 11, label: '12 months', highlight: true },
+        ...(n > 23 ? [{ index: 23, label: '24 months' }] : [])],
       describe: i => `<strong>Month ${i + 1}</strong>`
         + (actual[i] !== null ? `<span>Received ${money(actual[i])}</span>` : '')
         + (projected[i] !== null && i >= pb.actualPath.length ? `<span>Projected ${money(projected[i])}</span>` : '')

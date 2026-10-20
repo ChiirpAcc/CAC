@@ -119,6 +119,27 @@ is counted. The customers table and the payment grid count a company once
 across Stripe environments, so their rows are the Closed deals count, and the
 grid's total is what Stripe collected.
 
+### 1.7 Churn against the events' average, and the event score (20 Oct 2026)
+
+**Churn.** Each event's departures (an account paying one month and not the
+next) are set against what the whole book's survival curve expected of its
+customers at their ages, and that against the same ratio over every event:
+event customers leave at 1.2 times the book's rate, 4.8% a month. A Poisson
+test says whether the gap is more than chance: significant at p < 0.05, a
+lean at p < 0.2, otherwise in line; with under two departures expected and
+fewer than three seen it is "too few to tell", never a verdict.
+
+**Score.** 0 to 100. Each measure is ranked among every scored event (100
+the best, 0 the worst) and the ranks are weighted (`EVENT_SCORE_WEIGHTS` in
+site/data.js): 12-month ROI 30%, churn against the events' average 20%, cost
+per closed deal 15%, lead to won 10%, cost per lead 10%, revenue per customer
+a month 10%, months to first payment 5%. Lead to won is pulled toward the
+events' rate with ten leads of weight, churn toward the average with two
+departures; a score resting on one to four customers is pulled toward 50 by
+customers / (customers + 2). An event with no customer is not pulled.
+Scored: a known, settled cost and either three months old or a customer.
+70 and up is strong, under 40 weak.
+
 ## 2. What people must do in HubSpot
 
 These are what make the rules above find the right answer. Without them, every

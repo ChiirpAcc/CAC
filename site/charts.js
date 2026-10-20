@@ -243,7 +243,7 @@ export function lineChart(container, { labels, values, yFormat = fmt.int, descri
 export function multiLineChart(container, { labels, series, yFormat = fmt.int, describe,
                                             yMin = null, yMax = null, refs = [],
                                             showLegend = true, legendItems = null,
-                                            xTitle = null, yTitle = null, bands = [] }) {
+                                            xTitle = null, yTitle = null, bands = [], xMarks = [] }) {
   const svg = makeSvg(container);
   const all = [...series.flatMap(s => s.values), ...bands.flatMap(b => [...b.low, ...b.high])]
     .filter(v => v !== null && Number.isFinite(v));
@@ -256,6 +256,18 @@ export function multiLineChart(container, { labels, series, yFormat = fmt.int, d
   const x = i => band.centre(i);
 
   for (const ref of refs) referenceLine(svg, y, ref.value, ref.label, ref.variant || '');
+
+  // Months marked across the chart (now, twelve months on), a highlight
+  // column behind the one that matters most.
+  for (const m of xMarks) {
+    if (m.index < 0 || m.index >= labels.length) continue;
+    if (m.highlight) {
+      el('rect', { x: x(m.index) - band.width / 2, y: plot.y0, width: band.width, height: plot.height, class: 'x-mark-band' }, svg);
+    }
+    el('line', { x1: x(m.index), x2: x(m.index), y1: plot.y0, y2: plot.y1, class: `x-mark ${m.highlight ? 'x-mark-strong' : ''}` }, svg);
+    const t = el('text', { x: x(m.index) + 4, y: plot.y0 + 10, class: `x-mark-label ${m.highlight ? 'x-mark-strong' : ''}` }, svg);
+    t.textContent = m.label;
+  }
 
   // A shaded range (a projection's 80% band): the top edge left to right,
   // then the bottom edge back, over the positions where both are known.

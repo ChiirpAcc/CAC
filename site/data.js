@@ -5126,6 +5126,7 @@ export function eventReports(data, options = {}) {
     // This event's own churn against what the company curve expected.
     let observed = 0;
     let expected = 0;
+    let atRisk = 0;
     if (base) {
       for (const id of e.broughtIds) {
         const months = liveIn.get(id);
@@ -5134,6 +5135,7 @@ export function eventReports(data, options = {}) {
         for (let m = start; m < lastMonth; m = monthAdd(m, 1)) {
           if (!months.has(m)) continue;
           expected += 1 - base.survival(monthDiff(firstLive.get(id), m));
+          atRisk += 1;
           if (!months.has(monthAdd(m, 1))) observed += 1;
         }
       }
@@ -5205,7 +5207,7 @@ export function eventReports(data, options = {}) {
       label: e.label, month: e.month, spend: e.spend, age, soFar: running, provisional: settling,
       recovered: running / e.spend, liveCustomers: live.length, monthlyNow,
       paidAt, projectedAt, companyOnlyAt,
-      churn: { observed, expected, hazard },
+      churn: { observed, expected, hazard, atRisk },
       growth: { rate: growth, used: growthUsed, own: own.rate, pairs: own.pairs, book: bookGrowth.rate },
       actualPath, projectedPath, projectedLow, projectedHigh, projectedAtRange,
       // Return on cost: to date, and at twelve months from the event, actual
@@ -5220,6 +5222,18 @@ export function eventReports(data, options = {}) {
         return (at12 - e.spend) / e.spend;
       })(),
       roi12Projected: age < 12,
+      // And at twenty-four months, the same way (Josh, 20 Oct 2026).
+      roi24: isTooNew(e) ? null : (() => {
+        const at24 = age >= 24 ? actualPath[23]
+          : projectedPath.length >= 24 - age ? projectedPath[24 - age - 1]
+            : projectedPath.length ? projectedPath[projectedPath.length - 1] : running;
+        return (at24 - e.spend) / e.spend;
+      })(),
+      roi24Projected: age < 24,
+      roi24Range: isTooNew(e) || age >= 24 || !projectedLow.length ? null : (() => {
+        const k = Math.min(24 - age, projectedLow.length) - 1;
+        return k < 0 ? null : [(projectedLow[k] - e.spend) / e.spend, (projectedHigh[k] - e.spend) / e.spend];
+      })(),
       roi12Range: isTooNew(e) || age >= 12 || !projectedLow.length ? null : (() => {
         const k = Math.min(12 - age, projectedLow.length) - 1;
         return k < 0 ? null : [(projectedLow[k] - e.spend) / e.spend, (projectedHigh[k] - e.spend) / e.spend];
@@ -10394,3 +10408,131 @@ export function environmentSplit(data) {
 
   return { byMonth, environments };
 }
+
+// ---- Churn by event, against the events' average (Josh, 20 Oct 2026)
+//
+// Each event's departures are set against what the whole book's survival
+// curve expected of its customers at their ages, and that against the same
+// ratio over every event: so 1.5x means half again as many left as the
+// average event's customers would have at the same ages. Whether it says
+// anything is a Poisson test of the departures against that expectation;
+// with one or two expected, nothing short of a wipe-out is significant, and
+// the verdict says so (one of two leaving does not make an event bad).
+function poissonCdf(k, mu) {
+  let term = Math.exp(-mu);
+  let sum = term;
+  for (let i = 1; i <= k; i += 1) { term *= mu / i; sum += term; }
+  return Math.min(1, sum);
+}
+export function eventChurnReport(reports) {
+  const rows = reports.payback.filter(p => !p.provisional && p.churn && p.churn.atRisk > 0);
+  const obs = rows.reduce((t, p) => t + p.churn.observed, 0);
+  const exp = rows.reduce((t, p) => t + p.churn.expected, 0);
+  const atRisk = rows.reduce((t, p) => t + p.churn.atRisk, 0);
+  const avgRatio = exp ? obs / exp : 1;
+  const out = new Map();
+  for (const p of rows) {
+    const k = p.churn.observed;
+    const mu = p.churn.expected * avgRatio;
+    const ratio = mu ? k / mu : null;
+    // Two-sided: the chance of a count this far from the average either way.
+    const pValue = mu ? Math.min(1, 2 * Math.min(poissonCdf(k, mu), 1 - (k ? poissonCdf(k - 1, mu) : 0))) : 1;
+    const verdict = mu < 2 && k < 3 ? 'too few to tell'
+      : pValue < 0.05 ? (k > mu ? 'worse, significant' : 'better, significant')
+        : pValue < 0.2 ? (k > mu ? 'worse, a lean' : 'better, a lean') : 'in line';
+    out.set(p.label, { label: p.label, month: p.month, left: k, expectedAtAverage: mu, expectedAtBook: p.churn.expected,
+      atRisk: p.churn.atRisk, rate: p.churn.atRisk ? k / p.churn.atRisk : null, ratio, pValue, verdict });
+  }
+  return { byLabel: out, avgRatio, avgRate: atRisk ? obs / atRisk : null, left: obs, atRisk };
+}
+
+// ---- The event score (Josh, 20 Oct 2026)
+//
+// One number, 0 to 100, for how good an event was against the others: each
+// measure below is ranked among every scored event (100 the best, 0 the
+// worst, 50 the middle), and the ranks are weighted. An event is scored once
+// it has a known, settled cost and is at least three months old or has a
+// customer. Rates resting on a few leads or customers are pulled toward the
+// average first, so one lucky win cannot top the table; and the score
+// carries how many customers it rests on.
+export const EVENT_SCORE_WEIGHTS = [
+  { key: 'roi12', label: '12-month ROI', weight: 30, better: 'high' },
+  { key: 'churn', label: 'Churn against the events\u2019 average', weight: 20, better: 'low' },
+  { key: 'costPerClosed', label: 'Cost per closed deal', weight: 15, better: 'low' },
+  { key: 'leadToWon', label: 'Lead to won', weight: 10, better: 'high' },
+  { key: 'costPerLead', label: 'Cost per lead', weight: 10, better: 'low' },
+  { key: 'revenuePerCustomer', label: 'Revenue per customer a month', weight: 10, better: 'high' },
+  { key: 'monthsToPay', label: 'Months to first payment', weight: 5, better: 'low' },
+];
+export function eventScorecard(data, reports) {
+  const roi = reports.roi;
+  const pbOf = new Map(reports.payback.map(p => [p.label, p]));
+  const churn = eventChurnReport(reports);
+  const f = eventFunnel(data, roi);
+  const byCo = stripeByCompany(data);
+  const scored = roi.events.filter(e => {
+    const p = pbOf.get(e.label);
+    return p && !p.provisional && p.roi12 !== null && e.spend > 0 && e.costState !== 'absent';
+  });
+  const raw = scored.map(e => {
+    const p = pbOf.get(e.label);
+    const k = eventCardFigures(data, roi, e, f, byCo);
+    const ledger = eventCustomerLedger(data, e, k);
+    const paidMonths = ledger.rows.reduce((t, x) => t + x.cells.filter(v => v > 0).length, 0);
+    const paid = ledger.rows.reduce((t, x) => t + x.cells.reduce((a, v) => a + (v > 0 ? v : 0), 0), 0);
+    const lags = ledger.rows.map(x => x.lag).filter(v => v !== null).sort((a, b) => a - b);
+    const c = churn.byLabel.get(e.label);
+    return { e, p, k, c, customers: ledger.rows.length,
+      roi12: p.roi12,
+      // Shrunk toward the average with two expected departures of weight.
+      churn: c ? (c.left + 2) / (c.expectedAtAverage + 2) : null,
+      costPerClosed: k.closedWon ? e.spend / k.closedWon : Infinity,
+      leadsN: k.leads, won: k.closedWon,
+      costPerLead: k.leads ? e.spend / k.leads : Infinity,
+      revenuePerCustomer: paidMonths ? paid / paidMonths : null,
+      monthsToPay: lags.length ? lags[lags.length >> 1] : null };
+  });
+  // Lead to won, pulled toward the events' rate with ten leads of weight.
+  const allLeads = raw.reduce((t, x) => t + x.leadsN, 0);
+  const allWon = raw.reduce((t, x) => t + x.won, 0);
+  const meanWin = allLeads ? allWon / allLeads : 0;
+  for (const x of raw) x.leadToWon = x.leadsN || x.won ? (x.won + 10 * meanWin) / (x.leadsN + 10) : null;
+  // Rank each measure: the best 100, the worst 0, ties sharing a rank. A
+  // missing cost per deal or per lead (none won, no leads) ranks last.
+  const rankOf = new Map();
+  for (const m of EVENT_SCORE_WEIGHTS) {
+    const vals = raw.filter(x => x[m.key] !== null && x[m.key] !== undefined);
+    const sorted = vals.map(x => x[m.key]).sort((a, b) => (m.better === 'high' ? a - b : b - a));
+    const n = sorted.length;
+    for (const x of vals) {
+      const v = x[m.key];
+      const below = sorted.filter(y => (m.better === 'high' ? y < v : y > v)).length;
+      const same = sorted.filter(y => y === v).length;
+      const r = n > 1 ? ((below + (same - 1) / 2) / (n - 1)) * 100 : 50;
+      rankOf.set(`${x.e.label}|${m.key}`, Number.isFinite(v) ? r : 0);
+    }
+  }
+  const rows = raw.map(x => {
+    const parts = EVENT_SCORE_WEIGHTS.map(m => {
+      const v = x[m.key];
+      return { ...m, value: v === null || v === undefined ? null : v,
+        rank: rankOf.has(`${x.e.label}|${m.key}`) ? rankOf.get(`${x.e.label}|${m.key}`) : null };
+    });
+    const used = parts.filter(q => q.rank !== null);
+    const w = used.reduce((t, q) => t + q.weight, 0);
+    const rawScore = w ? used.reduce((t, q) => t + q.weight * q.rank, 0) / w : null;
+    // A score resting on one or two customers is pulled toward the middle,
+    // as a churn verdict is: one customer cannot make an event the best any
+    // more than one departure can make it the worst. An event with no
+    // customer at all is not pulled: spending with nothing back is evidence.
+    const pull = x.customers ? x.customers / (x.customers + 2) : 1;
+    const score = rawScore === null ? null : 50 + (rawScore - 50) * pull;
+    return { label: x.e.label, month: x.e.month, type: x.e.type, spend: x.e.spend, customers: x.customers,
+      score, rawScore, parts, churn: x.c || null,
+      sample: x.customers >= 5 ? 'solid' : x.customers >= 2 ? 'thin' : 'very thin',
+      grade: score === null ? null : score >= 70 ? 'strong' : score >= 40 ? 'middling' : 'weak' };
+  }).sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  rows.forEach((r, i) => { r.place = i + 1; });
+  return { rows, byLabel: new Map(rows.map(r => [r.label, r])), churn, n: rows.length };
+}
+
