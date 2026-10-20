@@ -4459,7 +4459,7 @@ function renderSummary() {
     tile('Cost per lead', rt.costPerLead === null ? '–' : money(rt.costPerLead), `${short(o.spend)} over ${fmt.int(rt.newLeads || 0)} leads`)
     + tile('Cost per closed deal', rt.costPerClosed === null ? '–' : money(rt.costPerClosed), `${short(o.spend)} over ${fmt.int(rt.closedWon || 0)} closed deals`)
     + tile('Lead to won', rt.leadToWon === null ? '–' : fmt.pct(rt.leadToWon, 0),
-      `${fmt.int(rt.wonFromLeads || 0)} won of ${fmt.int(rt.newLeads || 0)} leads${rt.satToWon !== null ? ` · ${fmt.pct(rt.satToWon, 0)} of ${fmt.int(rt.demosSat)} sat` : ''}`)
+      `${fmt.int(rt.wonFromLeads || 0)} won of ${fmt.int(rt.newLeads || 0)} leads${rt.satToWon !== null ? ` · ${fmt.int(rt.wonFromLeads || 0)} of ${fmt.int(rt.demosSat)} demos closed (${fmt.pct(rt.satToWon, 0)})` : ''}`)
     + tile('ROI now', pct(o.roiToDate), 'on contribution, each event counted from its own date', o.roiToDate !== null && o.roiToDate < 0 ? 'neg' : 'pos')
     + tile('12-month ROI', pct(o.roi12), `12 months from each event’s date${o.roi12Range ? `; likely ${pct(o.roi12Range[0])} to ${pct(o.roi12Range[1])}` : ''}`,
       o.roi12 !== null && o.roi12 < 0 ? 'neg' : 'pos');
@@ -5384,12 +5384,12 @@ function eventReportsFor(options) {
 // so the table cannot drift from the score.
 const SCORE_MEANS = {
   roi: ['Return on the event\u2019s cost: to date in the score, at 12 months (projected if younger) in brackets', 'Higher'],
-  churn: ['How many of its customers left, against how many the average event\u2019s customers lose at the same point', 'Lower'],
+  churn: ['How many of its customers left, against how many the average event\u2019s customers would have lost by the same point', 'Lower'],
   costPerClosed: ['Event cost divided by the deals it closed', 'Lower'],
   leadToWon: ['Share of its leads that became customers', 'Higher'],
   costPerLead: ['Event cost divided by the leads it brought in', 'Lower'],
   revenuePerCustomer: ['What a typical customer from the event pays each month', 'Higher'],
-  monthsToPay: ['How long customers took to start paying after the event', 'Lower'],
+  monthsToPay: ['How long customers took to start paying: 100 when every customer paid in the event month, 0 at 6 months (a fixed scale, not a rank)', 'Sooner'],
 };
 function scoreGuide(n) {
   return `<p class="ev-note">Each event gets a score from 0 to 100. Each measure ranks the event against the other `
@@ -5405,7 +5405,8 @@ function scoreGuide(n) {
     + `<li><strong>Small samples are smoothed.</strong> Lead to won and churn are nudged toward the average where they rest on few leads or customers.</li>`
     + `<li><strong>Churn is called only when it is beyond chance.</strong> Otherwise it reads in line, or too few to tell.</li>`
     + `<li><strong>No deals or no leads ranks last</strong> on cost per closed deal or cost per lead.</li>`
-    + `<li><strong>Only settled events are scored:</strong> a known, final cost, and three months since the event or a customer.</li></ul>`;
+    + `<li><strong>Only lead-generation events are scored:</strong> a booth or lead capture, a known, final cost, and three months since `
+    + `the event or a customer. Attending or speaking with no booth, and events no leads were expected of, are left out.</li></ul>`;
 }
 
 const scoreMemo = new WeakMap();
@@ -5516,7 +5517,7 @@ function renderEventPage(label) {
     + kpi('Cost per closed deal', costKnown && closedWon ? money(e.spend / closedWon) : '–',
       closedWon ? `${money(e.spend)} over ${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}` : 'no deals closed yet')
     + kpi('Lead to won', newLeadsN ? pct(closedWon / newLeadsN) : '–',
-      newLeadsN ? `${int(closedWon)} won of ${int(newLeadsN)} leads${demosSat ? ` · ${pct(closedWon / demosSat)} of ${int(demosSat)} sat` : ''}` : '')
+      newLeadsN ? `${int(closedWon)} won of ${int(newLeadsN)} leads${demosSat ? ` · ${int(closedWon)} of ${int(demosSat)} demos closed (${pct(closedWon / demosSat)})` : ''}` : '')
     + kpi('12-month ROI', pb ? signedPct(pb.roi12) : '–', pb && pb.roi12 === null
       ? 'too early to project: no customer yet'
       : pb ? `${pb.roi12Projected ? 'projected' : 'actual'}, 12 months from ${dayLabel || 'the event'}`
@@ -5682,8 +5683,9 @@ function renderEventPage(label) {
   const ch = scorecard.churn.byLabel.get(e.label);
   const ord = n => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
   const churnLine = ch ? `<p class="ev-churn ${/worse/.test(ch.verdict) ? 'neg' : /better/.test(ch.verdict) ? 'pos' : ''}">`
-      + `<strong>Churn: ${int(ch.left)} left, ${ch.expectedAtAverage.toFixed(1)} expected at the events\u2019 average`
-      + `${ch.ratio !== null && ch.expectedAtAverage ? ` (${ch.ratio.toFixed(1)}\u00d7)` : ''}.</strong> `
+      + `<strong>Churn: ${int(ch.left)} of ${int(sc ? sc.customers : payingCos)} customers left; the average event\u2019s customers `
+      + `would have lost ${ch.expectedAtAverage.toFixed(1)} by now`
+      + `${ch.ratio !== null && ch.expectedAtAverage ? ` (${ch.ratio.toFixed(1)}\u00d7 the average)` : ''}.</strong> `
       + `${pct(ch.rate)} a month, against ${pct(scorecard.churn.avgRate)} for event customers overall. `
       + (ch.verdict === 'too few to tell' ? `Too few to tell: ${ch.expectedAtAverage < 1 ? 'under one departure' : `about ${Math.round(ch.expectedAtAverage)} departures`} `
         + `expected, so one more or one fewer swings it. Not a verdict on the event.`
@@ -5693,7 +5695,7 @@ function renderEventPage(label) {
       + `</p>`
     : `<p class="ev-note">Churn: no customer has paid a full month yet, so there is nothing to compare.</p>`;
   const partValue = q => (q.value === null ? '–' : q.key === 'roi' ? signedPct(q.value)
-    : q.key === 'churn' ? (ch ? `${int(ch.left)} left of ${ch.expectedAtAverage.toFixed(1)}` : '–')
+    : q.key === 'churn' ? (ch ? `${int(ch.left)} of ${int(sc.customers)} left` : '–')
       : q.key === 'leadToWon' ? pct(q.value) : q.key === 'monthsToPay' ? `${q.value <= 0 ? 'event month' : `${q.value} mo`}`
         : Number.isFinite(q.value) ? money(q.value) : 'none');
   // A few words under each measure (Josh, 20 Oct 2026): what it is, and the
@@ -5705,17 +5707,22 @@ function renderEventPage(label) {
     switch (q.key) {
       case 'roi': return `return on cost to date · middle event ${signedPct(md)} · at 12 months ${signedPct(sc && sc.roi12)}`
         + `${pb && pb.roi12Projected ? ' projected' : ''}`;
-      case 'churn': return `customers leaving, against the average event’s at the same ages · middle event ${md === null ? '–' : `${md.toFixed(1)}×`}`;
+      case 'churn': return ch ? `the average event’s customers would have lost ${ch.expectedAtAverage.toFixed(1)} by now; ${ch.verdict}`
+        : 'no customer has paid a full month yet';
       case 'costPerClosed': return `cost over closed deals; lower is better · middle event ${money(md)}${none}`;
       case 'leadToWon': return `closed deals over leads, pulled to the average on few leads · middle event ${pct(md)}`;
       case 'costPerLead': return `cost over leads; lower is better · middle event ${money(md)}${none}`;
       case 'revenuePerCustomer': return `what a paying customer pays in an average month · middle event ${money(md)}`;
-      case 'monthsToPay': return `from the event to a customer’s first payment, the median · middle event ${md === null ? '–' : md <= 0 ? 'the event month' : `${md} month${md === 1 ? '' : 's'}`}`;
+      case 'monthsToPay': return `from the event to first payment: 100 when every customer paid in the event month, 0 at `
+        + `${WIN_WINDOW_MONTHS} months · middle event ${md === null ? '–' : md <= 0 ? 'the event month' : `${md} month${md === 1 ? '' : 's'}`}`;
       default: return '';
     }
   };
-  const scorePanel = !sc ? (e.upcoming ? '' : `<section class="ev-panel"><h3>Event score</h3><p class="ev-note">Not scored yet: `
-      + `${e.costState === 'absent' ? 'its cost is not known' : pb && pb.provisional ? 'its cost is still settling' : 'under three months old with no customer'}.</p></section>`)
+  const scorePanel = !sc ? (e.upcoming ? '' : `<section class="ev-panel"><h3>Event score</h3><p class="ev-note">`
+      + (!e.leadGen ? `Not scored: not a lead-generation event${e.presence ? ` (${e.presence.replace(/\.$/, '')})` : ', no leads were expected of it'}. `
+        + `Only events with a booth or lead capture are scored.`
+        : `Not scored yet: ${e.costState === 'absent' ? 'its cost is not known' : pb && pb.provisional ? 'its cost is still settling' : 'under three months old with no customer'}.`)
+      + `</p></section>`)
     : `<section class="ev-panel"><h3>Event score</h3><div class="ev-score-head">`
       + `<span class="ev-score-n ${sc.grade}">${Math.round(sc.score)}</span><span class="ev-score-of">/ 100</span>`
       + `<span class="ev-score-12 ${sc.grade12}" title="The same score on 12-month ROI">(${Math.round(sc.score12)} at 12 months${pb && pb.roi12Projected ? ', projected' : ''})</span>`

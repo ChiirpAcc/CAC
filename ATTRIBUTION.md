@@ -138,7 +138,12 @@ a month 10%, months to first payment 5%. Lead to won is pulled toward the
 events' rate with ten leads of weight, churn toward the average with two
 departures; a score resting on one to four customers is pulled toward 50 by
 customers / (customers + 2). An event with no customer is not pulled.
-Scored: a known, settled cost and either three months old or a customer.
+Scored: lead-generation events only (a booth or lead capture; not those
+attended or spoken at with no booth, `presence`, nor Clover Mastermind 2025,
+BCSG Acceleration Days 2026 or Redwood Leadership Summit, `leadGen: false`),
+with a known, settled cost and either three months old or a customer. Months
+to first payment is on a fixed scale, not a rank: 100 when every customer paid
+in the event month, falling to 0 at six months.
 70 and up is strong, under 40 weak.
 
 ## 2. What people must do in HubSpot

@@ -1341,8 +1341,9 @@ span.pos { color: var(--series-pos); }
 #summary-stay { margin-top: 1rem; }
 @media (max-width: 640px) { .sum-origin { grid-template-columns: 1fr 2rem; } .sum-origin-bar { grid-column: 1 / -1; grid-row: 2; } }
 .ev-fun-paying, .ev-split-key i.ev-fun-paying { background: var(--series-pos); }
-.ev-fun-churned, .ev-split-key i.ev-fun-churned { background: repeating-linear-gradient(135deg, var(--series-3) 0 5px, color-mix(in srgb, var(--series-3) 55%, transparent) 5px 9px); }
-.ev-split-key i.ev-fun-churned { background: var(--series-3); }
+/* Churned customers in red (Josh, 20 Oct 2026). */
+.ev-fun-churned, .ev-split-key i.ev-fun-churned { background: repeating-linear-gradient(135deg, var(--series-neg) 0 5px, color-mix(in srgb, var(--series-neg) 60%, transparent) 5px 9px); }
+.ev-split-key i.ev-fun-churned { background: var(--series-neg); }
 .ev-fun-wait, .ev-split-key i.ev-fun-wait { background: color-mix(in srgb, var(--series-pos) 45%, transparent); }
 .ev-fun-lost, .ev-split-key i.ev-fun-lost { background: color-mix(in srgb, var(--series-neg) 55%, transparent); }
 .ev-fun-open, .ev-split-key i.ev-fun-open { background: color-mix(in srgb, var(--series-2) 45%, transparent); }
