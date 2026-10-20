@@ -5758,23 +5758,45 @@ function renderEventPage(label) {
   for (const x of data.customers) if (x.stripeLink && custById.has(x.id) && !stripeOf.has(x.id)) stripeOf.set(x.id, x.stripeLink);
   const CREDIT_WORDS = { direct: 'its own won deal', indirect: 'touched by it; another deal closed it', 'tag only': 'the event tag alone' };
   const fromWord = o => (o === 'new' ? 'New lead' : 'Known prospect');
+  // Time to close for each deal (Josh, 20 Oct 2026): days from the event to
+  // the Stripe subscription's start, the nearest the data comes to a close
+  // date, with the day its deal opened beneath where the lead has one.
+  const closeFrom = evDay || (e.month ? `${e.month}-01` : null);
+  const daysFrom = d => (closeFrom && d ? Math.round((Date.parse(`${d.slice(0, 10)}T12:00:00`) - Date.parse(`${closeFrom}T12:00:00`)) / 86400000) : null);
+  const dayWords = n => (n === null ? '–' : n < 0 ? `${int(-n)} day${n === -1 ? '' : 's'} before` : n === 0 ? 'the event day' : `${int(n)} day${n === 1 ? '' : 's'}`);
+  // With no Stripe start date (a customer newer than the subscription
+  // export), the first month it paid stands in.
+  const closeCell = (closed, opened, what, lag = null) => {
+    const n = daysFrom(closed);
+    const o = daysFrom(opened);
+    const fallback = lag === null ? (o !== null ? 'close date not recorded' : '–')
+      : `${lag <= 0 ? 'in the event month' : `about ${int(lag)} month${lag === 1 ? '' : 's'}`}<br><span class="muted">from its first payment</span>`;
+    return `<td class="n">${n === null ? fallback : dayWords(n)}${n !== null ? `<br><span class="muted">${what} ${closed.slice(0, 10)}</span>` : ''}`
+      + `${o !== null ? `<br><span class="muted">deal opened ${o <= 0 ? (o === 0 ? 'the event day' : `${int(-o)} days before`) : `day ${int(o)}`}</span>` : ''}</td>`;
+  };
+  const closeDays = [...ledger.rows.map(x => daysFrom(x.started)), ...ledger.notBilled.map(x => daysFrom(x.won))]
+    .filter(n => n !== null).sort((a, b) => a - b);
+  const closeMedian = closeDays.length ? (closeDays.length % 2 ? closeDays[closeDays.length >> 1]
+    : Math.round((closeDays[closeDays.length / 2 - 1] + closeDays[closeDays.length / 2]) / 2)) : null;
   const ledgerRows = ledger.rows.map(x => `<tr><td><span class="ev-dot ${x.live ? 'live' : 'gone'}"></span>${x.name}`
       + (custById.get(x.id) && custById.get(x.id).wonElsewhere ? `<br><span class="muted">won on another deal: ${custById.get(x.id).wonElsewhere}</span>` : '') + `</td>`
       + `<td>${fromWord(x.origin)}${x.winback ? '<br><span class="muted">won back</span>' : ''}</td>`
       + `<td>${fmt.monthLabel(x.firstPaid)}${x.lag !== null ? `<br><span class="muted">${x.lag <= 0 ? 'the event month' : `${x.lag} month${x.lag === 1 ? '' : 's'} after`}</span>` : ''}</td>`
+      + closeCell(x.started, x.dealOpened, 'subscription began', x.lag)
       + `<td>${x.live ? '<span class="pos">Still paying</span>' : x.end ? `${fmt.monthLabel(x.end.slice(0, 7))}<br><span class="muted">`
         + `${x.endFrom === 'stripe' ? 'subscription ended' : 'last payment'}</span>` : '–'}</td>`
       + `<td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
       + `<td>${CREDIT_WORDS[x.credit] || 'not graded'}<br>${x.ids.map(id => extLink(stripeOf.get(id) || `https://dashboard.stripe.com/customers/${id}`, 'Stripe')).join(' · ')}</td></tr>`).join('')
     + ledger.notBilled.map(x => `<tr><td><span class="ev-dot wait"></span>${x.link ? extLink(x.link, x.name) : x.name}</td><td>${fromWord(x.origin)}</td>`
-      + `<td><span class="muted">not billed yet</span>${x.won ? `<br><span class="muted">won ${x.won}</span>` : ''}</td><td>–</td><td class="n">–</td><td class="n">–</td>`
+      + `<td><span class="muted">not billed yet</span></td>${closeCell(x.won, x.opened, 'deal won')}<td>–</td><td class="n">–</td><td class="n">–</td>`
       + `<td>a won deal in HubSpot</td></tr>`).join('');
   const ledgerMrr = ledger.rows.reduce((t, x) => t + (x.mrrNow || 0), 0);
   const customersPanel = `<section class="ev-panel"><h3>Customers credited</h3>`
     + (ledgerRows
       ? `<div class="table-scroll"><table class="data-table ev-table"><thead><tr><th>Customer</th><th>From</th><th>First paid</th>`
-        + `<th>Ended</th><th class="n">MRR now</th><th class="n">Collected</th><th>Evidence</th></tr></thead><tbody>${ledgerRows}`
-        + `<tr class="total-row"><td colspan="4"><strong>${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}</strong></td>`
+        + `<th class="n">Time to close</th><th>Ended</th><th class="n">MRR now</th><th class="n">Collected</th><th>Evidence</th></tr></thead><tbody>${ledgerRows}`
+        + `<tr class="total-row"><td colspan="3"><strong>${int(closedWon)} closed deal${closedWon === 1 ? '' : 's'}</strong></td>`
+        + `<td class="n">${closeMedian !== null ? `<strong>${dayWords(closeMedian)}</strong><br><span class="muted">median</span>` : ''}</td><td></td>`
         + `<td class="n"><strong>${money(ledgerMrr)}</strong></td><td></td><td></td></tr></tbody></table></div>`
         + signedLine
         + (e.alreadyPaying ? `<p class="ev-note">${int(e.alreadyPaying)} more carry the tag but were paying before the event, so they are not credited.</p>` : '')

@@ -6382,11 +6382,12 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
     // Who each closed deal is, for the customers table: paying customers
     // found among the leads are new leads, the rest known prospects.
     leadCustomerIds: [...leadCust.keys()],
+    leadByCustomer: leadCust,
     // The lead behind each closed deal found among the leads, one per company.
     wonLeads,
     notBilledRows: [
       ...notBilledLeads.map(l => ({ name: l.company || 'A lead with no company',
-        origin: 'new', link: l.companyLink || null, won: l.dealCreated || null })),
+        origin: 'new', link: l.companyLink || null, won: null, opened: l.dealCreated || null })),
       ...extraWins.map(w => ({ name: w.company, origin: 'known', link: null,
         won: w.closed || null })),
     ],
@@ -6413,6 +6414,10 @@ export function eventCustomerLedger(data, e, card) {
     return {
       id: x.id, name: x.name, origin: fromLead.has(x.id) ? 'new' : 'known', credit: x.credit || null,
       winback: x.winback, firstPaid: x.firstPaid, live: x.live, end, endFrom: x.live ? null : stripeEnd ? 'stripe' : 'last paid',
+      // When the deal closed, as near as the data has it (Josh, 20 Oct 2026):
+      // the Stripe subscription's start date, and the day its deal opened.
+      started: rec && /^\d{4}-\d{2}-\d{2}$/.test(rec.start || '') ? rec.start : null,
+      dealOpened: card.leadByCustomer && card.leadByCustomer.get(x.id) ? card.leadByCustomer.get(x.id).dealCreated || null : null,
       mrrNow: x.mrrNow, collected: x.collected, contribution: x.contribution,
       lag: e.month ? monthDiff(e.month, x.firstPaid) : null,
       cells: months.map(m => (endMonth && m > endMonth && !(cash.get(m) > 0) ? null : cash.get(m) || 0)),
@@ -6428,6 +6433,8 @@ export function eventCustomerLedger(data, e, card) {
     had.ids.push(x.id);
     if (x.origin === 'new') had.origin = 'new';
     had.firstPaid = had.firstPaid < x.firstPaid ? had.firstPaid : x.firstPaid;
+    had.started = [had.started, x.started].filter(Boolean).sort()[0] || null;
+    had.dealOpened = had.dealOpened || x.dealOpened;
     had.live = had.live || x.live;
     had.end = had.live ? null : [had.end, x.end].filter(Boolean).sort().pop() || null;
     had.endFrom = had.live ? null : had.endFrom === 'stripe' || x.endFrom === 'stripe' ? 'stripe' : 'last paid';
