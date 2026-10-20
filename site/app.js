@@ -4601,6 +4601,21 @@ function renderSummary() {
       + `<td class="n">${fmt.int(k.customers)}</td><td class="n">${money(k.perCustomer)}</td>`
       + `<td><span class="kind-net"><span class="kind-bar ${k.net < 0 ? 'neg' : 'pos'}" style="width:${(Math.abs(k.net) / maxAbs * 100).toFixed(0)}%"></span>`
       + `<span class="${k.net < 0 ? 'neg' : 'pos'}">${signed(k.net)}</span></span></td></tr>`).join('') + '</tbody>';
+  // What each kind is, under the table (Josh, 20 Oct 2026): only the kinds
+  // it shows, then what its columns count.
+  if ($('summary-kinds-defs')) {
+    const KIND_WORDS = {
+      'Partner network event': 'Run by a partner or franchise network for its own member contractors, such as CertainPath, Lennox, Nexstar or BDR. We exhibit or sponsor to reach that network’s members.',
+      'Conference sponsorship': 'An industry conference open to the trade, such as EGIA Epic, Pantheon or Home Service Freedom, where we pay for a booth or a sponsorship.',
+      'Small room': 'A mastermind, retreat or offsite with a small group of owners, such as Blue Sky Mastermind or Clover. Few leads, close conversations.',
+      'Training': 'A training programme or boot camp contractors attend to learn, such as System Forward Pro Boot Camp.',
+      [EVENT_UNCLASSIFIED]: 'An event with a cost on the Event Costs tab and no kind recorded yet.',
+    };
+    $('summary-kinds-defs').innerHTML = o.byKind.map(k => `<dt>${k.kind}</dt><dd>${KIND_WORDS[k.kind] || ''}</dd>`).join('')
+      + `<dt>The columns</dt><dd>Events held in the range; spent, fees and travel; customers, new paying customers credited to `
+      + `them; cost per customer, spent over customers; net so far, what those customers paid less the cost to serve them, less `
+      + `what the events cost.</dd>`;
+  }
   // Committed.
   $('summary-ahead').innerHTML = !o.ahead.length ? '<tbody><tr><td class="muted">Nothing booked ahead.</td></tr></tbody>'
     : '<thead><tr><th>Event</th><th>When</th><th class="n">Committed</th></tr></thead><tbody>'

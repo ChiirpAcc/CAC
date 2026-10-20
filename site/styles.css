@@ -1403,3 +1403,4 @@ th.sorted { color: var(--ink); }
 .score-guide td { white-space: normal; vertical-align: top; }
 .score-guide td:first-child { font-weight: 600; white-space: nowrap; }
 .score-rules { margin: 0.6rem 0 0; padding-left: 1.1rem; font-size: 0.82rem; color: var(--ink-mid); line-height: 1.5; }
+.kind-defs { margin-top: 0.8rem; }
