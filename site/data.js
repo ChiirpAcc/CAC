@@ -6303,8 +6303,8 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
   // count (Josh, 20 Oct 2026): every company the event won is one of its
   // leads and sat a demo, so a customer won from a contact HubSpot already
   // held, or whose contact carries no event tag (Edison Electric at
-  // CertainPath Spring Expo), is added to leads and sat as "won from an
-  // existing contact". HubSpot opens a deal only once a demo is held, so
+  // CertainPath Spring Expo), is added to leads and sat as a known prospect
+  // won: a new customer, not an upsell. HubSpot opens a deal only once a demo is held, so
   // there is no booked stage.
   const custOf = l => (l.company && byCo(l.company) ? byCo(l.company).id : null);
   const leadCust = new Map(); for (const l of leads) { const id = custOf(l); if (id && !leadCust.has(id)) leadCust.set(id, l); }

@@ -5335,7 +5335,10 @@ function renderEventPage(label) {
   const headLeads = cardFig.leadRows;
   const { demosSat, wonNotBilled, closedWon, closedLost, stillOpen } = cardFig;
   const newLeadsN = cardFig.leads;
-  const leadsWord = cardFig.wonOutsideLeads ? `${int(cardFig.newLeads)} new + ${int(cardFig.wonOutsideLeads)} existing contact${cardFig.wonOutsideLeads === 1 ? '' : 's'} won` : '';
+  // A company won from a contact HubSpot already knew (an earlier demo, an
+  // organiser's list) is a known prospect the event closed: a new customer,
+  // not an existing one and not an upsell (Edison Electric, Josh 20 Oct 2026).
+  const leadsWord = cardFig.wonOutsideLeads ? `${int(cardFig.newLeads)} new + ${int(cardFig.wonOutsideLeads)} known prospect${cardFig.wonOutsideLeads === 1 ? '' : 's'} won` : '';
   const costCard = e.costState === 'absent'
     ? kpi('Total cost', c && c.travel ? `${money(c.travel)} +` : 'Not found',
       c && c.travel ? 'travel; a fee was expected and not found' : 'a fee was expected; no amount yet')

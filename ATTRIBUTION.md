@@ -245,7 +245,7 @@ site actually computed. It runs in three places, always with the same code:
 | `sales-matches-events` | The Sales tab counts the same leads as the Events tab. |
 | `upsell-not-new` | No upsell customer is also credited as a new customer of the same event. |
 | `upsell-baseline` | Every upsell was paying going in and is credited no more than its increase. |
-| `funnel-ends-on-closed` | Every event's funnel runs leads ≥ sat ≥ won, and won equals its Closed deals: a company the event won from an existing or untagged contact is added to its leads and sat. |
+| `funnel-ends-on-closed` | Every event's funnel runs leads ≥ sat ≥ won, and won equals its Closed deals: a company the event won from a known prospect (a contact HubSpot already held, or one not tagged to the event) is added to its leads and sat; it is a new customer, not an upsell. |
 | `no-guess-ahead` | No event still ahead (past the last month of data) carries a guessed fee, or estimated travel without confirmed attendees; no such guess is on file either. |
 
 The audit was tested by breaking the code on purpose: dropping the win window
