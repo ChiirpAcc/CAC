@@ -1404,3 +1404,12 @@ th.sorted { color: var(--ink); }
 .score-guide td:first-child { font-weight: 600; white-space: nowrap; }
 .score-rules { margin: 0.6rem 0 0; padding-left: 1.1rem; font-size: 0.82rem; color: var(--ink-mid); line-height: 1.5; }
 .kind-defs { margin-top: 0.8rem; }
+.sales-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
+.sales-controls input[type="number"] { width: 4rem; }
+.sales-how > summary { cursor: pointer; list-style: none; }
+.sales-how > summary h3 { display: inline; }
+.sales-how > summary::before { content: '\203A'; display: inline-block; width: 1rem; color: var(--ink-soft); }
+.sales-how[open] > summary::before { transform: rotate(90deg); }
+.sales-how .ev-defs { margin-top: 0.8rem; }
+#sales-board a[data-person] { color: inherit; text-decoration: underline dotted; }
+#sales-board thead tr:first-child th { text-align: center; border-bottom: 1px solid var(--rule); }

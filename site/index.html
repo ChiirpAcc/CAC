@@ -1219,49 +1219,66 @@
 
   <section id="view-sales" class="wrap" hidden>
     <header class="story-head">
-      <h2>Setters and salespeople, on the leads events produced</h2>
-      <p>Sets, shows and sales per setter; demos, sales and Stripe revenue per salesperson; and whether a lead does
-        better kept by one person than handed off. A blank is shown as not recorded, never as none, and every rate
-        carries what it rests on.</p>
+      <h2>Sales</h2>
+      <p>Setters and salespeople on the leads events produced. Pick a period; everything below follows it except the
+        every-source table, which has no dates.</p>
     </header>
-    <div class="ev-kpis" id="sales-kpis"></div>
-    <p class="finding" id="sales-finding"></p>
-    <figure class="card wide" id="fig-sales-quarter">
-      <figcaption><h3>By quarter: sets, shows and demos per person</h3></figcaption>
-      <div class="chart-control">
-        <label for="sales-quarter">Quarter</label>
-        <select id="sales-quarter"></select>
-        <button type="button" id="sales-quarter-download">Download this quarter as CSV</button>
-        <button type="button" id="sales-quarters-download">Download every quarter as CSV</button>
-        <output id="sales-quarter-status"></output>
+    <div class="chart-control sales-controls">
+      <div class="view-toggle" role="radiogroup" aria-label="Period">
+        <label><input type="radio" name="sales-mode" value="quarter" checked> Quarter</label>
+        <label><input type="radio" name="sales-mode" value="months"> Last months</label>
+        <label><input type="radio" name="sales-mode" value="events"> Last events</label>
+        <label><input type="radio" name="sales-mode" value="all"> All time</label>
       </div>
-      <div class="ev-kpis" id="sales-quarter-kpis"></div>
-      <div class="table-scroll"><table class="data-table" id="sales-quarter-table"></table></div>
-      <h4>Every quarter: sets / demos completed</h4>
+      <select id="sales-quarter" aria-label="Quarter"></select>
+      <label id="sales-months-wrap" hidden>Last <input type="number" id="sales-months" min="1" max="60" value="6"> months</label>
+      <label id="sales-events-wrap" hidden>Last <input type="number" id="sales-events" min="1" max="40" value="5"> events</label>
+      <button type="button" id="sales-download">Download CSV</button>
+      <output id="sales-status"></output>
+    </div>
+    <p class="note" id="sales-period"></p>
+    <div class="ev-kpis" id="sales-kpis"></div>
+    <figure class="card wide">
+      <figcaption><h3>Leaderboard</h3></figcaption>
+      <div class="table-scroll"><table class="data-table" id="sales-board"></table></div>
+      <p class="note" id="sales-board-note"></p>
+    </figure>
+    <figure class="card wide">
+      <figcaption><h3>Quarter by quarter: sets / shows</h3></figcaption>
       <div class="table-scroll"><table class="data-table" id="sales-quarter-matrix"></table></div>
-      <p class="note">On event leads. A set is a lead with a setter recorded, dated by when the lead could first be set: the
-        later of its arrival and its event. A show is one of the setter’s sets reaching a demo, and a demo and a sale are
-        dated by when the deal opened, which HubSpot does once the demo is sat; the leads carry no booking or close date, so
-        a sale sits in the quarter its demo did. Upsell meetings count. Sold, Stripe MRR is what Stripe first billed each
-        won customer.</p>
+      <p class="note">Each cell is a setter's sets / how many of them reached a demo, in that quarter. Not filtered by the period above.</p>
     </figure>
     <figure class="card wide">
-      <figcaption><h3>Setters: sets, shows and sales</h3></figcaption>
-      <div class="table-scroll"><table class="data-table" id="sales-setters"></table></div>
+      <figcaption><h3>Kept or handed off</h3></figcaption>
+      <div class="table-scroll"><table class="data-table" id="sales-kept"></table></div>
+      <p class="note">Whether a demo did better when the setter ran it themselves than when they handed it to another deal
+        owner. Setters tend to keep their warmest leads, so the gap is not all the hand-off.</p>
     </figure>
     <figure class="card wide">
-      <figcaption><h3>Salespeople: demos, sales and what they sold</h3></figcaption>
-      <div class="table-scroll"><table class="data-table" id="sales-owners"></table></div>
-    </figure>
-    <figure class="card wide">
-      <figcaption><h3>Every source, per person: the pipeline’s Setters tab</h3></figcaption>
+      <figcaption><h3>Every source, not only events</h3></figcaption>
       <div class="table-scroll"><table class="data-table" id="sales-people"></table></div>
+      <p class="note">All time, from the pipeline's Setters tab: every lead source, per person. It carries no dates, so it
+        does not follow the period above.</p>
     </figure>
-    <figure class="card wide">
-      <figcaption><h3>Each setter by event: leads / sat / won</h3></figcaption>
-      <div class="table-scroll"><table class="data-table" id="sales-matrix"></table></div>
-      <p class="note" id="sales-note"></p>
-    </figure>
+    <details class="card wide sales-how">
+      <summary><h3>How we count</h3></summary>
+      <dl class="ev-defs">
+        <dt>Set</dt><dd>An event lead with a setter recorded: someone got them to agree to a demo. Dated by when the lead could
+          first be set, the later of its arrival and its event. A blank setter is no record, not no work.</dd>
+        <dt>Show</dt><dd>One of a setter's sets that reached a demo. HubSpot opens a deal only once the demo is sat, so a show is a
+          set whose deal exists, dated by when the deal opened.</dd>
+        <dt>Demo run</dt><dd>A deal credited to its owner, the closest the data has to who ran the demo (there is no account
+          executive field).</dd>
+        <dt>Sale</dt><dd>A demo whose deal was won, with Stripe agreeing, within six months of the event. Dated by when its deal
+          opened: the leads carry no close date.</dd>
+        <dt>Show rate, close rate</dt><dd>Shows over sets; sales over demos run.</dd>
+        <dt>Sold MRR</dt><dd>What Stripe first billed each customer won, matched by company name. A sale Stripe has not billed yet adds nothing.</dd>
+        <dt>Kept or handed off</dt><dd>Kept: the setter also owned the deal. Handed off: another deal owner took it.</dd>
+        <dt>Periods</dt><dd>A quarter, the last N months to this month, or the last N events held (every lead of those events,
+          whatever its date), each against the period before it. Upsell meetings count as sets and demos.</dd>
+        <dt>Leads</dt><dd>The leads the Events tab counts: no loaded lists, no contacts tagged before the event.</dd>
+      </dl>
+    </details>
   </section>
 
   <section id="view-list" class="wrap" hidden>

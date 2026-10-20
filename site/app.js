@@ -16,7 +16,7 @@ import {
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, eventCardFigures, eventCustomerLedger, eventStaying, eventScorecard, EVENT_SCORE_WEIGHTS, CHURN_CHECK_MONTHS, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
-  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, eventsOverview, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
+  stripeByCompany, salesBoard, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, eventsOverview, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -4782,192 +4782,133 @@ function costProofPanel(e, { bar = '', facts = '', extraFacts = '', notes = '' }
         + `window, and its place fits the trip. Fares bought weeks ahead are matched by hand and say why.</p></section>`);
 }
 
-// The Sales tab: setters and deal owners, from the same lead rows.
-const ratio2 = (n, d) => ({ n, d, rate: d ? n / d : null, thin: d < 10 });
-// The person the quarter's headline names (Josh, 13 Oct 2026).
+// The Sales tab as a scoreboard (Josh, 20 Oct 2026): one period picked at
+// the top (a quarter, the last N months, the last N events, or all time),
+// four headline numbers against the period before, one leaderboard, the
+// quarter-by-quarter trend, kept or handed off, every source, and the
+// definitions folded. Ryan Peterson is pinned to the top of each table, not
+// given a headline card of his own.
 const FEATURED_SETTER = 'Ryan Peterson';
 const quarterNow = () => { const d = new Date(); return `${d.getFullYear()} Q${Math.floor(d.getMonth() / 3) + 1}`; };
-function renderSalesQuarters(r) {
-  const sel = $('sales-quarter');
-  if (!sel || !r.byQuarter || !r.byQuarter.length) return;
-  const quarters = r.byQuarter.map(x => x.quarter);
-  if (!sel.dataset.ready) {
-    const now = quarterNow();
-    if (!quarters.includes(now)) quarters.unshift(now);
-    sel.innerHTML = quarters.map(qq => `<option value="${qq}">${qq}${qq === now ? ' (this quarter)' : ''}</option>`).join('');
-    sel.value = now;
-    sel.addEventListener('change', () => renderSalesQuarters(r));
-    sel.dataset.ready = '1';
-  }
-  const qq = sel.value;
-  const row = r.byQuarter.find(x => x.quarter === qq) || { quarter: qq, people: [] };
-  const sum = k => row.people.reduce((t, p) => t + p[k], 0);
-  const me = row.people.find(p => p.who === FEATURED_SETTER) || { sets: 0, shows: 0, demos: 0, sales: 0 };
-  const kpi = (k, v, sub = '') => `<div class="ev-kpi"><span class="ev-kpi-label">${k}</span>`
-    + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
-  $('sales-quarter-kpis').innerHTML =
-    kpi(`${FEATURED_SETTER}: sets`, fmt.int(me.sets), `in ${qq}`)
-    + kpi(`${FEATURED_SETTER}: shows`, fmt.int(me.shows), 'his sets that reached a demo')
-    + kpi('Sets, everyone', fmt.int(sum('sets')), `${fmt.int(row.people.filter(p => p.sets).length)} setters`)
-    + kpi('Demos completed', fmt.int(sum('demos')), 'deals opened, so demos sat')
-    + kpi('Sales', fmt.int(sum('sales')), `${fmt.money(sum('stripeMrr'))} Stripe MRR`);
-  const people = row.people.filter(p => p.sets || p.shows || p.demos);
-  $('sales-quarter-table').innerHTML = !people.length ? '<tbody><tr><td class="muted">Nothing in this quarter yet.</td></tr></tbody>'
-    : '<thead><tr><th>Person</th><th class="n">Sets</th><th class="n">Shows (their sets)</th><th class="n">Demos completed (owner)</th>'
-      + '<th class="n">Sales</th><th class="n">Sold, Stripe MRR</th></tr></thead><tbody>'
-      + people.map(p => `<tr${p.who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${personName(p.who)}</td>`
-        + `<td class="n">${fmt.int(p.sets)}</td><td class="n">${fmt.int(p.shows)}</td><td class="n">${fmt.int(p.demos)}</td>`
-        + `<td class="n">${fmt.int(p.sales)}</td><td class="n">${p.stripeMrr ? fmt.money(p.stripeMrr) : '–'}</td></tr>`).join('')
-      + `<tr class="total-row"><td><strong>Everyone</strong></td><td class="n"><strong>${fmt.int(sum('sets'))}</strong></td>`
-      + `<td class="n"><strong>${fmt.int(sum('shows'))}</strong></td><td class="n"><strong>${fmt.int(sum('demos'))}</strong></td>`
-      + `<td class="n"><strong>${fmt.int(sum('sales'))}</strong></td><td class="n"><strong>${fmt.money(sum('stripeMrr'))}</strong></td></tr></tbody>`;
-  // Every quarter, sets / demos completed per person.
-  const shown = [...r.byQuarter].reverse().slice(-8);
-  const everyone = [...new Set(r.byQuarter.flatMap(x => x.people.map(p => p.who)))]
-    .sort((a, b) => (a === FEATURED_SETTER ? -1 : b === FEATURED_SETTER ? 1 : String(a).localeCompare(String(b))));
-  $('sales-quarter-matrix').innerHTML = '<thead><tr><th>Person</th>' + shown.map(x => `<th class="n">${x.quarter}</th>`).join('')
-    + '</tr></thead><tbody>' + everyone.map(who => `<tr${who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${personName(who)}</td>`
-      + shown.map(x => { const p = x.people.find(pp => pp.who === who); return `<td class="n">${p && (p.sets || p.demos) ? `${p.sets}<span class="muted"> / ${p.demos}</span>` : '<span class="muted">–</span>'}</td>`; }).join('')
-      + '</tr>').join('') + '</tbody>';
-  // Exports.
-  const cell = v => (v === null || v === undefined ? '' : /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
-  const csv = list => ['quarter,person,sets,shows_of_their_sets,demos_completed_as_owner,sales,sold_stripe_mrr']
-    .concat(list.flatMap(x => x.people.map(p => [x.quarter, personName(p.who), p.sets, p.shows, p.demos, p.sales,
-      Math.round(p.stripeMrr || 0)].map(cell).join(',')))).join('\n');
-  const save = (text, name, n) => {
-    const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    $('sales-quarter-status').textContent = `${fmt.int(n)} rows exported.`;
-  };
-  const b1 = $('sales-quarter-download');
-  const b2 = $('sales-quarters-download');
-  if (b1 && !b1.dataset.ready) {
-    b1.addEventListener('click', () => {
-      const cur = $('sales-quarter').value;
-      const x = renderSalesQuarters.latest.byQuarter.find(y => y.quarter === cur) || { quarter: cur, people: [] };
-      save(csv([x]), `chiirp-sales-${cur.replace(' ', '-')}.csv`, x.people.length);
-    });
-    b2.addEventListener('click', () => {
-      const all = renderSalesQuarters.latest.byQuarter;
-      save(csv(all), 'chiirp-sales-by-quarter.csv', all.reduce((t, x) => t + x.people.length, 0));
-    });
-    b1.dataset.ready = '1';
-  }
-  renderSalesQuarters.latest = r;
-}
+const salesState = { kind: 'quarter', quarter: null, months: 6, events: 5, person: null };
 function renderSales() {
-  if (!$('sales-setters')) return;
+  if (!$('sales-board')) return;
   const r = salesReport(data);
-  const f = eventFunnel(data);
   if (!r) {
-    $('sales-kpis').innerHTML = '';
-    $('sales-finding').innerHTML = 'The Event Leads tab is not in this push, so there is nothing to show yet. That is a gap '
-      + 'in the push, not a zero.';
-    for (const id of ['sales-setters', 'sales-owners', 'sales-matrix']) $(id).innerHTML = '';
+    $('sales-kpis').innerHTML = '<p class="empty">The Event Leads tab is not in this push, so there is nothing to show yet. That is a gap in the push, not a zero.</p>';
     return;
   }
-  const money = v => (v ? fmt.money(v) : '–');
+  const st = salesState;
+  if (!st.quarter) st.quarter = quarterNow();
+  const b = salesBoard(data, { kind: st.kind, quarter: st.quarter, months: st.months, events: st.events });
+  // Controls: the picker for the chosen kind of period shows; the rest hide.
+  const sel = $('sales-quarter');
+  if (!sel.dataset.ready) {
+    const qs = b.quarters.includes(quarterNow()) ? b.quarters : [quarterNow(), ...b.quarters];
+    sel.innerHTML = qs.map(q => `<option value="${q}">${q}${q === quarterNow() ? ' (this quarter)' : ''}</option>`).join('');
+    sel.value = st.quarter;
+    sel.addEventListener('change', () => { st.quarter = sel.value; renderSales(); });
+    document.querySelectorAll('input[name="sales-mode"]').forEach(x => x.addEventListener('change', () => { st.kind = x.value; renderSales(); }));
+    $('sales-months').addEventListener('change', () => { st.months = Number($('sales-months').value) || 6; renderSales(); });
+    $('sales-events').addEventListener('change', () => { st.events = Number($('sales-events').value) || 5; renderSales(); });
+    $('sales-board').addEventListener('click', ev => {
+      const a = ev.target.closest('[data-person]');
+      if (!a) return;
+      ev.preventDefault();
+      st.person = st.person === a.dataset.person ? null : a.dataset.person;
+      renderSales();
+    });
+    $('sales-download').addEventListener('click', () => {
+      const cur = salesBoard(data, { kind: st.kind, quarter: st.quarter, months: st.months, events: st.events });
+      const cell = v => (v === null || v === undefined ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+      const text = ['period,person,sets,shows,demos_run,sales,sold_stripe_mrr,kept_demos,kept_wins,handed_demos,handed_wins']
+        .concat(cur.now.people.map(c => [cur.now.label, c.who ? personName(c.who) : 'No owner on the deal', c.sets, c.shows, c.demos, c.sales,
+          Math.round(c.mrr), c.kept.demos, c.kept.wins, c.handed.demos, c.handed.wins].map(cell).join(','))).join('\n');
+      const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = `chiirp-sales-${cur.now.label.replace(/\s+/g, '-')}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      $('sales-status').textContent = `${fmt.int(cur.now.people.length)} rows exported.`;
+    });
+    sel.dataset.ready = '1';
+  }
+  document.querySelectorAll('input[name="sales-mode"]').forEach(x => { x.checked = x.value === st.kind; });
+  $('sales-quarter').hidden = st.kind !== 'quarter';
+  $('sales-months-wrap').hidden = st.kind !== 'months';
+  $('sales-events-wrap').hidden = st.kind !== 'events';
+  $('sales-events').max = String(b.heldEvents);
+
+  const pc = (n, d) => (d ? fmt.pct(n / d, 0) : '–');
+  const who = c => (c.who ? personName(c.who) : 'No owner on the deal');
+  const pinned = list => [...list].sort((a, z) => (a.who === FEATURED_SETTER ? -1 : z.who === FEATURED_SETTER ? 1 : 0)
+    || (z.sets - a.sets) || (z.demos - a.demos) || String(who(a)).localeCompare(String(who(z))));
+  const N = b.now;
+  const B = b.before;
+  const focus = st.person ? N.people.find(c => c.who === st.person) : null;
+  const T = focus || N.totals;
+  const P = st.person && B ? B.people.find(c => c.who === st.person) || { sets: 0, shows: 0, demos: 0, sales: 0, mrr: 0 } : B ? B.totals : null;
+  const beforeWords = b.kind === 'quarter' ? 'last quarter' : b.kind === 'months' ? `the ${fmt.int(st.months)} months before`
+    : b.kind === 'events' ? `the ${fmt.int(st.events)} events before` : '';
+  $('sales-period').innerHTML = (b.kind === 'events' && N.events
+    ? `<strong>The last ${fmt.int(N.events.length)} events:</strong> ${N.events.map(([src, day]) => `${src.replace(/^(20\d\d)\s*-\s*(.*)$/, '$2')} (${day})`).join(', ')}. `
+    : `<strong>${b.kind === 'all' ? 'All time' : N.label}.</strong> `)
+    + (st.person ? `Showing ${personName(st.person)} only; <a href="#sales" data-clear-person>show everyone</a>.` : '');
   const kpi = (k, v, sub = '') => `<div class="ev-kpi"><span class="ev-kpi-label">${k}</span>`
     + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
-  const named = r.setters.filter(x => x.recorded);
-  const unrec = r.setters.find(x => !x.recorded);
-  const T = r.totals;
-  const P = r.pairing;
-  const pc = x => (x && x.rate !== null && x.rate !== undefined ? fmt.pct(x.rate, 0) : '–');
   $('sales-kpis').innerHTML =
-    kpi('Event leads', fmt.int(T.leads), 'produced by an event, or from an undated one')
-    + kpi('Sets', fmt.int(T.sets), `${pc(T.setRate)} of leads have a setter recorded`)
-    + kpi('Shows (demos completed)', fmt.int(T.setShows), `${pc(T.showRate)} of sets; ${fmt.int(T.shows)} demos in all`)
-    + kpi('Sales', fmt.int(T.wins), `${pc(T.closeRate)} of demos; ${pc(T.leadToWin)} of leads`)
-    + kpi('Sold, Stripe MRR', fmt.money(T.stripe.mrr), `first month billed, ${fmt.int(T.stripe.matched)} customers matched`)
-    + kpi('Same person set and ran it', pc(P.same.rate), `${fmt.int(P.same.wins)} of ${fmt.int(P.same.shows)} demos won; `
-      + `handed off ${pc(P.handedOff.rate)}, ${fmt.int(P.handedOff.wins)} of ${fmt.int(P.handedOff.shows)}`);
-  $('sales-finding').innerHTML =
-    `<strong>Event leads became ${fmt.int(T.sets)} sets, ${fmt.int(T.setShows)} shows and ${fmt.int(T.wins)} sales.</strong> `
-    + `When the setter also ran the demo, ${fmt.int(P.same.wins)} of ${fmt.int(P.same.shows)} won (${pc(P.same.rate)}); `
-    + `handed to another deal owner, ${fmt.int(P.handedOff.wins)} of ${fmt.int(P.handedOff.shows)} (${pc(P.handedOff.rate)}). `
-    + `Read that with care: a setter tends to keep the warmest leads, so the gap is not all the hand-off. `
-    + `${fmt.int(unrec ? unrec.booked : 0)} leads have no setter recorded and are their own line, since a blank means no `
-    + `record, not no work. Most rates rest on fewer than ten, so read them as counts, not measurements.`;
-  const evName = src => String(src).replace(/^(20\d\d)\s*-\s*(.*)$/, '$2 $1');
-  const pairCell = p => (p && p.shows ? rateCell({ n: p.wins, d: p.shows, rate: p.rate.rate, thin: p.shows < 10 }) : '<td class="n">–</td>');
-  $('sales-setters').innerHTML =
-    '<thead><tr><th>Setter (booked the demo)</th><th class="n">Sets</th><th class="n">Shows</th>'
-    + '<th class="n">Sales, of sets</th><th class="n">Close rate, of shows</th><th class="n">Ran it themselves</th>'
-    + '<th class="n">Handed off</th><th class="n">Sold, Stripe MRR</th><th>Events, most leads first</th></tr></thead><tbody>'
-    + r.setters.map(x => `<tr><td>${x.recorded ? personName(x.who) : 'Not recorded'}</td>`
-      + `<td class="n">${fmt.int(x.booked)}</td>` + rateCell(x.sat) + rateCell(x.won) + rateCell(x.satToWon)
-      + pairCell(x.self) + pairCell(x.handedOff)
-      + `<td class="n">${money(x.stripe.mrr)}</td>`
-      + `<td>${x.events.slice(0, 4).map(e => `${evName(e.source)} <span class="muted">${e.leads}/${e.sat}/${e.won}</span>`).join('<br>')}`
-      + `${x.events.length > 4 ? `<br><span class="muted">${x.events.length - 4} more</span>` : ''}</td></tr>`).join('')
-    + `<tr class="total-row"><td><strong>All setters</strong></td><td class="n"><strong>${fmt.int(T.sets)}</strong></td>`
-    + rateCell(ratio2(T.setShows, T.sets)) + rateCell(ratio2(r.setters.filter(x => x.recorded).reduce((t, x) => t + x.won.n, 0), T.sets))
-    + rateCell(ratio2(r.setters.filter(x => x.recorded).reduce((t, x) => t + x.won.n, 0), T.setShows))
-    + pairCell(P.same) + pairCell(P.handedOff) + `<td class="n"><strong>${money(r.setters.filter(x => x.recorded).reduce((t, x) => t + x.stripe.mrr, 0))}</strong></td><td></td></tr>`
-    + '</tbody>';
-  $('sales-owners').innerHTML =
-    '<thead><tr><th>Salesperson (deal owner)</th><th class="n">Demos</th><th class="n">Sales</th>'
-    + '<th class="n">Close rate, closed deals</th><th class="n">Still open</th><th class="n">Sold, Stripe MRR</th>'
-    + '<th class="n">Deal amount, est.</th><th class="n">Set it themselves</th><th class="n">Set by a setter</th>'
-    + '<th class="n">No setter recorded</th></tr></thead><tbody>'
-    + r.owners.map(x => `<tr><td>${x.recorded ? personName(x.who) : 'No owner on the deal'}</td>`
-      + `<td class="n">${fmt.int(x.deals)}</td>` + rateCell(x.won) + rateCell(x.closeRate)
-      + `<td class="n">${fmt.int(x.deals - x.closed)}</td><td class="n">${money(x.stripe.mrr)}`
-      + `${x.stripe.matched ? `<br><span class="muted">${fmt.int(x.stripe.matched)} customer${x.stripe.matched === 1 ? '' : 's'}</span>` : ''}</td>`
-      + `<td class="n">${money(x.wonDealAmount)}</td>` + pairCell(x.selfSet) + pairCell(x.setByOthers) + pairCell(x.noSetter) + '</tr>').join('')
-    + (() => {
-      const o = r.owners;
-      const sumP = k => ({ shows: o.reduce((t, x) => t + x[k].shows, 0), wins: o.reduce((t, x) => t + x[k].wins, 0) });
-      const pc2 = p => ({ ...p, rate: ratio2(p.wins, p.shows) });
-      const deals = o.reduce((t, x) => t + x.deals, 0);
-      const won = o.reduce((t, x) => t + x.won.n, 0);
-      const closed = o.reduce((t, x) => t + x.closed, 0);
-      return `<tr class="total-row"><td><strong>All salespeople</strong></td><td class="n"><strong>${fmt.int(deals)}</strong></td>`
-        + rateCell(ratio2(won, deals)) + rateCell(ratio2(won, closed)) + `<td class="n">${fmt.int(deals - closed)}</td>`
-        + `<td class="n"><strong>${money(o.reduce((t, x) => t + x.stripe.mrr, 0))}</strong></td>`
-        + `<td class="n">${money(o.reduce((t, x) => t + x.wonDealAmount, 0))}</td>`
-        + pairCell(pc2(sumP('selfSet'))) + pairCell(pc2(sumP('setByOthers'))) + pairCell(pc2(sumP('noSetter'))) + '</tr>';
-    })()
-    + '</tbody>';
-  renderSalesQuarters(r);
-  // Setter by event: leads booked / sat / won in each cell.
-  const evs = f ? f.events.filter(e => e.booked.n > 0) : [];
-  $('sales-matrix').innerHTML = !named.length || !evs.length ? ''
-    : '<thead><tr><th>Setter</th>' + evs.map(e => `<th class="n">${e.label}</th>`).join('') + '</tr></thead><tbody>'
-      + named.map(x => {
-        const by = new Map(x.events.map(e => [e.source, e]));
-        return `<tr><td>${personName(x.who)}</td>` + evs.map(e => { const c = by.get(e.source); return `<td class="n">${c ? `${c.leads}<span class="muted">/${c.sat}/${c.won}</span>` : '<span class="muted">–</span>'}</td>`; }).join('') + '</tr>';
-      }).join('') + '</tbody>';
-  $('sales-people').innerHTML = !r.people ? ''
-    : '<thead><tr><th>Person</th><th class="n">Leads</th><th class="n">Sits</th><th class="n">Wins</th><th class="n">Sit rate</th>'
-      + '<th class="n">Close rate</th><th class="n">Won deal amount</th><th>Sources, most leads first</th></tr></thead><tbody>'
-      + r.people.map(p => `<tr><td>${p.recorded ? personName(p.who) : 'Not recorded'}</td>`
-        + `<td class="n">${fmt.int(p.leads)}</td><td class="n">${fmt.int(p.sits)}</td><td class="n">${fmt.int(p.wins)}</td>`
-        + rateCell(p.sitRate) + rateCell(p.closeRate) + `<td class="n">${money(p.wonMrr)}</td>`
-        + `<td>${p.sources.slice(0, 4).map(x => `${evName(x.source)} <span class="muted">${x.leads || 0}/${x.sits || 0}/${x.wins || 0}</span>`).join('<br>')}`
-        + `${p.sources.length > 4 ? `<br><span class="muted">${p.sources.length - 4} more</span>` : ''}</td></tr>`).join('')
-      + (r.peopleTotals ? `<tr class="total-row"><td><strong>All setters</strong></td><td class="n"><strong>${fmt.int(r.peopleTotals.leads)}</strong></td>`
-        + `<td class="n"><strong>${fmt.int(r.peopleTotals.sits)}</strong></td><td class="n"><strong>${fmt.int(r.peopleTotals.wins)}</strong></td>`
-        + rateCell(ratio2(r.peopleTotals.sits, r.peopleTotals.leads)) + rateCell(ratio2(r.peopleTotals.wins, r.peopleTotals.sits))
-        + `<td class="n"><strong>${money(r.peopleTotals.wonMrr)}</strong></td><td></td></tr>` : '')
+    kpi('Sets', fmt.int(T.sets), P ? `${fmt.int(P.sets)} in ${beforeWords}` : 'leads a setter booked a demo for')
+    + kpi('Show rate', pc(T.shows, T.sets), `${fmt.int(T.shows)} of ${fmt.int(T.sets)} sets reached a demo${P ? ` · was ${pc(P.shows, P.sets)}` : ''}`)
+    + kpi('Close rate', pc(T.sales, T.demos), `${fmt.int(T.sales)} sale${T.sales === 1 ? '' : 's'} of ${fmt.int(T.demos)} demos run${P ? ` · was ${pc(P.sales, P.demos)}` : ''}`)
+    + kpi('Sold MRR', fmt.money(T.mrr), T.sales && !T.mrr ? `${fmt.int(T.sales)} sale${T.sales === 1 ? '' : 's'}, not billed yet` : `what Stripe first billed${P ? ` · ${fmt.money(P.mrr)} in ${beforeWords}` : ''}`);
+  // The leaderboard: one row per person, setter columns then salesperson columns.
+  const rows = pinned(N.people).filter(c => !st.person || c.who === st.person);
+  const tot = N.totals;
+  $('sales-board').innerHTML = !rows.length ? '<tbody><tr><td class="muted">Nothing in this period yet.</td></tr></tbody>'
+    : '<thead><tr><th></th><th class="n" colspan="3">As setter</th><th class="n" colspan="4">As salesperson (deal owner)</th></tr>'
+      + '<tr><th>Person</th><th class="n">Sets</th><th class="n">Shows</th><th class="n">Show rate</th>'
+      + '<th class="n">Demos run</th><th class="n">Sales</th><th class="n">Close rate</th><th class="n">Sold MRR</th></tr></thead><tbody>'
+      + rows.map(c => `<tr${c.who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${c.who ? `<a href="#sales" data-person="${c.who}">${who(c)}</a>` : who(c)}</td>`
+        + `<td class="n">${fmt.int(c.sets)}</td><td class="n">${fmt.int(c.shows)}</td><td class="n">${pc(c.shows, c.sets)}</td>`
+        + `<td class="n">${fmt.int(c.demos)}</td><td class="n">${fmt.int(c.sales)}</td><td class="n">${pc(c.sales, c.demos)}</td>`
+        + `<td class="n">${c.mrr ? fmt.money(c.mrr) : '–'}</td></tr>`).join('')
+      + (st.person ? '' : `<tr class="total-row"><td><strong>Everyone</strong></td><td class="n"><strong>${fmt.int(tot.sets)}</strong></td>`
+        + `<td class="n"><strong>${fmt.int(tot.shows)}</strong></td><td class="n">${pc(tot.shows, tot.sets)}</td>`
+        + `<td class="n"><strong>${fmt.int(tot.demos)}</strong></td><td class="n"><strong>${fmt.int(tot.sales)}</strong></td>`
+        + `<td class="n">${pc(tot.sales, tot.demos)}</td><td class="n"><strong>${fmt.money(tot.mrr)}</strong></td></tr>`)
       + '</tbody>';
-  $('sales-note').textContent =
-    'A set is a lead with a setter recorded; a show is a set whose deal exists, since HubSpot opens a deal only once the demo '
-    + 'is sat; a sale is a won deal Stripe agrees with, within six months of the event. Sold, Stripe MRR is what Stripe first '
-    + 'billed each won customer, matched by company name; the deal amount is shown beside it as an estimate only. "Ran it '
-    + 'themselves" is a demo the setter also owned; "handed off" is one another deal owner took. '
-    +
-    'From the Event Leads tab. The setter is who got the lead to agree to a demo (the contact\u2019s setter field, or the '
-    + 'deal\u2019s). The deal owner stands in for who ran the demo: HubSpot creates a deal only once a demo is sat, and there '
-    + 'is no account executive field, so this is the closest the data has, not the same thing. Leads counted are those an '
-    + 'event produced (created on or after it) and those from undated events; contacts tagged to an event they predate are '
-    + 'left out. Rates show their numerator and denominator and fade under ten. Won deal amount is what the deal said, not '
-    + 'what Stripe billed, and is for comparing, not adding up as revenue. In the matrix, each cell reads leads/sat/won.'
-    + ' The last table is the pipeline\u2019s Setters tab as it arrives: every lead source, not only events, per person, '
-    + 'with sources reading leads/sits/wins. A person the pull could not name shows as their HubSpot user number.';
+  $('sales-board-note').textContent = 'Sets, shows and show rate credit the setter; demos run, sales, close rate and sold MRR credit '
+    + 'the deal owner, who ran the demo. Click a name to see that person alone.';
+  // Quarter by quarter: sets / shows per setter, the last eight quarters.
+  const shown = [...r.byQuarter].reverse().slice(-8);
+  const everyone = [...new Set(r.byQuarter.flatMap(x => x.people.filter(p => p.sets || p.shows).map(p => p.who)))]
+    .filter(w => !st.person || w === st.person)
+    .sort((a, z) => (a === FEATURED_SETTER ? -1 : z === FEATURED_SETTER ? 1 : String(a).localeCompare(String(z))));
+  $('sales-quarter-matrix').innerHTML = '<thead><tr><th>Setter</th>' + shown.map(x => `<th class="n">${x.quarter}</th>`).join('')
+    + '</tr></thead><tbody>' + everyone.map(w => `<tr${w === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${personName(w)}</td>`
+      + shown.map(x => { const p = x.people.find(pp => pp.who === w); return `<td class="n">${p && (p.sets || p.shows) ? `${p.sets}<span class="muted"> / ${p.shows}</span>` : '<span class="muted">–</span>'}</td>`; }).join('')
+      + '</tr>').join('') + '</tbody>';
+  // Kept or handed off, per setter, in the period.
+  const keptRows = pinned(N.people.filter(c => c.who && (c.kept.demos || c.handed.demos))).filter(c => !st.person || c.who === st.person);
+  const kh = x => (x.demos ? `${fmt.int(x.wins)} of ${fmt.int(x.demos)} won (${pc(x.wins, x.demos)})` : '<span class="muted">none</span>');
+  $('sales-kept').innerHTML = !keptRows.length ? '<tbody><tr><td class="muted">No set demo had a deal owner in this period.</td></tr></tbody>'
+    : '<thead><tr><th>Setter</th><th class="n">Ran the demo themselves</th><th class="n">Handed to someone else</th></tr></thead><tbody>'
+      + keptRows.map(c => `<tr${c.who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${who(c)}</td><td class="n">${kh(c.kept)}</td><td class="n">${kh(c.handed)}</td></tr>`).join('')
+      + (st.person ? '' : `<tr class="total-row"><td><strong>Everyone</strong></td><td class="n"><strong>${kh(tot.kept)}</strong></td><td class="n"><strong>${kh(tot.handed)}</strong></td></tr>`)
+      + '</tbody>';
+  // Every source, all time: the pipeline's Setters tab.
+  const ppl = (r.people || []).filter(p => p.recorded && (!st.person || p.who === st.person))
+    .sort((a, z) => (a.who === FEATURED_SETTER ? -1 : z.who === FEATURED_SETTER ? 1 : z.leads - a.leads));
+  $('sales-people').innerHTML = !ppl.length ? ''
+    : '<thead><tr><th>Person</th><th class="n">Leads</th><th class="n">Sits</th><th class="n">Wins</th><th class="n">Sit rate</th><th class="n">Close rate</th></tr></thead><tbody>'
+      + ppl.map(p => `<tr${p.who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${personName(p.who)}</td>`
+        + `<td class="n">${fmt.int(p.leads)}</td><td class="n">${fmt.int(p.sits)}</td><td class="n">${fmt.int(p.wins)}</td>`
+        + `<td class="n">${pc(p.sits, p.leads)}</td><td class="n">${pc(p.wins, p.sits)}</td></tr>`).join('')
+      + (r.peopleTotals && !st.person ? `<tr class="total-row"><td><strong>Everyone</strong></td><td class="n"><strong>${fmt.int(r.peopleTotals.leads)}</strong></td>`
+        + `<td class="n"><strong>${fmt.int(r.peopleTotals.sits)}</strong></td><td class="n"><strong>${fmt.int(r.peopleTotals.wins)}</strong></td>`
+        + `<td class="n">${pc(r.peopleTotals.sits, r.peopleTotals.leads)}</td><td class="n">${pc(r.peopleTotals.wins, r.peopleTotals.sits)}</td></tr>` : '')
+      + '</tbody>';
+  const clear = document.querySelector('[data-clear-person]');
+  if (clear) clear.addEventListener('click', ev => { ev.preventDefault(); st.person = null; renderSales(); });
 }
 
 // A confidence label with its reasons on hover and for screen readers.

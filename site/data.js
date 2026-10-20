@@ -6835,8 +6835,9 @@ export function salesReport(data) {
     if (setterOf(r)) {
       const qs = quarterOf(setMonth(r));
       if (qs) cell(qs, setterOf(r)).sets += 1;
-      const qd = quarterOf(r.dealCreated && r.dealCreated.slice(0, 7));
-      if (qd) cell(qd, setterOf(r)).shows += 1;
+      // A show counts in its set's quarter: of that quarter's sets, how many
+      // reached a demo.
+      if (qs && r.dealCreated) cell(qs, setterOf(r)).shows += 1;
     }
     if (r.demoedBy && r.dealCreated) {
       const qd = quarterOf(r.dealCreated.slice(0, 7));
@@ -6856,6 +6857,111 @@ export function salesReport(data) {
   return { setters, owners, counted: counted.length, people, totals, pairing, peopleTotals, byQuarter,
     setterFill: ratio(counted.filter(r => setterOf(r)).length, counted.length),
     ownerFill: ratio(withDeal.filter(r => r.demoedBy).length, withDeal.length) };
+}
+
+// The Sales tab's scoreboard for any period (Josh, 20 Oct 2026): a quarter,
+// the last N months, the last N events, or all time, with the period before
+// it to compare. Counted on the same leads as salesReport. A set is dated by
+// when the lead could first be set (the later of its arrival and its
+// event), a show, a demo and a sale by when the deal opened; in an events
+// period every lead of those events counts, whatever its date.
+export function salesBoard(data, period = { kind: 'all' }) {
+  const fun = eventFunnel(data);
+  const rows = fun ? fun.events.flatMap(e => e.leads) : [];
+  if (!rows.length) return null;
+  const worked = rows.filter(r => SALES_COUNTED.has(r.state) || r.state === 'upsell');
+  const winOf = r => r.won === true && winInWindow(r) && !r.wonThrough;
+  const same = r => Boolean(setterOf(r) && r.demoedBy) && String(setterOf(r)).toLowerCase() === String(r.demoedBy).toLowerCase();
+  const setMonth = r => [r.created, r.eventDate].filter(Boolean).sort().pop()?.slice(0, 7) || null;
+  const dealMonth = r => (r.dealCreated ? r.dealCreated.slice(0, 7) : null);
+  const byCo = stripeByCompany(data);
+  const first = firstPaymentMonths(data);
+  const firstBilled = new Map();
+  for (const c of data.customers) if (first.get(c.id) === c.month && !firstBilled.has(c.id)) firstBilled.set(c.id, c.eopMrr || 0);
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const today = new Date().toISOString().slice(0, 10);
+  // Events held, most recent first, each with its date: for "last N events".
+  const held = [...new Map(worked.filter(r => r.eventDate && r.eventDate <= today)
+    .map(r => [r.source, r.eventDate])).entries()]
+    .sort((a, b) => b[1].localeCompare(a[1]) || a[0].localeCompare(b[0]));
+  const quarterOf = m => (m ? `${m.slice(0, 4)} Q${Math.floor((Number(m.slice(5, 7)) - 1) / 3) + 1}` : null);
+  const prevQuarter = q => { const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))]; return n > 1 ? `${y} Q${n - 1}` : `${y - 1} Q4`; };
+  // A filter for one period: which sets, and which deals, fall in it.
+  const filterFor = (kind, arg) => {
+    if (kind === 'quarter') return { setIn: r => quarterOf(setMonth(r)) === arg, dealIn: r => quarterOf(dealMonth(r)) === arg, label: arg };
+    if (kind === 'months') {
+      const { from, to } = arg;
+      const inside = m => Boolean(m) && m >= from && m <= to;
+      return { setIn: r => inside(setMonth(r)), dealIn: r => inside(dealMonth(r)), label: `${from} to ${to}` };
+    }
+    if (kind === 'events') {
+      const sources = new Set(arg.map(([src]) => src));
+      return { setIn: r => sources.has(r.source), dealIn: r => sources.has(r.source), label: `${arg.length} events`, events: arg };
+    }
+    return { setIn: () => true, dealIn: () => true, label: 'all time' };
+  };
+  const count = f => {
+    const people = new Map();
+    const cell = who => {
+      if (!people.has(who)) people.set(who, { who, sets: 0, shows: 0, demos: 0, sales: 0, wonIds: new Set(),
+        kept: { demos: 0, wins: 0 }, handed: { demos: 0, wins: 0 } });
+      return people.get(who);
+    };
+    for (const r of worked) {
+      const setter = setterOf(r);
+      // A show belongs to the period of its set, so the show rate is of
+      // that period's sets and cannot pass 100%.
+      if (setter && f.setIn(r)) {
+        cell(setter).sets += 1;
+        if (r.dealCreated) cell(setter).shows += 1;
+      }
+      if (setter && r.dealCreated && f.dealIn(r)) {
+        const c = cell(setter);
+        if (r.demoedBy) {
+          const side = same(r) ? c.kept : c.handed;
+          side.demos += 1;
+          if (winOf(r)) side.wins += 1;
+        }
+      }
+      if (r.dealCreated && f.dealIn(r)) {
+        const c = cell(r.demoedBy || null);
+        c.demos += 1;
+        if (winOf(r)) {
+          c.sales += 1;
+          const x = r.company ? byCo(r.company) : null;
+          if (x && x.firstPaid) c.wonIds.add(x.id);
+        }
+      }
+    }
+    const list = [...people.values()].map(c => ({ ...c, mrr: [...c.wonIds].reduce((t, id) => t + (firstBilled.get(id) || 0), 0) }))
+      .filter(c => c.sets || c.shows || c.demos);
+    const sum = k => list.reduce((t, c) => t + (typeof k === 'function' ? k(c) : c[k]), 0);
+    const totals = { sets: sum('sets'), shows: sum('shows'), demos: sum('demos'), sales: sum('sales'), mrr: sum('mrr'),
+      kept: { demos: sum(c => c.kept.demos), wins: sum(c => c.kept.wins) }, handed: { demos: sum(c => c.handed.demos), wins: sum(c => c.handed.wins) } };
+    return { people: list, totals, label: f.label, events: f.events || null };
+  };
+  let now;
+  let before = null;
+  if (period.kind === 'quarter') {
+    const q = period.quarter || quarterOf(thisMonth);
+    now = count(filterFor('quarter', q));
+    before = count(filterFor('quarter', prevQuarter(q)));
+  } else if (period.kind === 'months') {
+    const n = Math.max(1, Math.min(60, Math.round(period.months || 6)));
+    const to = thisMonth;
+    const from = monthAdd(to, -(n - 1));
+    now = count(filterFor('months', { from, to }));
+    before = count(filterFor('months', { from: monthAdd(from, -n), to: monthAdd(from, -1) }));
+  } else if (period.kind === 'events') {
+    const n = Math.max(1, Math.min(held.length, Math.round(period.events || 5)));
+    now = count(filterFor('events', held.slice(0, n)));
+    before = held.length > n ? count(filterFor('events', held.slice(n, 2 * n))) : null;
+  } else {
+    now = count(filterFor('all'));
+  }
+  return { now, before, kind: period.kind,
+    quarters: [...new Set(worked.flatMap(r => [quarterOf(setMonth(r)), quarterOf(dealMonth(r))]).filter(Boolean))].sort().reverse(),
+    heldEvents: held.length };
 }
 
 export function marketingReport(data, roi = eventRoi(data)) {
