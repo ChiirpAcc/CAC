@@ -131,7 +131,8 @@ fewer than three seen it is "too few to tell", never a verdict.
 
 **Score.** 0 to 100. Each measure is ranked among every scored event (100
 the best, 0 the worst) and the ranks are weighted (`EVENT_SCORE_WEIGHTS` in
-site/data.js): 12-month ROI 30%, churn against the events' average 20%, cost
+site/data.js): ROI 30% (ROI to date in the score; 12-month ROI, projected
+where the event is younger, in the 12-month projection shown in brackets), churn against the events' average 20%, cost
 per closed deal 15%, lead to won 10%, cost per lead 10%, revenue per customer
 a month 10%, months to first payment 5%. Lead to won is pulled toward the
 events' rate with ten leads of weight, churn toward the average with two

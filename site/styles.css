@@ -1393,3 +1393,12 @@ span.pos { color: var(--series-pos); }
 .ev-score-k { display: flex; flex-direction: column; }
 .ev-score-ctx { font-size: 0.7rem; color: var(--ink-soft); line-height: 1.35; }
 @media (min-width: 641px) { .ev-score-part { grid-template-columns: minmax(14rem, 22rem) 8rem 1fr 2.5rem; padding: 0.15rem 0; } }
+.ev-score-12, .score-12 { font-size: 0.85rem; font-weight: 600; color: var(--ink-mid); font-variant-numeric: tabular-nums; }
+.ev-score-12.strong, .score-12.strong { color: var(--series-pos); }
+.ev-score-12.weak, .score-12.weak { color: var(--series-neg); }
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { color: var(--ink); }
+th.sorted { color: var(--ink); }
+.score-guide td { white-space: normal; vertical-align: top; }
+.score-guide td:first-child { font-weight: 600; white-space: nowrap; }
+.score-rules { margin: 0.6rem 0 0; padding-left: 1.1rem; font-size: 0.82rem; color: var(--ink-mid); line-height: 1.5; }

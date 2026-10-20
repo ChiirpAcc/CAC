@@ -4523,22 +4523,64 @@ function renderSummary() {
       + `that average, and called only where the difference is more than chance.`;
     const verdictCell = c => (!c ? '<span class="muted">none paying a full month</span>'
       : `<span class="${/worse/.test(c.verdict) ? 'neg' : /better/.test(c.verdict) ? 'pos' : 'muted'}">${c.verdict}</span>`);
-    $('summary-score').innerHTML = '<thead><tr><th class="n">#</th><th>Event</th><th class="n">Score</th><th class="n">Customers</th>'
-      + '<th class="n">12-month ROI</th><th class="n">Left</th><th class="n">Expected at the average</th><th class="n">Against the average</th><th>Churn</th></tr></thead><tbody>'
-      + rows.map(x => {
-        const roiPart = x.parts.find(q => q.key === 'roi12');
-        const c = x.churn;
-        return `<tr><td class="n">${x.place}</td><td><a href="#event=${encodeURIComponent(x.label)}">${x.label}</a>`
-          + `<br><span class="muted">${fmt.monthLabel(x.month)} · ${x.sample}</span></td>`
-          + `<td class="n"><span class="score-pill ${x.grade}">${Math.round(x.score)}</span></td><td class="n">${fmt.int(x.customers)}</td>`
-          + `<td class="n">${roiPart && roiPart.value !== null ? pct(roiPart.value) : '–'}</td>`
-          + `<td class="n">${c ? fmt.int(c.left) : '–'}</td><td class="n">${c ? c.expectedAtAverage.toFixed(1) : '–'}</td>`
-          + `<td class="n">${c && c.expectedAtAverage ? `${c.ratio.toFixed(1)}×` : '–'}</td><td>${verdictCell(c)}</td></tr>`;
-      }).join('') + '</tbody>';
-    $('summary-score-note').textContent = `The score is 0 to 100: each measure is ranked among the ${scr.n} scored events and the ranks are `
-      + `weighted (${EVENT_SCORE_WEIGHTS.map(q => `${q.label.toLowerCase()} ${q.weight}%`).join(', ')}). 70 and up is strong, under 40 weak. `
-      + `Scores resting on one to four customers are pulled toward 50, as one customer cannot make an event, nor one departure break it. `
-      + `Churn is called significant at p < 0.05 and a lean at p < 0.2; with under two departures expected it is too few to tell.`;
+    // Sortable by any column, by score to start (Josh, 20 Oct 2026); a second
+    // click on the same column turns it round.
+    const cols = [
+      { key: 'place', label: '#', n: true, get: x => x.place, dir: 1 },
+      { key: 'label', label: 'Event', get: x => x.label.toLowerCase(), dir: 1 },
+      { key: 'score', label: 'Score (12-month)', n: true, get: x => x.score, dir: -1 },
+      { key: 'score12', label: 'At 12 months', n: true, get: x => x.score12, dir: -1 },
+      { key: 'customers', label: 'Customers', n: true, get: x => x.customers, dir: -1 },
+      { key: 'roi12', label: '12-month ROI', n: true, get: x => x.roi12, dir: -1 },
+      { key: 'left', label: 'Left', n: true, get: x => (x.churn ? x.churn.left : null), dir: -1 },
+      { key: 'expected', label: 'Expected at the average', n: true, get: x => (x.churn ? x.churn.expectedAtAverage : null), dir: -1 },
+      { key: 'ratio', label: 'Against the average', n: true, get: x => (x.churn && x.churn.expectedAtAverage ? x.churn.ratio : null), dir: -1 },
+      { key: 'verdict', label: 'Churn', get: x => (x.churn ? x.churn.verdict : 'zz'), dir: 1 },
+    ];
+    const table = $('summary-score');
+    if (!table.dataset.sort) { table.dataset.sort = 'score'; table.dataset.dir = '-1'; }
+    const draw = () => {
+      const col = cols.find(c => c.key === table.dataset.sort) || cols[2];
+      const dir = Number(table.dataset.dir) || col.dir;
+      const sorted = [...rows].sort((a, b) => {
+        const va = col.get(a), vb = col.get(b);
+        if (va === null || va === undefined) return 1;
+        if (vb === null || vb === undefined) return -1;
+        return (va < vb ? -1 : va > vb ? 1 : 0) * dir;
+      });
+      table.innerHTML = '<thead><tr>' + cols.filter(c => c.key !== 'score12').map(c => `<th class="${c.n ? 'n ' : ''}sortable${c.key === col.key || (c.key === 'score' && col.key === 'score12') ? ' sorted' : ''}" data-key="${c.key}">`
+          + `${c.key === 'score' ? 'Score <span class="muted">(at 12 months)</span>' : c.label}${c.key === col.key ? (dir < 0 ? ' \u2193' : ' \u2191') : ''}</th>`).join('')
+        + '</tr></thead><tbody>'
+        + sorted.map(x => {
+          const c = x.churn;
+          return `<tr><td class="n">${x.place}</td><td><a href="#event=${encodeURIComponent(x.label)}">${x.label}</a>`
+            + `<br><span class="muted">${fmt.monthLabel(x.month)} · ${x.sample}</span></td>`
+            + `<td class="n"><span class="score-pill ${x.grade}">${Math.round(x.score)}</span><br>`
+            + `<span class="score-12 ${x.grade12}">(${Math.round(x.score12)})</span></td><td class="n">${fmt.int(x.customers)}</td>`
+            + `<td class="n">${x.roi12 !== null ? pct(x.roi12) : '–'}</td>`
+            + `<td class="n">${c ? fmt.int(c.left) : '–'}</td><td class="n">${c ? c.expectedAtAverage.toFixed(1) : '–'}</td>`
+            + `<td class="n">${c && c.expectedAtAverage ? `${c.ratio.toFixed(1)}\u00d7` : '–'}</td><td>${verdictCell(c)}</td></tr>`;
+        }).join('') + '</tbody>';
+    };
+    draw();
+    if (!table.dataset.wired) {
+      table.addEventListener('click', ev => {
+        const th = ev.target.closest('th[data-key]');
+        if (!th) return;
+        const col = cols.find(c => c.key === th.dataset.key);
+        table.dataset.dir = table.dataset.sort === col.key ? String(-Number(table.dataset.dir)) : String(col.dir);
+        table.dataset.sort = col.key;
+        table.dispatchEvent(new CustomEvent('redraw'));
+      });
+      table.dataset.wired = '1';
+    }
+    // The current rows, drawn on each sort; replaced each time the summary renders.
+    if (table.__redraw) table.removeEventListener('redraw', table.__redraw);
+    table.__redraw = draw;
+    table.addEventListener('redraw', draw);
+    $('summary-score-note').innerHTML = `<details class="proof-person" open><summary><strong>How the score works</strong></summary>`
+      + `${scoreGuide(scr.n)}<p class="ev-note">Churn is called significant at p &lt; 0.05 and a lean at p &lt; 0.2; with under two `
+      + `departures expected it is too few to tell.</p></details>`;
   }
   // Best and worst.
   const r = o.ranked;
@@ -5337,6 +5379,35 @@ function eventReportsFor(options) {
   return memo.get(key);
 }
 
+// How the event score works, as a table, on the Events summary and every
+// event page (Josh, 20 Oct 2026). The weights come from EVENT_SCORE_WEIGHTS,
+// so the table cannot drift from the score.
+const SCORE_MEANS = {
+  roi: ['Return on the event\u2019s cost: to date in the score, at 12 months (projected if younger) in brackets', 'Higher'],
+  churn: ['How many of its customers left, against how many the average event\u2019s customers lose at the same point', 'Lower'],
+  costPerClosed: ['Event cost divided by the deals it closed', 'Lower'],
+  leadToWon: ['Share of its leads that became customers', 'Higher'],
+  costPerLead: ['Event cost divided by the leads it brought in', 'Lower'],
+  revenuePerCustomer: ['What a typical customer from the event pays each month', 'Higher'],
+  monthsToPay: ['How long customers took to start paying after the event', 'Lower'],
+};
+function scoreGuide(n) {
+  return `<p class="ev-note">Each event gets a score from 0 to 100. Each measure ranks the event against the other `
+    + `${n ? fmt.int(n) : ''} scored events (100 the best, 50 the middle, 0 the worst), and the weights decide how much each rank counts. `
+    + `The number in brackets is the same score on 12-month ROI: where the event is heading.</p>`
+    + `<div class="table-scroll"><table class="data-table score-guide"><thead><tr><th>Measure</th><th class="n">Weight</th>`
+    + `<th>What it means</th><th>Better when</th></tr></thead><tbody>`
+    + EVENT_SCORE_WEIGHTS.map(m => `<tr><td>${m.key === 'roi' ? 'ROI (12-month ROI in brackets)' : m.label}</td><td class="n">${m.weight}%</td>`
+      + `<td>${(SCORE_MEANS[m.key] || [''])[0]}</td><td>${(SCORE_MEANS[m.key] || ['', ''])[1]}</td></tr>`).join('')
+    + `</tbody></table></div>`
+    + `<ul class="score-rules"><li><strong>70 and up is strong, 40 to 69 middling, under 40 weak.</strong></li>`
+    + `<li><strong>Few customers pull a score toward 50.</strong> An event with one to four customers cannot come out the best or the worst on a lucky or unlucky result; it is tagged thin or very thin.</li>`
+    + `<li><strong>Small samples are smoothed.</strong> Lead to won and churn are nudged toward the average where they rest on few leads or customers.</li>`
+    + `<li><strong>Churn is called only when it is beyond chance.</strong> Otherwise it reads in line, or too few to tell.</li>`
+    + `<li><strong>No deals or no leads ranks last</strong> on cost per closed deal or cost per lead.</li>`
+    + `<li><strong>Only settled events are scored:</strong> a known, final cost, and three months since the event or a customer.</li></ul>`;
+}
+
 const scoreMemo = new WeakMap();
 function scorecardFor(reports) {
   if (!scoreMemo.has(reports)) scoreMemo.set(reports, eventScorecard(data, reports));
@@ -5621,7 +5692,7 @@ function renderEventPage(label) {
             : `A lean, not proof (p = ${ch.pValue.toFixed(2)}): ${ch.left > ch.expectedAtAverage ? 'more' : 'fewer'} leave than the average, but chance could do it.`)
       + `</p>`
     : `<p class="ev-note">Churn: no customer has paid a full month yet, so there is nothing to compare.</p>`;
-  const partValue = q => (q.value === null ? '–' : q.key === 'roi12' ? signedPct(q.value)
+  const partValue = q => (q.value === null ? '–' : q.key === 'roi' ? signedPct(q.value)
     : q.key === 'churn' ? (ch ? `${int(ch.left)} left of ${ch.expectedAtAverage.toFixed(1)}` : '–')
       : q.key === 'leadToWon' ? pct(q.value) : q.key === 'monthsToPay' ? `${q.value <= 0 ? 'event month' : `${q.value} mo`}`
         : Number.isFinite(q.value) ? money(q.value) : 'none');
@@ -5632,7 +5703,8 @@ function renderEventPage(label) {
     const md = mid.median;
     const none = mid.none ? `; ${int(mid.none)} event${mid.none === 1 ? '' : 's'} with none rank last` : '';
     switch (q.key) {
-      case 'roi12': return `return on cost 12 months from the event, projected if younger · middle event ${signedPct(md)}`;
+      case 'roi': return `return on cost to date · middle event ${signedPct(md)} · at 12 months ${signedPct(sc && sc.roi12)}`
+        + `${pb && pb.roi12Projected ? ' projected' : ''}`;
       case 'churn': return `customers leaving, against the average event’s at the same ages · middle event ${md === null ? '–' : `${md.toFixed(1)}×`}`;
       case 'costPerClosed': return `cost over closed deals; lower is better · middle event ${money(md)}${none}`;
       case 'leadToWon': return `closed deals over leads, pulled to the average on few leads · middle event ${pct(md)}`;
@@ -5646,6 +5718,7 @@ function renderEventPage(label) {
       + `${e.costState === 'absent' ? 'its cost is not known' : pb && pb.provisional ? 'its cost is still settling' : 'under three months old with no customer'}.</p></section>`)
     : `<section class="ev-panel"><h3>Event score</h3><div class="ev-score-head">`
       + `<span class="ev-score-n ${sc.grade}">${Math.round(sc.score)}</span><span class="ev-score-of">/ 100</span>`
+      + `<span class="ev-score-12 ${sc.grade12}" title="The same score on 12-month ROI">(${Math.round(sc.score12)} at 12 months${pb && pb.roi12Projected ? ', projected' : ''})</span>`
       + `<span class="ev-score-words"><strong>${sc.grade.charAt(0).toUpperCase() + sc.grade.slice(1)}</strong> · ${ord(sc.place)} of ${int(scorecard.n)} scored events`
       + ` · rests on ${int(sc.customers)} customer${sc.customers === 1 ? '' : 's'} (${sc.sample})</span></div>`
       + churnLine
@@ -5656,7 +5729,8 @@ function renderEventPage(label) {
       + `</div><p class="ev-note">Each measure is ranked among the ${int(scorecard.n)} scored events, 100 the best and 0 the worst `
       + `(the tick is the middle), and the ranks are weighted as shown. Lead to won and churn are pulled toward the average where `
       + `they rest on few leads or customers${sc.customers && sc.customers < 5 ? `, and with ${int(sc.customers)} customer${sc.customers === 1 ? '' : 's'} the whole score is `
-        + `pulled toward 50 (it is ${Math.round(sc.rawScore)} before that)` : ''}. 70 and up is strong, under 40 weak.</p></section>`;
+        + `pulled toward 50 (it is ${Math.round(sc.rawScore)} before that)` : ''}. 70 and up is strong, under 40 weak.</p>`
+      + `<details class="proof-person"><summary><strong>How the score works</strong></summary>${scoreGuide(scorecard.n)}</details></section>`;
 
   // 2. Customers credited: where each came from, when it started and stopped
   // paying, and the evidence it is the event's.

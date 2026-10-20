@@ -10456,7 +10456,9 @@ export function eventChurnReport(reports) {
 // average first, so one lucky win cannot top the table; and the score
 // carries how many customers it rests on.
 export const EVENT_SCORE_WEIGHTS = [
-  { key: 'roi12', label: '12-month ROI', weight: 30, better: 'high' },
+  // ROI to date in the score now; 12-month ROI (projected where the event
+  // is younger) in the 12-month projection beside it (Josh, 20 Oct 2026).
+  { key: 'roi', label: 'ROI', weight: 30, better: 'high' },
   { key: 'churn', label: 'Churn against the events\u2019 average', weight: 20, better: 'low' },
   { key: 'costPerClosed', label: 'Cost per closed deal', weight: 15, better: 'low' },
   { key: 'leadToWon', label: 'Lead to won', weight: 10, better: 'high' },
@@ -10483,7 +10485,7 @@ export function eventScorecard(data, reports) {
     const lags = ledger.rows.map(x => x.lag).filter(v => v !== null).sort((a, b) => a - b);
     const c = churn.byLabel.get(e.label);
     return { e, p, k, c, customers: ledger.rows.length,
-      roi12: p.roi12,
+      roiNow: p.roiToDate, roi12: p.roi12,
       // Shrunk toward the average with two expected departures of weight.
       churn: c ? (c.left + 2) / (c.expectedAtAverage + 2) : null,
       costPerClosed: k.closedWon ? e.spend / k.closedWon : Infinity,
@@ -10498,41 +10500,58 @@ export function eventScorecard(data, reports) {
   const meanWin = allLeads ? allWon / allLeads : 0;
   for (const x of raw) x.leadToWon = x.leadsN || x.won ? (x.won + 10 * meanWin) / (x.leadsN + 10) : null;
   // Rank each measure: the best 100, the worst 0, ties sharing a rank. A
-  // missing cost per deal or per lead (none won, no leads) ranks last.
-  const rankOf = new Map();
-  for (const m of EVENT_SCORE_WEIGHTS) {
-    const vals = raw.filter(x => x[m.key] !== null && x[m.key] !== undefined);
-    const sorted = vals.map(x => x[m.key]).sort((a, b) => (m.better === 'high' ? a - b : b - a));
-    const n = sorted.length;
-    for (const x of vals) {
-      const v = x[m.key];
-      const below = sorted.filter(y => (m.better === 'high' ? y < v : y > v)).length;
-      const same = sorted.filter(y => y === v).length;
-      const r = n > 1 ? ((below + (same - 1) / 2) / (n - 1)) * 100 : 50;
-      rankOf.set(`${x.e.label}|${m.key}`, Number.isFinite(v) ? r : 0);
+  // missing cost per deal or per lead (none won, no leads) ranks last. Run
+  // twice: now, on ROI to date, and projected at twelve months, on 12-month
+  // ROI; the other measures are the same in both.
+  const scorePass = roiKey => {
+    for (const x of raw) x.roi = x[roiKey];
+    const rankOf = new Map();
+    for (const m of EVENT_SCORE_WEIGHTS) {
+      const vals = raw.filter(x => x[m.key] !== null && x[m.key] !== undefined);
+      const sorted = vals.map(x => x[m.key]).sort((a, b) => (m.better === 'high' ? a - b : b - a));
+      const n = sorted.length;
+      for (const x of vals) {
+        const v = x[m.key];
+        const below = sorted.filter(y => (m.better === 'high' ? y < v : y > v)).length;
+        const same = sorted.filter(y => y === v).length;
+        const r = n > 1 ? ((below + (same - 1) / 2) / (n - 1)) * 100 : 50;
+        rankOf.set(`${x.e.label}|${m.key}`, Number.isFinite(v) ? r : 0);
+      }
     }
-  }
+    const out = new Map();
+    for (const x of raw) {
+      const parts = EVENT_SCORE_WEIGHTS.map(m => {
+        const v = x[m.key];
+        return { ...m, value: v === null || v === undefined ? null : v,
+          rank: rankOf.has(`${x.e.label}|${m.key}`) ? rankOf.get(`${x.e.label}|${m.key}`) : null };
+      });
+      const used = parts.filter(q => q.rank !== null);
+      const w = used.reduce((t, q) => t + q.weight, 0);
+      const rawScore = w ? used.reduce((t, q) => t + q.weight * q.rank, 0) / w : null;
+      // A score resting on one or two customers is pulled toward the middle,
+      // as a churn verdict is: one customer cannot make an event the best any
+      // more than one departure can make it the worst. An event with no
+      // customer at all is not pulled: spending with nothing back is evidence.
+      const pull = x.customers ? x.customers / (x.customers + 2) : 1;
+      out.set(x.e.label, { parts, rawScore, score: rawScore === null ? null : 50 + (rawScore - 50) * pull });
+    }
+    return out;
+  };
+  const now = scorePass('roiNow');
+  const at12 = scorePass('roi12');
+  const gradeOf = v => (v === null ? null : v >= 70 ? 'strong' : v >= 40 ? 'middling' : 'weak');
   const rows = raw.map(x => {
-    const parts = EVENT_SCORE_WEIGHTS.map(m => {
-      const v = x[m.key];
-      return { ...m, value: v === null || v === undefined ? null : v,
-        rank: rankOf.has(`${x.e.label}|${m.key}`) ? rankOf.get(`${x.e.label}|${m.key}`) : null };
-    });
-    const used = parts.filter(q => q.rank !== null);
-    const w = used.reduce((t, q) => t + q.weight, 0);
-    const rawScore = w ? used.reduce((t, q) => t + q.weight * q.rank, 0) / w : null;
-    // A score resting on one or two customers is pulled toward the middle,
-    // as a churn verdict is: one customer cannot make an event the best any
-    // more than one departure can make it the worst. An event with no
-    // customer at all is not pulled: spending with nothing back is evidence.
-    const pull = x.customers ? x.customers / (x.customers + 2) : 1;
-    const score = rawScore === null ? null : 50 + (rawScore - 50) * pull;
+    const a = now.get(x.e.label);
+    const b = at12.get(x.e.label);
     return { label: x.e.label, month: x.e.month, type: x.e.type, spend: x.e.spend, customers: x.customers,
-      score, rawScore, parts, churn: x.c || null,
+      score: a.score, rawScore: a.rawScore, parts: a.parts,
+      score12: b.score, parts12: b.parts, roi12: x.roi12, roiNow: x.roiNow, churn: x.c || null,
       sample: x.customers >= 5 ? 'solid' : x.customers >= 2 ? 'thin' : 'very thin',
-      grade: score === null ? null : score >= 70 ? 'strong' : score >= 40 ? 'middling' : 'weak' };
+      grade: gradeOf(a.score), grade12: gradeOf(b.score) };
   }).sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
   rows.forEach((r, i) => { r.place = i + 1; });
+  [...rows].sort((a, b) => (b.score12 ?? -1) - (a.score12 ?? -1)).forEach((r, i) => { r.place12 = i + 1; });
+  for (const x of raw) x.roi = x.roiNow;
   // The middle event on each measure, and how many have none (no deal
   // closed, no lead), so each part of a score can say what it is set against.
   const middle = {};
