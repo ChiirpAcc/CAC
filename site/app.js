@@ -5729,7 +5729,11 @@ function renderEventPage(label) {
       + `<td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
       + `<td>${CREDIT_WORDS[x.credit] || 'not graded'}<br>${x.ids.map(id => extLink(stripeOf.get(id) || `https://dashboard.stripe.com/customers/${id}`, 'Stripe')).join(' · ')}</td></tr>`).join('')
     + ledger.notBilled.map(x => `<tr><td><span class="ev-dot wait"></span>${x.link ? extLink(x.link, x.name) : x.name}</td><td>${fromWord(x.origin)}</td>`
-      + `<td>not in the Stripe data yet<br><span class="muted">it runs to ${fmt.monthLabel(data.lastMonth)}</span></td>${closeCell(x.won, x.opened, 'deal won')}<td>–</td><td class="n">–</td><td class="n">–</td>`
+      + (x.soFar
+        ? `<td>billed in ${fmt.monthLabel(data.monthToDate.month)} so far<br><span class="muted">${fmt.money(x.soFar.cash)} paid, `
+          + `${fmt.money(x.soFar.mrr)}/mo; counted once the month closes</span></td>`
+        : `<td>not in the Stripe data yet<br><span class="muted">it runs to ${fmt.monthLabel(data.lastMonth)}</span></td>`)
+      + `${closeCell(x.won, x.opened, 'deal won')}<td>–</td><td class="n">–</td><td class="n">–</td>`
       + `<td>a won deal in HubSpot</td></tr>`).join('');
   const ledgerMrr = ledger.rows.reduce((t, x) => t + (x.mrrNow || 0), 0);
   const customersPanel = `<section class="ev-panel"><h3>Customers credited</h3>`

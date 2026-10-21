@@ -560,6 +560,17 @@ export async function load() {
     }
   }
 
+  // The month still open (Josh, 21 Oct 2026, v182 carries it with
+  // month_complete): what each customer has paid in it so far. Kept out of
+  // every figure; read only so a won deal billed this month can say so.
+  const monthToDate = { month: CURRENT_MONTH, byName: new Map() };
+  for (const r of byTab['Customer Waterfall'].rows) {
+    if (r.month !== CURRENT_MONTH || !r.company_name) continue;
+    const cash = num(r.net_cash) || 0;
+    const mrr = num(r.eop_mrr) || 0;
+    if (cash > 0 || mrr > 0) monthToDate.byName.set(companyKey(r.company_name), { id: r.customer_id, cash, mrr });
+  }
+
   const customers = byTab['Customer Waterfall'].rows
     .filter(r => inWindow(r.month))
     .map(r => ({
@@ -895,6 +906,7 @@ export async function load() {
     setterRows,
     lifetimes,
     lifetimeRecords,
+    monthToDate,
     signups,
     serve,
     vocabulary,
@@ -6395,6 +6407,7 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
     notBilledRows: [
       ...notBilledLeads.map(l => ({ name: l.company || 'A lead with no company',
         origin: 'new', link: l.companyLink || null, opened: l.dealCreated || null,
+        soFar: data.monthToDate ? data.monthToDate.byName.get(companyKey(l.company)) || null : null,
         won: Object.entries(HUBSPOT_WON_DATES).find(([name]) => companyKey(name) === companyKey(l.company))?.[1] || null })),
       ...extraWins.map(w => ({ name: w.company, origin: 'known', link: null,
         won: w.closed || null })),
