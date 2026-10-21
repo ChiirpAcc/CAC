@@ -4279,6 +4279,13 @@ export const HUBSPOT_WON_DEAL_BY_COMPANY = {
 // nothing else puts them on the event; from a live HubSpot check. Counted on
 // the event's Closed deals as won and not billed, until Event Leads or Stripe
 // carries them (brief item 2, Event Deals).
+// When HubSpot says a lead's deal was won, for wins Stripe does not carry yet
+// (Event Leads has no close date). Checked live 19 Oct 2026; the won dates in
+// HUBSPOT_WON_DEAL_LINKS beside the same deals.
+export const HUBSPOT_WON_DATES = {
+  'Riverstone Plumbing LLC': '2026-09-24', // on a coupon in Stripe, so nothing billed yet (Josh, 21 Oct 2026)
+  'Opus Plumbing and Heating': '2026-10-09', // billed in October, after the data's last month
+};
 export const HUBSPOT_EVENT_WINS = [
   { source: '2026 - Pantheon', company: 'Mac 5 Services', dealId: '354407388899', closed: '2026-10-15', amount: 2300 }, // checked 19 Oct 2026
 ];
@@ -6387,7 +6394,8 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
     wonLeads,
     notBilledRows: [
       ...notBilledLeads.map(l => ({ name: l.company || 'A lead with no company',
-        origin: 'new', link: l.companyLink || null, won: null, opened: l.dealCreated || null })),
+        origin: 'new', link: l.companyLink || null, opened: l.dealCreated || null,
+        won: Object.entries(HUBSPOT_WON_DATES).find(([name]) => companyKey(name) === companyKey(l.company))?.[1] || null })),
       ...extraWins.map(w => ({ name: w.company, origin: 'known', link: null,
         won: w.closed || null })),
     ],

@@ -5459,7 +5459,7 @@ function renderEventPage(label) {
     + kpi('Leads', e.upcoming && !newLeadsN ? '–' : int(newLeadsN),
       newLeadsN ? leadsWord || 'new to HubSpot from the event' : 'no event leads yet')
     + kpi('Closed deals', e.upcoming && !headLeads.length ? '–' : int(closedWon),
-      [e.paid ? `${int(e.paid)} billed in Stripe` : '', wonNotBilled ? `${int(wonNotBilled)} won, not billed yet` : '',
+      [e.paid ? `${int(e.paid)} billed in Stripe` : '', wonNotBilled ? `${int(wonNotBilled)} won, not in the Stripe data yet` : '',
         headLeads.length ? `${int(closedLost)} lost` : ''].filter(Boolean).join(' · '))
     + kpi('Revenue', e.upcoming ? '–' : money(e.collected), e.upcoming ? aheadWords
       : `collected in Stripe from ${int(e.paid)} customer${e.paid === 1 ? '' : 's'}`)
@@ -5615,7 +5615,7 @@ function renderEventPage(label) {
       sp.elsewhere ? `${int(sp.elsewhere)} won through another source` : '',
       sp.late ? `${int(sp.late)} won after the ${WIN_WINDOW_MONTHS}-month window` : ''].filter(Boolean);
     const wonWords = [stillPaying ? `${int(stillPaying)} still paying` : '', churned ? `${int(churned)} churned` : '',
-      ledger.notBilled.length ? `${int(ledger.notBilled.length)} not billed yet` : ''].filter(Boolean);
+      ledger.notBilled.length ? `${int(ledger.notBilled.length)} not in the Stripe data yet` : ''].filter(Boolean);
     return `<section class="ev-panel"><h3>From lead to customer</h3><div class="ev-fn">`
       + bar('Leads', newLeadsN, seg('ev-fun-new', newLeadsN - known, 'New lead') + seg('ev-fun-known', known, 'Known prospect won'),
         known ? `${int(cardFig.newLeads)} new, ${int(known)} known prospect${known === 1 ? '' : 's'} won` : 'new leads')
@@ -5623,12 +5623,12 @@ function renderEventPage(label) {
       + bar('Sat', demosSat, seg('ev-fun-new', demosSat - known, 'New lead sat') + seg('ev-fun-known', known, 'Known prospect won'), '')
       + drop(`${demosSat ? pct(closedWon / demosSat) : '–'} won${lostWords.length ? ` · ${lostWords.join(' · ')}` : ''}`)
       + bar('Won', closedWon, seg('ev-fun-paying', stillPaying, 'Still paying') + seg('ev-fun-churned', churned, 'Churned')
-        + seg('ev-fun-wait', ledger.notBilled.length, 'Not billed yet'), wonWords.join(' · '))
+        + seg('ev-fun-wait', ledger.notBilled.length, 'Not in the Stripe data yet'), wonWords.join(' · '))
       + `</div><div class="ev-split-key"><span><i class="ev-fun-new"></i>New lead</span>`
       + (known ? `<span><i class="ev-fun-known"></i>Known prospect won</span>` : '')
       + `<span><i class="ev-fun-paying"></i>Still paying</span>`
       + (churned ? `<span><i class="ev-fun-churned"></i>Churned</span>` : '')
-      + (ledger.notBilled.length ? `<span><i class="ev-fun-wait"></i>Not billed yet</span>` : '') + `</div>`
+      + (ledger.notBilled.length ? `<span><i class="ev-fun-wait"></i>Not in the Stripe data yet</span>` : '') + `</div>`
       + (known ? `<p class="ev-note">A known prospect is a company HubSpot already held before the event, or whose contact carries `
         + `no event tag, that the event closed: a new customer, not an upsell. It is counted in leads and sat too, so won is the `
         + `Closed deals count.</p>` : '') + `</section>`;
@@ -5729,7 +5729,7 @@ function renderEventPage(label) {
       + `<td class="n">${money(x.mrrNow)}</td><td class="n">${money(x.collected)}</td>`
       + `<td>${CREDIT_WORDS[x.credit] || 'not graded'}<br>${x.ids.map(id => extLink(stripeOf.get(id) || `https://dashboard.stripe.com/customers/${id}`, 'Stripe')).join(' · ')}</td></tr>`).join('')
     + ledger.notBilled.map(x => `<tr><td><span class="ev-dot wait"></span>${x.link ? extLink(x.link, x.name) : x.name}</td><td>${fromWord(x.origin)}</td>`
-      + `<td><span class="muted">not billed yet</span></td>${closeCell(x.won, x.opened, 'deal won')}<td>–</td><td class="n">–</td><td class="n">–</td>`
+      + `<td>not in the Stripe data yet<br><span class="muted">it runs to ${fmt.monthLabel(data.lastMonth)}</span></td>${closeCell(x.won, x.opened, 'deal won')}<td>–</td><td class="n">–</td><td class="n">–</td>`
       + `<td>a won deal in HubSpot</td></tr>`).join('');
   const ledgerMrr = ledger.rows.reduce((t, x) => t + (x.mrrNow || 0), 0);
   const customersPanel = `<section class="ev-panel"><h3>Customers credited</h3>`
@@ -5840,7 +5840,7 @@ function renderEventPage(label) {
     + `scan, plus the known prospects it won. A list loaded into HubSpot, or a contact tagged before the event, is not a lead.</dd>`
     + `<dt>Sat</dt><dd>A demo held. HubSpot opens a deal only once the demo is held, so there is no booked count.</dd>`
     + `<dt>Won, Closed deals</dt><dd>The customers Stripe bills that the event is credited with, counted by company, plus won `
-    + `deals not billed yet. Won and Closed deals are the same number.</dd>`
+    + `deals not in the Stripe data yet (billed after its last month, or on a coupon with nothing billed). Won and Closed deals are the same number.</dd>`
     + `<dt>New lead, known prospect</dt><dd>A new lead is one of the event\u2019s leads. A known prospect is a company HubSpot held `
     + `before the event, or whose contact carries no event tag, that the event closed: a new customer, not an upsell.</dd>`
     + `<dt>Revenue</dt><dd>Cash Stripe collected from the credited customers, from the event\u2019s month on.</dd>`
