@@ -60,6 +60,14 @@ HUB_NOTES = {
 # Cardholders whose matched charges are taken off an event after the cost
 # run; they are listed as reviewed and not counted.
 HUB_EXCLUDE = {"Home Service Hoorah": {"Ryan Fenn": "not part of the Hoorah team (Josh, 13 Oct 2026)"}}
+# Charges reviewed and not counted that a judgement call counts after all,
+# keyed by the event's label: (date, cardholder, amount, why).
+HUB_INCLUDE = {
+    "Raising GOATS 2026": [("2026-03-18", "Ryan Fenn", 453.40,
+        "Ryan Fenn flew to it (Salt Lake City airport parking 25 Mar, a Scottsdale hotel). Of his two Delta fares "
+        "before it, the 18 Mar one is a round trip to Phoenix at the usual price and the nearest the event; the "
+        "8 Mar one ($896.40) is left out (22 Oct 2026).")],
+}
 
 
 LABEL_OF = {"Lodging": "Lodging", "Airlines": "Flights", "Restaurants": "Meals", "Taxi and Rideshare": "Ground transport",
@@ -186,6 +194,13 @@ def main(path):
             e["attendees"] = [x for x in e["attendees"] if x != who]
             e["notCounted"] += [{"date": l["date"], "owner": who, "merchant": l["merchant"], "city": l["city"],
                                  "amount": l["amount"], "why": why} for l in out_]
+        for day, who, amount, why in HUB_INCLUDE.get(e["label"], []):
+            hit = [l for l in e["notCounted"] if l["date"] == day and l["owner"] == who and abs((l["amount"] or 0) - amount) < 0.01]
+            for l in hit:
+                e["notCounted"].remove(l)
+                e["lines"].append({"date": day, "owner": who, "merchant": l["merchant"], "rampCategory": None,
+                                   "city": l.get("city"), "amount": amount, "label": "Flights", "confidence": "Medium",
+                                   "why": why, "card": None, "source": "reviewed by hand"})
         if name in HUB_NOTES:
             e["notes"] = " ".join(x for x in (e["notes"], HUB_NOTES[name]) if x)
     for e in events.values():

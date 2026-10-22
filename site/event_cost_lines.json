@@ -1,7 +1,7 @@
 {
  "source": "CHIIRP Event Costs.xlsx",
  "olderSource": "CHIIRP Event Costs 2025-26 (QuickBooks).xlsx",
- "built": "2026-10-15",
+ "built": "2026-10-22",
  "note": "Event Hub fees and Ramp card charges matched to each event by the month-end cost run; events before the Event Hub from QuickBooks bills and card charges.",
  "events": [
   {
@@ -14575,6 +14575,19 @@
      "source": "QuickBooks, Ramp card"
     },
     {
+     "date": "2026-03-18",
+     "owner": "Ryan Fenn",
+     "merchant": "Delta Airlines",
+     "rampCategory": null,
+     "city": "Atlanta, GA",
+     "amount": 453.4,
+     "label": "Flights",
+     "confidence": "Medium",
+     "why": "Ryan Fenn flew to it (Salt Lake City airport parking 25 Mar, a Scottsdale hotel). Of his two Delta fares before it, the 18 Mar one is a round trip to Phoenix at the usual price and the nearest the event; the 8 Mar one ($896.40) is left out (22 Oct 2026).",
+     "card": null,
+     "source": "reviewed by hand"
+    },
+    {
      "date": "2026-03-24",
      "owner": "Ryan Fenn",
      "merchant": "Hilton Hotels",
@@ -14663,14 +14676,6 @@
      "why": "one of 2 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
     },
     {
-     "date": "2026-03-18",
-     "owner": "Ryan Fenn",
-     "merchant": "Delta Airlines",
-     "city": "Atlanta, GA",
-     "amount": 453.4,
-     "why": "one of 2 fares Ryan Fenn bought before Raising GOATS 2026; destination unknown"
-    },
-    {
      "date": "2026-03-19",
      "owner": "Justin Judd",
      "merchant": "Cafe Du Monde",
@@ -14682,7 +14687,7 @@
    "pending": [],
    "upcoming": false,
    "pendingTotal": 0,
-   "travelTotal": 1176.94
+   "travelTotal": 1630.34
   },
   {
    "label": "Lennox Live Anaheim 2026",

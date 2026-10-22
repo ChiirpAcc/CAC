@@ -3741,8 +3741,8 @@ export const EVENT_TRAVEL_DECISIONS = {
     evidence: 'Estimate. $2,920 is proven on cards and TravelPerk; added: 2 hotel stays (Parker Joos, Ky Decker) of 2 nights at $260 a night, none of which is on any card we have. Likely range $3,612 to $4,620; the tab had $5,312, outside it.' },
   'Service World': { was: 4606, now: 6288, estimate: true,
     evidence: 'Estimate. $3,168 is proven on cards and TravelPerk; added: 3 hotel stays (Blake Fenn, Ky Decker, Tavi Carvajal) of 4 nights at $260 a night, none of which is on any card we have. Likely range $5,244 to $8,268; the tab had $4,606, outside it.' },
-  'Raising GOATS 2026': { was: 1547, now: 1839, estimate: true,
-    evidence: 'Estimate. $1,177 is proven on cards and TravelPerk; added: 1 flight (Ryan Fenn) at $662, none of which is on any card we have. Likely range $1,587 to $2,161; the tab had $1,547, outside it.' },
+  'Raising GOATS 2026': { was: 1547, now: 1630.34,
+    evidence: 'The card charges matched to it, $1,176.94, and Ryan Fenn’s 18 Mar Delta fare, $453.40: he flew to it (Salt Lake City airport parking 25 Mar, a Scottsdale hotel), and of his two fares before it that one is the round trip to Phoenix. Replaces the $1,839 estimate (22 Oct 2026).' },
   // Upcoming events: travel committed, estimated from what is booked and the
   // same medians until the costs come in; the tab's figure replaces it. Only
   // for an event someone is listed as going to. A fee is never guessed: an
