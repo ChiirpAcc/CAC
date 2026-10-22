@@ -5720,9 +5720,12 @@ function renderEventPage(label) {
   const closeMedian = closeDays.length ? (closeDays.length % 2 ? closeDays[closeDays.length >> 1]
     : Math.round((closeDays[closeDays.length / 2 - 1] + closeDays[closeDays.length / 2]) / 2)) : null;
   const ledgerRows = ledger.rows.map(x => `<tr><td><span class="ev-dot ${x.live ? 'live' : 'gone'}"></span>${x.name}`
+      + (x.ids.length > 1 ? `<br><span class="muted">${int(x.ids.length)} Stripe accounts, one win</span>` : '')
       + (custById.get(x.id) && custById.get(x.id).wonElsewhere ? `<br><span class="muted">won on another deal: ${custById.get(x.id).wonElsewhere}</span>` : '') + `</td>`
       + `<td>${fromWord(x.origin)}${x.winback ? '<br><span class="muted">won back</span>' : ''}</td>`
-      + `<td>${fmt.monthLabel(x.firstPaid)}${x.lag !== null ? `<br><span class="muted">${x.lag <= 0 ? 'the event month' : `${x.lag} month${x.lag === 1 ? '' : 's'} after`}</span>` : ''}</td>`
+      + (x.firstMrr && x.firstMrr > x.firstPaid
+        ? `<td>${fmt.monthLabel(x.firstMrr)}<br><span class="muted">MRR from then; first payment ${fmt.monthLabel(x.firstPaid)}</span></td>`
+        : `<td>${fmt.monthLabel(x.firstPaid)}${x.lag !== null ? `<br><span class="muted">${x.lag <= 0 ? 'the event month' : `${x.lag} month${x.lag === 1 ? '' : 's'} after`}</span>` : ''}</td>`)
       + closeCell(x.started, x.dealOpened, 'subscription began', x.lag)
       + `<td>${x.live ? '<span class="pos">Still paying</span>' : x.end ? `${fmt.monthLabel(x.end.slice(0, 7))}<br><span class="muted">`
         + `${x.endFrom === 'stripe' ? 'subscription ended' : 'last payment'}</span>` : '–'}</td>`

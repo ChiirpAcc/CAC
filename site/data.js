@@ -4294,6 +4294,38 @@ export const HUBSPOT_WON_DEAL_BY_COMPANY = {
 // When HubSpot says a lead's deal was won, for wins Stripe does not carry yet
 // (Event Leads has no close date). Checked live 19 Oct 2026; the won dates in
 // HUBSPOT_WON_DEAL_LINKS beside the same deals.
+// Event deals HubSpot shows still open (new-business pipeline, not closed),
+// checked live 22 Oct 2026. Event Leads marks every deal won yes or no, so
+// "no" covers lost and still open; the oldest open event deals are six
+// months old (Lennox Live Anaheim, April), so no age rule separates them.
+// These read as still open, not lost, until the push carries each deal's
+// stage (brief item 15).
+export const HUBSPOT_OPEN_DEALS = {
+  '2026 - Pantheon': ['Reid & Pederson', 'Trenchless Innovations', '247 Plumbing Sewer & Water', '24/7 Services Inc',
+    'Acadiana Garage Doors', 'Septic Blue', 'Canopy Services', 'Mid-America Mister Sparky', 'PJ Fitzpatrick',
+    'Oceanview Heating and Air', 'Punchy', 'RAW Marketing'],
+  '2026 - Lennox Live - Anaheim': ['Applewood Heating & Air Conditioning', 'Klebs Mechanical', 'Bernard Heating & Cooling'],
+  '2026 - Lennox Live - New Orleans': ['Homestead Home Services'],
+  '2025 - Pantheon': ['Colony Heating and Air Conditioning'],
+  '2026 - Certain Path Spring Expo': ['Action Overhead'],
+  '2026 - RynoX': ['Staton Heating Cooling and Plumbing'],
+  '2025 - Home Service Freedom': ['Smartron Electric', 'Easy Livin Solutions', 'Duct Cleaning Solution'],
+  '2026 - Home Service Freedom': ['Vidal flooring, inc', 'Carey-Sodergren, Inc.'],
+  '2026 - Grosso University': ['Pure Way'],
+  '2026 - Home Service Hoorah': ['Larry Stinson Plumbing', 'Paradise Outdoors'],
+  '2026 - Nexstar Super Meeting': ['Capital Heating, Cooling, Plumbing & Electric', 'springbranchair.com',
+    'Integrity Heating & Cooling', 'Done Right Today'],
+};
+// Stripe accounts that are one customer: one owner's separate businesses, each
+// with its own won deal, counted as one win of grouped deals (Josh, 22 Oct 2026).
+export const CUSTOMER_GROUPS = {
+  'Tropical Coast (3 businesses)': ['cus_UIyDtR3eVDggno', 'cus_UIyBqX4O9syddm', 'cus_UIy9aaQmvYXwGj'],
+};
+const groupOfId = new Map(Object.entries(CUSTOMER_GROUPS).flatMap(([name, ids]) => ids.map(id => [id, name])));
+// One key per customer for counting wins: its group, else its company name
+// (so an account in each Stripe environment counts once), else its id.
+export const customerKey = (id, name) => (groupOfId.has(id) ? `group:${groupOfId.get(id)}` : companyKey(name) || id);
+export const customerGroupName = id => groupOfId.get(id) || null;
 export const HUBSPOT_WON_DATES = {
   'Riverstone Plumbing LLC': '2026-09-24', // on a coupon in Stripe, so nothing billed yet (Josh, 21 Oct 2026)
   'Opus Plumbing and Heating': '2026-10-09', // billed in October, after the data's last month
@@ -4633,7 +4665,10 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       if (firstRevenueOf.has(r.id)) {
         firstRevenue.set(r.id, winbacks.has(r.id) ? fromMonth : firstRevenueOf.get(r.id));
       }
-      if (r.month === lastMonth && r.active) {
+      // Present in the base, and not canceled in Stripe: a customer at $0 on
+      // an active subscription may be on a coupon for a while (Josh, 22 Oct
+      // 2026), but a canceled one is not still paying.
+      if (r.month === lastMonth && r.active && r.subscriptionStatus !== 'canceled') {
         liveNow.add(r.id);
         mrrNow += r.eopMrr || 0;
         if (r.freeMonth) { pausedNow += 1; pausedMrr += r.discount || 0; }
@@ -4659,15 +4694,15 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
         id, name: (own.find(r => r.name) || allRows.find(r => r.id === id && r.name) || {}).name || id,
         firstPaid: firstRevenue.get(id) || null,
         winback: winbacks.has(id),
-        live: Boolean(now && now.active),
-        mrrNow: now && now.active ? now.eopMrr || 0 : 0,
+        live: Boolean(now && now.active && now.subscriptionStatus !== 'canceled'),
+        mrrNow: now && now.active && now.subscriptionStatus !== 'canceled' ? now.eopMrr || 0 : 0,
         collected: own.reduce((t, r) => t + (r.netCash || 0), 0),
         contribution: contributionOf.has(id) ? contributionOf.get(id) : null,
         leadDate: leadDateOf.get(id) || null,
         leadSetAt: leadSetOf.get(id) || null,
         signedMrr: (allRows.find(r => r.id === id && r.signedMrr !== null) || {}).signedMrr ?? null,
         // Cash by month, for the payment grid on the event's page.
-        months: own.map(r => ({ month: r.month, cash: r.netCash || 0 })).sort((a, b) => a.month.localeCompare(b.month)),
+        months: own.map(r => ({ month: r.month, cash: r.netCash || 0, mrr: r.eopMrr || 0 })).sort((a, b) => a.month.localeCompare(b.month)),
       };
     }).sort((a, b) => (b.contribution || 0) - (a.contribution || 0));
     return {
@@ -4682,7 +4717,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       // (Sierra Pacific, Lennox Live Anaheim 2026); its revenue is all
       // counted, as Stripe collected it.
       paid: new Set([...ids].filter(id => firstRevenue.has(id))
-        .map(id => companyKey((allRows.find(r => r.id === id && r.name) || {}).name) || id)).size,
+        .map(id => customerKey(id, (allRows.find(r => r.id === id && r.name) || {}).name))).size,
       neverPaid: [...ids].filter(id => never.has(id)).length,
       liveNow: liveNow.size,
       mrrNow,
@@ -5867,9 +5902,12 @@ export function leadState(r) {
   const deal = Boolean(r.dealCreated);
   if (!deal) return r.bookedBy ? 'booked' : 'unworked';
   if (r.won === true) return winInWindow(r) ? 'won' : 'wonLate';
-  if (r.won === false) return 'lost';
+  if (r.won === false) return hubspotOpen(r) ? 'sat' : 'lost';
   return 'sat';
 }
+// A deal Event Leads marks not won that HubSpot shows still open (dated list).
+const openDealKeys = new Set(Object.entries(HUBSPOT_OPEN_DEALS).flatMap(([src, names]) => names.map(n => `${src}|${companyKey(n)}`)));
+export const hubspotOpen = r => r.won === false && openDealKeys.has(`${r.source}|${companyKey(r.company)}`);
 
 // Per event: the leads it produced and how far they went. A rate is kept
 // with its numerator and denominator, and marked thin under ten, so a rate
@@ -6142,9 +6180,9 @@ export function attributionAudit(data) {
       const set = setAt.get(x.id);
       return set && (set.slice(0, 7) > monthAdd(e.month, 1) || (listDays.get(`${e.source}|${set.slice(0, 10)}`) || 0) >= 20);
     }).map(({ e, x }) => `${e.label}: ${x.name} tagged ${setAt.get(x.id)}`));
-  check('credit-company-once', 'Each event counts a company once, across both Stripe environments',
+  check('credit-company-once', 'Each event counts a company once, across both Stripe environments and grouped accounts',
     roi.events.filter(e => !e.upcoming && (e.customerRows || []).length).filter(e => {
-      const names = new Set(e.customerRows.filter(x => x.firstPaid).map(x => companyKey(x.name) || x.id));
+      const names = new Set(e.customerRows.filter(x => x.firstPaid).map(x => customerKey(x.id, x.name)));
       return e.paid !== names.size;
     }).map(e => `${e.label}: ${e.paid} counted`));
   check('credit-default-rule', `Every figure uses the default credit rule (${DEFAULT_CREDIT_RULE})`,
@@ -6357,7 +6395,7 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
   // each Stripe environment is one win (Sierra Pacific, Lennox Live Anaheim).
   const payingCo = new Map();
   for (const x of (e.customerRows || []).filter(y => y.firstPaid)) {
-    const key = companyKey(x.name) || x.id;
+    const key = customerKey(x.id, x.name);
     if (!payingCo.has(key)) payingCo.set(key, []);
     payingCo.get(key).push(x.id);
   }
@@ -6381,7 +6419,7 @@ export function eventCardFigures(data, roi, e, f = eventFunnel(data, roi), byCo 
     else if (l.company && wonCos.has(companyKey(l.company))) satSplit.sameCompany += 1;
     else if (l.state === 'wonElsewhere') satSplit.elsewhere += 1;
     else if (l.won === true) satSplit.late += 1;
-    else if (l.won === false) satSplit.lost += 1;
+    else if (l.won === false && !hubspotOpen(l)) satSplit.lost += 1;
     else satSplit.open += 1;
   }
   return {
@@ -6435,6 +6473,9 @@ export function eventCustomerLedger(data, e, card) {
     return {
       id: x.id, name: x.name, origin: fromLead.has(x.id) ? 'new' : 'known', credit: x.credit || null,
       winback: x.winback, firstPaid: x.firstPaid, live: x.live, end, endFrom: x.live ? null : stripeEnd ? 'stripe' : 'last paid',
+      // The first month with a subscription (MRR), which can come after the
+      // first payment where fees came first (Dash Heating, BDR Spark 2026).
+      firstMrr: ((x.months || []).find(r => r.mrr > 0) || {}).month || null,
       // When the deal closed, as near as the data has it (Josh, 20 Oct 2026):
       // the Stripe subscription's start date, and the day its deal opened.
       started: rec && /^\d{4}-\d{2}-\d{2}$/.test(rec.start || '') ? rec.start : null,
@@ -6448,12 +6489,13 @@ export function eventCustomerLedger(data, e, card) {
   // deal (Sierra Pacific, Lennox Live Anaheim 2026), so its accounts are one row.
   const byCompany = new Map();
   for (const x of rows) {
-    const key = companyKey(x.name) || x.id;
+    const key = customerKey(x.id, x.name);
     const had = byCompany.get(key);
-    if (!had) { byCompany.set(key, { ...x, ids: [x.id] }); continue; }
+    if (!had) { byCompany.set(key, { ...x, ids: [x.id], name: customerGroupName(x.id) || x.name }); continue; }
     had.ids.push(x.id);
     if (x.origin === 'new') had.origin = 'new';
     had.firstPaid = had.firstPaid < x.firstPaid ? had.firstPaid : x.firstPaid;
+    had.firstMrr = [had.firstMrr, x.firstMrr].filter(Boolean).sort()[0] || null;
     had.started = [had.started, x.started].filter(Boolean).sort()[0] || null;
     had.dealOpened = had.dealOpened || x.dealOpened;
     had.live = had.live || x.live;
