@@ -16,7 +16,7 @@ import {
   eventLeads, marketingReport, MARKETING_CATEGORIES,
   EVENT_UNASSIGNED_QB, EVENT_UNCLASSIFIED, eventCardFigures, eventCustomerLedger, eventStaying, eventScorecard, EVENT_SCORE_WEIGHTS, CHURN_CHECK_MONTHS, CHANNEL_SPEND, eventHasReturn, DEFAULT_CREDIT_RULE, eventConfidence,
   eventFunnel, salesReport, LEAD_STATES, personName, hubspotContactUrl, hubspotDealUrl, stripeCustomerUrl,
-  stripeByCompany, salesBoard, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, eventsOverview, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
+  stripeByCompany, cameFromElsewhere, eventUpsells, WIN_WINDOW_MONTHS, conversionNamesEvent, attributionAudit, eventAuditRows, eventsOverview, reengaged, REENGAGE_BEFORE_DAYS, REENGAGE_AFTER_DAYS,
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
@@ -1176,6 +1176,7 @@ function wireTabs() {
   if ($('tab-events')) $('tab-events').addEventListener('click', () => showView('events'));
   if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => showView('marketing'));
   if ($('tab-sales')) $('tab-sales').addEventListener('click', () => showView('sales'));
+  // #rp opens the RP tab (it keeps the view's old id, sales).
   if ($('tab-summary')) $('tab-summary').addEventListener('click', () => { history.replaceState(null, '', '#summary'); showView('summary'); });
   // An event's own page is #event=<name>; #events returns to the list.
   const route = () => {
@@ -4782,133 +4783,95 @@ function costProofPanel(e, { bar = '', facts = '', extraFacts = '', notes = '' }
         + `window, and its place fits the trip. Fares bought weeks ahead are matched by hand and say why.</p></section>`);
 }
 
-// The Sales tab as a scoreboard (Josh, 20 Oct 2026): one period picked at
-// the top (a quarter, the last N months, the last N events, or all time),
-// four headline numbers against the period before, one leaderboard, the
-// quarter-by-quarter trend, kept or handed off, every source, and the
-// definitions folded. Ryan Peterson is pinned to the top of each table, not
-// given a headline card of his own.
-const FEATURED_SETTER = 'Ryan Peterson';
+// The RP tab (Josh, 26 Oct 2026): Ryan Peterson only, every set he made and
+// every demo it reached, by name, each linked to its HubSpot record. From
+// site/rp_sets.json, a dated pull of HubSpot contacts whose Setter is Ryan
+// Peterson (every source, not only events), each with the first
+// new-business deal on it: HubSpot opens a deal once a demo is held, so that
+// deal is the demo completed.
+let rpSets = null;
+const loadRpSets = () => fetch('rp_sets.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null);
 const quarterNow = () => { const d = new Date(); return `${d.getFullYear()} Q${Math.floor(d.getMonth() / 3) + 1}`; };
-const salesState = { kind: 'quarter', quarter: null, months: 6, events: 5, person: null };
-function renderSales() {
-  if (!$('sales-board')) return;
-  const r = salesReport(data);
-  if (!r) {
-    $('sales-kpis').innerHTML = '<p class="empty">The Event Leads tab is not in this push, so there is nothing to show yet. That is a gap in the push, not a zero.</p>';
+const quarterOfDay = d => (d ? `${d.slice(0, 4)} Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1}` : null);
+const rpState = { kind: 'quarter', quarter: null, months: 6 };
+function renderRP() {
+  if (!$('rp-sets')) return;
+  if (!rpSets || !rpSets.sets) {
+    $('rp-kpis').innerHTML = '<p class="empty">rp_sets.json is not on the site, so there is nothing to list.</p>';
     return;
   }
-  const st = salesState;
+  const st = rpState;
   if (!st.quarter) st.quarter = quarterNow();
-  const b = salesBoard(data, { kind: st.kind, quarter: st.quarter, months: st.months, events: st.events });
-  // Controls: the picker for the chosen kind of period shows; the rest hide.
-  const sel = $('sales-quarter');
+  const all = rpSets.sets;
+  const sel = $('rp-quarter');
   if (!sel.dataset.ready) {
-    const qs = b.quarters.includes(quarterNow()) ? b.quarters : [quarterNow(), ...b.quarters];
+    const qs = [...new Set([quarterNow(), ...all.map(x => quarterOfDay(x.setOn)), ...all.filter(x => x.demo).map(x => quarterOfDay(x.demo.on))].filter(Boolean))].sort().reverse();
     sel.innerHTML = qs.map(q => `<option value="${q}">${q}${q === quarterNow() ? ' (this quarter)' : ''}</option>`).join('');
     sel.value = st.quarter;
-    sel.addEventListener('change', () => { st.quarter = sel.value; renderSales(); });
-    document.querySelectorAll('input[name="sales-mode"]').forEach(x => x.addEventListener('change', () => { st.kind = x.value; renderSales(); }));
-    $('sales-months').addEventListener('change', () => { st.months = Number($('sales-months').value) || 6; renderSales(); });
-    $('sales-events').addEventListener('change', () => { st.events = Number($('sales-events').value) || 5; renderSales(); });
-    $('sales-board').addEventListener('click', ev => {
-      const a = ev.target.closest('[data-person]');
-      if (!a) return;
-      ev.preventDefault();
-      st.person = st.person === a.dataset.person ? null : a.dataset.person;
-      renderSales();
-    });
-    $('sales-download').addEventListener('click', () => {
-      const cur = salesBoard(data, { kind: st.kind, quarter: st.quarter, months: st.months, events: st.events });
+    sel.addEventListener('change', () => { st.quarter = sel.value; renderRP(); });
+    document.querySelectorAll('input[name="rp-mode"]').forEach(x => x.addEventListener('change', () => { st.kind = x.value; renderRP(); }));
+    $('rp-months').addEventListener('change', () => { st.months = Number($('rp-months').value) || 6; renderRP(); });
+    $('rp-download').addEventListener('click', () => {
       const cell = v => (v === null || v === undefined ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
-      const text = ['period,person,sets,shows,demos_run,sales,sold_stripe_mrr,kept_demos,kept_wins,handed_demos,handed_wins']
-        .concat(cur.now.people.map(c => [cur.now.label, c.who ? personName(c.who) : 'No owner on the deal', c.sets, c.shows, c.demos, c.sales,
-          Math.round(c.mrr), c.kept.demos, c.kept.wins, c.handed.demos, c.handed.wins].map(cell).join(','))).join('\n');
+      const text = ['set_on,set_date_from,company,source,hubspot_contact,demo_completed_on,ran_by,outcome,hubspot_deal']
+        .concat(all.map(x => [x.setOn, x.setBasis, x.company, x.source, hubspotContactUrl(x.contactId), x.demo ? x.demo.on : '',
+          x.demo ? x.demo.ranBy : '', x.demo ? x.demo.outcome : '', x.demo ? hubspotDealUrl(x.demo.dealId) : ''].map(cell).join(','))).join('\n');
       const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
       const a = document.createElement('a');
-      a.href = url; a.download = `chiirp-sales-${cur.now.label.replace(/\s+/g, '-')}.csv`;
+      a.href = url; a.download = 'ryan-peterson-sets-and-demos.csv';
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      $('sales-status').textContent = `${fmt.int(cur.now.people.length)} rows exported.`;
     });
     sel.dataset.ready = '1';
   }
-  document.querySelectorAll('input[name="sales-mode"]').forEach(x => { x.checked = x.value === st.kind; });
-  $('sales-quarter').hidden = st.kind !== 'quarter';
-  $('sales-months-wrap').hidden = st.kind !== 'months';
-  $('sales-events-wrap').hidden = st.kind !== 'events';
-  $('sales-events').max = String(b.heldEvents);
-
+  document.querySelectorAll('input[name="rp-mode"]').forEach(x => { x.checked = x.value === st.kind; });
+  $('rp-quarter').hidden = st.kind !== 'quarter';
+  $('rp-months-wrap').hidden = st.kind !== 'months';
+  // A set belongs to the period of its set date; a demo to the period of its
+  // demo date, so each list answers "what happened in this period".
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const from = monthAdd(thisMonth, -((st.months || 6) - 1));
+  const inPeriod = d => (!d ? false : st.kind === 'all' ? true : st.kind === 'quarter' ? quarterOfDay(d) === st.quarter
+    : d.slice(0, 7) >= from && d.slice(0, 7) <= thisMonth);
+  const label = st.kind === 'all' ? 'All time' : st.kind === 'quarter' ? st.quarter : `${fmt.monthLabel(from)} to ${fmt.monthLabel(thisMonth)}`;
+  const sets = all.filter(x => inPeriod(x.setOn));
+  const demos = all.filter(x => x.demo && inPeriod(x.demo.on)).sort((a, b) => b.demo.on.localeCompare(a.demo.on));
+  const reached = sets.filter(x => x.demo);
+  const wonish = o => o === 'won' || o === 'later won';
   const pc = (n, d) => (d ? fmt.pct(n / d, 0) : '–');
-  const who = c => (c.who ? personName(c.who) : 'No owner on the deal');
-  const pinned = list => [...list].sort((a, z) => (a.who === FEATURED_SETTER ? -1 : z.who === FEATURED_SETTER ? 1 : 0)
-    || (z.sets - a.sets) || (z.demos - a.demos) || String(who(a)).localeCompare(String(who(z))));
-  const N = b.now;
-  const B = b.before;
-  const focus = st.person ? N.people.find(c => c.who === st.person) : null;
-  const T = focus || N.totals;
-  const P = st.person && B ? B.people.find(c => c.who === st.person) || { sets: 0, shows: 0, demos: 0, sales: 0, mrr: 0 } : B ? B.totals : null;
-  const beforeWords = b.kind === 'quarter' ? 'last quarter' : b.kind === 'months' ? `the ${fmt.int(st.months)} months before`
-    : b.kind === 'events' ? `the ${fmt.int(st.events)} events before` : '';
-  $('sales-period').innerHTML = (b.kind === 'events' && N.events
-    ? `<strong>The last ${fmt.int(N.events.length)} events:</strong> ${N.events.map(([src, day]) => `${src.replace(/^(20\d\d)\s*-\s*(.*)$/, '$2')} (${day})`).join(', ')}. `
-    : `<strong>${b.kind === 'all' ? 'All time' : N.label}.</strong> `)
-    + (st.person ? `Showing ${personName(st.person)} only; <a href="#sales" data-clear-person>show everyone</a>.` : '');
   const kpi = (k, v, sub = '') => `<div class="ev-kpi"><span class="ev-kpi-label">${k}</span>`
     + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
-  $('sales-kpis').innerHTML =
-    kpi('Sets', fmt.int(T.sets), P ? `${fmt.int(P.sets)} in ${beforeWords}` : 'leads a setter booked a demo for')
-    + kpi('Show rate', pc(T.shows, T.sets), `${fmt.int(T.shows)} of ${fmt.int(T.sets)} sets reached a demo${P ? ` · was ${pc(P.shows, P.sets)}` : ''}`)
-    + kpi('Close rate', pc(T.sales, T.demos), `${fmt.int(T.sales)} sale${T.sales === 1 ? '' : 's'} of ${fmt.int(T.demos)} demos run${P ? ` · was ${pc(P.sales, P.demos)}` : ''}`)
-    + kpi('Sold MRR', fmt.money(T.mrr), T.sales && !T.mrr ? `${fmt.int(T.sales)} sale${T.sales === 1 ? '' : 's'}, not billed yet` : `what Stripe first billed${P ? ` · ${fmt.money(P.mrr)} in ${beforeWords}` : ''}`);
-  // The leaderboard: one row per person, setter columns then salesperson columns.
-  const rows = pinned(N.people).filter(c => !st.person || c.who === st.person);
-  const tot = N.totals;
-  $('sales-board').innerHTML = !rows.length ? '<tbody><tr><td class="muted">Nothing in this period yet.</td></tr></tbody>'
-    : '<thead><tr><th></th><th class="n" colspan="3">As setter</th><th class="n" colspan="4">As salesperson (deal owner)</th></tr>'
-      + '<tr><th>Person</th><th class="n">Sets</th><th class="n">Shows</th><th class="n">Show rate</th>'
-      + '<th class="n">Demos run</th><th class="n">Sales</th><th class="n">Close rate</th><th class="n">Sold MRR</th></tr></thead><tbody>'
-      + rows.map(c => `<tr${c.who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${c.who ? `<a href="#sales" data-person="${c.who}">${who(c)}</a>` : who(c)}</td>`
-        + `<td class="n">${fmt.int(c.sets)}</td><td class="n">${fmt.int(c.shows)}</td><td class="n">${pc(c.shows, c.sets)}</td>`
-        + `<td class="n">${fmt.int(c.demos)}</td><td class="n">${fmt.int(c.sales)}</td><td class="n">${pc(c.sales, c.demos)}</td>`
-        + `<td class="n">${c.mrr ? fmt.money(c.mrr) : '–'}</td></tr>`).join('')
-      + (st.person ? '' : `<tr class="total-row"><td><strong>Everyone</strong></td><td class="n"><strong>${fmt.int(tot.sets)}</strong></td>`
-        + `<td class="n"><strong>${fmt.int(tot.shows)}</strong></td><td class="n">${pc(tot.shows, tot.sets)}</td>`
-        + `<td class="n"><strong>${fmt.int(tot.demos)}</strong></td><td class="n"><strong>${fmt.int(tot.sales)}</strong></td>`
-        + `<td class="n">${pc(tot.sales, tot.demos)}</td><td class="n"><strong>${fmt.money(tot.mrr)}</strong></td></tr>`)
+  $('rp-period').innerHTML = `<strong>${label}.</strong> From HubSpot, checked ${rpSets.checked}: contacts whose Setter is Ryan Peterson, from every source.`;
+  $('rp-kpis').innerHTML =
+    kpi('Sets', fmt.int(sets.length), 'contacts he set in the period')
+    + kpi('Demos completed', fmt.int(demos.length), 'demos held in the period, from any of his sets')
+    + kpi('Show rate', pc(reached.length, sets.length), `${fmt.int(reached.length)} of the period\u2019s ${fmt.int(sets.length)} sets reached a demo`)
+    + kpi('Won', fmt.int(demos.filter(x => wonish(x.demo.outcome)).length),
+      `of the period\u2019s ${fmt.int(demos.length)} demos · ${fmt.int(demos.filter(x => x.demo.outcome === 'open').length)} still open`);
+  const outcomeCell = o => (o === 'won' ? '<span class="pos">won</span>' : o === 'later won' ? '<span class="pos">lost, then won</span>'
+    : o === 'open' ? 'still open' : o === 'lost' ? '<span class="muted">lost</span>' : '–');
+  const company = x => extLink(hubspotContactUrl(x.contactId), x.company || 'No company on the contact');
+  const dateCell = x => `${x.setOn || '–'}${x.setBasis !== 'set' ? `<br><span class="muted">${x.setBasis === 'demo date' ? 'demo date; no set date' : 'contact created; no set date'}</span>` : ''}`;
+  $('rp-sets').innerHTML = !sets.length ? '<tbody><tr><td class="muted">No sets in this period.</td></tr></tbody>'
+    : '<thead><tr><th>Set</th><th>Company (HubSpot contact)</th><th>Source</th><th>Demo completed</th><th>Ran by</th><th>Outcome</th></tr></thead><tbody>'
+      + sets.map(x => `<tr><td>${dateCell(x)}</td><td>${company(x)}</td><td>${x.source || '<span class="muted">not recorded</span>'}</td>`
+        + `<td>${x.demo ? extLink(hubspotDealUrl(x.demo.dealId), x.demo.on) : x.demoScheduled ? `<span class="muted">not yet; booked for ${x.demoScheduled}</span>` : '<span class="muted">no demo</span>'}</td>`
+        + `<td>${x.demo && x.demo.ranBy ? x.demo.ranBy : '–'}</td><td>${x.demo ? outcomeCell(x.demo.outcome) : '–'}</td></tr>`).join('')
       + '</tbody>';
-  $('sales-board-note').textContent = 'Sets, shows and show rate credit the setter; demos run, sales, close rate and sold MRR credit '
-    + 'the deal owner, who ran the demo. Click a name to see that person alone.';
-  // Quarter by quarter: sets / shows per setter, the last eight quarters.
-  const shown = [...r.byQuarter].reverse().slice(-8);
-  const everyone = [...new Set(r.byQuarter.flatMap(x => x.people.filter(p => p.sets || p.shows).map(p => p.who)))]
-    .filter(w => !st.person || w === st.person)
-    .sort((a, z) => (a === FEATURED_SETTER ? -1 : z === FEATURED_SETTER ? 1 : String(a).localeCompare(String(z))));
-  $('sales-quarter-matrix').innerHTML = '<thead><tr><th>Setter</th>' + shown.map(x => `<th class="n">${x.quarter}</th>`).join('')
-    + '</tr></thead><tbody>' + everyone.map(w => `<tr${w === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${personName(w)}</td>`
-      + shown.map(x => { const p = x.people.find(pp => pp.who === w); return `<td class="n">${p && (p.sets || p.shows) ? `${p.sets}<span class="muted"> / ${p.shows}</span>` : '<span class="muted">–</span>'}</td>`; }).join('')
-      + '</tr>').join('') + '</tbody>';
-  // Kept or handed off, per setter, in the period.
-  const keptRows = pinned(N.people.filter(c => c.who && (c.kept.demos || c.handed.demos))).filter(c => !st.person || c.who === st.person);
-  const kh = x => (x.demos ? `${fmt.int(x.wins)} of ${fmt.int(x.demos)} won (${pc(x.wins, x.demos)})` : '<span class="muted">none</span>');
-  $('sales-kept').innerHTML = !keptRows.length ? '<tbody><tr><td class="muted">No set demo had a deal owner in this period.</td></tr></tbody>'
-    : '<thead><tr><th>Setter</th><th class="n">Ran the demo themselves</th><th class="n">Handed to someone else</th></tr></thead><tbody>'
-      + keptRows.map(c => `<tr${c.who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${who(c)}</td><td class="n">${kh(c.kept)}</td><td class="n">${kh(c.handed)}</td></tr>`).join('')
-      + (st.person ? '' : `<tr class="total-row"><td><strong>Everyone</strong></td><td class="n"><strong>${kh(tot.kept)}</strong></td><td class="n"><strong>${kh(tot.handed)}</strong></td></tr>`)
+  $('rp-demos').innerHTML = !demos.length ? '<tbody><tr><td class="muted">No demos completed in this period.</td></tr></tbody>'
+    : '<thead><tr><th>Demo completed</th><th>Company (HubSpot contact)</th><th>Deal</th><th>Set</th><th>Ran by</th><th>Outcome</th><th class="n">Deal amount</th></tr></thead><tbody>'
+      + demos.map(x => `<tr><td>${x.demo.on}</td><td>${company(x)}</td><td>${extLink(hubspotDealUrl(x.demo.dealId), 'Open deal')}`
+        + `${x.demo.laterWonDealId ? `<br>${extLink(hubspotDealUrl(x.demo.laterWonDealId), 'Won deal')}` : ''}</td>`
+        + `<td>${x.setOn || '–'}</td><td>${x.demo.ranBy || '–'}</td><td>${outcomeCell(x.demo.outcome)}</td>`
+        + `<td class="n">${x.demo.amount ? fmt.money(x.demo.amount) : '–'}</td></tr>`).join('')
       + '</tbody>';
-  // Every source, all time: the pipeline's Setters tab.
-  const ppl = (r.people || []).filter(p => p.recorded && (!st.person || p.who === st.person))
-    .sort((a, z) => (a.who === FEATURED_SETTER ? -1 : z.who === FEATURED_SETTER ? 1 : z.leads - a.leads));
-  $('sales-people').innerHTML = !ppl.length ? ''
-    : '<thead><tr><th>Person</th><th class="n">Leads</th><th class="n">Sits</th><th class="n">Wins</th><th class="n">Sit rate</th><th class="n">Close rate</th></tr></thead><tbody>'
-      + ppl.map(p => `<tr${p.who === FEATURED_SETTER ? ' class="row-featured"' : ''}><td>${personName(p.who)}</td>`
-        + `<td class="n">${fmt.int(p.leads)}</td><td class="n">${fmt.int(p.sits)}</td><td class="n">${fmt.int(p.wins)}</td>`
-        + `<td class="n">${pc(p.sits, p.leads)}</td><td class="n">${pc(p.wins, p.sits)}</td></tr>`).join('')
-      + (r.peopleTotals && !st.person ? `<tr class="total-row"><td><strong>Everyone</strong></td><td class="n"><strong>${fmt.int(r.peopleTotals.leads)}</strong></td>`
-        + `<td class="n"><strong>${fmt.int(r.peopleTotals.sits)}</strong></td><td class="n"><strong>${fmt.int(r.peopleTotals.wins)}</strong></td>`
-        + `<td class="n">${pc(r.peopleTotals.sits, r.peopleTotals.leads)}</td><td class="n">${pc(r.peopleTotals.wins, r.peopleTotals.sits)}</td></tr>` : '')
-      + '</tbody>';
-  const clear = document.querySelector('[data-clear-person]');
-  if (clear) clear.addEventListener('click', ev => { ev.preventDefault(); st.person = null; renderSales(); });
+  // Every quarter: sets, demos completed and wins.
+  const qs = [...new Set([...all.map(x => quarterOfDay(x.setOn)), ...all.filter(x => x.demo).map(x => quarterOfDay(x.demo.on))].filter(Boolean))].sort().reverse().slice(0, 8);
+  $('rp-trend').innerHTML = '<thead><tr><th>Quarter</th><th class="n">Sets</th><th class="n">Demos completed</th><th class="n">Won</th></tr></thead><tbody>'
+    + qs.map(q => {
+      const d = all.filter(x => x.demo && quarterOfDay(x.demo.on) === q);
+      return `<tr${q === st.quarter && st.kind === 'quarter' ? ' class="row-featured"' : ''}><td>${q}</td><td class="n">${fmt.int(all.filter(x => quarterOfDay(x.setOn) === q).length)}</td>`
+        + `<td class="n">${fmt.int(d.length)}</td><td class="n">${fmt.int(d.filter(x => wonish(x.demo.outcome)).length)}</td></tr>`;
+    }).join('') + '</tbody>';
 }
 
 // A confidence label with its reasons on hover and for screen readers.
@@ -7633,9 +7596,10 @@ function renderVocabularyWarning() {
 }
 
 function boot() {
-  Promise.all([load(), loadCostLines()]).then(([loaded, lines]) => {
+  Promise.all([load(), loadCostLines(), loadRpSets()]).then(([loaded, lines, rp]) => {
     data = loaded;
     costLines = lines;
+    rpSets = rp;
     MARGIN = platformMargins(data);
     cohorts = buildCohorts(data);
     $('loading').hidden = true;
@@ -7670,7 +7634,7 @@ function boot() {
     renderEvents();
     renderEventAttribution();
     renderMarketing();
-    renderSales();
+    renderRP();
     renderSummary();
     renderFloors();
     renderUpgradeList();

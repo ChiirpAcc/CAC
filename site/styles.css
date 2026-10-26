@@ -1406,10 +1406,3 @@ th.sorted { color: var(--ink); }
 .kind-defs { margin-top: 0.8rem; }
 .sales-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
 .sales-controls input[type="number"] { width: 4rem; }
-.sales-how > summary { cursor: pointer; list-style: none; }
-.sales-how > summary h3 { display: inline; }
-.sales-how > summary::before { content: '\203A'; display: inline-block; width: 1rem; color: var(--ink-soft); }
-.sales-how[open] > summary::before { transform: rotate(90deg); }
-.sales-how .ev-defs { margin-top: 0.8rem; }
-#sales-board a[data-person] { color: inherit; text-decoration: underline dotted; }
-#sales-board thead tr:first-child th { text-align: center; border-bottom: 1px solid var(--rule); }

@@ -5,6 +5,9 @@
 !data/*.json
 # The proof behind each event's cost, built by scripts/build_event_cost_lines.py.
 !site/event_cost_lines.json
+# Ryan Peterson's sets and demos for the RP tab, a dated HubSpot pull:
+# company names and record ids only.
+!site/rp_sets.json
 
 # Re-block the credential filenames even inside data/, because the
 # negation above would otherwise let data/key.json through.
