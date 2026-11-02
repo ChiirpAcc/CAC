@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-02T10:54:56",
+  "pushed_at": "2026-11-02T13:55:15",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -9,7 +9,7 @@
     {
       "tab": "CAC Monthly",
       "file": "cac_monthly.json",
-      "rows": 35
+      "rows": 34
     },
     {
       "tab": "Serve Monthly",
@@ -47,19 +47,14 @@
       "rows": 314
     },
     {
-      "tab": "Event Costs",
-      "file": "event_costs.json",
-      "rows": 46
-    },
-    {
       "tab": "Lead Counts",
       "file": "lead_counts.json",
-      "rows": 93
+      "rows": 94
     },
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 983
+      "rows": 987
     },
     {
       "tab": "Webinars",
@@ -69,18 +64,20 @@
     {
       "tab": "Setters",
       "file": "setters.json",
-      "rows": 330
+      "rows": 339
     },
     {
       "tab": "Event Leads",
       "file": "event_leads.json",
-      "rows": 4867
+      "rows": 4930
     }
   ],
   "missing_required": [],
-  "failed": [],
-  "pull_version": "hs-v89",
+  "failed": [
+    "Event Costs: 6+ row(s) have a month that is not YYYY-MM, such as 45901, 45901, 45901. A month column has lost its plain-text format, so Sheets parsed it as a date."
+  ],
+  "pull_version": "hs-v91",
   "row_format": "arrays",
-  "pipeline_version": "v182",
+  "pipeline_version": "v184",
   "push_version": "gh-v15"
 }
