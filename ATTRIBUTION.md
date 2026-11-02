@@ -121,10 +121,15 @@ grid's total is what Stripe collected.
 
 ### 1.7 Churn against the events' average, and the event score (20 Oct 2026)
 
-**Churn.** Each event's departures (an account paying one month and not the
-next) are set against what the whole book's survival curve expected of its
-customers at their ages, and that against the same ratio over every event:
-event customers leave at 1.2 times the book's rate, 4.8% a month. A Poisson
+**Churn.** Each event's departures are set against what the whole book's
+survival curve expected of its customers at their ages, and that against the
+same ratio over every event. A departure is a customer, counted as the page
+counts them (a company, or a grouped account like Tropical Coast's three),
+whose last live month falls from the event month on and before the last
+month of data: one who paid again after a gap has not left, nobody leaves
+twice, and a win-back's departures before the event are not the event's
+(2 Nov 2026; BDR Spark 2026 had read 5 of 5 left with two still paying,
+and Network ST 4 of 2). The same count scales the payback projection. A Poisson
 test says whether the gap is more than chance: significant at p < 0.05, a
 lean at p < 0.2, otherwise in line; with under two departures expected and
 fewer than three seen it is "too few to tell", never a verdict.
@@ -290,6 +295,10 @@ site actually computed. It runs in three places, always with the same code:
 | `upsell-baseline` | Every upsell was paying going in and is credited no more than its increase. |
 | `funnel-ends-on-closed` | Every event's funnel runs leads ≥ sat ≥ won, and won equals its Closed deals: a company the event won from a known prospect (a contact HubSpot already held, or one not tagged to the event) is added to its leads and sat; it is a new customer, not an upsell. |
 | `no-guess-ahead` | No event still ahead (past the last month of data) carries a guessed fee, or estimated travel without confirmed attendees; no such guess is on file either. |
+| `revenue-agrees` | Every event's Revenue card equals the total of its month-by-month payment grid. |
+| `chart-agrees` | Every payback chart ends on the contribution in Net so far, and contribution is never above the revenue collected. |
+| `churn-believable` | No event counts more customers as left than it has customers (companies or grouped accounts) who stopped paying for good. |
+| `same-figure-everywhere` | The scorecard, the Events tab and each event page show the same cost per lead, lead to won and 12-month ROI. |
 
 The audit was tested by breaking the code on purpose: dropping the win window
 failed `credit-window` on the 9 late payers, and counting lists as leads failed

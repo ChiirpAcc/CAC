@@ -5092,7 +5092,9 @@ export function eventReports(data, options = {}) {
   const firstPaid = firstPaymentMonths(data);
   const firstLive = new Map();
   const liveIn = new Map();
+  const nameOfId = new Map();
   for (const r of data.customers) {
+    if (r.name && !nameOfId.has(r.id)) nameOfId.set(r.id, r.name);
     if (!r.active) continue;
     if (!firstLive.has(r.id) || r.month < firstLive.get(r.id)) firstLive.set(r.id, r.month);
     if (!liveIn.has(r.id)) liveIn.set(r.id, new Set());
@@ -5182,15 +5184,34 @@ export function eventReports(data, options = {}) {
     let expected = 0;
     let atRisk = 0;
     if (base) {
+      // One customer per company or grouped account, as the page counts them:
+      // Tropical Coast's three Stripe accounts are one customer, live while
+      // any of them is (Network ST read 4 of 2 left; 2 Nov 2026).
+      const byKey = new Map();
       for (const id of e.broughtIds) {
         const months = liveIn.get(id);
         if (!months || !firstLive.has(id)) continue;
-        const start = firstPaid.get(id) && firstPaid.get(id) > firstLive.get(id) ? firstPaid.get(id) : firstLive.get(id);
+        const k = customerKey(id, nameOfId.get(id));
+        const paid = firstPaid.get(id) && firstPaid.get(id) > firstLive.get(id) ? firstPaid.get(id) : firstLive.get(id);
+        const g = byKey.get(k);
+        if (!g) { byKey.set(k, { months: new Set(months), first: firstLive.get(id), paidFrom: paid }); continue; }
+        for (const m of months) g.months.add(m);
+        if (firstLive.get(id) < g.first) g.first = firstLive.get(id);
+        if (paid < g.paidFrom) g.paidFrom = paid;
+      }
+      for (const { months, first, paidFrom } of byKey.values()) {
+        // Counted from the event on: a win-back's departures before it are not
+        // the event's (Dash Heating's two in 2024 read BDR Spark 2026 as 5 of
+        // 5 left; 2 Nov 2026). A customer has left only if they never paid
+        // again, so a gap they came back from is not a churn, and nobody
+        // leaves twice.
+        const start = e.month && e.month > paidFrom ? e.month : paidFrom;
+        const lastLive = [...months].reduce((a, b) => (b > a ? b : a));
         for (let m = start; m < lastMonth; m = monthAdd(m, 1)) {
           if (!months.has(m)) continue;
-          expected += 1 - base.survival(monthDiff(firstLive.get(id), m));
+          expected += 1 - base.survival(monthDiff(first, m));
           atRisk += 1;
-          if (!months.has(monthAdd(m, 1))) observed += 1;
+          if (m === lastLive) observed += 1;
         }
       }
     }
@@ -6288,6 +6309,56 @@ export function attributionAudit(data) {
       .concat(Object.entries(EVENT_TRAVEL_DECISIONS).filter(([name, d]) => d.estimate && !(d.attendees && d.attendees.length)
         && roi.events.some(e => e.label === name && e.month > data.lastMonth))
       .map(([name]) => `${name}: estimated travel with no confirmed attendees is on file`)));
+  // Each event's money and churn agree with themselves across the page (Josh,
+  // 2 Nov 2026: BDR Spark 2026's card read $23.6k and its chart $16k, and its
+  // churn read 5 of 5 left with two still paying).
+  {
+    const reports = eventReports(data);
+    const pbOf = new Map(reports.payback.map(p => [p.label, p]));
+    const fAll = eventFunnel(data, roi); const byAll = stripeByCompany(data);
+    const held = roi.events.filter(e => !e.upcoming && e.month && (e.customerRows || []).length);
+    const ledgers = new Map(held.map(e => [e.label, eventCustomerLedger(data, e, eventCardFigures(data, roi, e, fAll, byAll))]));
+    const cashOf = e => { const l = ledgers.get(e.label); return l.running.length ? l.running[l.running.length - 1] : 0; };
+    check('revenue-agrees', 'Every event’s Revenue card equals the total of its month-by-month payment grid',
+      held.filter(e => Math.abs((e.collected || 0) - cashOf(e)) > 1)
+        .map(e => `${e.label}: card ${Math.round(e.collected || 0)}, grid ${Math.round(cashOf(e))}`));
+    check('chart-agrees', 'Every payback chart ends on the contribution in Net so far, and contribution is never above the revenue collected',
+      held.flatMap(e => {
+        const p = pbOf.get(e.label); if (!p) return [];
+        const last = p.actualPath.length ? p.actualPath[p.actualPath.length - 1] : 0;
+        return [...(Math.abs(last - p.soFar) > 1 ? [`${e.label}: chart ends ${Math.round(last)}, Net so far uses ${Math.round(p.soFar)}`] : []),
+          ...(p.soFar > cashOf(e) + 1 ? [`${e.label}: contribution ${Math.round(p.soFar)} above revenue ${Math.round(cashOf(e))}`] : [])];
+      }));
+    const liveLast = new Map();
+    const nameOf = new Map();
+    for (const c of data.customers) {
+      if (c.name && !nameOf.has(c.id)) nameOf.set(c.id, c.name);
+      if (c.active && (!liveLast.has(c.id) || c.month > liveLast.get(c.id))) liveLast.set(c.id, c.month);
+    }
+    // Per customer as the page counts them (a company, or a grouped account).
+    check('churn-believable', 'No event counts more customers as left than it has customers who stopped paying for good',
+      reports.payback.filter(p => p.churn).flatMap(p => {
+        const e = roi.events.find(x => x.label === p.label);
+        const last = new Map();
+        for (const id of e.broughtIds) {
+          if (!liveLast.has(id)) continue;
+          const k = customerKey(id, nameOf.get(id));
+          if (!last.has(k) || liveLast.get(id) > last.get(k)) last.set(k, liveLast.get(id));
+        }
+        const gone = [...last.values()].filter(m => m < data.lastMonth).length;
+        return p.churn.observed > gone ? [`${p.label}: ${p.churn.observed} left of ${last.size}, ${gone} stopped for good`] : [];
+      }));
+    const sc = eventScorecard(data, reports);
+    check('same-figure-everywhere', 'The scorecard, the Events tab and each event page show the same leads, closed deals and 12-month ROI',
+      sc.rows.flatMap(x => {
+        const e = roi.events.find(y => y.label === x.label); const k = eventCardFigures(data, roi, e, fAll, byAll); const p = pbOf.get(x.label);
+        const out = [];
+        if (!k.leads || Math.abs(x.costPerLead - e.spend / k.leads) > 0.5) out.push(`${x.label}: cost per lead on ${k.leads} leads differs`);
+        if (k.leads && Math.abs(x.leadToWon - k.closedWon / k.leads) > 1e-9) out.push(`${x.label}: lead to won on ${k.closedWon} closed differs`);
+        if (p && x.roi12 !== p.roi12) out.push(`${x.label}: 12-month ROI differs`);
+        return out;
+      }));
+  }
   return { checks, passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length };
 }
 

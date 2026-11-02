@@ -5738,10 +5738,12 @@ function renderEventPage(label) {
       + `<p class="ev-note">Dollars Stripe collected. ${ledger.cost ? (ledger.passedAt
         ? `<strong>The running total passed the cost of ${money(ledger.cost)} in ${fmt.monthLabel(ledger.passedAt)}.</strong> `
         : `<strong>The running total is ${money(last)}, ${pct(last / ledger.cost)} of the ${money(ledger.cost)} cost.</strong> `)
-        : 'The cost is not known yet. '}This is revenue; the line above and the ROI count contribution, what is left after the `
-      + `cost to serve the customer, so they cross the cost later.</p>`;
+        : 'The cost is not known yet. '}This is revenue, the Revenue collected line on the chart above; the contribution lines and the ROI `
+      + `count what is left after the cost to serve the customer, so they cross the cost later.</p>`;
   })() : '';
-  const curveNote = `<details class="proof-review"><summary>How the projection works</summary><p class="ev-note">Solid is contribution actually received, month by month from the event; dashed is the `
+  const curveNote = `<details class="proof-review"><summary>How the projection works</summary><p class="ev-note">The upper solid line is revenue, the cash Stripe collected, and ends on the Revenue card; `
+    + `the gap below it is the cost to serve those customers. The lower solid line is contribution actually received, `
+    + `what is left after that cost, month by month from the event, and is what pays back the event; dashed is the `
     + `projection from this event’s own churn, and the shaded band is its 90% range: in nine of ten simulated futures `
     + `the line ends up inside it. Each future lets every customer leave, downgrade or upgrade month by month as the book\u2019s `
     + `customers actually did, so with few customers one early departure or plan cut moves it a lot. Revenue is never `
@@ -5868,19 +5870,25 @@ function renderEventPage(label) {
       : i >= pb.actualPath.length && i - pb.age < arr.length ? arr[i - pb.age] : null);
     const low = labels.map((_, i) => bandAt(pb.projectedLow || [], i));
     const high = labels.map((_, i) => bandAt(pb.projectedHigh || [], i));
+    // Cash collected beside the contribution, so the line ends on the Revenue
+    // card and the gap between them is the cost to serve (BDR Spark 2026 read
+    // $23.6k in the card and $16k on the line; 2 Nov 2026).
+    const cash = labels.map((_, i) => (i < ledger.running.length ? ledger.running[i] : null));
     multiLineChart($('event-page-curve'), {
-      labels, yMin: 0, yFormat: v => fmt.money(v), yTitle: 'Contribution received, cumulative',
+      labels, yMin: 0, yFormat: v => fmt.money(v), yTitle: 'Cumulative from the event month',
       xTitle: 'Months from the event, the event month as M1',
       refs: [{ value: pb.spend, label: `Cost ${money(pb.spend)}`, variant: 'ref-goal' }],
       series: [
-        { label: 'Received', colour: INK.primary, values: actual },
-        { label: 'Projected', colour: INK.primary, dashed: true, values: projected },
+        ...(cash.some(v => v) ? [{ label: 'Revenue collected', colour: INK.secondary, values: cash }] : []),
+        { label: 'Contribution received', colour: INK.primary, values: actual },
+        { label: 'Contribution projected', colour: INK.primary, dashed: true, values: projected },
       ],
       bands: (pb.projectedLow || []).length ? [{ label: '90% range', colour: INK.primary, low, high }] : [],
       xMarks: [{ index: pb.age - 1, label: 'Now' }, { index: 11, label: '12 months', highlight: true },
         ...(n > 23 ? [{ index: 23, label: '24 months' }] : [])],
       describe: i => `<strong>Month ${i + 1}</strong>`
-        + (actual[i] !== null ? `<span>Received ${money(actual[i])}</span>` : '')
+        + (cash[i] !== null ? `<span>Revenue collected ${money(cash[i])}</span>` : '')
+        + (actual[i] !== null ? `<span>Contribution received ${money(actual[i])}</span>` : '')
         + (projected[i] !== null && i >= pb.actualPath.length ? `<span>Projected ${money(projected[i])}</span>` : '')
         + (low[i] !== null && i >= pb.actualPath.length ? `<span class="muted">90% range ${money(low[i])} to ${money(high[i])}</span>` : '')
         + `<span class="muted">Cost ${money(pb.spend)}</span>`,
