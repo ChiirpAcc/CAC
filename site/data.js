@@ -722,6 +722,11 @@ export async function load() {
         .filter(r => r.event)
         .map(r => ({
           event: String(r.event).trim(),
+          // v184: the HubSpot sub_lead_source this cost belongs to, written out
+          // by the pipeline from the live list. Cost rows join to leads on it;
+          // a blank tag is an event with no lead tag (no lead count possible),
+          // and a push without the column falls back to the name.
+          tag: r.tag === undefined ? undefined : mergeSource(r.tag),
           month: /^\d{4}-\d{2}$/.test(String(r.month || '')) ? r.month : null,
           sponsor: num(r.sponsor),
           travel: num(r.travel),
@@ -4460,6 +4465,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       cost: known ? (sponsor || 0) + (travel || 0) : null,
       year: eventYear(c.event, c.month),
       words: eventWords(c.event),
+      tag: c.tag,
     };
   });
 
@@ -4745,8 +4751,8 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     const aliased = EVENT_ALIASES[b.source];
     const year = (b.source.match(/^(20\d\d)\s*-/) || [])[1] || null;
     const words = eventWords(b.source.replace(/^20\d\d\s*-\s*/, ''));
-    let cost = null;
-    if (aliased) cost = costRows.find(c => c.event === aliased) || null;
+    let cost = costRows.find(c => c.tag && c.tag === b.source) || null;
+    if (!cost && aliased) cost = costRows.find(c => c.event === aliased) || null;
     if (!cost) cost = costRows.find(c => c.words === words && c.year === year) || null;
     if (!cost) {
       const byName = costRows.filter(c => c.words === words);
@@ -4767,7 +4773,8 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       : upcoming || listed || (year ? `${year}-01` : null);
     // The won deal names this event if it carries the same value, or one
     // that reads as the same cost row.
-    const sameEvent = won => won === b.source || (cost && (EVENT_ALIASES[won] === cost.event
+    const sameEvent = won => won === b.source || (cost && ((cost.tag && mergeSource(won) === cost.tag)
+      || EVENT_ALIASES[won] === cost.event
       || (eventWords(won.replace(/^20\d\d\s*-\s*/, '')) === cost.words
         && ((won.match(/^(20\d\d)\s*-/) || [])[1] || cost.year) === cost.year)));
     // With the switch on, a customer whose tag was written after the end of
@@ -5148,6 +5155,11 @@ export function eventReports(data, options = {}) {
     const settling = !eventHasReturn(e) && e.spend > 0 && Boolean(e.month) && !e.upcoming
       && e.cost && e.cost.costState === 'settling';
     if (!eventHasReturn(e) && !settling) continue;
+    // An event held in the last month of data is under 45 days old: its cost
+    // is settling whether or not the tab says so yet, and its leads may not
+    // be in. Home Service Freedom 2026 (26-28 Oct) was scored on 2 Nov from
+    // one re-tagged customer and two leads; it waits like any settling event.
+    const justHeld = e.spend > 0 && Boolean(e.month) && !e.upcoming && e.month >= lastMonth;
     const age = ageOf(e);
     let running = 0;
     let paidAt = null;
@@ -5279,7 +5291,7 @@ export function eventReports(data, options = {}) {
       }
     }
     payback.set(e.label, {
-      label: e.label, month: e.month, spend: e.spend, age, soFar: running, provisional: settling,
+      label: e.label, month: e.month, spend: e.spend, age, soFar: running, provisional: settling || justHeld,
       recovered: running / e.spend, liveCustomers: live.length, monthlyNow,
       paidAt, projectedAt, companyOnlyAt,
       churn: { observed, expected, hazard, atRisk },
@@ -5501,6 +5513,8 @@ export function eventLeads(data, roi = eventRoi(data)) {
   const costFor = source => {
     const bySource = roi.events.find(e => e.source === source && e.cost);
     if (bySource) return bySource;
+    const tagged = costRows.find(e => e.cost.tag && e.cost.tag === source);
+    if (tagged) return tagged;
     const aliased = EVENT_ALIASES[source];
     if (aliased) return costRows.find(e => e.label === aliased) || null;
     const year = (source.match(/^(20\d\d)\s*-/) || [])[1] || null;
@@ -6358,6 +6372,8 @@ export function attributionAudit(data) {
         if (p && x.roi12 !== p.roi12) out.push(`${x.label}: 12-month ROI differs`);
         return out;
       }));
+    check('not-scored-too-soon', 'No event held in the last month of data is scored or ranked: its cost is settling and its leads may not be in',
+      sc.rows.filter(x => x.month && x.month >= data.lastMonth).map(x => `${x.label} (${x.month}) is scored`));
   }
   return { checks, passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length };
 }

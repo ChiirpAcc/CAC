@@ -299,6 +299,7 @@ site actually computed. It runs in three places, always with the same code:
 | `chart-agrees` | Every payback chart ends on the contribution in Net so far, and contribution is never above the revenue collected. |
 | `churn-believable` | No event counts more customers as left than it has customers (companies or grouped accounts) who stopped paying for good. |
 | `same-figure-everywhere` | The scorecard, the Events tab and each event page show the same cost per lead, lead to won and 12-month ROI. |
+| `not-scored-too-soon` | No event held in the last month of data is scored or ranked: under 45 days on, its cost is settling and its leads may not be in. |
 
 The audit was tested by breaking the code on purpose: dropping the win window
 failed `credit-window` on the 9 late payers, and counting lists as leads failed
