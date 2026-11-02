@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-02T13:55:15",
+  "pushed_at": "2026-11-02T14:35:42",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -54,7 +54,7 @@
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 987
+      "rows": 988
     },
     {
       "tab": "Webinars",
@@ -64,7 +64,7 @@
     {
       "tab": "Setters",
       "file": "setters.json",
-      "rows": 339
+      "rows": 312
     },
     {
       "tab": "Event Leads",
@@ -76,7 +76,7 @@
   "failed": [
     "Event Costs: 6+ row(s) have a month that is not YYYY-MM, such as 45901, 45901, 45901. A month column has lost its plain-text format, so Sheets parsed it as a date."
   ],
-  "pull_version": "hs-v91",
+  "pull_version": "hs-v93",
   "row_format": "arrays",
   "pipeline_version": "v184",
   "push_version": "gh-v15"
