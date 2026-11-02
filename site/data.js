@@ -5051,7 +5051,9 @@ export function eventReports(data, options = {}) {
   // Under three months old with no customer yet is a start, not a result,
   // everywhere on the tab: not in the nothing list, not behind on organisers,
   // not "no customer" in payback or kinds.
-  const isTooNew = e => eventHasReturn(e) && !e.paid && ageOf(e) < 3;
+  // Whether or not its cost has settled: Pantheon 2026, settling, read
+  // "-100% projected" with twelve deals open (2 Nov 2026).
+  const isTooNew = e => !e.paid && ageOf(e) < 3;
 
   // ---- age-matched recovery
   const recovery = roi.events.filter(eventHasReturn).map(e => {
