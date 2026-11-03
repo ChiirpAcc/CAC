@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-03T11:37:18",
+  "pushed_at": "2026-11-03T16:10:23",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -9,7 +9,7 @@
     {
       "tab": "CAC Monthly",
       "file": "cac_monthly.json",
-      "rows": 34
+      "rows": 35
     },
     {
       "tab": "Serve Monthly",
@@ -47,6 +47,11 @@
       "rows": 314
     },
     {
+      "tab": "Event Costs",
+      "file": "event_costs.json",
+      "rows": 47
+    },
+    {
       "tab": "Lead Counts",
       "file": "lead_counts.json",
       "rows": 94
@@ -54,7 +59,7 @@
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 990
+      "rows": 1001
     },
     {
       "tab": "Webinars",
@@ -73,11 +78,9 @@
     }
   ],
   "missing_required": [],
-  "failed": [
-    "Event Costs: 6+ row(s) have a month that is not YYYY-MM, such as 45901, 45901, 45901. A month column has lost its plain-text format, so Sheets parsed it as a date."
-  ],
-  "pull_version": "hs-v95",
+  "failed": [],
+  "pull_version": "hs-v96",
   "row_format": "arrays",
-  "pipeline_version": "v185",
+  "pipeline_version": "v186",
   "push_version": "gh-v15"
 }
