@@ -763,6 +763,10 @@ export async function load() {
         // v139: earned and created on or after the event (dated events only),
         // and the Stripe customers carrying the tag.
         earnedAfter: count(r.earned_after_event),
+        // v185: earned contacts HubSpot already held that the event brought
+        // back. Shown beside earnedAfter, never added to it (pipeline, 3 Nov
+        // 2026): they are not new leads.
+        reEngaged: count(r.re_engaged),
         customersTotal: count(r.customers_total),
         // v148: contacts counted from a HubSpot first-touch campaign where
         // nobody typed a lead source.
@@ -5547,6 +5551,7 @@ export function eventLeads(data, roi = eventRoi(data)) {
       before: r.before, after: r.after, customersTotal: r.customersTotal,
       confirmed: r.confirmed, contradicted: r.contradicted, withStripe: r.withStripe, readAs: r.readAs,
       fromCampaign: r.fromCampaign ?? null,
+      reEngaged: dated && !ahead ? r.reEngaged ?? null : null,
       listShare: r.total ? r.list / r.total : null,
       spend, costState,
       costPerLead: spend > 0 && leads && !costState && !(e && e.upcoming) ? spend / leads : null,

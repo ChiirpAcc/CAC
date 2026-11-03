@@ -5510,6 +5510,8 @@ function renderEventPage(label) {
         (lead.dated ? `new to HubSpot on or after ${lead.eventDate}, by a meeting, form, rep, chat or scan`
           : 'a meeting, form, rep, chat or scan; no event date, so it may include earlier contacts')
         + (newShown !== lead.leads ? `; the pipeline counts ${fmt.int(lead.leads)}, the rules here leave out lists and re-tags` : '')))
+      + (lead.reEngaged !== null && lead.reEngaged !== undefined ? fact('Re-engaged by it', int(lead.reEngaged),
+        'contacts HubSpot already held who did something at the event, by the pipeline’s count; not new leads, so not added to the count above') : '')
       + fact('Tagged contacts in all', int(lead.total), 'everyone HubSpot tags with this event')
       + (lead.dated ? fact('Already in HubSpot before it', int(lead.before),
         funRow && funRow.reengaged ? `tagged, not new; ${fmt.int(funRow.reengaged)} re-engaged by it are counted` : 'tagged, not new; not counted') : '')
@@ -6389,6 +6391,7 @@ function renderEvents() {
         + el.events.map(x => `<tr><td>${x.label}${x.eventDate ? `<br><span class="muted">${x.eventDate}</span>` : ''}</td>`
           + `<td class="n">${x.leads === null ? '–' : fmt.int(x.leads)}<br><span class="muted">${x.leadsBasis === 'new'
               ? `new, of ${fmt.int(x.earned)} earned` : 'earned, undated'}</span>`
+          + `${x.reEngaged ? `<br><span class="muted">+ ${fmt.int(x.reEngaged)} re-engaged, not counted</span>` : ''}`
           + `${x.fromCampaign ? `<br><span class="muted">${fmt.int(x.fromCampaign)} from a campaign, not a tag</span>` : ''}</td>`
           + `<td class="n">${x.withCompany === null ? '–' : fmt.int(x.withCompany)}</td>`
           + `<td class="n">${x.withStripe === null ? '–' : fmt.int(x.withStripe)}${x.companyToCustomer !== null
