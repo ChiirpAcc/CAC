@@ -1,9 +1,182 @@
 {
- "checked": "2026-10-26",
+ "checked": "2026-11-03",
  "setter": "Ryan Peterson",
  "portal": "23947290",
  "note": "HubSpot contacts whose Setter is Ryan Peterson, every source; each demo is the first new-business deal on the contact, which HubSpot opens once the demo is held. Company names and record ids only.",
  "sets": [
+  {
+   "contactId": 581345054396,
+   "company": "ET&M REFRIGERATION",
+   "source": "FieldEdge",
+   "setOn": "2026-10-29",
+   "setBasis": "contact created",
+   "created": "2026-10-29",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 361160858305,
+    "on": "2026-11-02",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 579827892942,
+   "company": "Kowalske Kitchen & Bath",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-28",
+   "setBasis": "contact created",
+   "created": "2026-10-28",
+   "demoScheduled": "2026-11-04",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 579823789784,
+   "company": "Windows Direct USA",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-28",
+   "setBasis": "contact created",
+   "created": "2026-10-28",
+   "demoScheduled": "2026-11-06",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 579769882322,
+   "company": "American home design",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-28",
+   "setBasis": "contact created",
+   "created": "2026-10-28",
+   "demoScheduled": "2026-11-13",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 579457485534,
+   "company": "RIHI",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-28",
+   "setBasis": "contact created",
+   "created": "2026-10-28",
+   "demoScheduled": "2026-11-04",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 579411914436,
+   "company": "Southwest style Inc",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": "2026-11-17",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 579406029561,
+   "company": "Renewal by Andersen",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": "2026-11-17",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 579398712006,
+   "company": "Solatube Home",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": "2026-11-11",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 579012395760,
+   "company": "Beartooth bathrooms",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": "2026-11-06",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 578999476966,
+   "company": "Improveit",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": "2026-11-04",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 578660331198,
+   "company": "Nu-face home improvements",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": "2026-11-04",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 578057990849,
+   "company": "Yankee Home",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": "2026-11-10",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 578034783981,
+   "company": "White glove roofing",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": "2026-11-11",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 578054594292,
+   "company": "Aqua grip",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": "2026-11-03",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 578028071647,
+   "company": "Solid Structures",
+   "source": "2026 - HSF Freedom",
+   "setOn": "2026-10-27",
+   "setBasis": "contact created",
+   "created": "2026-10-27",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
   {
    "contactId": 573639352023,
    "company": "Hickory",
@@ -699,7 +872,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 84662,
+   "contactId": "84662",
    "company": "Northern Services",
    "source": "2026 - EGIA Epic Tradeshow",
    "setOn": "2026-02-26",
@@ -1031,7 +1204,7 @@
   },
   {
    "contactId": 319319698146,
-   "company": "Big family electrical",
+   "company": "Big Family Electrical ",
    "source": "2026 - CertainPath Partner Jam",
    "setOn": "2025-11-11",
    "setBasis": "demo date",
@@ -1106,7 +1279,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 12660485685,
+   "contactId": "12660485685",
    "company": "Hey Bo LLC dba Hey Bo Garage Doors",
    "source": "Garage Door Freedom",
    "setOn": "2025-10-09",
@@ -1127,7 +1300,7 @@
   {
    "contactId": 113246715817,
    "company": "Cornwell Plumbing",
-   "source": "Blue Collar Success",
+   "source": "Webinar - Chris Crew",
    "setOn": "2025-10-06",
    "setBasis": "set",
    "created": "2025-05-08",
@@ -1596,7 +1769,7 @@
   },
   {
    "contactId": 106119341338,
-   "company": "Mullikin Group",
+   "company": "Mullikin Group dba Bath Fitter",
    "source": "2025 - Pantheon",
    "setOn": "2025-09-17",
    "setBasis": "set",
@@ -1682,7 +1855,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 113901,
+   "contactId": "113901",
    "company": "Lakeview window cleaning",
    "source": "2025 - Home Service Freedom",
    "setOn": "2025-09-05",
@@ -1956,6 +2129,17 @@
     "amount": null,
     "laterWonDealId": null
    },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 138830432876,
+   "company": "Tech-On-Deck Heating, Air & Electric",
+   "source": "FieldEdge",
+   "setOn": "2025-07-17",
+   "setBasis": "contact created",
+   "created": "2025-07-17",
+   "demoScheduled": null,
+   "demo": null,
    "firstDealIsRenewal": false
   },
   {
@@ -2877,7 +3061,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 313351,
+   "contactId": "313351",
    "company": "Service Relief Llc",
    "source": "2025 - Pantheon",
    "setOn": "2024-06-03",
@@ -3024,7 +3208,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 21266394942,
+   "contactId": "21266394942",
    "company": "Bill Fry The Plumbing Guy",
    "source": "2026 - BCSG Acceleration Days",
    "setOn": "2024-05-14",
@@ -3043,7 +3227,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 13357939046,
+   "contactId": "13357939046",
    "company": "Delta heating cooling and plumbing",
    "source": "2026 - Pantheon",
    "setOn": "2024-04-17",
