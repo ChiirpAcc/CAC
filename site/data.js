@@ -3632,6 +3632,8 @@ export const EVENT_FEES_QB = {
       + 'sponsorship, $1,500 a month, is separate and booked under advertising.' },
   'Raising GOATS 2026': { sponsor: 12500,
     basis: 'EGIA bill for the Raising Goats conference, Mar 2026.' },
+  'Standard Plumbing Industry Show 2026': { sponsor: 4997,
+    basis: 'Standard Plumbing Industry Show booth, recognised Mar 2026 (journal AA_2026-03_504f95).' },
   'Redwood Leadership Summit': { sponsor: 10000,
     basis: 'Redwood Services sponsorship, Apr 2026.' },
 };
@@ -3782,7 +3784,6 @@ const byEventName = (table, name, month) => {
 // that belong to no event on the Event Costs tab, so they are in no figure on
 // the Events tab. Listed so the tab's total can be read against the ledger.
 export const EVENT_UNASSIGNED_QB = [
-  { what: 'Standard Plumbing Industry Show booth', months: 'Mar 2026', amount: 4997 },
   { what: 'SOLA Group sponsorship media', months: 'Aug 2026', amount: 10000 },
   { what: 'Utah Plumbing and Heating Contractors golf sponsorship', months: 'Aug 2026', amount: 876 },
   { what: 'Booth materials and printing across the year', months: 'Sep 2025 to Aug 2026', amount: 8700, approximate: true },
@@ -3973,6 +3974,7 @@ export const EVENT_META = {
     conflict: 'The planning sheet shows registration only, but QuickBooks books $10,000 to Redwood Services as the summit’s sponsorship, and no lead capture was set up. Confirm what the $10,000 bought.' },
   'GDF Vertical Track 2026': { type: 'Partner network event', organiser: 'Garage Door Freedom', plan2027: ON },
   'Nuve 2026': { type: 'Partner network event', organiser: 'Nuve', plan2027: ON },
+  'Standard Plumbing Industry Show 2026': { type: 'Partner network event', organiser: 'Standard Plumbing Supply', plan2027: OFF },
   'Grosso University 2026': { type: 'Partner network event', organiser: 'Grosso University', plan2027: ON },
   // Due on the tab within the next pushes.
   // The Wealthy Plumber's 2026 event (Josh, 9 Oct 2026); its 2026 Wealthy
@@ -4047,6 +4049,11 @@ export function firstPaymentMonths(data) {
 // over the moment somebody adds the row. Travel is the partnerships team's
 // own estimate on its Live Tracking sheet (Aug 2026), marked modelled.
 export const EVENT_EXTRA_COSTS = [
+  // Counted as a 2026 event (Josh, 3 Nov 2026). QuickBooks has the booth fee
+  // only; no card charges are matched to it, so travel is not known.
+  { event: 'Standard Plumbing Industry Show 2026', month: '2026-03', sponsor: 4997, travel: null,
+    costSource: 'recorded', note: 'QuickBooks: Standard Plumbing Industry Show booth, '
+      + 'recognised Mar 2026. Travel is not known: no card charges are matched to it.' },
   { event: 'Home Service Hoorah 2026', month: '2026-09', sponsor: 4997, travel: null,
     costSource: 'recorded', note: 'QuickBooks: a Feb 19 2026 bill from Gulf Coast Business Coaching, "Vendor '
       + 'Booth Home service hoorah for the period of September 2026", deferred to Sep 2026. Travel is not known yet.' },
