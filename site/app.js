@@ -23,7 +23,7 @@ import {
   bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
-  silentLogos, logosStarted,
+  silentLogos, logosStarted, eventSpendingCsv,
 } from './data.js';
 import {
   lineChart, multiLineChart, columnChart, stackedColumnChart, flowChart, scatterOverTime,
@@ -6915,6 +6915,27 @@ function renderEvents() {
       $('events-status').textContent = `${fmt.int(e.events.length)} events exported.`;
     });
     button.dataset.ready = '1';
+  }
+
+  // What each event cost to attend: the fee (sponsorship, booth, registration)
+  // and travel, as the table counts them. Swag and giveaways are not event
+  // costs here, so they are not in it (Josh, 3 Nov 2026).
+  const spendButton = $('events-spend-download');
+  if (spendButton && !spendButton.dataset.ready) {
+    spendButton.addEventListener('click', () => {
+      const lines = eventSpendingCsv(renderEvents.latest.e);
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `chiirp-event-spending-${renderEvents.latest.e.lastMonth}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      $('events-status').textContent = `${fmt.int(lines.length - 1)} events' costs exported.`;
+    });
+    spendButton.dataset.ready = '1';
   }
 }
 

@@ -4400,6 +4400,38 @@ export const DEFAULT_CREDIT_RULE = 'won6';
 // held (v138). They can disagree. The key stays 'last' so saved links work.
 export const TOUCHES = ['last', 'first'];
 
+// What each event cost to attend, one CSV line per event with a cost: the fee
+// (sponsorship, booth, registration) and travel, exactly as the Events table
+// counts them, with where each came from. Swag and giveaways are not event
+// costs here (Josh, 3 Nov 2026). Takes eventRoi's result; returns the lines.
+export function eventSpendingCsv(roi) {
+  const cell = v => {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(2);
+    const text = String(v);
+    return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  };
+  const rows = roi.events.filter(x => x.cost).map(x => {
+    const c = x.cost;
+    const td = c.travelDecision;
+    const ahead = Boolean(x.month && roi.lastMonth && x.month > roi.lastMonth);
+    const state = c.costState || x.costState;
+    const status = ahead ? 'upcoming'
+      : td && td.estimate ? 'held, travel estimated'
+      : state === 'settling' ? 'held, still settling'
+      : 'held';
+    const travelBasis = c.travel === null || c.travel === undefined ? 'Not known yet.'
+      : td ? `${td.estimate ? 'Estimate' : 'Measured'}: ${td.evidence}`
+      : 'Measured: card charges matched to the event, from the Event Costs tab.';
+    // Undated events sort to the end of their month.
+    const date = x.eventDate || (x.month ? `${x.month}-99` : '');
+    return { date, line: [x.label, x.year || (x.month || '').slice(0, 4), x.eventDate, x.month, status,
+      c.sponsor, c.travel, x.spend, c.feeFrom || 'Event Costs tab', c.sponsorBasis, travelBasis].map(cell).join(',') };
+  }).sort((a, b) => a.date.localeCompare(b.date));
+  return ['event,year,event_date,month,status,fee,travel,total,fee_source,fee_basis,travel_basis']
+    .concat(rows.map(r => r.line));
+}
+
 export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CREDIT_RULE, touch = 'last' } = {}) {
   const costs = [...(data.eventCosts || []).filter(c => !EVENT_ROWS_MERGED.has(c.event)).map(c => ({ ...c, extra: false })),
     ...EVENT_EXTRA_COSTS.filter(x => !onTab(x, data.eventCosts || [])).map(x => ({ ...x, extra: true }))];
