@@ -4426,9 +4426,11 @@ export function eventSpendingCsv(roi) {
     const status = ahead ? 'upcoming'
       : td && td.estimate ? 'held, travel estimated'
       : state === 'settling' ? 'held, still settling'
+      : c.travel === null || c.travel === undefined ? 'held, travel not known'
       : 'held';
     const travelBasis = c.travel === null || c.travel === undefined ? 'Not known yet.'
-      : td ? `${td.estimate ? 'Estimate' : 'Measured'}: ${td.evidence}`
+      : td && td.estimate ? (td.evidence.startsWith('Estimate') ? td.evidence : `Estimate: ${td.evidence}`)
+      : td ? `Measured: ${td.evidence}`
       : 'Measured: card charges matched to the event, from the Event Costs tab.';
     // Undated events sort to the end of their month.
     const date = x.eventDate || (x.month ? `${x.month}-99` : '');
