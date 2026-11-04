@@ -35,7 +35,7 @@ LABELS = {
     "The Dirty Dozen Retreat": "Dirty Dozen Retreat 2026",
     "CCN ELEVATE 2026": "CCN Elevate 2026",
     "Service Titan Pantheon": "Pantheon 2026",
-    "CertainPath Connect/Partner Jam": "CertainPath Connect 2026",
+    "CertainPath Connect/Partner Jam": "CertainPath Partner Jam 2026",
     "Qualified Remodeler Top 500": "Qualified Remodeler Top 500 2026",
     "HSF Freedom 2026": "Home Service Freedom 2026",
     "Build it to Sell it": "Build it to Sell it 2026",

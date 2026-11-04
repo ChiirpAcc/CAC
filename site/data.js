@@ -281,7 +281,11 @@ const LEAD_SOURCE_EVENT_VALUES = new Set(['Blue Sky Mastermind (Tradesformation)
 const SOURCE_MERGE = { '2026 - Wealthy Plumber': '2026 - Home Service Hoorah',
   // A misspelt option holding one contact.
   '2026 - HSF Freedom': '2026 - Home Service Freedom' };
-const EVENT_ROWS_MERGED = new Set(['Wealthy Plumber 2026']);
+// The v186 tab carries CertainPath's October event twice: "CertainPath Partner
+// Jam 2026" with the HubSpot tag and "CertainPath Connect 2026" without one.
+// They are one event (Hilton Cancun, 14 to 16 Oct 2026); the tagged row is
+// kept and carries the cost (3 Nov 2026).
+const EVENT_ROWS_MERGED = new Set(['Wealthy Plumber 2026', 'CertainPath Connect 2026']);
 const mergeSource = v => { const t = String(v || '').trim(); return SOURCE_MERGE[t] || t || null; };
 function leadMediumOf(source, medium) {
   const name = String(source || '').trim();
@@ -3754,19 +3758,20 @@ export const EVENT_TRAVEL_DECISIONS = {
     evidence: 'Estimate. $3,168 is proven on cards and TravelPerk; added: 3 hotel stays (Blake Fenn, Ky Decker, Tavi Carvajal) of 4 nights at $260 a night, none of which is on any card we have. Likely range $5,244 to $8,268; the tab had $4,606, outside it.' },
   'Raising GOATS 2026': { was: 1547, now: 1630.34,
     evidence: 'The card charges matched to it, $1,176.94, and Ryan Fenn’s 18 Mar Delta fare, $453.40: he flew to it (Salt Lake City airport parking 25 Mar, a Scottsdale hotel), and of his two fares before it that one is the round trip to Phoenix. Replaces the $1,839 estimate (22 Oct 2026).' },
-  // Upcoming events: travel committed, estimated from what is booked and the
-  // same medians until the costs come in; the tab's figure replaces it. Only
-  // for an event someone is listed as going to. A fee is never guessed: an
-  // upcoming event with no fee in the tab, the Event Hub or a bill reads
-  // "fee unknown", and one with no confirmed attendees (none listed, or
-  // listed as not registered) has travel unknown too (Josh, 20 Oct 2026;
-  // this applies to every future event).
-  'CertainPath Connect 2026': { was: null, now: 5565, estimate: true, attendees: ['Ryan Peterson', 'Justin Judd'],
-    evidence: 'Estimate. Booked in the Event Hub: hotels $2,628 and a car $104. Added: flights to Cancun for Ryan Peterson and Justin Judd at $1,125 each, what the same pair paid to Cabo for the Fall Expo, and meals and ground at $97 a person a day.' },
-  'Qualified Remodeler Top 500 2026': { was: null, now: 6932, estimate: true, attendees: ['Justin Judd', 'Ryan Fenn', 'Ky Decker', 'Ryan Peterson'],
-    evidence: 'Estimate. Flights for four at $662 each ($1,230 is booked so far), hotels for four at $260 a night for three nights, and meals and ground at $97 a person a day.' },
-  'Home Service Freedom 2026': { was: null, now: 6713, estimate: true, attendees: ['Colton Lingmann', 'Blake Fenn', 'Taylor Roberts', 'Ryan Fenn'],
-    evidence: 'Estimate. Hotels $2,901 booked in the Event Hub; flights for four at $662 each, and meals and ground at $97 a person a day.' },
+  // The October events, measured from the Ramp export of 3 Nov 2026 (the
+  // month-end run): every charge is listed under Proof of cost. They replace
+  // the estimates made while the events were ahead. Ryan Fenn is listed for
+  // both Las Vegas events; he stayed at Mandalay Bay and spoke at HSF, so all
+  // his charges are on HSF.
+  'CertainPath Partner Jam 2026': { was: null, now: 5931.49,
+    evidence: 'The card charges matched to the event: 14 charges, each listed under Proof of cost with who paid and why it is this event’s (Ramp export of 3 Nov 2026). Replaces the $5,565 estimate.' },
+  'Qualified Remodeler Top 500 2026': { was: null, now: 5749.00,
+    evidence: 'The card charges matched to the event: 34 charges for Justin Judd, Ky Decker and Ryan Peterson, each listed under Proof of cost (Ramp export of 3 Nov 2026). Ryan Fenn’s charges are on Home Service Freedom. Replaces the $6,932 estimate.' },
+  'Home Service Freedom 2026': { was: null, now: 9766.35,
+    evidence: 'The card charges matched to the event: 61 charges, each listed under Proof of cost (Ramp export of 3 Nov 2026), including Ryan Fenn’s, who stayed at Mandalay Bay and spoke here. Replaces the $6,713 estimate.' },
+  // Pantheon's hotel holds settled lower than the Oct 9 export showed them.
+  'Pantheon 2026': { was: 21151, now: 20279.14,
+    evidence: 'The card charges matched to the event: 98 charges, each listed under Proof of cost. The Walt Disney World holds of the Oct 9 export settled lower ($1,224.70 rooms at $1,093.50, $827.40 at $729.00; Ramp export of 3 Nov 2026).' },
 };
 
 // Any table keyed by event name is read by the name, or failing that by the
@@ -3833,7 +3838,7 @@ export const EVENT_FEE_DECISIONS = [
     evidence: 'QuickBooks books $30,000 to ServiceTitan in Sep 2025, and Shepard Exposition billed a further '
       + '$1,616.25 late graphics fee (#199800, Dec 2025) on the "Pantheon - Fall 2025" booth. The $40,000 on '
       + 'the planning sheet was not paid.' },
-  { event: 'CertainPath Connect 2026', was: null, now: 0, confidence: 'strong',
+  { event: 'CertainPath Partner Jam 2026', was: null, now: 0, confidence: 'strong',
     evidence: 'The Event Hub records the sponsorship as covered: "Costs will be travel only".' },
   { event: 'Qualified Remodeler Top 500 2026', was: 0, now: 20000, confidence: 'strong',
     evidence: 'SOLA Group, publisher of Qualified Remodeler, billed a $20,000 Gold Sponsorship for the period of '
@@ -3987,7 +3992,7 @@ export const EVENT_META = {
   'HSF 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   'Home Service Freedom 2026': { type: 'Conference sponsorship', organiser: 'Home Service Freedom', plan2027: ON },
   // From the Event Hub, upcoming (9 Oct 2026).
-  'CertainPath Connect 2026': { type: 'Partner network event', organiser: 'CertainPath' },
+  'CertainPath Partner Jam 2026': { type: 'Partner network event', organiser: 'CertainPath' },
   'Build it to Sell it 2026': { type: 'Not yet classified' },
   'Table of Titans 2027': { type: 'Small room', organiser: 'Table of Titans' },
   'Wealthy Contractor ACC 2027': { type: 'Conference sponsorship', organiser: 'The Wealthy Contractor' },
@@ -4063,7 +4068,7 @@ export const EVENT_EXTRA_COSTS = [
   // Upcoming events on the CHIIRP Event Hub (read 9 Oct 2026) that the Event
   // Costs tab does not carry yet. A blank booth fee is one the Event Hub has
   // no value for; travel is counted when the event happens.
-  { event: 'CertainPath Connect 2026', month: '2026-10', sponsor: null, travel: null, costState: 'not yet',
+  { event: 'CertainPath Partner Jam 2026', month: '2026-10', sponsor: null, travel: null, costState: 'not yet',
     costSource: 'not yet', note: 'Event Hub: CertainPath Connect / Partner Jam, 14 to 16 Oct 2026, Hilton Cancun. '
       + 'No booth fee entered; $2,628 of hotels already booked.' },
   { event: 'Build it to Sell it 2026', month: '2026-12', sponsor: null, travel: null, costState: 'not yet',
@@ -4494,6 +4499,10 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     const known = sponsor !== null || travel !== null;
     return {
       ...c,
+      // A fee the tab marks absent is no longer missing once a decision
+      // settles it (CertainPath Partner Jam 2026: covered, $0; 3 Nov 2026).
+      costState: decided && c.costState === 'absent'
+        ? (/settling/i.test(String(c.costSource || '')) ? 'settling' : null) : c.costState,
       tabTravel: c.travel,
       travel,
       travelDecision: travelDecided ? td : null,
