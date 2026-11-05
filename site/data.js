@@ -4071,8 +4071,8 @@ export const EVENT_EXTRA_COSTS = [
   { event: 'CertainPath Partner Jam 2026', month: '2026-10', sponsor: null, travel: null, costState: 'not yet',
     costSource: 'not yet', note: 'Event Hub: CertainPath Connect / Partner Jam, 14 to 16 Oct 2026, Hilton Cancun. '
       + 'No booth fee entered; $2,628 of hotels already booked.' },
-  { event: 'Build it to Sell it 2026', month: '2026-12', sponsor: null, travel: null, costState: 'not yet',
-    costSource: 'not yet', note: 'Event Hub: 7 to 9 Dec 2026, The Diplomat Beach Resort, Hollywood FL. No fee entered; unpaid.' },
+  { event: 'Build it to Sell it 2026', month: '2026-12', sponsor: 7500, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'Event Hub (read 3 Nov 2026): 7 to 9 Dec 2026, The Diplomat Beach Resort, Hollywood FL. Fee $7,500, paid. Travel is counted when the event happens.' },
   // Found in the QuickBooks Transaction Detail export of 19 Oct 2026, on no
   // calendar yet: The Wealthy Contractor (Jered Williams, the Hoorah's
   // organiser) billed a Gold annual sponsorship of its ACC27 for Feb 2027.
@@ -4083,8 +4083,8 @@ export const EVENT_EXTRA_COSTS = [
   { event: 'Table of Titans 2027', month: '2027-01', sponsor: 7995, travel: null, costState: 'not yet',
     costSource: 'not yet', note: 'Event Hub: Table of Titans (Tony Hoty Mastermind), 13 to 15 Jan 2027, The Don Cesar, '
       + 'St. Pete Beach FL. Fee $7,995, unpaid.' },
-  { event: 'EGIA Epic 2027', month: '2027-02', sponsor: null, travel: null, costState: 'not yet',
-    costSource: 'not yet', note: 'Event Hub: EGIA EPIC 2027, 25 to 26 Feb 2027, Mandalay Bay, Las Vegas. No fee entered; unpaid.' },
+  { event: 'EGIA Epic 2027', month: '2027-02', sponsor: 6375, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'Event Hub (read 3 Nov 2026): EGIA EPIC 2027, 25 to 26 Feb 2027, Mandalay Bay, Las Vegas. Fee $6,375, unpaid. Travel is counted when the event happens.' },
 ];
 // The tab carries an extra event if any row has its name, or its words and a
 // month within one of it, so "Grosso University Aug 2026" in September still
