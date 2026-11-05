@@ -4501,8 +4501,14 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
       ...c,
       // A fee the tab marks absent is no longer missing once a decision
       // settles it (CertainPath Partner Jam 2026: covered, $0; 3 Nov 2026).
+      // An event held in the last month of data is still settling whatever
+      // the tab says: charges and refunds keep arriving for weeks (the
+      // pipeline's own rule is 45 days). HSF 2026, 26 to 28 Oct, had a blank
+      // cost_source and was ranked beside the settling October events (5 Nov 2026).
       costState: decided && c.costState === 'absent'
-        ? (/settling/i.test(String(c.costSource || '')) ? 'settling' : null) : c.costState,
+        ? (/settling/i.test(String(c.costSource || '')) ? 'settling' : null)
+        : !c.costState && c.month && data.lastMonth && c.month === data.lastMonth ? 'settling'
+        : c.costState,
       tabTravel: c.travel,
       travel,
       travelDecision: travelDecided ? td : null,
