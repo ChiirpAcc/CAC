@@ -4316,7 +4316,9 @@ export const HUBSPOT_WON_DEAL_BY_COMPANY = {
 // (Event Leads has no close date). Checked live 19 Oct 2026; the won dates in
 // HUBSPOT_WON_DEAL_LINKS beside the same deals.
 // Event deals HubSpot shows still open (new-business pipeline, not closed),
-// checked live 22 Oct 2026. Event Leads marks every deal won yes or no, so
+// checked live 22 Oct 2026 and again 9 Nov 2026 (every listed deal still
+// open; Hickory, Builder Home Services, Aquarius, Sullivan, Allsafe and Bath
+// Fitter added). Event Leads marks every deal won yes or no, so
 // "no" covers lost and still open; the oldest open event deals are six
 // months old (Lennox Live Anaheim, April), so no age rule separates them.
 // These read as still open, not lost, until the push carries each deal's
@@ -4324,14 +4326,16 @@ export const HUBSPOT_WON_DEAL_BY_COMPANY = {
 export const HUBSPOT_OPEN_DEALS = {
   '2026 - Pantheon': ['Reid & Pederson', 'Trenchless Innovations', '247 Plumbing Sewer & Water', '24/7 Services Inc',
     'Acadiana Garage Doors', 'Septic Blue', 'Canopy Services', 'Mid-America Mister Sparky', 'PJ Fitzpatrick',
-    'Oceanview Heating and Air', 'Punchy', 'RAW Marketing'],
+    'Oceanview Heating and Air', 'Punchy', 'RAW Marketing', 'Hickory', 'Builder Home Services',
+    'Aquarius Home Services-Appleton MAL'],
   '2026 - Lennox Live - Anaheim': ['Applewood Heating & Air Conditioning', 'Klebs Mechanical', 'Bernard Heating & Cooling'],
   '2026 - Lennox Live - New Orleans': ['Homestead Home Services'],
-  '2025 - Pantheon': ['Colony Heating and Air Conditioning'],
+  '2025 - Pantheon': ['Colony Heating and Air Conditioning', 'Bath Fitter', 'Hickory'],
   '2026 - Certain Path Spring Expo': ['Action Overhead'],
   '2026 - RynoX': ['Staton Heating Cooling and Plumbing'],
   '2025 - Home Service Freedom': ['Smartron Electric', 'Easy Livin Solutions', 'Duct Cleaning Solution'],
-  '2026 - Home Service Freedom': ['Vidal flooring, inc', 'Carey-Sodergren, Inc.'],
+  '2026 - Home Service Freedom': ['Vidal flooring, inc', 'Carey-Sodergren, Inc.', 'Sullivan Plumbing & Heating Inc.',
+    'Allsafe Appliance'],
   '2026 - Grosso University': ['Pure Way'],
   '2026 - Home Service Hoorah': ['Larry Stinson Plumbing', 'Paradise Outdoors'],
   '2026 - Nexstar Super Meeting': ['Capital Heating, Cooling, Plumbing & Electric', 'springbranchair.com',
@@ -4353,6 +4357,10 @@ export const HUBSPOT_WON_DATES = {
 };
 export const HUBSPOT_EVENT_WINS = [
   { source: '2026 - Pantheon', company: 'Mac 5 Services', dealId: '354407388899', closed: '2026-10-15', amount: 2300 }, // checked 19 Oct 2026
+  // Checked live 9 Nov 2026: won HSF 2026 deals with no lead row and no Stripe
+  // payment in the data yet.
+  { source: '2026 - Home Service Freedom', company: 'GATORWRAPS', dealId: '360608975587', closed: '2026-10-30', amount: 750 },
+  { source: '2026 - Home Service Freedom', company: 'Legacy Painting', dealId: '364182682302', closed: '2026-11-09', amount: 1000 },
 ];
 
 export const HUBSPOT_USER_NAMES = {
