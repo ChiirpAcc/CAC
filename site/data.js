@@ -745,6 +745,11 @@ export async function load() {
             : /pending/i.test(String(r.cost_source || '')) ? 'pending'
             : /settling/i.test(String(r.cost_source || '')) ? 'settling' : null,
           note: String(r.note || '').trim() || null,
+          // v188: the Event Purpose tab, carried as a column ('lead gen' or
+          // 'strategic'). Undefined on a push without the column, null where
+          // the event has no label yet.
+          purpose: r.purpose === undefined ? undefined
+            : (/lead/i.test(String(r.purpose)) ? 'lead gen' : /strateg/i.test(String(r.purpose)) ? 'strategic' : null),
         }))
     : [];
 
@@ -4955,6 +4960,9 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     }
     e.label = e.cost ? e.cost.event : e.source;
     e.costState = e.cost ? e.cost.costState || null : null;
+    // 'lead gen', 'strategic', null (no label yet) or undefined (the push
+    // carries no purpose column).
+    e.purpose = e.cost ? e.cost.purpose : undefined;
     e.month = e.cost ? e.cost.month : e.upcoming || null;
     e.spend = cost;
     e.cashMultiple = cost && e.collected !== null ? e.collected / cost : null;
@@ -10699,11 +10707,16 @@ export function eventScorecard(data, reports) {
   const churn = eventChurnReport(reports);
   const f = eventFunnel(data, roi);
   const byCo = stripeByCompany(data);
+  // Only lead generation events are scored (Josh, 9 Nov 2026). Once the push
+  // carries the Event Purpose labels (v188), that is an event labelled lead
+  // gen: strategic and unlabelled events keep their pages but sit out of the
+  // ranking. Before then, a lead gen event is one that got leads (Josh, 20 Oct
+  // 2026: "if it got no leads then it was not a lead gen event").
+  const purposeKnown = roi.events.some(e => e.purpose !== undefined);
   const scored = roi.events.filter(e => {
     const p = pbOf.get(e.label);
-    return p && !p.provisional && p.roi12 !== null && e.spend > 0 && e.costState !== 'absent';
-  // A lead-generation event is one that got leads (Josh, 20 Oct 2026: "if it
-  // got no leads then it was not a lead gen event"); only those are scored.
+    return p && !p.provisional && p.roi12 !== null && e.spend > 0 && e.costState !== 'absent'
+      && (!purposeKnown || e.purpose === 'lead gen');
   }).map(e => ({ e, k: eventCardFigures(data, roi, e, f, byCo) })).filter(x => x.k.leads > 0);
   const raw = scored.map(({ e, k }) => {
     const p = pbOf.get(e.label);

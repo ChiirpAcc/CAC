@@ -145,7 +145,9 @@ resting on one to four customers is pulled toward 50 by customers /
 (customers + 2). An event with no customer by month four has no churn rank
 and is scored on the other three. A score resting on a 12-month ROI or a
 4-month churn the event has not reached is marked projected. Scored:
-lead-generation events only, that is events that got leads, with a known,
+lead-generation events only, that is events the Event Purpose tab labels
+lead gen (the `purpose` column on Event Costs from pipeline v188; strategic
+and unlabelled events sit out, Josh 9 Nov 2026) that got leads, with a known,
 settled cost and either three months old or a customer. 70 and up is strong,
 under 40 weak. Churn against the events' average stays beside the score as a
 check.

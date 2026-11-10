@@ -5326,7 +5326,7 @@ function scoreGuide(n) {
     + `<li><strong>Few customers pull a score toward 50.</strong> An event with one to four customers cannot come out the best or the worst on a lucky or unlucky result; it is tagged thin or very thin.</li>`
     + `<li><strong>Small samples are smoothed.</strong> Lead to won and churn are nudged toward the average where they rest on few leads or customers.</li>`
     + `<li><strong>Churn against the average event</strong> is shown beside the score as a check, and called only when it is beyond chance.</li>`
-    + `<li><strong>Only lead-generation events are scored:</strong> an event that got no leads was not one. A scored event also needs a `
+    + `<li><strong>Only lead-generation events are scored:</strong> those the Event Purpose tab labels lead gen, once the push carries it; strategic and unlabelled events sit out. An event that got no leads was not one either. A scored event also needs a `
     + `known, final cost, and three months since the event or a customer.</li></ul>`;
 }
 
@@ -5637,7 +5637,9 @@ function renderEventPage(label) {
   // rests on the other three.
   const churnPart = q => (q.key === 'churn4' && q.rank === null ? 'no customer yet' : null);
   const scorePanel = !sc ? (e.upcoming ? '' : `<section class="ev-panel"><h3>Event score</h3><p class="ev-note">`
-      + (!newLeadsN ? `Not scored: it got no leads, so it was not a lead-generation event${e.presence ? ` (${e.presence.replace(/\.$/, '')})` : ''}. `
+      + (e.purpose === 'strategic' ? `Not scored: the Event Purpose tab labels it strategic, so it was there for the partner rather than for leads. Only lead gen events are scored.`
+        : e.purpose === null ? `Not scored: it has no purpose on the Event Purpose tab yet, so it cannot be told apart from a strategic event. Only events labelled lead gen are scored.`
+        : !newLeadsN ? `Not scored: it got no leads, so it was not a lead-generation event${e.presence ? ` (${e.presence.replace(/\.$/, '')})` : ''}. `
         + `Only events that got leads are scored.`
         : `Not scored yet: ${e.costState === 'absent' ? 'its cost is not known' : pb && pb.provisional ? 'its cost is still settling' : 'under three months old with no customer'}.`)
       + `</p></section>`)
