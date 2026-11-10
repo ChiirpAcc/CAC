@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-10T11:51:04",
+  "pushed_at": "2026-11-10T15:45:01",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -54,12 +54,12 @@
     {
       "tab": "Lead Counts",
       "file": "lead_counts.json",
-      "rows": 94
+      "rows": 95
     },
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 1013
+      "rows": 1014
     },
     {
       "tab": "Webinars",
@@ -69,17 +69,17 @@
     {
       "tab": "Setters",
       "file": "setters.json",
-      "rows": 313
+      "rows": 318
     },
     {
       "tab": "Event Leads",
       "file": "event_leads.json",
-      "rows": 4928
+      "rows": 4929
     }
   ],
   "missing_required": [],
   "failed": [],
-  "pull_version": "hs-v96",
+  "pull_version": "hs-v97",
   "row_format": "arrays",
   "pipeline_version": "v189",
   "push_version": "gh-v15"
