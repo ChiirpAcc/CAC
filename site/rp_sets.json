@@ -5,110 +5,6 @@
  "note": "HubSpot contacts whose Setter is Ryan Peterson, every source, plus demos whose deal names him as Setter; each demo is the first new-business deal on the contact, which HubSpot opens once the demo is held. Company names and record ids only.",
  "sets": [
   {
-   "contactId": 590603546338,
-   "company": "Bill's Heating and Air",
-   "source": "FieldEdge",
-   "setOn": "2026-11-10",
-   "setBasis": "contact created",
-   "created": "2026-11-10",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 589636069101,
-   "company": "ONeill Contracting",
-   "source": "FieldEdge",
-   "setOn": "2026-11-10",
-   "setBasis": "contact created",
-   "created": "2026-11-10",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 584339569349,
-   "company": "South Suburban Heating & Air Conditioning, Inc.",
-   "source": "FieldEdge",
-   "setOn": "2026-11-09",
-   "setBasis": "contact created",
-   "created": "2026-11-09",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 589522646724,
-   "company": "Airstream Plumbing & Heating",
-   "source": "FieldEdge",
-   "setOn": "2026-11-09",
-   "setBasis": "contact created",
-   "created": "2026-11-09",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 587158294202,
-   "company": "J.D. Indoor Comfort, Inc.",
-   "source": "FieldEdge",
-   "setOn": "2026-11-06",
-   "setBasis": "contact created",
-   "created": "2026-11-06",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 583134104287,
-   "company": "Reece windows and doors",
-   "source": "2026 - Qualified Remodeler Top 500",
-   "setOn": "2026-11-02",
-   "setBasis": "contact created",
-   "created": "2026-11-02",
-   "retargeted": null,
-   "demoScheduled": "2026-11-30",
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 583051504377,
-   "company": "Pella Windows & Doors",
-   "source": "2026 - Qualified Remodeler Top 500",
-   "setOn": "2026-11-02",
-   "setBasis": "contact created",
-   "created": "2026-11-02",
-   "retargeted": null,
-   "demoScheduled": "2026-11-12",
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 581345054396,
-   "company": "ET&M REFRIGERATION",
-   "source": "FieldEdge",
-   "setOn": "2026-10-29",
-   "setBasis": "contact created",
-   "created": "2026-10-29",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 361160858305,
-    "on": "2026-11-02",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 579827892942,
    "company": "Kowalske Kitchen & Bath",
    "source": "2026 - Qualified Remodeler Top 500",
@@ -329,18 +225,6 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 570165320435,
-   "company": "Metro Flow Plumbing",
-   "source": "2026 - CertainPath Partner Jam",
-   "setOn": "2026-10-15",
-   "setBasis": "contact created",
-   "created": "2026-10-15",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 319319698146,
    "company": "Big Family Electrical ",
    "source": "2026 - CertainPath Partner Jam",
@@ -349,7 +233,7 @@
    "created": "2025-11-11",
    "retargeted": {
     "event": "2026 - CertainPath Partner Jam",
-    "how": "meeting booked at Partner Jam on Alicia Schmaling's link; rebooked by Ky Decker for 5 Nov"
+    "how": "booked on the Partner Jam scheduler on 15 Oct (later moved by Ky Decker)"
    },
    "demoScheduled": null,
    "demo": null,
@@ -364,7 +248,7 @@
    "created": "2024-05-29",
    "retargeted": {
     "event": "2026 - CertainPath Partner Jam",
-    "how": "meeting booked at Partner Jam on Alicia Schmaling's link"
+    "how": "Partner Jam form naming him, and a booking on the Partner Jam scheduler a minute later"
    },
    "demoScheduled": null,
    "demo": null,
@@ -379,7 +263,7 @@
    "created": "2024-05-15",
    "retargeted": {
     "event": "2026 - CertainPath Partner Jam",
-    "how": "meeting booked at Partner Jam on Alicia Schmaling's link"
+    "how": "Partner Jam form naming him, and a booking on the Partner Jam scheduler a minute later"
    },
    "demoScheduled": null,
    "demo": null,
@@ -406,22 +290,7 @@
    "created": "2026-05-26",
    "retargeted": {
     "event": "2026 - CertainPath Partner Jam",
-    "how": "meeting booked at Partner Jam on Alicia Schmaling's link"
-   },
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 21884055180,
-   "company": "Aqua Systems",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-12",
-   "setBasis": "retargeted",
-   "created": "2024-05-16",
-   "retargeted": {
-    "event": "2026 - Pantheon",
-    "how": "replied to email after Pantheon; no meeting booked"
+    "how": "Partner Jam form naming him, and a booking on the Partner Jam scheduler a minute later"
    },
    "demoScheduled": null,
    "demo": null,
@@ -468,7 +337,7 @@
    "created": "2025-07-17",
    "retargeted": {
     "event": "2026 - Pantheon",
-    "how": "meeting booked at Pantheon by the team scheduler"
+    "how": "Pantheon form naming him, and a booking on the Pantheon scheduler a minute later"
    },
    "demoScheduled": null,
    "demo": {
@@ -535,7 +404,7 @@
    "created": "2025-11-11",
    "retargeted": {
     "event": "2026 - Pantheon",
-    "how": "meeting booked at Pantheon by the team scheduler"
+    "how": "Pantheon form naming him, and a booking on the Pantheon scheduler a minute later"
    },
    "demoScheduled": null,
    "demo": null,
@@ -550,7 +419,7 @@
    "created": "2025-09-15",
    "retargeted": {
     "event": "2026 - Pantheon",
-    "how": "meeting booked at Pantheon by the team scheduler"
+    "how": "Pantheon form naming him, and a booking on the Pantheon scheduler a minute later"
    },
    "demoScheduled": null,
    "demo": null,
@@ -565,7 +434,7 @@
    "created": "2024-04-17",
    "retargeted": {
     "event": "2026 - Pantheon",
-    "how": "meeting booked at Pantheon by the team scheduler"
+    "how": "Pantheon form naming him, and a booking on the Pantheon scheduler a minute later"
    },
    "demoScheduled": null,
    "demo": null,
@@ -648,18 +517,6 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 563758114496,
-   "company": "Weather engineers",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-05",
-   "setBasis": "contact created",
-   "created": "2026-10-05",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 349339525818,
    "company": "Climate Tech",
    "source": "2026 - Pantheon",
@@ -668,7 +525,7 @@
    "created": "2025-12-10",
    "retargeted": {
     "event": "2026 - Pantheon",
-    "how": "meeting booked at Pantheon by the team scheduler"
+    "how": "Pantheon Upsell form naming him, and a booking on the upsell scheduler a minute later"
    },
    "demoScheduled": null,
    "demo": null,
@@ -683,7 +540,7 @@
    "created": "2025-07-17",
    "retargeted": {
     "event": "2026 - Pantheon",
-    "how": "meeting booked at Pantheon by the team scheduler"
+    "how": "Pantheon form naming him, and a booking on the Pantheon scheduler a minute later"
    },
    "demoScheduled": null,
    "demo": null,
@@ -698,7 +555,22 @@
    "created": "2025-02-27",
    "retargeted": {
     "event": "2026 - Pantheon",
-    "how": "meeting booked at Pantheon by the team scheduler"
+    "how": "Pantheon form naming him, and a booking on the Pantheon scheduler a minute later"
+   },
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 21884055180,
+   "company": "Aqua Systems",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "retargeted",
+   "created": "2024-05-16",
+   "retargeted": {
+    "event": "2026 - Pantheon",
+    "how": "Pantheon form naming him, and a booking on the Pantheon scheduler a minute later (the meeting record is no longer in HubSpot)"
    },
    "demoScheduled": null,
    "demo": null,
@@ -4035,6 +3907,76 @@
    "source": "2026 - HSF Freedom",
    "setOn": "2026-10-27",
    "why": "Home Service Freedom 2026 (2026-10-26): Ryan Peterson is not on its attendee list"
+  },
+  {
+   "contactId": 590603546338,
+   "company": "Bill's Heating and Air",
+   "source": "FieldEdge",
+   "setOn": "2026-11-10",
+   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
+  },
+  {
+   "contactId": 589636069101,
+   "company": "ONeill Contracting",
+   "source": "FieldEdge",
+   "setOn": "2026-11-10",
+   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
+  },
+  {
+   "contactId": 584339569349,
+   "company": "South Suburban Heating & Air Conditioning, Inc.",
+   "source": "FieldEdge",
+   "setOn": "2026-11-09",
+   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
+  },
+  {
+   "contactId": 589522646724,
+   "company": "Airstream Plumbing & Heating",
+   "source": "FieldEdge",
+   "setOn": "2026-11-09",
+   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
+  },
+  {
+   "contactId": 587158294202,
+   "company": "J.D. Indoor Comfort, Inc.",
+   "source": "FieldEdge",
+   "setOn": "2026-11-06",
+   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
+  },
+  {
+   "contactId": 583134104287,
+   "company": "Reece windows and doors",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-11-02",
+   "why": "not booked by Ryan: booked 9 Nov, a week after the show, on the QR form by an unknown hand (contact made by the Chiirp integration); nothing shows Ryan booked it"
+  },
+  {
+   "contactId": 583051504377,
+   "company": "Pella Windows & Doors",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-11-02",
+   "why": "not booked by Ryan: booked 9 Nov, a week after the show, on the QR form by an unknown hand (contact made by the Chiirp integration); nothing shows Ryan booked it"
+  },
+  {
+   "contactId": 581345054396,
+   "company": "ET&M REFRIGERATION",
+   "source": "FieldEdge",
+   "setOn": "2026-10-29",
+   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
+  },
+  {
+   "contactId": 570165320435,
+   "company": "Metro Flow Plumbing",
+   "source": "2026 - CertainPath Partner Jam",
+   "setOn": "2026-10-15",
+   "why": "not booked by Ryan: no booking at Partner Jam; Ky Decker booked it on his own link a week later (22 Oct)"
+  },
+  {
+   "contactId": 563758114496,
+   "company": "Weather engineers",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "why": "not booked by Ryan: Pantheon form only; no meeting was ever booked"
   }
  ]
 }
