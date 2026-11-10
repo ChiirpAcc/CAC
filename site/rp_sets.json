@@ -11,6 +11,7 @@
    "setOn": "2026-11-10",
    "setBasis": "contact created",
    "created": "2026-11-10",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -22,38 +23,9 @@
    "setOn": "2026-11-10",
    "setBasis": "contact created",
    "created": "2026-11-10",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 71985821052,
-   "company": "Reliable Tech",
-   "source": "FieldEdge",
-   "setOn": "2026-11-10",
-   "setBasis": "first listed",
-   "created": "2024-10-25",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 25427431602,
-   "company": "JEM Plumbing, Inc",
-   "source": "FieldEdge",
-   "setOn": "2026-11-10",
-   "setBasis": "demo date",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 365603122928,
-    "on": "2026-11-10",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
-    "laterWonDealId": null
-   },
    "firstDealIsRenewal": false
   },
   {
@@ -63,6 +35,7 @@
    "setOn": "2026-11-09",
    "setBasis": "contact created",
    "created": "2026-11-09",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -74,27 +47,9 @@
    "setOn": "2026-11-09",
    "setBasis": "contact created",
    "created": "2026-11-09",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 460952782549,
-   "company": "Tony Kelly Heating & Air Conditioning",
-   "source": "FieldEdge",
-   "setOn": "2026-11-09",
-   "setBasis": "demo date",
-   "created": "2026-03-24",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 364574009044,
-    "on": "2026-11-09",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
-    "laterWonDealId": null
-   },
    "firstDealIsRenewal": false
   },
   {
@@ -104,17 +59,7 @@
    "setOn": "2026-11-06",
    "setBasis": "contact created",
    "created": "2026-11-06",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 138830432876,
-   "company": "Tech-On-Deck",
-   "source": "FieldEdge",
-   "setOn": "2026-11-03",
-   "setBasis": "first listed",
-   "created": "2025-07-17",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -126,6 +71,7 @@
    "setOn": "2026-11-02",
    "setBasis": "contact created",
    "created": "2026-11-02",
+   "retargeted": null,
    "demoScheduled": "2026-11-30",
    "demo": null,
    "firstDealIsRenewal": false
@@ -137,6 +83,7 @@
    "setOn": "2026-11-02",
    "setBasis": "contact created",
    "created": "2026-11-02",
+   "retargeted": null,
    "demoScheduled": "2026-11-12",
    "demo": null,
    "firstDealIsRenewal": false
@@ -148,6 +95,7 @@
    "setOn": "2026-10-29",
    "setBasis": "contact created",
    "created": "2026-10-29",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 361160858305,
@@ -167,6 +115,7 @@
    "setOn": "2026-10-28",
    "setBasis": "contact created",
    "created": "2026-10-28",
+   "retargeted": null,
    "demoScheduled": "2026-11-04",
    "demo": {
     "dealId": 362277925621,
@@ -186,6 +135,7 @@
    "setOn": "2026-10-28",
    "setBasis": "contact created",
    "created": "2026-10-28",
+   "retargeted": null,
    "demoScheduled": "2026-11-06",
    "demo": null,
    "firstDealIsRenewal": false
@@ -197,6 +147,7 @@
    "setOn": "2026-10-28",
    "setBasis": "contact created",
    "created": "2026-10-28",
+   "retargeted": null,
    "demoScheduled": "2026-11-13",
    "demo": null,
    "firstDealIsRenewal": false
@@ -208,6 +159,7 @@
    "setOn": "2026-10-28",
    "setBasis": "contact created",
    "created": "2026-10-28",
+   "retargeted": null,
    "demoScheduled": "2026-11-04",
    "demo": null,
    "firstDealIsRenewal": false
@@ -219,6 +171,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": "2026-11-17",
    "demo": null,
    "firstDealIsRenewal": false
@@ -230,6 +183,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": "2026-11-17",
    "demo": null,
    "firstDealIsRenewal": false
@@ -241,6 +195,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": "2026-11-11",
    "demo": null,
    "firstDealIsRenewal": false
@@ -252,6 +207,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": "2026-11-06",
    "demo": {
     "dealId": 363842320064,
@@ -271,6 +227,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": "2026-11-04",
    "demo": {
     "dealId": 364166958821,
@@ -290,6 +247,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": "2026-11-04",
    "demo": {
     "dealId": 362174078662,
@@ -309,6 +267,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": "2026-11-10",
    "demo": null,
    "firstDealIsRenewal": false
@@ -320,6 +279,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": "2026-11-11",
    "demo": null,
    "firstDealIsRenewal": false
@@ -331,6 +291,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": "2026-11-03",
    "demo": null,
    "firstDealIsRenewal": false
@@ -342,6 +303,7 @@
    "setOn": "2026-10-27",
    "setBasis": "contact created",
    "created": "2026-10-27",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 362432531170,
@@ -355,23 +317,13 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 431153140420,
-   "company": "HSF test",
-   "source": "2026 - HSF Freedom",
-   "setOn": "2026-10-26",
-   "setBasis": "event date",
-   "created": "2026-02-16",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 573639352023,
    "company": "Hickory",
    "source": "2026 - Pantheon",
    "setOn": "2026-10-20",
    "setBasis": "contact created",
    "created": "2026-10-20",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 357860091611,
@@ -385,23 +337,13 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 571505596114,
-   "company": "KMP",
-   "source": "2026 - CertainPath Partner Jam",
-   "setOn": "2026-10-17",
-   "setBasis": "contact created",
-   "created": "2026-10-17",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 570570848970,
    "company": "KMP PLUMBING HEATING AND AIR",
    "source": "2026 - CertainPath Partner Jam",
    "setOn": "2026-10-15",
    "setBasis": "contact created",
    "created": "2026-10-15",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -413,6 +355,52 @@
    "setOn": "2026-10-15",
    "setBasis": "contact created",
    "created": "2026-10-15",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 319319698146,
+   "company": "Big Family Electrical ",
+   "source": "2026 - CertainPath Partner Jam",
+   "setOn": "2026-10-15",
+   "setBasis": "retargeted",
+   "created": "2025-11-11",
+   "retargeted": {
+    "event": "2026 - CertainPath Partner Jam",
+    "how": "meeting booked at Partner Jam on Alicia Schmaling's link; rebooked by Ky Decker for 5 Nov"
+   },
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 453667767023,
+   "company": "Krumm exteriors",
+   "source": "2026 - CertainPath Partner Jam",
+   "setOn": "2026-10-15",
+   "setBasis": "retargeted",
+   "created": "2024-05-29",
+   "retargeted": {
+    "event": "2026 - CertainPath Partner Jam",
+    "how": "meeting booked at Partner Jam on Alicia Schmaling's link"
+   },
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 21630948954,
+   "company": "A perfect climate",
+   "source": "2026 - CertainPath Partner Jam",
+   "setOn": "2026-10-15",
+   "setBasis": "retargeted",
+   "created": "2024-05-15",
+   "retargeted": {
+    "event": "2026 - CertainPath Partner Jam",
+    "how": "meeting booked at Partner Jam on Alicia Schmaling's link"
+   },
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -424,6 +412,7 @@
    "setOn": "2026-10-14",
    "setBasis": "contact created",
    "created": "2026-10-14",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -433,30 +422,27 @@
    "company": "CW Cummings Plb Co",
    "source": "2026 - CertainPath Partner Jam",
    "setOn": "2026-10-14",
-   "setBasis": "event date",
+   "setBasis": "retargeted",
    "created": "2026-05-26",
+   "retargeted": {
+    "event": "2026 - CertainPath Partner Jam",
+    "how": "meeting booked at Partner Jam on Alicia Schmaling's link"
+   },
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 453667767023,
-   "company": "Krumm exteriors",
-   "source": "2026 - CertainPath Partner Jam",
-   "setOn": "2026-10-14",
-   "setBasis": "event date",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 21630948954,
-   "company": "A perfect climate",
-   "source": "2026 - CertainPath Partner Jam",
-   "setOn": "2026-10-14",
-   "setBasis": "event date",
-   "created": "2024-05-15",
+   "contactId": 21884055180,
+   "company": "Aqua Systems",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-12",
+   "setBasis": "retargeted",
+   "created": "2024-05-16",
+   "retargeted": {
+    "event": "2026 - Pantheon",
+    "how": "replied to email after Pantheon; no meeting booked"
+   },
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -468,6 +454,7 @@
    "setOn": "2026-10-07",
    "setBasis": "contact created",
    "created": "2026-10-07",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 357429155525,
@@ -487,8 +474,32 @@
    "setOn": "2026-10-07",
    "setBasis": "contact created",
    "created": "2026-10-07",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 138832032273,
+   "company": "24/7 Services Inc",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-07",
+   "setBasis": "retargeted",
+   "created": "2025-07-17",
+   "retargeted": {
+    "event": "2026 - Pantheon",
+    "how": "meeting booked at Pantheon by the team scheduler"
+   },
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 356419716845,
+    "on": "2026-10-21",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -498,6 +509,7 @@
    "setOn": "2026-10-06",
    "setBasis": "contact created",
    "created": "2026-10-06",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 355163790023,
@@ -517,6 +529,7 @@
    "setOn": "2026-10-06",
    "setBasis": "contact created",
    "created": "2026-10-06",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -528,6 +541,52 @@
    "setOn": "2026-10-06",
    "setBasis": "contact created",
    "created": "2026-10-06",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 319723830996,
+   "company": "Hanna Plumbing",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-06",
+   "setBasis": "retargeted",
+   "created": "2025-11-11",
+   "retargeted": {
+    "event": "2026 - Pantheon",
+    "how": "meeting booked at Pantheon by the team scheduler"
+   },
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 247426927298,
+   "company": "Blessing Co",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-06",
+   "setBasis": "retargeted",
+   "created": "2025-09-15",
+   "retargeted": {
+    "event": "2026 - Pantheon",
+    "how": "meeting booked at Pantheon by the team scheduler"
+   },
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 13357939046,
+   "company": "Delta heating cooling and plumbing",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-06",
+   "setBasis": "retargeted",
+   "created": "2024-04-17",
+   "retargeted": {
+    "event": "2026 - Pantheon",
+    "how": "meeting booked at Pantheon by the team scheduler"
+   },
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -539,6 +598,7 @@
    "setOn": "2026-10-05",
    "setBasis": "contact created",
    "created": "2026-10-05",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -550,6 +610,7 @@
    "setOn": "2026-10-05",
    "setBasis": "contact created",
    "created": "2026-10-05",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -561,6 +622,7 @@
    "setOn": "2026-10-05",
    "setBasis": "contact created",
    "created": "2026-10-05",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 354552665836,
@@ -580,6 +642,7 @@
    "setOn": "2026-10-05",
    "setBasis": "contact created",
    "created": "2026-10-05",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 353834662614,
@@ -599,6 +662,7 @@
    "setOn": "2026-10-05",
    "setBasis": "contact created",
    "created": "2026-10-05",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -610,6 +674,7 @@
    "setOn": "2026-10-05",
    "setBasis": "contact created",
    "created": "2026-10-05",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -619,41 +684,12 @@
    "company": "Climate Tech",
    "source": "2026 - Pantheon",
    "setOn": "2026-10-05",
-   "setBasis": "event date",
+   "setBasis": "retargeted",
    "created": "2025-12-10",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 319723830996,
-   "company": "Hanna Plumbing",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-05",
-   "setBasis": "event date",
-   "created": "2025-11-11",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 260706899644,
-   "company": "Notturno plumbing and heating",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-05",
-   "setBasis": "event date",
-   "created": "2025-09-25",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 247426927298,
-   "company": "Blessing Co",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-05",
-   "setBasis": "event date",
-   "created": "2025-09-15",
+   "retargeted": {
+    "event": "2026 - Pantheon",
+    "how": "meeting booked at Pantheon by the team scheduler"
+   },
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -663,29 +699,14 @@
    "company": "RJ Groner",
    "source": "2026 - Pantheon",
    "setOn": "2026-10-05",
-   "setBasis": "event date",
+   "setBasis": "retargeted",
    "created": "2025-07-17",
+   "retargeted": {
+    "event": "2026 - Pantheon",
+    "how": "meeting booked at Pantheon by the team scheduler"
+   },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 138832032273,
-   "company": "24/7 Services Inc",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-05",
-   "setBasis": "event date",
-   "created": "2025-07-17",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 356419716845,
-    "on": "2026-10-21",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
-    "laterWonDealId": null
-   },
    "firstDealIsRenewal": false
   },
   {
@@ -693,33 +714,15 @@
    "company": "Strickland Plumbing hvac & electric",
    "source": "2026 - Pantheon",
    "setOn": "2026-10-05",
-   "setBasis": "event date",
+   "setBasis": "retargeted",
    "created": "2025-02-27",
+   "retargeted": {
+    "event": "2026 - Pantheon",
+    "how": "meeting booked at Pantheon by the team scheduler"
+   },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": true
-  },
-  {
-   "contactId": 21884055180,
-   "company": "Aqua Systems",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-05",
-   "setBasis": "event date",
-   "created": "2024-05-16",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": true
-  },
-  {
-   "contactId": 13357939046,
-   "company": "Delta heating cooling and plumbing",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-05",
-   "setBasis": "event date",
-   "created": "2024-04-17",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": true
+   "firstDealIsRenewal": false
   },
   {
    "contactId": 561876604645,
@@ -728,6 +731,7 @@
    "setOn": "2026-09-30",
    "setBasis": "contact created",
    "created": "2026-09-30",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -739,6 +743,7 @@
    "setOn": "2026-09-29",
    "setBasis": "contact created",
    "created": "2026-09-29",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 352191499998,
@@ -758,6 +763,7 @@
    "setOn": "2026-09-29",
    "setBasis": "contact created",
    "created": "2026-09-29",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 353222058685,
@@ -777,6 +783,7 @@
    "setOn": "2026-09-29",
    "setBasis": "contact created",
    "created": "2026-09-29",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -788,6 +795,7 @@
    "setOn": "2026-09-29",
    "setBasis": "contact created",
    "created": "2026-09-29",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -799,6 +807,7 @@
    "setOn": "2026-09-29",
    "setBasis": "contact created",
    "created": "2026-09-29",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 353214510824,
@@ -818,29 +827,11 @@
    "setOn": "2026-09-23",
    "setBasis": "contact created",
    "created": "2026-09-23",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 351924186816,
     "on": "2026-09-30",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 508042532598,
-   "company": "1 800 Plumber + Air",
-   "source": "Certain Path",
-   "setOn": "2026-09-09",
-   "setBasis": "demo date",
-   "created": "2026-06-24",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 347287730932,
-    "on": "2026-09-09",
     "ranBy": null,
     "outcome": "open",
     "closedOn": null,
@@ -856,21 +847,23 @@
    "setOn": "2026-07-09",
    "setBasis": "contact created",
    "created": "2026-07-09",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 470553678556,
-   "company": "Armor Air",
-   "source": "Vault",
-   "setOn": "2026-07-06",
-   "setBasis": "demo date",
-   "created": "2026-04-13",
+   "contactId": 508042532598,
+   "company": "1 800 Plumber + Air",
+   "source": "Certain Path",
+   "setOn": "2026-06-24",
+   "setBasis": "contact created",
+   "created": "2026-06-24",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
-    "dealId": 334696235746,
-    "on": "2026-07-06",
+    "dealId": 347287730932,
+    "on": "2026-09-09",
     "ranBy": null,
     "outcome": "open",
     "closedOn": null,
@@ -886,6 +879,7 @@
    "setOn": "2026-04-28",
    "setBasis": "demo date",
    "created": "2026-04-09",
+   "retargeted": null,
    "demoScheduled": "2026-04-28",
    "demo": null,
    "firstDealIsRenewal": false
@@ -897,6 +891,7 @@
    "setOn": "2026-04-24",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2026-04-24",
    "demo": null,
    "firstDealIsRenewal": false
@@ -908,6 +903,7 @@
    "setOn": "2026-04-21",
    "setBasis": "demo date",
    "created": "2026-04-09",
+   "retargeted": null,
    "demoScheduled": "2026-04-21",
    "demo": null,
    "firstDealIsRenewal": false
@@ -919,6 +915,7 @@
    "setOn": "2026-04-20",
    "setBasis": "demo date",
    "created": "2026-04-09",
+   "retargeted": null,
    "demoScheduled": "2026-04-20",
    "demo": null,
    "firstDealIsRenewal": false
@@ -930,6 +927,7 @@
    "setOn": "2026-04-16",
    "setBasis": "demo date",
    "created": "2026-04-09",
+   "retargeted": null,
    "demoScheduled": "2026-04-16",
    "demo": null,
    "firstDealIsRenewal": false
@@ -941,6 +939,7 @@
    "setOn": "2026-04-16",
    "setBasis": "demo date",
    "created": "2026-04-01",
+   "retargeted": null,
    "demoScheduled": "2026-04-16",
    "demo": null,
    "firstDealIsRenewal": false
@@ -952,6 +951,7 @@
    "setOn": "2026-04-16",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2026-04-16",
    "demo": {
     "dealId": "322460066523",
@@ -971,9 +971,10 @@
    "setOn": "2026-04-16",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2026-04-16",
    "demo": null,
-   "firstDealIsRenewal": true
+   "firstDealIsRenewal": false
   },
   {
    "contactId": 469028820702,
@@ -982,6 +983,7 @@
    "setOn": "2026-04-15",
    "setBasis": "demo date",
    "created": "2026-04-09",
+   "retargeted": null,
    "demoScheduled": "2026-04-15",
    "demo": null,
    "firstDealIsRenewal": false
@@ -993,6 +995,7 @@
    "setOn": "2026-04-15",
    "setBasis": "demo date",
    "created": "2026-04-09",
+   "retargeted": null,
    "demoScheduled": "2026-04-15",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1004,6 +1007,7 @@
    "setOn": "2026-04-14",
    "setBasis": "demo date",
    "created": "2026-04-09",
+   "retargeted": null,
    "demoScheduled": "2026-04-14",
    "demo": {
     "dealId": 321661543147,
@@ -1023,9 +1027,10 @@
    "setOn": "2026-04-14",
    "setBasis": "demo date",
    "created": "2025-03-06",
+   "retargeted": null,
    "demoScheduled": "2026-04-14",
    "demo": null,
-   "firstDealIsRenewal": true
+   "firstDealIsRenewal": false
   },
   {
    "contactId": 86464232106,
@@ -1034,10 +1039,31 @@
    "setOn": "2026-04-14",
    "setBasis": "demo date",
    "created": "2024-12-20",
+   "retargeted": null,
    "demoScheduled": "2026-04-14",
    "demo": {
     "dealId": 321682180811,
     "on": "2026-04-20",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 470553678556,
+   "company": "Armor Air",
+   "source": "Vault",
+   "setOn": "2026-04-13",
+   "setBasis": "contact created",
+   "created": "2026-04-13",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 334696235746,
+    "on": "2026-07-06",
     "ranBy": null,
     "outcome": "open",
     "closedOn": null,
@@ -1053,6 +1079,7 @@
    "setOn": "2026-04-13",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2026-04-13",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1064,6 +1091,7 @@
    "setOn": "2026-04-10",
    "setBasis": "contact created",
    "created": "2026-04-10",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -1075,6 +1103,7 @@
    "setOn": "2026-04-09",
    "setBasis": "demo date",
    "created": "2026-03-31",
+   "retargeted": null,
    "demoScheduled": "2026-04-09",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1086,6 +1115,7 @@
    "setOn": "2026-04-08",
    "setBasis": "demo date",
    "created": "2026-03-31",
+   "retargeted": null,
    "demoScheduled": "2026-04-08",
    "demo": {
     "dealId": 356974014143,
@@ -1105,8 +1135,29 @@
    "setOn": "2026-03-27",
    "setBasis": "demo date",
    "created": "2026-03-10",
+   "retargeted": null,
    "demoScheduled": "2026-03-27",
    "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 460952782549,
+   "company": "Tony Kelly Heating & Air Conditioning",
+   "source": "FieldEdge",
+   "setOn": "2026-03-24",
+   "setBasis": "contact created",
+   "created": "2026-03-24",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 364574009044,
+    "on": "2026-11-09",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -1116,6 +1167,7 @@
    "setOn": "2026-03-11",
    "setBasis": "contact created",
    "created": "2026-03-11",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -1127,6 +1179,7 @@
    "setOn": "2026-03-10",
    "setBasis": "contact created",
    "created": "2026-03-10",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -1138,6 +1191,7 @@
    "setOn": "2026-03-10",
    "setBasis": "contact created",
    "created": "2026-03-10",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -1149,6 +1203,7 @@
    "setOn": "2026-03-03",
    "setBasis": "demo date",
    "created": "2026-02-13",
+   "retargeted": null,
    "demoScheduled": "2026-03-03",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1160,9 +1215,10 @@
    "setOn": "2026-03-03",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2026-03-03",
    "demo": null,
-   "firstDealIsRenewal": true
+   "firstDealIsRenewal": false
   },
   {
    "contactId": 84662,
@@ -1171,6 +1227,7 @@
    "setOn": "2026-02-26",
    "setBasis": "demo date",
    "created": "2023-02-21",
+   "retargeted": null,
    "demoScheduled": "2026-02-26",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1182,6 +1239,7 @@
    "setOn": "2026-02-25",
    "setBasis": "demo date",
    "created": "2026-02-13",
+   "retargeted": null,
    "demoScheduled": "2026-02-25",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1193,6 +1251,7 @@
    "setOn": "2026-02-25",
    "setBasis": "demo date",
    "created": "2026-02-12",
+   "retargeted": null,
    "demoScheduled": "2026-02-25",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1204,6 +1263,7 @@
    "setOn": "2026-02-25",
    "setBasis": "demo date",
    "created": "2025-02-27",
+   "retargeted": null,
    "demoScheduled": "2026-02-25",
    "demo": {
     "dealId": 295151208147,
@@ -1223,6 +1283,7 @@
    "setOn": "2026-02-25",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2026-02-25",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1234,6 +1295,7 @@
    "setOn": "2026-02-19",
    "setBasis": "demo date",
    "created": "2026-02-13",
+   "retargeted": null,
    "demoScheduled": "2026-02-19",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1245,6 +1307,7 @@
    "setOn": "2026-02-19",
    "setBasis": "demo date",
    "created": "2026-01-28",
+   "retargeted": null,
    "demoScheduled": "2026-02-19",
    "demo": {
     "dealId": 276147958463,
@@ -1264,6 +1327,7 @@
    "setOn": "2026-02-18",
    "setBasis": "demo date",
    "created": "2026-02-12",
+   "retargeted": null,
    "demoScheduled": "2026-02-18",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1275,6 +1339,7 @@
    "setOn": "2026-02-17",
    "setBasis": "demo date",
    "created": "2026-02-12",
+   "retargeted": null,
    "demoScheduled": "2026-02-17",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1286,6 +1351,7 @@
    "setOn": "2026-02-17",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2026-02-17",
    "demo": {
     "dealId": 325840594667,
@@ -1305,6 +1371,7 @@
    "setOn": "2026-02-13",
    "setBasis": "contact created",
    "created": "2026-02-13",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -1316,6 +1383,7 @@
    "setOn": "2026-02-13",
    "setBasis": "contact created",
    "created": "2026-02-13",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -1327,6 +1395,7 @@
    "setOn": "2026-02-13",
    "setBasis": "contact created",
    "created": "2026-02-13",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -1338,6 +1407,7 @@
    "setOn": "2026-02-10",
    "setBasis": "demo date",
    "created": "2026-01-27",
+   "retargeted": null,
    "demoScheduled": "2026-02-10",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1349,6 +1419,7 @@
    "setOn": "2026-02-09",
    "setBasis": "demo date",
    "created": "2026-01-27",
+   "retargeted": null,
    "demoScheduled": "2026-02-09",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1360,6 +1431,7 @@
    "setOn": "2026-02-06",
    "setBasis": "demo date",
    "created": "2026-01-29",
+   "retargeted": null,
    "demoScheduled": "2026-02-06",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1371,6 +1443,7 @@
    "setOn": "2026-02-06",
    "setBasis": "demo date",
    "created": "2026-01-29",
+   "retargeted": null,
    "demoScheduled": "2026-02-06",
    "demo": {
     "dealId": 278204987074,
@@ -1390,6 +1463,7 @@
    "setOn": "2026-02-02",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2026-02-02",
    "demo": {
     "dealId": 278206800580,
@@ -1409,6 +1483,7 @@
    "setOn": "2025-12-29",
    "setBasis": "demo date",
    "created": "2025-02-26",
+   "retargeted": null,
    "demoScheduled": "2025-12-29",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1420,9 +1495,10 @@
    "setOn": "2025-12-19",
    "setBasis": "demo date",
    "created": "2025-05-19",
+   "retargeted": null,
    "demoScheduled": "2025-12-19",
    "demo": null,
-   "firstDealIsRenewal": true
+   "firstDealIsRenewal": false
   },
   {
    "contactId": 346634215138,
@@ -1431,6 +1507,7 @@
    "setOn": "2025-12-08",
    "setBasis": "contact created",
    "created": "2025-12-08",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -1442,6 +1519,7 @@
    "setOn": "2025-12-02",
    "setBasis": "demo date",
    "created": "2025-10-02",
+   "retargeted": null,
    "demoScheduled": "2025-12-02",
    "demo": {
     "dealId": 227688046305,
@@ -1480,6 +1558,7 @@
    "setOn": "2025-11-11",
    "setBasis": "demo date",
    "created": "2025-11-11",
+   "retargeted": null,
    "demoScheduled": "2025-11-11",
    "demo": {
     "dealId": 216627454698,
@@ -1499,6 +1578,7 @@
    "setOn": "2025-11-06",
    "setBasis": "demo date",
    "created": "2025-10-22",
+   "retargeted": null,
    "demoScheduled": "2025-11-06",
    "demo": {
     "dealId": 210684649200,
@@ -1518,6 +1598,7 @@
    "setOn": "2025-10-23",
    "setBasis": "set",
    "created": "2024-12-03",
+   "retargeted": null,
    "demoScheduled": "2025-10-23",
    "demo": {
     "dealId": 322469491428,
@@ -1537,6 +1618,7 @@
    "setOn": "2025-10-09",
    "setBasis": "set",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2025-10-13",
    "demo": {
     "dealId": "182446293701",
@@ -1556,9 +1638,10 @@
    "setOn": "2025-10-09",
    "setBasis": "set",
    "created": "2024-04-15",
+   "retargeted": null,
    "demoScheduled": "2025-10-31",
    "demo": null,
-   "firstDealIsRenewal": true
+   "firstDealIsRenewal": false
   },
   {
    "contactId": 113246715817,
@@ -1567,6 +1650,7 @@
    "setOn": "2025-10-06",
    "setBasis": "set",
    "created": "2025-05-08",
+   "retargeted": null,
    "demoScheduled": "2025-10-07",
    "demo": {
     "dealId": 179314650815,
@@ -1586,6 +1670,7 @@
    "setOn": "2025-10-01",
    "setBasis": "set",
    "created": "2025-10-01",
+   "retargeted": null,
    "demoScheduled": "2025-10-08",
    "demo": {
     "dealId": 174563144410,
@@ -1605,6 +1690,7 @@
    "setOn": "2025-10-01",
    "setBasis": "set",
    "created": "2025-03-13",
+   "retargeted": null,
    "demoScheduled": "2025-10-23",
    "demo": {
     "dealId": 174396017357,
@@ -1624,6 +1710,7 @@
    "setOn": "2025-10-01",
    "setBasis": "set",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2025-10-08",
    "demo": {
     "dealId": "174265775864",
@@ -1643,6 +1730,7 @@
    "setOn": "2025-09-30",
    "setBasis": "set",
    "created": "2025-09-30",
+   "retargeted": null,
    "demoScheduled": "2025-10-15",
    "demo": {
     "dealId": 173654202052,
@@ -1662,6 +1750,7 @@
    "setOn": "2025-09-30",
    "setBasis": "set",
    "created": "2025-09-15",
+   "retargeted": null,
    "demoScheduled": "2025-10-16",
    "demo": {
     "dealId": 173468095204,
@@ -1681,6 +1770,7 @@
    "setOn": "2025-09-30",
    "setBasis": "set",
    "created": "2025-04-29",
+   "retargeted": null,
    "demoScheduled": "2025-10-09",
    "demo": {
     "dealId": 173558823662,
@@ -1700,6 +1790,7 @@
    "setOn": "2025-09-30",
    "setBasis": "set",
    "created": "2024-05-23",
+   "retargeted": null,
    "demoScheduled": "2025-10-22",
    "demo": {
     "dealId": "173475294968",
@@ -1713,12 +1804,25 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 260706899644,
+   "company": "Notturno plumbing and heating",
+   "source": "2026 - Pantheon",
+   "setOn": "2025-09-25",
+   "setBasis": "contact created",
+   "created": "2025-09-25",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 259963502298,
    "company": "Kruger Electric",
    "source": "2025 - Certain Path Fall Expo",
    "setOn": "2025-09-25",
    "setBasis": "set",
    "created": "2025-09-25",
+   "retargeted": null,
    "demoScheduled": "2025-10-21",
    "demo": {
     "dealId": 169744195263,
@@ -1738,6 +1842,7 @@
    "setOn": "2025-09-25",
    "setBasis": "set",
    "created": "2025-09-25",
+   "retargeted": null,
    "demoScheduled": "2025-10-02",
    "demo": {
     "dealId": 169906547442,
@@ -1757,6 +1862,7 @@
    "setOn": "2025-09-25",
    "setBasis": "set",
    "created": "2025-09-25",
+   "retargeted": null,
    "demoScheduled": "2025-10-07",
    "demo": {
     "dealId": 169758540533,
@@ -1776,6 +1882,7 @@
    "setOn": "2025-09-25",
    "setBasis": "set",
    "created": "2025-03-28",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 169093371590,
@@ -1795,6 +1902,7 @@
    "setOn": "2025-09-25",
    "setBasis": "set",
    "created": "2024-10-04",
+   "retargeted": null,
    "demoScheduled": "2025-10-03",
    "demo": {
     "dealId": "169758978795",
@@ -1814,6 +1922,7 @@
    "setOn": "2025-09-25",
    "setBasis": "set",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2025-10-08",
    "demo": {
     "dealId": "169960573666",
@@ -1833,9 +1942,10 @@
    "setOn": "2025-09-25",
    "setBasis": "set",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2025-10-15",
    "demo": null,
-   "firstDealIsRenewal": true
+   "firstDealIsRenewal": false
   },
   {
    "contactId": 252016020208,
@@ -1844,6 +1954,7 @@
    "setOn": "2025-09-19",
    "setBasis": "set",
    "created": "2025-09-19",
+   "retargeted": null,
    "demoScheduled": "2025-09-29",
    "demo": {
     "dealId": 164446485178,
@@ -1863,6 +1974,7 @@
    "setOn": "2025-09-18",
    "setBasis": "set",
    "created": "2025-09-18",
+   "retargeted": null,
    "demoScheduled": "2025-10-20",
    "demo": null,
    "firstDealIsRenewal": false
@@ -1874,6 +1986,7 @@
    "setOn": "2025-09-18",
    "setBasis": "set",
    "created": "2025-09-18",
+   "retargeted": null,
    "demoScheduled": "2025-11-25",
    "demo": {
     "dealId": 261003934410,
@@ -1893,6 +2006,7 @@
    "setOn": "2025-09-18",
    "setBasis": "set",
    "created": "2025-09-18",
+   "retargeted": null,
    "demoScheduled": "2025-09-30",
    "demo": {
     "dealId": 163872664259,
@@ -1912,6 +2026,7 @@
    "setOn": "2025-09-18",
    "setBasis": "set",
    "created": "2025-09-18",
+   "retargeted": null,
    "demoScheduled": "2025-09-23",
    "demo": {
     "dealId": 163426674374,
@@ -1931,6 +2046,7 @@
    "setOn": "2025-09-18",
    "setBasis": "set",
    "created": "2025-09-18",
+   "retargeted": null,
    "demoScheduled": "2025-09-26",
    "demo": {
     "dealId": 163400020670,
@@ -1950,6 +2066,7 @@
    "setOn": "2025-09-18",
    "setBasis": "set",
    "created": "2025-09-15",
+   "retargeted": null,
    "demoScheduled": "2025-09-29",
    "demo": {
     "dealId": 163969060545,
@@ -1969,6 +2086,7 @@
    "setOn": "2025-09-17",
    "setBasis": "set",
    "created": "2025-09-17",
+   "retargeted": null,
    "demoScheduled": "2025-09-30",
    "demo": {
     "dealId": 163100054205,
@@ -1988,6 +2106,7 @@
    "setOn": "2025-09-17",
    "setBasis": "set",
    "created": "2025-09-17",
+   "retargeted": null,
    "demoScheduled": "2025-10-08",
    "demo": {
     "dealId": 162637075183,
@@ -2007,6 +2126,7 @@
    "setOn": "2025-09-17",
    "setBasis": "set",
    "created": "2025-09-17",
+   "retargeted": null,
    "demoScheduled": "2025-09-23",
    "demo": null,
    "firstDealIsRenewal": false
@@ -2018,6 +2138,7 @@
    "setOn": "2025-09-17",
    "setBasis": "set",
    "created": "2025-03-14",
+   "retargeted": null,
    "demoScheduled": "2025-09-25",
    "demo": {
     "dealId": 163421134544,
@@ -2037,6 +2158,7 @@
    "setOn": "2025-09-17",
    "setBasis": "set",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2025-09-23",
    "demo": {
     "dealId": "163387096791",
@@ -2056,6 +2178,7 @@
    "setOn": "2025-09-05",
    "setBasis": "set",
    "created": "2025-09-05",
+   "retargeted": null,
    "demoScheduled": "2025-09-23",
    "demo": {
     "dealId": 156610713294,
@@ -2075,6 +2198,7 @@
    "setOn": "2025-09-05",
    "setBasis": "set",
    "created": "2025-01-15",
+   "retargeted": null,
    "demoScheduled": "2025-09-15",
    "demo": {
     "dealId": 156157249250,
@@ -2094,6 +2218,7 @@
    "setOn": "2025-09-05",
    "setBasis": "set",
    "created": "2023-05-15",
+   "retargeted": null,
    "demoScheduled": "2025-09-11",
    "demo": {
     "dealId": "156157946571",
@@ -2113,6 +2238,7 @@
    "setOn": "2025-09-04",
    "setBasis": "set",
    "created": "2025-09-04",
+   "retargeted": null,
    "demoScheduled": "2025-09-09",
    "demo": {
     "dealId": 156167846633,
@@ -2132,6 +2258,7 @@
    "setOn": "2025-09-04",
    "setBasis": "set",
    "created": "2025-09-04",
+   "retargeted": null,
    "demoScheduled": "2025-09-12",
    "demo": {
     "dealId": 155461112556,
@@ -2151,6 +2278,7 @@
    "setOn": "2025-09-03",
    "setBasis": "set",
    "created": "2025-09-03",
+   "retargeted": null,
    "demoScheduled": "2025-09-17",
    "demo": {
     "dealId": 155378463479,
@@ -2170,6 +2298,7 @@
    "setOn": "2025-09-03",
    "setBasis": "set",
    "created": "2025-09-03",
+   "retargeted": null,
    "demoScheduled": "2025-09-12",
    "demo": {
     "dealId": 155196444383,
@@ -2189,6 +2318,7 @@
    "setOn": "2025-09-03",
    "setBasis": "set",
    "created": "2025-09-03",
+   "retargeted": null,
    "demoScheduled": "2025-09-11",
    "demo": {
     "dealId": 155251521236,
@@ -2208,6 +2338,7 @@
    "setOn": "2025-09-03",
    "setBasis": "set",
    "created": "2025-07-17",
+   "retargeted": null,
    "demoScheduled": "2025-09-11",
    "demo": {
     "dealId": 155228362466,
@@ -2227,6 +2358,7 @@
    "setOn": "2025-08-28",
    "setBasis": "demo date",
    "created": "2025-08-21",
+   "retargeted": null,
    "demoScheduled": "2025-08-28",
    "demo": {
     "dealId": 144702918334,
@@ -2246,6 +2378,7 @@
    "setOn": "2025-08-28",
    "setBasis": "demo date",
    "created": "2025-08-21",
+   "retargeted": null,
    "demoScheduled": "2025-08-28",
    "demo": {
     "dealId": 144677630684,
@@ -2265,6 +2398,7 @@
    "setOn": "2025-08-27",
    "setBasis": "demo date",
    "created": "2025-08-21",
+   "retargeted": null,
    "demoScheduled": "2025-08-27",
    "demo": {
     "dealId": 144677566201,
@@ -2284,6 +2418,7 @@
    "setOn": "2025-08-25",
    "setBasis": "demo date",
    "created": "2025-08-21",
+   "retargeted": null,
    "demoScheduled": "2025-08-25",
    "demo": {
     "dealId": 144677658327,
@@ -2303,6 +2438,7 @@
    "setOn": "2025-08-22",
    "setBasis": "set",
    "created": "2025-08-22",
+   "retargeted": null,
    "demoScheduled": "2025-09-04",
    "demo": {
     "dealId": 144829744834,
@@ -2322,6 +2458,7 @@
    "setOn": "2025-08-22",
    "setBasis": "set",
    "created": "2025-08-22",
+   "retargeted": null,
    "demoScheduled": "2025-09-02",
    "demo": {
     "dealId": 144886259447,
@@ -2332,6 +2469,18 @@
     "amount": null,
     "laterWonDealId": null
    },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 138830432876,
+   "company": "Tech-On-Deck",
+   "source": "FieldEdge",
+   "setOn": "2025-07-17",
+   "setBasis": "contact created",
+   "created": "2025-07-17",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
    "firstDealIsRenewal": false
   },
   {
@@ -2349,25 +2498,6 @@
     "outcome": "won",
     "closedOn": "2026-01-12",
     "amount": 699,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 69384501933,
-   "company": "Apollo Outdoor Lighting",
-   "source": "Other",
-   "setOn": "2025-06-21",
-   "setBasis": "demo date",
-   "created": "2024-10-18",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 39107446848,
-    "on": "2025-06-21",
-    "ranBy": "Parker Joos",
-    "outcome": "lost",
-    "closedOn": "2025-10-26",
-    "amount": null,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
@@ -2398,6 +2528,7 @@
    "setOn": "2025-05-15",
    "setBasis": "demo date",
    "created": "2025-05-08",
+   "retargeted": null,
    "demoScheduled": "2025-05-15",
    "demo": {
     "dealId": 36910509404,
@@ -2417,6 +2548,7 @@
    "setOn": "2025-05-14",
    "setBasis": "demo date",
    "created": "2025-03-10",
+   "retargeted": null,
    "demoScheduled": "2025-05-14",
    "demo": {
     "dealId": 36900995492,
@@ -2436,6 +2568,7 @@
    "setOn": "2025-05-14",
    "setBasis": "demo date",
    "created": "2024-10-25",
+   "retargeted": null,
    "demoScheduled": "2025-05-14",
    "demo": {
     "dealId": 35443310434,
@@ -2474,6 +2607,7 @@
    "setOn": "2025-05-02",
    "setBasis": "demo date",
    "created": "2025-04-08",
+   "retargeted": null,
    "demoScheduled": "2025-05-02",
    "demo": {
     "dealId": 35570288756,
@@ -2493,6 +2627,7 @@
    "setOn": "2025-04-30",
    "setBasis": "demo date",
    "created": "2025-04-08",
+   "retargeted": null,
    "demoScheduled": "2025-04-30",
    "demo": {
     "dealId": 35588176525,
@@ -2512,6 +2647,7 @@
    "setOn": "2025-04-22",
    "setBasis": "demo date",
    "created": "2025-04-09",
+   "retargeted": null,
    "demoScheduled": "2025-04-22",
    "demo": {
     "dealId": 35615011611,
@@ -2531,6 +2667,7 @@
    "setOn": "2025-04-17",
    "setBasis": "demo date",
    "created": "2025-04-08",
+   "retargeted": null,
    "demoScheduled": "2025-04-17",
    "demo": {
     "dealId": 35598306847,
@@ -2550,6 +2687,7 @@
    "setOn": "2025-04-17",
    "setBasis": "demo date",
    "created": "2024-10-25",
+   "retargeted": null,
    "demoScheduled": "2025-04-17",
    "demo": {
     "dealId": 35300985940,
@@ -2569,6 +2707,7 @@
    "setOn": "2025-04-15",
    "setBasis": "demo date",
    "created": "2025-04-03",
+   "retargeted": null,
    "demoScheduled": "2025-04-15",
    "demo": {
     "dealId": 35428161610,
@@ -2588,6 +2727,7 @@
    "setOn": "2025-04-10",
    "setBasis": "demo date",
    "created": "2025-04-02",
+   "retargeted": null,
    "demoScheduled": "2025-04-10",
    "demo": {
     "dealId": 35355725154,
@@ -2607,6 +2747,7 @@
    "setOn": "2025-04-09",
    "setBasis": "contact created",
    "created": "2025-04-09",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -2618,6 +2759,7 @@
    "setOn": "2025-04-09",
    "setBasis": "contact created",
    "created": "2025-04-09",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35604550226,
@@ -2637,6 +2779,7 @@
    "setOn": "2025-04-09",
    "setBasis": "demo date",
    "created": "2025-04-01",
+   "retargeted": null,
    "demoScheduled": "2025-04-09",
    "demo": {
     "dealId": 35358923056,
@@ -2656,6 +2799,7 @@
    "setOn": "2025-04-08",
    "setBasis": "contact created",
    "created": "2025-04-08",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -2667,6 +2811,7 @@
    "setOn": "2025-04-08",
    "setBasis": "contact created",
    "created": "2025-04-08",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35592445314,
@@ -2686,6 +2831,7 @@
    "setOn": "2025-04-08",
    "setBasis": "contact created",
    "created": "2025-04-08",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35601461138,
@@ -2705,6 +2851,7 @@
    "setOn": "2025-04-08",
    "setBasis": "contact created",
    "created": "2025-04-08",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35601922657,
@@ -2724,6 +2871,7 @@
    "setOn": "2025-04-08",
    "setBasis": "demo date",
    "created": "2025-04-03",
+   "retargeted": null,
    "demoScheduled": "2025-04-08",
    "demo": {
     "dealId": 35413067352,
@@ -2743,6 +2891,7 @@
    "setOn": "2025-04-03",
    "setBasis": "contact created",
    "created": "2025-04-03",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35411583830,
@@ -2756,31 +2905,13 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 71987813519,
-   "company": "PCG Mechanical",
-   "source": "Referrals",
-   "setOn": "2025-04-03",
-   "setBasis": "demo date",
-   "created": "2024-10-25",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 35424524288,
-    "on": "2025-04-03",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-09-05",
-    "amount": 850.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 111034530688,
    "company": "Reiner",
    "source": "Referrals",
    "setOn": "2025-04-02",
    "setBasis": "contact created",
    "created": "2025-04-02",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35416904354,
@@ -2800,6 +2931,7 @@
    "setOn": "2025-04-01",
    "setBasis": "contact created",
    "created": "2025-04-01",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35321433141,
@@ -2819,6 +2951,7 @@
    "setOn": "2025-04-01",
    "setBasis": "contact created",
    "created": "2025-04-01",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35311303941,
@@ -2838,30 +2971,12 @@
    "setOn": "2025-04-01",
    "setBasis": "contact created",
    "created": "2025-04-01",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35300196158,
     "on": "2025-04-01",
     "ranBy": "Parker Joos",
-    "outcome": "lost",
-    "closedOn": "2025-10-01",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 71981086473,
-   "company": "Terry's AC and Heating",
-   "source": "Referrals",
-   "setOn": "2025-04-01",
-   "setBasis": "demo date",
-   "created": "2024-10-25",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 35317818168,
-    "on": "2025-04-01",
-    "ranBy": "Colton Lingmann",
     "outcome": "lost",
     "closedOn": "2025-10-01",
     "amount": null,
@@ -2876,6 +2991,7 @@
    "setOn": "2025-03-28",
    "setBasis": "contact created",
    "created": "2025-03-28",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 35186654858,
@@ -2883,25 +2999,6 @@
     "ranBy": "Colton Lingmann",
     "outcome": "lost",
     "closedOn": "2025-10-27",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 455954276057,
-   "company": "Roof Plus",
-   "source": "Certain Path",
-   "setOn": "2025-03-28",
-   "setBasis": "demo date",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "35186622808",
-    "on": "2025-03-28",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-10-26",
     "amount": null,
     "laterWonDealId": null
    },
@@ -2933,6 +3030,7 @@
    "setOn": "2025-03-06",
    "setBasis": "contact created",
    "created": "2025-03-06",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 34336276754,
@@ -2952,6 +3050,7 @@
    "setOn": "2025-03-06",
    "setBasis": "contact created",
    "created": "2025-03-06",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 34297373505,
@@ -2961,44 +3060,6 @@
     "closedOn": "2025-06-06",
     "amount": null,
     "laterWonDealId": 326058480368
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 25429028895,
-   "company": "Climate Energy Solutions",
-   "source": "Other",
-   "setOn": "2025-03-06",
-   "setBasis": "demo date",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "34333280013",
-    "on": "2025-03-06",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-10-01",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 25428599221,
-   "company": "Honey's Air & Solar",
-   "source": "Other",
-   "setOn": "2025-03-06",
-   "setBasis": "demo date",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "34330809507",
-    "on": "2025-03-06",
-    "ranBy": "Parker Joos",
-    "outcome": "lost",
-    "closedOn": "2025-04-15",
-    "amount": null,
-    "laterWonDealId": null
    },
    "firstDealIsRenewal": false
   },
@@ -3028,6 +3089,7 @@
    "setOn": "2025-03-05",
    "setBasis": "contact created",
    "created": "2025-03-05",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 34243967565,
@@ -3041,31 +3103,13 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 449878042344,
-   "company": "Cook's Heat & Air",
-   "source": "Certain Path",
-   "setOn": "2025-02-28",
-   "setBasis": "demo date",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "34072649539",
-    "on": "2025-02-28",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-11-17",
-    "amount": 650.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 102703332779,
    "company": "Fresh Air",
    "source": "Other",
    "setOn": "2025-02-27",
    "setBasis": "contact created",
    "created": "2025-02-27",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 34040261686,
@@ -3085,6 +3129,7 @@
    "setOn": "2025-02-27",
    "setBasis": "contact created",
    "created": "2025-02-27",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 34042536732,
@@ -3104,6 +3149,7 @@
    "setOn": "2025-02-27",
    "setBasis": "contact created",
    "created": "2025-02-27",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 34034358175,
@@ -3117,12 +3163,33 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 102702370198,
+   "company": "Strickland Plumbing hvac & electric",
+   "source": "2026 - Pantheon",
+   "setOn": "2025-02-27",
+   "setBasis": "contact created",
+   "created": "2025-02-27",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 34038799140,
+    "on": "2025-02-27",
+    "ranBy": "Parker Joos",
+    "outcome": "lost",
+    "closedOn": "2025-10-01",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 102697964157,
    "company": "Comfort HVAC",
    "source": "Events/Trade Shows",
    "setOn": "2025-02-27",
    "setBasis": "contact created",
    "created": "2025-02-27",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 34038782751,
@@ -3142,6 +3209,7 @@
    "setOn": "2025-02-27",
    "setBasis": "contact created",
    "created": "2025-02-27",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 34038736451,
@@ -3161,6 +3229,7 @@
    "setOn": "2025-02-26",
    "setBasis": "contact created",
    "created": "2025-02-26",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 33961515944,
@@ -3199,6 +3268,7 @@
    "setOn": "2025-02-11",
    "setBasis": "demo date",
    "created": "2024-10-30",
+   "retargeted": null,
    "demoScheduled": "2025-02-11",
    "demo": {
     "dealId": 32646442766,
@@ -3237,6 +3307,7 @@
    "setOn": "2025-01-28",
    "setBasis": "contact created",
    "created": "2025-01-28",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 32669513572,
@@ -3256,6 +3327,7 @@
    "setOn": "2025-01-27",
    "setBasis": "contact created",
    "created": "2025-01-27",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 32630910230,
@@ -3275,6 +3347,7 @@
    "setOn": "2025-01-17",
    "setBasis": "contact created",
    "created": "2025-01-17",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 32116704260,
@@ -3294,6 +3367,7 @@
    "setOn": "2025-01-17",
    "setBasis": "contact created",
    "created": "2025-01-17",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 32147203596,
@@ -3313,6 +3387,7 @@
    "setOn": "2025-01-16",
    "setBasis": "contact created",
    "created": "2025-01-16",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -3324,6 +3399,7 @@
    "setOn": "2025-01-16",
    "setBasis": "contact created",
    "created": "2025-01-16",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": 32132543384,
@@ -3571,6 +3647,7 @@
    "setOn": "2024-11-25",
    "setBasis": "contact created",
    "created": "2024-11-25",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -3601,6 +3678,7 @@
    "setOn": "2024-11-22",
    "setBasis": "demo date",
    "created": "2024-11-21",
+   "retargeted": null,
    "demoScheduled": "2024-11-22",
    "demo": {
     "dealId": 29426436420,
@@ -3614,12 +3692,65 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 71987813519,
+   "company": "PCG Mechanical",
+   "source": "Referrals",
+   "setOn": "2024-10-25",
+   "setBasis": "contact created",
+   "created": "2024-10-25",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 35424524288,
+    "on": "2025-04-03",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-09-05",
+    "amount": 850.0,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 71981086473,
+   "company": "Terry's AC and Heating",
+   "source": "Referrals",
+   "setOn": "2024-10-25",
+   "setBasis": "contact created",
+   "created": "2024-10-25",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 35317818168,
+    "on": "2025-04-01",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-10-01",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 71985821052,
+   "company": "Reliable Tech",
+   "source": "FieldEdge",
+   "setOn": "2024-10-25",
+   "setBasis": "contact created",
+   "created": "2024-10-25",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 455870058232,
    "company": "Perfect Temp",
    "source": "Certain Path",
    "setOn": "2024-10-24",
    "setBasis": "demo date",
    "created": "2024-10-23",
+   "retargeted": null,
    "demoScheduled": "2024-10-24",
    "demo": {
     "dealId": 28297212744,
@@ -3633,12 +3764,33 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 69384501933,
+   "company": "Apollo Outdoor Lighting",
+   "source": "Other",
+   "setOn": "2024-10-18",
+   "setBasis": "contact created",
+   "created": "2024-10-18",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 39107446848,
+    "on": "2025-06-21",
+    "ranBy": "Parker Joos",
+    "outcome": "lost",
+    "closedOn": "2025-10-26",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 25428569491,
    "company": "Gammons Heating & Cooling",
    "source": "2026 - Pantheon",
    "setOn": "2024-10-07",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2024-10-07",
    "demo": {
     "dealId": "23002647043",
@@ -3658,6 +3810,7 @@
    "setOn": "2024-07-22",
    "setBasis": "demo date",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": "2024-07-22",
    "demo": {
     "dealId": "21591653378",
@@ -3677,6 +3830,7 @@
    "setOn": "2024-06-25",
    "setBasis": "demo date",
    "created": "2024-06-20",
+   "retargeted": null,
    "demoScheduled": "2024-06-25",
    "demo": {
     "dealId": "20225610669",
@@ -3696,6 +3850,7 @@
    "setOn": "2024-06-03",
    "setBasis": "demo date",
    "created": "2023-09-12",
+   "retargeted": null,
    "demoScheduled": "2024-06-03",
    "demo": {
     "dealId": "19741250972",
@@ -3709,14 +3864,135 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 25427431602,
+   "company": "JEM Plumbing, Inc",
+   "source": "FieldEdge",
+   "setOn": "2024-05-29",
+   "setBasis": "contact created",
+   "created": "2024-05-29",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 365603122928,
+    "on": "2026-11-10",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 25429028895,
+   "company": "Climate Energy Solutions",
+   "source": "Other",
+   "setOn": "2024-05-29",
+   "setBasis": "contact created",
+   "created": "2024-05-29",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "34333280013",
+    "on": "2025-03-06",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-10-01",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 25428599221,
+   "company": "Honey's Air & Solar",
+   "source": "Other",
+   "setOn": "2024-05-29",
+   "setBasis": "contact created",
+   "created": "2024-05-29",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "34330809507",
+    "on": "2025-03-06",
+    "ranBy": "Parker Joos",
+    "outcome": "lost",
+    "closedOn": "2025-04-15",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 455954276057,
+   "company": "Roof Plus",
+   "source": "Certain Path",
+   "setOn": "2024-05-29",
+   "setBasis": "contact created",
+   "created": "2024-05-29",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "35186622808",
+    "on": "2025-03-28",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-10-26",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 449878042344,
+   "company": "Cook's Heat & Air",
+   "source": "Certain Path",
+   "setOn": "2024-05-29",
+   "setBasis": "contact created",
+   "created": "2024-05-29",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "34072649539",
+    "on": "2025-02-28",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-11-17",
+    "amount": 650.0,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 455468128966,
    "company": "A Brooks Construction KangaRoof®",
    "source": "Certain Path",
    "setOn": "2024-05-29",
    "setBasis": "contact created",
    "created": "2024-05-29",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 21884055180,
+   "company": "Aqua Systems",
+   "source": "2026 - Pantheon",
+   "setOn": "2024-05-16",
+   "setBasis": "contact created",
+   "created": "2024-05-16",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "19407868246",
+    "on": "2024-05-16",
+    "ranBy": "Chelsea Allred",
+    "outcome": "lost",
+    "closedOn": "2025-02-10",
+    "amount": 699.0,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -3726,6 +4002,7 @@
    "setOn": "2024-05-14",
    "setBasis": "contact created",
    "created": "2024-05-14",
+   "retargeted": null,
    "demoScheduled": null,
    "demo": {
     "dealId": "19414434221",
@@ -3734,6 +4011,26 @@
     "outcome": "won",
     "closedOn": "2024-06-03",
     "amount": 650.0,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 13357939046,
+   "company": "Delta heating cooling and plumbing",
+   "source": "2026 - Pantheon",
+   "setOn": "2024-04-17",
+   "setBasis": "contact created",
+   "created": "2024-04-17",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "18709462030",
+    "on": "2024-04-17",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2026-01-27",
+    "amount": null,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
