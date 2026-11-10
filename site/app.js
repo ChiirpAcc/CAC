@@ -4813,9 +4813,9 @@ function renderRP() {
     $('rp-months').addEventListener('change', () => { st.months = Number($('rp-months').value) || 6; renderRP(); });
     $('rp-download').addEventListener('click', () => {
       const cell = v => (v === null || v === undefined ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
-      const text = ['set_on,set_date_from,company,source,hubspot_contact,demo_completed_on,ran_by,outcome,hubspot_deal']
+      const text = ['set_on,set_date_from,company,source,hubspot_contact,demo_completed_on,ran_by,outcome,hubspot_deal,demo_check']
         .concat(all.map(x => [x.setOn, x.setBasis, x.company, x.source, hubspotContactUrl(x.contactId), x.demo ? x.demo.on : '',
-          x.demo ? x.demo.ranBy : '', x.demo ? x.demo.outcome : '', x.demo ? hubspotDealUrl(x.demo.dealId) : ''].map(cell).join(','))).join('\n');
+          x.demo ? x.demo.ranBy : '', x.demo ? x.demo.outcome : '', x.demo && x.demo.dealId ? hubspotDealUrl(x.demo.dealId) : '', x.sitCheck || (x.demo && x.demo.note) || ''].map(cell).join(','))).join('\n');
       const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
       const a = document.createElement('a');
       a.href = url; a.download = 'ryan-peterson-sets-and-demos.csv';
@@ -4847,10 +4847,14 @@ function renderRP() {
   $('rp-kpis').innerHTML =
     kpi('Sets', fmt.int(sets.length), 'contacts he set in the period')
     + kpi('Demos completed', fmt.int(demos.length), 'from the period’s sets, held so far')
-    + kpi('Show rate', pc(reached.length, sets.length), `${fmt.int(reached.length)} of the period\u2019s ${fmt.int(sets.length)} sets reached a demo`)
+    + (sets.some(x => x.meeting)
+      ? (() => { const n = o => sets.filter(x => x.meeting && x.meeting.outcome === o).length; const held = n('completed'), noShow = n('no-show');
+        return kpi('Show rate', pc(held, held + noShow), `${fmt.int(held)} held of ${fmt.int(held + noShow)} meetings already due · ${fmt.int(noShow)} no-shows, ${fmt.int(n('upcoming'))} still ahead, ${fmt.int(n('cancelled'))} cancelled`); })()
+      : kpi('Show rate', pc(reached.length, sets.length), `${fmt.int(reached.length)} of the period\u2019s ${fmt.int(sets.length)} sets reached a demo`))
     + kpi('Won', fmt.int(demos.filter(x => wonish(x.demo.outcome)).length),
       `of the period\u2019s ${fmt.int(demos.length)} demos · ${fmt.int(demos.filter(x => x.demo.outcome === 'open').length)} still open`);
   const outcomeCell = o => (o === 'won' ? '<span class="pos">won</span>' : o === 'later won' ? '<span class="pos">lost, then won</span>'
+    : o === 'held, upsell' ? 'held; upsell of an existing customer'
     : o === 'open' ? 'still open' : o === 'lost' ? '<span class="muted">lost</span>' : '–');
   const company = x => extLink(hubspotContactUrl(x.contactId), x.company || 'No company on the contact');
   const dateCell = x => `${x.setOn || '–'}${x.countWhy ? `<br><span class="muted">${x.countWhy}</span>` : ''}${x.retargeted ? `<br><span class="muted">older contact, retargeted at ${x.retargeted.event}: ${x.retargeted.how}</span>`
@@ -4858,12 +4862,15 @@ function renderRP() {
   $('rp-sets').innerHTML = !sets.length ? '<tbody><tr><td class="muted">No sets in this period.</td></tr></tbody>'
     : '<thead><tr><th>Set</th><th>Company (HubSpot contact)</th><th>Source</th><th>Demo completed</th><th>Ran by</th><th>Outcome</th></tr></thead><tbody>'
       + sets.map(x => `<tr><td>${dateCell(x)}</td><td>${company(x)}</td><td>${x.source || '<span class="muted">not recorded</span>'}</td>`
-        + `<td>${x.demo ? extLink(hubspotDealUrl(x.demo.dealId), x.demo.on) : x.demoScheduled ? `<span class="muted">not yet; booked for ${x.demoScheduled}</span>` : '<span class="muted">no demo</span>'}</td>`
+        + `<td>${x.demo ? (x.demo.dealId ? extLink(hubspotDealUrl(x.demo.dealId), x.demo.on) : `${x.demo.on}${x.demo.note ? `<br><span class="muted">${x.demo.note}</span>` : ''}`)
+          : x.meeting ? `<span class="muted">${x.meeting.outcome === 'no-show' ? `no-show: meeting on ${x.meeting.on}, ${x.meeting.shown}`
+            : x.meeting.outcome === 'cancelled' ? `cancelled: ${x.meeting.shown}` : `booked for ${x.meeting.on}${x.meeting.shown !== 'Scheduled' ? `; ${x.meeting.shown}` : ''}`}</span>`
+          : x.sitCheck ? `<span class="muted">no demo: ${x.sitCheck}</span>` : x.demoScheduled ? `<span class="muted">not yet; booked for ${x.demoScheduled}</span>` : '<span class="muted">no demo</span>'}</td>`
         + `<td>${x.demo && x.demo.ranBy ? x.demo.ranBy : '–'}</td><td>${x.demo ? outcomeCell(x.demo.outcome) : '–'}</td></tr>`).join('')
       + '</tbody>';
   $('rp-demos').innerHTML = !demos.length ? '<tbody><tr><td class="muted">No demos yet from this period’s sets.</td></tr></tbody>'
     : '<thead><tr><th>Demo completed</th><th>Company (HubSpot contact)</th><th>Deal</th><th>Set</th><th>Ran by</th><th>Outcome</th><th class="n">Deal amount</th></tr></thead><tbody>'
-      + demos.map(x => `<tr><td>${x.demo.on}</td><td>${company(x)}</td><td>${extLink(hubspotDealUrl(x.demo.dealId), 'Open deal')}`
+      + demos.map(x => `<tr><td>${x.demo.on}</td><td>${company(x)}</td><td>${x.demo.dealId ? extLink(hubspotDealUrl(x.demo.dealId), 'Open deal') : '<span class="muted">no deal (upsell)</span>'}`
         + `${x.demo.laterWonDealId ? `<br>${extLink(hubspotDealUrl(x.demo.laterWonDealId), 'Won deal')}` : ''}</td>`
         + `<td>${x.setOn || '–'}</td><td>${x.demo.ranBy || '–'}</td><td>${outcomeCell(x.demo.outcome)}</td>`
         + `<td class="n">${x.demo.amount ? fmt.money(x.demo.amount) : '–'}</td></tr>`).join('')

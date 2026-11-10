@@ -14,7 +14,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-30",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-30",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 583051504377,
@@ -26,7 +31,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-12",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-12",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 579827892942,
@@ -46,7 +56,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-04",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 579823789784,
@@ -58,7 +73,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-06",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-06",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 579769882322,
@@ -70,7 +90,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-13",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-13",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 579457485534,
@@ -82,7 +107,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-04",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-11",
+    "outcome": "upcoming",
+    "shown": "Scheduled (first booking for 4 Nov was canceled)"
+   }
   },
   {
    "contactId": 579411914436,
@@ -94,7 +124,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-17",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-17",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 579406029561,
@@ -106,7 +141,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-17",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-17",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 579398712006,
@@ -118,7 +158,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-11",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-11",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 579012395760,
@@ -138,7 +183,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-06",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 578999476966,
@@ -158,7 +208,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-06",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 578660331198,
@@ -178,7 +233,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-04",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 578057990849,
@@ -190,7 +250,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-10",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-10",
+    "outcome": "upcoming",
+    "shown": "today; outcome not logged yet"
+   }
   },
   {
    "contactId": 578034783981,
@@ -202,7 +267,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-11",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-11",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 578054594292,
@@ -214,7 +284,12 @@
    "retargeted": null,
    "demoScheduled": "2026-11-03",
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-03",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 573639352023,
@@ -234,7 +309,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-23",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 570570848970,
@@ -246,7 +326,12 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-03",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 319319698146,
@@ -261,7 +346,12 @@
    },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-05",
+    "outcome": "no-show",
+    "shown": "still Scheduled (29 Oct, then 5 Nov)"
+   }
   },
   {
    "contactId": 453667767023,
@@ -276,7 +366,12 @@
    },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-13",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 21630948954,
@@ -291,7 +386,12 @@
    },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-23",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 570156523244,
@@ -303,7 +403,12 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-20",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 492068408053,
@@ -318,7 +423,12 @@
    },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-29",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 565719481042,
@@ -338,7 +448,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-22",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 565545328317,
@@ -350,7 +465,12 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-20",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 138832032273,
@@ -373,7 +493,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-21",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 565263258325,
@@ -393,7 +518,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-16",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 565069841090,
@@ -405,7 +535,12 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-22",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 565089950428,
@@ -417,7 +552,12 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-12-15",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 319723830996,
@@ -432,7 +572,12 @@
    },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-23",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 247426927298,
@@ -447,7 +592,12 @@
    },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-28",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 13357939046,
@@ -462,7 +612,12 @@
    },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-15",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 564691058401,
@@ -474,7 +629,12 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-14",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 564481470163,
@@ -486,7 +646,12 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-14",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 564279645885,
@@ -506,7 +671,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-15",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 564233994966,
@@ -526,7 +696,12 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-12",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 564233421549,
@@ -538,7 +713,12 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-15",
+    "outcome": "no-show",
+    "shown": "No show"
+   }
   },
   {
    "contactId": 563758114496,
@@ -550,7 +730,12 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-14",
+    "outcome": "no-show",
+    "shown": "No show (on a duplicate record)"
+   }
   },
   {
    "contactId": 349339525818,
@@ -564,8 +749,23 @@
     "how": "Pantheon Upsell form naming him, and a booking on the upsell scheduler a minute later"
    },
    "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
+   "demo": {
+    "dealId": null,
+    "meetingId": 404969658063,
+    "on": "2026-10-13",
+    "ranBy": "Blake Fenn",
+    "outcome": "held, upsell",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null,
+    "note": "held (Fellow recap): an existing customer on the $849 legacy plan, shown the upgrade; no new-business deal"
+   },
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-13",
+    "outcome": "completed",
+    "shown": "Completed (upsell demo)"
+   }
   },
   {
    "contactId": 138829733796,
@@ -580,7 +780,12 @@
    },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-19",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
   },
   {
    "contactId": 21884055180,
@@ -595,7 +800,12 @@
    },
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-10-05",
+    "outcome": "cancelled",
+    "shown": "booking removed from HubSpot"
+   }
   },
   {
    "contactId": 561876604645,
@@ -609,7 +819,12 @@
    "demo": null,
    "firstDealIsRenewal": false,
    "countIn": "2026-10-01",
-   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events",
+   "meeting": {
+    "on": "2026-10-15",
+    "outcome": "cancelled",
+    "shown": "Canceled"
+   }
   },
   {
    "contactId": 561224527578,
@@ -631,7 +846,12 @@
    },
    "firstDealIsRenewal": false,
    "countIn": "2026-10-01",
-   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events",
+   "meeting": {
+    "on": "2026-10-02",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 561171181247,
@@ -653,7 +873,12 @@
    },
    "firstDealIsRenewal": false,
    "countIn": "2026-10-01",
-   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events",
+   "meeting": {
+    "on": "2026-10-06",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 561100298942,
@@ -667,7 +892,12 @@
    "demo": null,
    "firstDealIsRenewal": false,
    "countIn": "2026-10-01",
-   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events",
+   "meeting": {
+    "on": "2026-11-09",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 560913123023,
@@ -681,7 +911,12 @@
    "demo": null,
    "firstDealIsRenewal": false,
    "countIn": "2026-10-01",
-   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events",
+   "meeting": {
+    "on": "2026-10-13",
+    "outcome": "no-show",
+    "shown": "still Scheduled"
+   }
   },
   {
    "contactId": 559876215489,
@@ -703,7 +938,12 @@
    },
    "firstDealIsRenewal": false,
    "countIn": "2026-10-01",
-   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events",
+   "meeting": {
+    "on": "2026-10-08",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
   },
   {
    "contactId": 557931706074,
