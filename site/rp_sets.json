@@ -5,6 +5,30 @@
  "note": "HubSpot contacts whose Setter is Ryan Peterson, every source, plus demos whose deal names him as Setter; each demo is the first new-business deal on the contact, which HubSpot opens once the demo is held. Company names and record ids only.",
  "sets": [
   {
+   "contactId": 583134104287,
+   "company": "Reece windows and doors",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-11-02",
+   "setBasis": "contact created",
+   "created": "2026-11-02",
+   "retargeted": null,
+   "demoScheduled": "2026-11-30",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 583051504377,
+   "company": "Pella Windows & Doors",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-11-02",
+   "setBasis": "contact created",
+   "created": "2026-11-02",
+   "retargeted": null,
+   "demoScheduled": "2026-11-12",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 579827892942,
    "company": "Kowalske Kitchen & Bath",
    "source": "2026 - Qualified Remodeler Top 500",
@@ -538,21 +562,6 @@
    "setOn": "2026-10-05",
    "setBasis": "retargeted",
    "created": "2025-07-17",
-   "retargeted": {
-    "event": "2026 - Pantheon",
-    "how": "Pantheon form naming him, and a booking on the Pantheon scheduler a minute later"
-   },
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 102702370198,
-   "company": "Strickland Plumbing hvac & electric",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-05",
-   "setBasis": "retargeted",
-   "created": "2025-02-27",
    "retargeted": {
     "event": "2026 - Pantheon",
     "how": "Pantheon form naming him, and a booking on the Pantheon scheduler a minute later"
@@ -3942,20 +3951,6 @@
    "source": "FieldEdge",
    "setOn": "2026-11-06",
    "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
-  },
-  {
-   "contactId": 583134104287,
-   "company": "Reece windows and doors",
-   "source": "2026 - Qualified Remodeler Top 500",
-   "setOn": "2026-11-02",
-   "why": "not booked by Ryan: booked 9 Nov, a week after the show, on the QR form by an unknown hand (contact made by the Chiirp integration); nothing shows Ryan booked it"
-  },
-  {
-   "contactId": 583051504377,
-   "company": "Pella Windows & Doors",
-   "source": "2026 - Qualified Remodeler Top 500",
-   "setOn": "2026-11-02",
-   "why": "not booked by Ryan: booked 9 Nov, a week after the show, on the QR form by an unknown hand (contact made by the Chiirp integration); nothing shows Ryan booked it"
   },
   {
    "contactId": 581345054396,
