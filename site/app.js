@@ -4840,7 +4840,7 @@ function renderRP() {
   const pc = (n, d) => (d ? fmt.pct(n / d, 0) : '–');
   const kpi = (k, v, sub = '') => `<div class="ev-kpi"><span class="ev-kpi-label">${k}</span>`
     + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
-  $('rp-period').innerHTML = `<strong>${label}.</strong> From HubSpot, checked ${rpSets.checked}: contacts whose Setter is Ryan Peterson, from every source.`;
+  $('rp-period').innerHTML = `<strong>${label}.</strong> From HubSpot, checked ${rpSets.checked}: contacts whose Setter is Ryan Peterson, from every source, and demos whose deal names him as Setter.`;
   $('rp-kpis').innerHTML =
     kpi('Sets', fmt.int(sets.length), 'contacts he set in the period')
     + kpi('Demos completed', fmt.int(demos.length), 'demos held in the period, from any of his sets')
@@ -4850,7 +4850,7 @@ function renderRP() {
   const outcomeCell = o => (o === 'won' ? '<span class="pos">won</span>' : o === 'later won' ? '<span class="pos">lost, then won</span>'
     : o === 'open' ? 'still open' : o === 'lost' ? '<span class="muted">lost</span>' : '–');
   const company = x => extLink(hubspotContactUrl(x.contactId), x.company || 'No company on the contact');
-  const dateCell = x => `${x.setOn || '–'}${x.setBasis !== 'set' ? `<br><span class="muted">${x.setBasis === 'demo date' ? 'demo date; no set date' : 'contact created; no set date'}</span>` : ''}`;
+  const dateCell = x => `${x.setOn || '–'}${x.setBasis !== 'set' ? `<br><span class="muted">${x.setBasis === 'demo date' ? 'demo date; no set date' : x.setBasis === 'deal setter' ? 'demo date; the deal names him as setter' : 'contact created; no set date'}</span>` : ''}`;
   $('rp-sets').innerHTML = !sets.length ? '<tbody><tr><td class="muted">No sets in this period.</td></tr></tbody>'
     : '<thead><tr><th>Set</th><th>Company (HubSpot contact)</th><th>Source</th><th>Demo completed</th><th>Ran by</th><th>Outcome</th></tr></thead><tbody>'
       + sets.map(x => `<tr><td>${dateCell(x)}</td><td>${company(x)}</td><td>${x.source || '<span class="muted">not recorded</span>'}</td>`

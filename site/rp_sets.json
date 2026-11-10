@@ -2,7 +2,7 @@
  "checked": "2026-11-10",
  "setter": "Ryan Peterson",
  "portal": "23947290",
- "note": "HubSpot contacts whose Setter is Ryan Peterson, every source; each demo is the first new-business deal on the contact, which HubSpot opens once the demo is held. Company names and record ids only.",
+ "note": "HubSpot contacts whose Setter is Ryan Peterson, every source, plus demos whose deal names him as Setter; each demo is the first new-business deal on the contact, which HubSpot opens once the demo is held. Company names and record ids only.",
  "sets": [
   {
    "contactId": 590603546338,
@@ -1328,6 +1328,25 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 63345332061,
+   "company": "Aqua knight plumbing",
+   "source": "2026 - Home Service Freedom",
+   "setOn": "2025-11-20",
+   "setBasis": "deal setter",
+   "created": "2024-09-30",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 223954175724,
+    "on": "2025-11-20",
+    "ranBy": null,
+    "outcome": "won",
+    "closedOn": "2025-12-01",
+    "amount": 1000,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 319723830996,
    "company": "Hanna Plumbing",
    "source": "2026 - Pantheon",
@@ -2279,6 +2298,44 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 132347204926,
+   "company": "Jet Plumbing",
+   "source": "LAB",
+   "setOn": "2025-07-17",
+   "setBasis": "deal setter",
+   "created": "2025-07-17",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 40408936736,
+    "on": "2025-07-17",
+    "ranBy": null,
+    "outcome": "won",
+    "closedOn": "2026-01-12",
+    "amount": 699,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 379401,
+   "company": "Jones & Sons Plumbing",
+   "source": "Other",
+   "setOn": "2025-05-16",
+   "setBasis": "deal setter",
+   "created": "2024-01-29",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 37360276868,
+    "on": "2025-05-16",
+    "ranBy": null,
+    "outcome": "won",
+    "closedOn": "2025-05-16",
+    "amount": 650,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 120065382496,
    "company": null,
    "source": "Events/Trade Shows",
@@ -2331,6 +2388,25 @@
     "outcome": "lost",
     "closedOn": "2025-04-22",
     "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 116201440090,
+   "company": "Homefirst Services",
+   "source": "2025 - Pantheon",
+   "setOn": "2025-05-05",
+   "setBasis": "deal setter",
+   "created": "2025-04-23",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 36723874994,
+    "on": "2025-05-05",
+    "ranBy": null,
+    "outcome": "won",
+    "closedOn": "2025-05-05",
+    "amount": 780,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
@@ -2719,6 +2795,25 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 69403689064,
+   "company": "Smoak's",
+   "source": "Lemon Seed Marketing",
+   "setOn": "2025-03-28",
+   "setBasis": "deal setter",
+   "created": "2024-10-18",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 35191166315,
+    "on": "2025-03-28",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-10-16",
+    "amount": 850,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 104204974244,
    "company": "Panther AC and Electric",
    "source": "Other",
@@ -2753,6 +2848,25 @@
     "closedOn": "2025-06-06",
     "amount": null,
     "laterWonDealId": 326058480368
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 104203546422,
+   "company": "Fulkerson Services",
+   "source": "Other",
+   "setOn": "2025-03-06",
+   "setBasis": "deal setter",
+   "created": "2025-03-06",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 34325141561,
+    "on": "2025-03-06",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-05-05",
+    "amount": null,
+    "laterWonDealId": null
    },
    "firstDealIsRenewal": false
   },
@@ -2909,6 +3023,25 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 101232774273,
+   "company": "Classic Flooring Solutions",
+   "source": "Referrals",
+   "setOn": "2025-02-21",
+   "setBasis": "deal setter",
+   "created": "2025-02-21",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 33889617985,
+    "on": "2025-02-21",
+    "ranBy": null,
+    "outcome": "won",
+    "closedOn": "2025-02-24",
+    "amount": 552.5,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 73641033391,
    "company": "HVAC and electrical",
    "source": "Lemon Seed Marketing",
@@ -2923,6 +3056,25 @@
     "outcome": "lost",
     "closedOn": "2025-02-18",
     "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 25429854856,
+   "company": "Infinity Garage Door Service",
+   "source": "Garage Door Freedom",
+   "setOn": "2025-02-07",
+   "setBasis": "deal setter",
+   "created": "2024-05-29",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 33179958835,
+    "on": "2025-02-07",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-09-04",
+    "amount": 650,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
@@ -3034,6 +3186,234 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 82700748217,
+   "company": "Holmes Drafting Services",
+   "source": "Events/Trade Shows",
+   "setOn": "2024-12-11",
+   "setBasis": "deal setter",
+   "created": "2024-12-06",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 30144969845,
+    "on": "2024-12-11",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-09-17",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82717831030,
+   "company": "Ohio Roof Masters",
+   "source": "Other",
+   "setOn": "2024-12-11",
+   "setBasis": "deal setter",
+   "created": "2024-12-06",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 30144969766,
+    "on": "2024-12-11",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-01-17",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82615255674,
+   "company": "Manny Construction",
+   "source": "Other",
+   "setOn": "2024-12-06",
+   "setBasis": "deal setter",
+   "created": "2024-12-06",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29904709264,
+    "on": "2024-12-06",
+    "ranBy": null,
+    "outcome": "won",
+    "closedOn": "2024-12-19",
+    "amount": 650,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82577622106,
+   "company": "Core Hydraulics (BP Roofing)",
+   "source": "2025 - Home Service Freedom",
+   "setOn": "2024-12-06",
+   "setBasis": "deal setter",
+   "created": "2024-12-06",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29911167642,
+    "on": "2024-12-06",
+    "ranBy": null,
+    "outcome": "later won",
+    "closedOn": "2025-10-01",
+    "amount": 699,
+    "laterWonDealId": 33996681989
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82700732193,
+   "company": "Siberian Roofing",
+   "source": "Events/Trade Shows",
+   "setOn": "2024-12-06",
+   "setBasis": "deal setter",
+   "created": "2024-12-06",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29925866670,
+    "on": "2024-12-06",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-10-16",
+    "amount": 500,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82680191005,
+   "company": "Complete Exteriors",
+   "source": "Events/Trade Shows",
+   "setOn": "2024-12-06",
+   "setBasis": "deal setter",
+   "created": "2024-12-06",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29922028694,
+    "on": "2024-12-06",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-02-20",
+    "amount": 650,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82534957326,
+   "company": "DC ROOFING FL",
+   "source": "2025 - LB Roofing Process Conference",
+   "setOn": "2024-12-05",
+   "setBasis": "deal setter",
+   "created": "2024-12-05",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29879665015,
+    "on": "2024-12-05",
+    "ranBy": null,
+    "outcome": "won",
+    "closedOn": "2024-12-18",
+    "amount": 650,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82491499638,
+   "company": "American Custom Contractors",
+   "source": "Events/Trade Shows",
+   "setOn": "2024-12-05",
+   "setBasis": "deal setter",
+   "created": "2024-12-05",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29880725142,
+    "on": "2024-12-05",
+    "ranBy": null,
+    "outcome": "won",
+    "closedOn": "2024-12-18",
+    "amount": 350,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82496753325,
+   "company": "Cornerstone Construction",
+   "source": "Events/Trade Shows",
+   "setOn": "2024-12-05",
+   "setBasis": "deal setter",
+   "created": "2024-12-05",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29884425575,
+    "on": "2024-12-05",
+    "ranBy": null,
+    "outcome": "won",
+    "closedOn": "2024-12-20",
+    "amount": 850,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82543456124,
+   "company": "NorthGate Construction",
+   "source": "Events/Trade Shows",
+   "setOn": "2024-12-05",
+   "setBasis": "deal setter",
+   "created": "2024-12-05",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29897462181,
+    "on": "2024-12-05",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-02-25",
+    "amount": 650,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82509153373,
+   "company": "Build Pros of America",
+   "source": "2025 - LB Roofing Process Conference",
+   "setOn": "2024-12-05",
+   "setBasis": "deal setter",
+   "created": "2024-12-05",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29879501887,
+    "on": "2024-12-05",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-10-28",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 82321553454,
+   "company": "Castle Roofing Systems",
+   "source": "Events/Trade Shows",
+   "setOn": "2024-12-04",
+   "setBasis": "deal setter",
+   "created": "2024-12-04",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29884475178,
+    "on": "2024-12-04",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-02-26",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 80088165796,
    "company": "The Huge Convention",
    "source": "Events/Trade Shows",
@@ -3042,6 +3422,25 @@
    "created": "2024-11-25",
    "demoScheduled": null,
    "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 79622783904,
+   "company": "Cathedral Roofing Innovations, Inc.",
+   "source": "Other",
+   "setOn": "2024-11-23",
+   "setBasis": "deal setter",
+   "created": "2024-11-23",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 29500024132,
+    "on": "2024-11-23",
+    "ranBy": null,
+    "outcome": "lost",
+    "closedOn": "2025-09-17",
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
