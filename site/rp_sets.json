@@ -714,7 +714,9 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "countIn": "2026-10-01",
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
   },
   {
    "contactId": 561224527578,
@@ -734,7 +736,9 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "countIn": "2026-10-01",
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
   },
   {
    "contactId": 561171181247,
@@ -754,7 +758,9 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "countIn": "2026-10-01",
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
   },
   {
    "contactId": 561100298942,
@@ -766,7 +772,9 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "countIn": "2026-10-01",
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
   },
   {
    "contactId": 560913123023,
@@ -778,7 +786,9 @@
    "retargeted": null,
    "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "countIn": "2026-10-01",
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
   },
   {
    "contactId": 559876215489,
@@ -798,7 +808,9 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": false,
+   "countIn": "2026-10-01",
+   "countWhy": "CCN Elevate 2026 (28-30 Sep) counts with the Q4 2026 events"
   },
   {
    "contactId": 557931706074,

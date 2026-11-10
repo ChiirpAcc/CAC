@@ -4805,7 +4805,7 @@ function renderRP() {
   const all = rpSets.sets;
   const sel = $('rp-quarter');
   if (!sel.dataset.ready) {
-    const qs = [...new Set([quarterNow(), ...all.map(x => quarterOfDay(x.setOn))].filter(Boolean))].sort().reverse();
+    const qs = [...new Set([quarterNow(), ...all.map(x => quarterOfDay(x.countIn || x.setOn))].filter(Boolean))].sort().reverse();
     sel.innerHTML = qs.map(q => `<option value="${q}">${q}${q === quarterNow() ? ' (this quarter)' : ''}</option>`).join('');
     sel.value = st.quarter;
     sel.addEventListener('change', () => { st.quarter = sel.value; renderRP(); });
@@ -4833,7 +4833,9 @@ function renderRP() {
   const inPeriod = d => (!d ? false : st.kind === 'all' ? true : st.kind === 'quarter' ? quarterOfDay(d) === st.quarter
     : d.slice(0, 7) >= from && d.slice(0, 7) <= thisMonth);
   const label = st.kind === 'all' ? 'All time' : st.kind === 'quarter' ? st.quarter : `${fmt.monthLabel(from)} to ${fmt.monthLabel(thisMonth)}`;
-  const sets = all.filter(x => inPeriod(x.setOn));
+  // A set counts in its own period, unless Josh moved its event's sets into another (countIn).
+  const periodDay = x => x.countIn || x.setOn;
+  const sets = all.filter(x => inPeriod(periodDay(x)));
   const demos = sets.filter(x => x.demo).sort((a, b) => b.demo.on.localeCompare(a.demo.on));
   const reached = sets.filter(x => x.demo);
   const wonish = o => o === 'won' || o === 'later won';
@@ -4851,7 +4853,7 @@ function renderRP() {
   const outcomeCell = o => (o === 'won' ? '<span class="pos">won</span>' : o === 'later won' ? '<span class="pos">lost, then won</span>'
     : o === 'open' ? 'still open' : o === 'lost' ? '<span class="muted">lost</span>' : '–');
   const company = x => extLink(hubspotContactUrl(x.contactId), x.company || 'No company on the contact');
-  const dateCell = x => `${x.setOn || '–'}${x.retargeted ? `<br><span class="muted">older contact, retargeted at ${x.retargeted.event}: ${x.retargeted.how}</span>`
+  const dateCell = x => `${x.setOn || '–'}${x.countWhy ? `<br><span class="muted">${x.countWhy}</span>` : ''}${x.retargeted ? `<br><span class="muted">older contact, retargeted at ${x.retargeted.event}: ${x.retargeted.how}</span>`
     : x.setBasis !== 'set' ? `<br><span class="muted">${({ 'demo date': 'demo date; no set date', 'deal setter': 'demo date; the deal names him as setter' })[x.setBasis] || 'contact created; no set date'}</span>` : ''}`;
   $('rp-sets').innerHTML = !sets.length ? '<tbody><tr><td class="muted">No sets in this period.</td></tr></tbody>'
     : '<thead><tr><th>Set</th><th>Company (HubSpot contact)</th><th>Source</th><th>Demo completed</th><th>Ran by</th><th>Outcome</th></tr></thead><tbody>'
@@ -4867,11 +4869,11 @@ function renderRP() {
         + `<td class="n">${x.demo.amount ? fmt.money(x.demo.amount) : '–'}</td></tr>`).join('')
       + '</tbody>';
   // Every quarter: its sets, and the demos and wins that came from them.
-  const qs = [...new Set(all.map(x => quarterOfDay(x.setOn)).filter(Boolean))].sort().reverse().slice(0, 8);
+  const qs = [...new Set(all.map(x => quarterOfDay(x.countIn || x.setOn)).filter(Boolean))].sort().reverse().slice(0, 8);
   $('rp-trend').innerHTML = '<thead><tr><th>Quarter</th><th class="n">Sets</th><th class="n">Demos completed</th><th class="n">Won</th></tr></thead><tbody>'
     + qs.map(q => {
-      const d = all.filter(x => x.demo && quarterOfDay(x.setOn) === q);
-      return `<tr${q === st.quarter && st.kind === 'quarter' ? ' class="row-featured"' : ''}><td>${q}</td><td class="n">${fmt.int(all.filter(x => quarterOfDay(x.setOn) === q).length)}</td>`
+      const d = all.filter(x => x.demo && quarterOfDay(x.countIn || x.setOn) === q);
+      return `<tr${q === st.quarter && st.kind === 'quarter' ? ' class="row-featured"' : ''}><td>${q}</td><td class="n">${fmt.int(all.filter(x => quarterOfDay(x.countIn || x.setOn) === q).length)}</td>`
         + `<td class="n">${fmt.int(d.length)}</td><td class="n">${fmt.int(d.filter(x => wonish(x.demo.outcome)).length)}</td></tr>`;
     }).join('') + '</tbody>';
 }
