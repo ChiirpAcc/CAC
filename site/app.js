@@ -4452,7 +4452,28 @@ function renderSummary() {
     + `${short(o.contribution)} so far.</strong> They brought ${fmt.int(o.customers)} new paying customers, ${fmt.int(o.liveNow)} still `
     + `paying ${money(o.mrrNow)} a month. Twelve months after each event the return is projected at ${pct(o.roi12)}`
     + `${o.roi12Range ? ` (likely ${pct(o.roi12Range[0])} to ${pct(o.roi12Range[1])})` : ''}.`;
-  const tile = (label, value, sub, tone = '') => `<div class="summary-kpi ${tone}"><span class="summary-kpi-label">${label}</span>`
+  // The headline two ways (Josh, 10 Nov 2026): events under three months old
+  // have spent their money and barely started earning, so they drag every
+  // figure down. The same events split by age, the scorecard's three-month
+  // rule; the two rows add up to the first.
+  const { matureTo, youngFrom, old: oldO, young: newO } = o.ages;
+  if ($('summary-ages')) {
+    const row = (name, x, cls = '') => `<tr class="${cls}"><td>${name}</td><td class="n">${fmt.int(x.events)}</td>`
+      + `<td class="n">${money(x.spend)}</td><td class="n">${money(x.contribution)}</td>`
+      + `<td class="n ${x.net < 0 ? 'neg' : 'pos'}">${signed(x.net)}</td><td class="n">${pct(x.roiToDate)}</td>`
+      + `<td class="n">${fmt.int(x.customers)}</td><td class="n">${money(x.perCustomer)}</td></tr>`;
+    $('summary-ages').innerHTML = '<thead><tr><th>By age</th><th class="n">Events</th><th class="n">Spent</th><th class="n">Earned back</th>'
+      + '<th class="n">Net so far</th><th class="n">ROI now</th><th class="n">New customers</th><th class="n">Cost per new customer</th></tr></thead><tbody>'
+      + row(`<strong>At least three months old</strong><br><span class="muted">held ${fmt.monthLabel(matureTo)} or earlier</span>`, oldO)
+      + row(`<strong>Under three months old</strong><br><span class="muted">held ${fmt.monthLabel(youngFrom)} to ${fmt.monthLabel(data.lastMonth)}; still earning</span>`, newO)
+      + row('<strong>All events</strong>', o, 'total-row') + '</tbody>';
+  }
+  if (newO.events && newO.spend) {
+    $('summary-lede').innerHTML += ` Of that, ${fmt.int(newO.events)} event${newO.events === 1 ? '' : 's'} under three months old `
+      + `spent ${short(newO.spend)} and ${newO.events === 1 ? 'has' : 'have'} barely started earning; the ${fmt.int(oldO.events)} older events `
+      + `are ${oldO.net < 0 ? '−' : '+'}${short(oldO.net)} net so far (${pct(oldO.roiToDate)} on cost).`;
+  }
+  const tile =(label, value, sub, tone = '') => `<div class="summary-kpi ${tone}"><span class="summary-kpi-label">${label}</span>`
     + `<span class="summary-kpi-value">${value}</span><span class="summary-kpi-sub">${sub}</span></div>`;
   const vs = o.perCustomer && o.companyPerCustomer ? o.perCustomer / o.companyPerCustomer - 1 : null;
   $('summary-kpis').innerHTML =
@@ -4528,13 +4549,20 @@ function renderSummary() {
   // 20 Oct 2026): every event in the range, ranked among all scored events.
   if ($('summary-score')) {
     const scr = scorecardFor(eventReportsFor({ promptTagsOnly: false, creditRule, touch: 'last' }));
-    const rows = scr.rows.filter(x => x.month && x.month >= o.from && x.month <= o.to);
+    // Placed among the events on screen (Josh, 10 Nov 2026): ranked against
+    // every scored event, the last twelve months read 1, 3, 6, 7, 9. The
+    // score itself is still set against every scored event.
+    const rows = scr.rows.filter(x => x.month && x.month >= o.from && x.month <= o.to)
+      .map((x, i) => ({ ...x, place: i + 1, placeAll: x.place }));
+    const ordinal = n => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
     const ch = scr.churn;
     $('summary-score-lede').innerHTML = `Event customers leave at ${fmt.pct(ch.avgRate || 0, 1)} a month on average, `
       + `${ch.avgRatio.toFixed(1)}× what the whole book’s customers do at the same ages. Each event’s churn is set against `
       + `that average, and called only where the difference is more than chance. <strong>Churn to date</strong> is how many of its customers `
       + `have left so far; <strong>average event would have lost</strong> is how many the average event’s customers would have lost by `
-      + `the same point; <strong>churn vs average</strong> divides the two, so 0.5× is half as many and 2× twice as many.`;
+      + `the same point; <strong>churn vs average</strong> divides the two, so 0.5× is half as many and 2× twice as many. `
+      + `<strong>#</strong> is the place among the ${fmt.int(rows.length)} events shown; each score is still set against all `
+      + `${fmt.int(scr.n)} scored events, and a hover on # gives the place among them.`;
     const verdictCell = c => (!c ? '<span class="muted">none paying a full month</span>'
       : `<span class="${/worse/.test(c.verdict) ? 'neg' : /better/.test(c.verdict) ? 'pos' : 'muted'}">${c.verdict}</span>`);
     // Sortable by any column, by score to start (Josh, 20 Oct 2026); a second
@@ -4569,7 +4597,7 @@ function renderSummary() {
         + '</tr></thead><tbody>'
         + sorted.map(x => {
           const c = x.churn;
-          return `<tr><td class="n">${x.place}</td><td><a href="#event=${encodeURIComponent(x.label)}">${x.label}</a>`
+          return `<tr><td class="n" title="${ordinal(x.placeAll)} of all ${fmt.int(scr.n)} scored events">${x.place}</td><td><a href="#event=${encodeURIComponent(x.label)}">${x.label}</a>`
             + `<br><span class="muted">${fmt.monthLabel(x.month)} · ${x.sample}</span></td>`
             + `<td class="n"><span class="score-pill ${x.grade}">${Math.round(x.score)}</span><br>`
             + `${x.projected ? '<span class="score-12">(projected)</span>' : ''}</td><td class="n">${fmt.int(x.customers)}</td>`

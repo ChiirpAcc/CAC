@@ -4032,6 +4032,9 @@ export const EVENT_META = {
   'Table of Titans 2027': { type: 'Small room', organiser: 'Table of Titans' },
   'Wealthy Contractor ACC 2027': { type: 'Conference sponsorship', organiser: 'The Wealthy Contractor' },
   'EGIA Epic 2027': { type: 'Conference sponsorship', organiser: 'EGIA' },
+  'BDR Spark 2027': { type: 'Partner network event', organiser: 'BDR' },
+  'Lennox Live Las Vegas 2027': { type: 'Partner network event', organiser: 'Lennox' },
+  'Lennox Live Nashville 2027': { type: 'Partner network event', organiser: 'Lennox' },
   'Pantheon 2026': { type: 'Conference sponsorship', organiser: 'ServiceTitan', plan2027: ON },
 };
 // A costed event with no EVENT_META entry is shown as unclassified rather
@@ -4120,6 +4123,14 @@ export const EVENT_EXTRA_COSTS = [
       + 'St. Pete Beach FL. Fee $7,995, unpaid.' },
   { event: 'EGIA Epic 2027', month: '2027-02', sponsor: 6375, travel: null, costState: 'not yet',
     costSource: 'not yet', note: 'Event Hub (read 3 Nov 2026): EGIA EPIC 2027, 25 to 26 Feb 2027, Mandalay Bay, Las Vegas. Fee $6,375, unpaid. Travel is counted when the event happens.' },
+  // On the Event Hub by 10 Nov 2026 with no fee entered: shown as fee
+  // unknown, never a guessed fee (Josh).
+  { event: 'BDR Spark 2027', month: '2027-01', sponsor: null, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'Event Hub (read 10 Nov 2026): BDR Spark 2027, 13 to 16 Jan 2027, Grand Hyatt Indian Wells Resort, Palm Springs CA. No fee entered yet. Travel is counted when the event happens.' },
+  { event: 'Lennox Live Las Vegas 2027', month: '2027-03', sponsor: null, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'Event Hub (read 10 Nov 2026): Lennox Live Vegas, 8 to 11 Mar 2027, Wynn Las Vegas. No fee entered yet. Travel is counted when the event happens.' },
+  { event: 'Lennox Live Nashville 2027', month: '2027-03', sponsor: null, travel: null, costState: 'not yet',
+    costSource: 'not yet', note: 'Event Hub (read 10 Nov 2026): Lennox Live Nashville, 22 to 25 Mar 2027, Gaylord Opryland, Nashville TN. No fee entered yet. Travel is counted when the event happens.' },
 ];
 // The tab carries an extra event if any row has its name, or its words and a
 // month within one of it, so "Grosso University Aug 2026" in September still
@@ -6866,7 +6877,21 @@ export function eventsOverview(data, { from = null, to = null, creditRule = DEFA
       feeKnown: e.cost.sponsor !== null && e.cost.sponsor !== undefined }))
     .sort((a, b) => String(a.month).localeCompare(String(b.month)));
   const direct = ran.reduce((t, e) => t + (e.evidence ? e.evidence.direct : 0), 0);
+  // The same events split by age (Josh, 10 Nov 2026), the scorecard's
+  // three-month rule: events under three months old have spent and barely
+  // started earning. Summed the same way as the totals, so the two add up.
+  const matureTo = monthAdd(last, -3);
+  const ageGroup = list => {
+    const sp = sum(list, 'spend');
+    const co = sum(list.filter(e => e.contribution !== null), 'contribution');
+    const cu = sum(list, 'paid');
+    return { events: list.length, spend: sp, contribution: co, net: co - sp, roiToDate: sp ? (co - sp) / sp : null,
+      customers: cu, perCustomer: cu ? sp / cu : null };
+  };
+  const ages = { matureTo, youngFrom: monthAdd(last, -2),
+    old: ageGroup(ran.filter(e => e.month <= matureTo)), young: ageGroup(ran.filter(e => e.month > matureTo)) };
   return {
+    ages,
     from: lo === '0000-00' ? (ran.map(e => e.month).sort()[0] || null) : lo, to: hi, events: ran.length, scored: scored.length,
     settling: ran.filter(e => e.costState === 'settling').length,
     spend, contribution, net: contribution - spend, roiToDate: spend ? (contribution - spend) / spend : null,
