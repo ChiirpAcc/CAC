@@ -4849,8 +4849,10 @@ function renderRP() {
     + kpi('Demos completed', fmt.int(demos.length), 'from the period’s sets, held so far')
     + (sets.some(x => x.meeting)
       ? (() => { const n = o => sets.filter(x => x.meeting && x.meeting.outcome === o).length; const held = n('completed'), noShow = n('no-show');
-        return kpi('Show rate', pc(held, held + noShow), `${fmt.int(held)} held of ${fmt.int(held + noShow)} meetings already due · ${fmt.int(noShow)} no-shows, ${fmt.int(n('upcoming'))} still ahead, ${fmt.int(n('cancelled'))} cancelled`); })()
-      : kpi('Show rate', pc(reached.length, sets.length), `${fmt.int(reached.length)} of the period\u2019s ${fmt.int(sets.length)} sets reached a demo`))
+        return kpi('Show rate', pc(held, held + noShow), `${fmt.int(held)} held of the ${fmt.int(held + noShow)} meetings already due `
+          + `(${fmt.int(sets.length)} sets, less ${fmt.int(n('upcoming'))} still ahead and ${fmt.int(n('cancelled'))} cancelled); ${fmt.int(noShow)} no-shows. `
+          + `Meetings still ahead are left out until their date passes, so this rate will move.`); })()
+      : kpi('Show rate', pc(reached.length, sets.length), `${fmt.int(reached.length)} of the period\u2019s ${fmt.int(sets.length)} sets reached a demo. Counted against every set: meeting outcomes are read from Q4 2026, so earlier periods use this basis`))
     + kpi('Won', fmt.int(demos.filter(x => wonish(x.demo.outcome)).length),
       `of the period\u2019s ${fmt.int(demos.length)} demos · ${fmt.int(demos.filter(x => x.demo.outcome === 'open').length)} still open`);
   const outcomeCell = o => (o === 'won' ? '<span class="pos">won</span>' : o === 'later won' ? '<span class="pos">lost, then won</span>'
