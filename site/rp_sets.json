@@ -541,6 +541,18 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 563758114496,
+   "company": "Weather engineers",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "contact created",
+   "created": "2026-10-05",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 349339525818,
    "company": "Climate Tech",
    "source": "2026 - Pantheon",
@@ -3965,13 +3977,6 @@
    "source": "2026 - CertainPath Partner Jam",
    "setOn": "2026-10-15",
    "why": "not booked by Ryan: no booking at Partner Jam; Ky Decker booked it on his own link a week later (22 Oct)"
-  },
-  {
-   "contactId": 563758114496,
-   "company": "Weather engineers",
-   "source": "2026 - Pantheon",
-   "setOn": "2026-10-05",
-   "why": "not booked by Ryan: Pantheon form only; no meeting was ever booked"
   }
  ]
 }
