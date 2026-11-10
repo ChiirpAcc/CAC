@@ -3488,7 +3488,11 @@ export function ongoingCostPerLogo(data) {
 // the reason given on chart 39: charging tomorrow's product to today's
 // customers concludes that a company investing in product has worse unit
 // economics than one that is not.
-export function accountServeCost(data) {
+// lapsedCarry: a customer at $0 who is still in the base (lapsed, not never
+// paid) carries its share of platform and people cost, as the cost
+// calculator counts it (Josh, 10 Nov 2026). The event and marketing returns
+// use it; the per-account report keeps paying accounts only.
+export function accountServeCost(data, { lapsedCarry = false } = {}) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
   const never = neverPaidIds(data);
@@ -3502,13 +3506,15 @@ export function accountServeCost(data) {
     const revenueOf = r => (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
     const revenue = live.reduce((s, r) => s + revenueOf(r), 0);
     const spend = serveSpend(data, month);
-    const perLogo = k => (spend[k] || 0) / payingRows.length;
+    const carriers = lapsedCarry ? live.length : payingRows.length;
+    const perLogo = k => (spend[k] || 0) / carriers;
     const variableRate = revenue ? (spend.variable || 0) / revenue : 0;
     const monthRows = live.map(r => {
       const paying = (r.eopMrr || 0) > 0;
       const rev = revenueOf(r);
-      const platform = paying ? perLogo('platform') : 0;
-      const people = paying ? perLogo('people') : 0;
+      const carries = paying || lapsedCarry;
+      const platform = carries ? perLogo('platform') : 0;
+      const people = carries ? perLogo('people') : 0;
       const admin = paying ? perLogo('admin') : 0;
       const product = paying ? perLogo('product') : 0;
       const variable = rev * variableRate;
@@ -4713,7 +4719,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     out.bulk = bursts.size ? [...bursts.values()].sort((a, b) => a.date.localeCompare(b.date)) : null;
     return out;
   };
-  const serve = accountServeCost(data);
+  const serve = accountServeCost(data, { lapsedCarry: true });
   const contributionBy = new Map();
   for (const r of eventContributionRows(serve)) {
     contributionBy.set(r.id, (contributionBy.get(r.id) || 0) + r.contribution);
@@ -5148,7 +5154,7 @@ export function eventReports(data, options = {}) {
   if (!roi) return null;
   const freeMonthKeys = new Set(data.customers.filter(r => r.freeMonth).map(r => `${r.id}|${r.month}`));
   const lastMonth = roi.lastMonth;
-  const serve = accountServeCost(data);
+  const serve = accountServeCost(data, { lapsedCarry: true });
   const byIdMonth = new Map();
   // The share of each month's contribution that recurs: one-off charges (a
   // setup fee) are received once and never projected forward. Call the Duck
@@ -6226,7 +6232,7 @@ export function eventUpsells(data, roi = eventRoi(data)) {
     rowsOf.get(c.id).set(c.month, c);
   }
   const contribOf = new Map();
-  for (const r of eventContributionRows(accountServeCost(data))) {
+  for (const r of eventContributionRows(accountServeCost(data, { lapsedCarry: true }))) {
     if (!contribOf.has(r.id)) contribOf.set(r.id, new Map());
     contribOf.get(r.id).set(r.month, r);
   }
@@ -7273,7 +7279,7 @@ export function marketingReport(data, roi = eventRoi(data)) {
     x.collected += r.netCash || 0;
     if (r.month === data.lastMonth && r.active) { x.liveNow += 1; x.mrrNow += r.eopMrr || 0; }
   }
-  const contribRows = eventContributionRows(accountServeCost(data));
+  const contribRows = eventContributionRows(accountServeCost(data, { lapsedCarry: true }));
   const monthlyReturn = Object.fromEntries(MARKETING_CATEGORIES.map(c => [c, {}]));
   const contribOf = new Map();
   const contribMonths = new Map();
