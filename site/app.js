@@ -4871,7 +4871,7 @@ function renderRP() {
     : o === 'open' ? 'still open' : o === 'lost' ? '<span class="muted">lost</span>' : '–');
   const company = x => extLink(hubspotContactUrl(x.contactId), x.company || 'No company on the contact');
   const dateCell = x => `${x.setOn || '–'}${x.countWhy ? `<br><span class="muted">${x.countWhy}</span>` : ''}${x.retargeted ? `<br><span class="muted">older contact, retargeted at ${x.retargeted.event}: ${x.retargeted.how}</span>`
-    : x.setBasis !== 'set' ? `<br><span class="muted">${({ 'demo date': 'demo date; no set date', 'deal setter': 'demo date; the deal names him as setter' })[x.setBasis] || 'contact created; no set date'}</span>` : ''}`;
+    : x.setBasis === 'deal setter' ? '<br><span class="muted">demo date; the deal names him as setter</span>' : ''}`;
   $('rp-sets').innerHTML = !sets.length ? '<tbody><tr><td class="muted">No sets in this period.</td></tr></tbody>'
     : '<thead><tr><th>Set</th><th>Company (HubSpot contact)</th><th>Source</th><th>Demo completed</th><th>Outcome</th></tr></thead><tbody>'
       + sets.map(x => `<tr><td>${dateCell(x)}</td><td>${company(x)}</td><td>${x.source || '<span class="muted">not recorded</span>'}</td>`
