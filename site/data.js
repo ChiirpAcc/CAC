@@ -749,7 +749,8 @@ export async function load() {
           // 'strategic'). Undefined on a push without the column, null where
           // the event has no label yet.
           purpose: r.purpose === undefined ? undefined
-            : (/lead/i.test(String(r.purpose)) ? 'lead gen' : /strateg/i.test(String(r.purpose)) ? 'strategic' : null),
+            : (/lead/i.test(String(r.purpose)) ? 'lead gen' : /strateg/i.test(String(r.purpose)) ? 'strategic'
+              : byEventName(EVENT_PURPOSE_TAB, String(r.event).trim(), r.month) || null),
         }))
     : [];
 
@@ -3886,6 +3887,29 @@ export const EVENT_REPORT_NOV2025 = {
 // 2026 began. Pantheon 2026 is in October (the shared-booth invoice says so);
 // Home Service Freedom 2026 is 26 to 28 October; Nexstar's Super Meeting has
 // run at the end of September.
+// The Event Purpose tab as read on 9 Nov 2026. The first v188 push carried a
+// purpose for only 20 of 47 events and left labelled ones blank (HSF 2025,
+// Service World, Hardi among them), so a blank on the push is filled from
+// here. A purpose the push does carry always wins.
+export const EVENT_PURPOSE_TAB = {
+  'HSF 2025': 'lead gen', 'Pantheon 2025': 'lead gen', 'CertainPath Fall Expo 2025': 'strategic',
+  'Lennox Premier Dealer Appreciation Day': 'strategic', 'Nexstar Super Meeting 2025': 'strategic',
+  'The Huge Convention 2025': 'lead gen', 'Legacy Annual Offsite': 'strategic',
+  'Wealthy Plumber Hoorah 2025': 'strategic', 'GDF Vertical Track 2025': 'strategic',
+  'Zoom Drain Expo - Vortex': 'strategic', 'Service World': 'lead gen', 'Nuve Networks Tour': 'strategic',
+  'Lennox Live Roadshow': 'strategic', 'Clover Mastermind 2025': 'strategic',
+  'Home and Commercial Svcs Marketing Summit': 'lead gen', 'Blue Collar Success Group 2025': 'strategic',
+  'WinSupply AOR Summit 2025': 'strategic', 'We Mean Business Conference': 'lead gen',
+  'Goettl Training': 'strategic', 'LB Roofing Process Conference': 'strategic',
+  'Hardi Annual Conference': 'lead gen', 'BDR Spark 2026': 'strategic', 'Generac 2026': 'lead gen',
+  'EGIA Epic 2026': 'strategic', 'RynoX 2026': 'lead gen', 'Lennox Live Anaheim 2026': 'strategic',
+  'Lennox Live New Orleans 2026': 'strategic', 'Raising GOATS 2026': 'strategic',
+  'CertainPath Spring Expo 2026': 'strategic', 'BCSG Acceleration Days 2026': 'strategic',
+  'Redwood Leadership Summit': 'strategic', 'GDF Vertical Track 2026': 'strategic', 'Nuve 2026': 'strategic',
+  'Home Service Hoorah 2026': 'lead gen', 'Nexstar Super Meeting 2026': 'strategic',
+  'Pantheon 2026': 'lead gen', 'Home Service Freedom 2026': 'lead gen',
+};
+
 export const EVENT_UPCOMING = {
   '2026 - Pantheon': '2026-10',
   '2026 - Home Service Freedom': '2026-10',
