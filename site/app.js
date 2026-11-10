@@ -4862,19 +4862,19 @@ function renderRP() {
   const dateCell = x => `${x.setOn || '–'}${x.countWhy ? `<br><span class="muted">${x.countWhy}</span>` : ''}${x.retargeted ? `<br><span class="muted">older contact, retargeted at ${x.retargeted.event}: ${x.retargeted.how}</span>`
     : x.setBasis !== 'set' ? `<br><span class="muted">${({ 'demo date': 'demo date; no set date', 'deal setter': 'demo date; the deal names him as setter' })[x.setBasis] || 'contact created; no set date'}</span>` : ''}`;
   $('rp-sets').innerHTML = !sets.length ? '<tbody><tr><td class="muted">No sets in this period.</td></tr></tbody>'
-    : '<thead><tr><th>Set</th><th>Company (HubSpot contact)</th><th>Source</th><th>Demo completed</th><th>Ran by</th><th>Outcome</th></tr></thead><tbody>'
+    : '<thead><tr><th>Set</th><th>Company (HubSpot contact)</th><th>Source</th><th>Demo completed</th><th>Outcome</th></tr></thead><tbody>'
       + sets.map(x => `<tr><td>${dateCell(x)}</td><td>${company(x)}</td><td>${x.source || '<span class="muted">not recorded</span>'}</td>`
         + `<td>${x.demo ? (x.demo.dealId ? extLink(hubspotDealUrl(x.demo.dealId), x.demo.on) : `${x.demo.on}${x.demo.note ? `<br><span class="muted">${x.demo.note}</span>` : ''}`)
           : x.meeting ? `<span class="muted">${x.meeting.outcome === 'no-show' ? `no-show: meeting on ${x.meeting.on}, ${x.meeting.shown}`
             : x.meeting.outcome === 'cancelled' ? `cancelled: ${x.meeting.shown}` : `booked for ${x.meeting.on}${x.meeting.shown !== 'Scheduled' ? `; ${x.meeting.shown}` : ''}`}</span>`
           : x.sitCheck ? `<span class="muted">no demo: ${x.sitCheck}</span>` : x.demoScheduled ? `<span class="muted">not yet; booked for ${x.demoScheduled}</span>` : '<span class="muted">no demo</span>'}</td>`
-        + `<td>${x.demo && x.demo.ranBy ? x.demo.ranBy : '–'}</td><td>${x.demo ? outcomeCell(x.demo.outcome) : '–'}</td></tr>`).join('')
+        + `<td>${x.demo ? outcomeCell(x.demo.outcome) : '–'}</td></tr>`).join('')
       + '</tbody>';
   $('rp-demos').innerHTML = !demos.length ? '<tbody><tr><td class="muted">No demos yet from this period’s sets.</td></tr></tbody>'
-    : '<thead><tr><th>Demo completed</th><th>Company (HubSpot contact)</th><th>Deal</th><th>Set</th><th>Ran by</th><th>Outcome</th><th class="n">Deal amount</th></tr></thead><tbody>'
+    : '<thead><tr><th>Demo completed</th><th>Company (HubSpot contact)</th><th>Deal</th><th>Set</th><th>Outcome</th><th class="n">Deal amount</th></tr></thead><tbody>'
       + demos.map(x => `<tr><td>${x.demo.on}</td><td>${company(x)}</td><td>${x.demo.dealId ? extLink(hubspotDealUrl(x.demo.dealId), 'Open deal') : '<span class="muted">no deal (upsell)</span>'}`
         + `${x.demo.laterWonDealId ? `<br>${extLink(hubspotDealUrl(x.demo.laterWonDealId), 'Won deal')}` : ''}</td>`
-        + `<td>${x.setOn || '–'}</td><td>${x.demo.ranBy || '–'}</td><td>${outcomeCell(x.demo.outcome)}</td>`
+        + `<td>${x.setOn || '–'}</td><td>${outcomeCell(x.demo.outcome)}</td>`
         + `<td class="n">${x.demo.amount ? fmt.money(x.demo.amount) : '–'}</td></tr>`).join('')
       + '</tbody>';
   // Every quarter: its sets, and the demos and wins that came from them.
