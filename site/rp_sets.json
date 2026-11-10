@@ -297,26 +297,6 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 578028071647,
-   "company": "Solid Structures",
-   "source": "2026 - HSF Freedom",
-   "setOn": "2026-10-27",
-   "setBasis": "contact created",
-   "created": "2026-10-27",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 362432531170,
-    "on": "2026-11-04",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 573639352023,
    "company": "Hickory",
    "source": "2026 - Pantheon",
@@ -4034,6 +4014,15 @@
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
+  }
+ ],
+ "leftOut": [
+  {
+   "contactId": 578028071647,
+   "company": "Solid Structures",
+   "source": "2026 - HSF Freedom",
+   "setOn": "2026-10-27",
+   "why": "Home Service Freedom 2026 (2026-10-26): Ryan Peterson is not on its attendee list"
   }
  ]
 }

@@ -4840,7 +4840,8 @@ function renderRP() {
   const pc = (n, d) => (d ? fmt.pct(n / d, 0) : '–');
   const kpi = (k, v, sub = '') => `<div class="ev-kpi"><span class="ev-kpi-label">${k}</span>`
     + `<span class="ev-kpi-value">${v}</span>${sub ? `<span class="ev-kpi-sub">${sub}</span>` : ''}</div>`;
-  $('rp-period').innerHTML = `<strong>${label}.</strong> From HubSpot, checked ${rpSets.checked}: contacts whose Setter is Ryan Peterson, from every source, and demos whose deal names him as Setter. A contact counts in the period it was created or set; an older one counts again only when retargeted at an event in the period.`;
+  $('rp-period').innerHTML = `<strong>${label}.</strong> From HubSpot, checked ${rpSets.checked}: contacts whose Setter is Ryan Peterson, from every source, and demos whose deal names him as Setter. A contact counts in the period it was created or set; an older one counts again only when retargeted at an event in the period, `
+    + `and a set made from an event counts only if he was at it.${(rpSets.leftOut || []).length ? ` Left out: ${rpSets.leftOut.map(x => `${x.company} (${x.why})`).join('; ')}.` : ''}`;
   $('rp-kpis').innerHTML =
     kpi('Sets', fmt.int(sets.length), 'contacts he set in the period')
     + kpi('Demos completed', fmt.int(demos.length), 'from the period’s sets, held so far')
