@@ -4345,30 +4345,48 @@ export const HUBSPOT_WON_DEAL_BY_COMPANY = {
 // (Event Leads has no close date). Checked live 19 Oct 2026; the won dates in
 // HUBSPOT_WON_DEAL_LINKS beside the same deals.
 // Event deals HubSpot shows still open (new-business pipeline, not closed),
-// checked live 22 Oct 2026 and again 9 Nov 2026 (every listed deal still
-// open; Hickory, Builder Home Services, Aquarius, Sullivan, Allsafe and Bath
-// Fitter added). Event Leads marks every deal won yes or no, so
-// "no" covers lost and still open; the oldest open event deals are six
-// months old (Lennox Live Anaheim, April), so no age rule separates them.
-// These read as still open, not lost, until the push carries each deal's
-// stage (brief item 15).
+// checked live 10 Nov 2026: every open new-business deal whose contact (or the
+// deal itself) carries an event tag, under the deal's name and, where it
+// differs, the contact's company. All 31 deals listed on 9 Nov were still
+// open. Event Leads marks every deal won yes or no, so "no" covers lost and
+// still open; these read as still open, not lost, until the push carries each
+// deal's stage (brief item 15).
 export const HUBSPOT_OPEN_DEALS = {
-  '2026 - Pantheon': ['Reid & Pederson', 'Trenchless Innovations', '247 Plumbing Sewer & Water', '24/7 Services Inc',
-    'Acadiana Garage Doors', 'Septic Blue', 'Canopy Services', 'Mid-America Mister Sparky', 'PJ Fitzpatrick',
-    'Oceanview Heating and Air', 'Punchy', 'RAW Marketing', 'Hickory', 'Builder Home Services',
-    'Aquarius Home Services-Appleton MAL'],
-  '2026 - Lennox Live - Anaheim': ['Applewood Heating & Air Conditioning', 'Klebs Mechanical', 'Bernard Heating & Cooling'],
-  '2026 - Lennox Live - New Orleans': ['Homestead Home Services'],
-  '2025 - Pantheon': ['Colony Heating and Air Conditioning', 'Bath Fitter', 'Hickory'],
-  '2026 - Certain Path Spring Expo': ['Action Overhead'],
-  '2026 - RynoX': ['Staton Heating Cooling and Plumbing'],
+  '2026 - Pantheon': ['Reid & Pederson', 'Trenchless Innovations', 'Trenches Innovations', '247 Plumbing Sewer & Water',
+    '24/7 Services Inc', '24/7 Plumbing, Sewer and Water', 'Acadiana Garage Doors', 'Windsor America', 'Septic Blue',
+    'Canopy Services', 'Mid-America Mister Sparky', 'Black Raven Trades', 'PJ Fitzpatrick', 'Oceanview Heating and Air',
+    'Punchy', 'Punchy Marketing', 'RAW Marketing', 'Hickory', 'Builder Home Services',
+    'Aquarius Home Services-Appleton MAL', 'Aquarius home services', 'Brick Township Heating and Air Conditioning',
+    'Bayonet Plumbing', 'Heating and Air', "Rich's Heating & Air", 'AGSB', 'A&A GenPro LLC', 'Generator Partners',
+    'Aqua Systems and Skyward Heating Air Plumbing', 'Aqua Systems', 'Nemmer Electric',
+    'Bill Leary Air Conditioning & Heating', 'Bill Leary Heating and Cooling', 'Iceberg Home Services',
+    'Colony Heating and Air Conditioning', "A & J's Removal Services", 'Kerr Sprinkler Systems Inc', 'HVAC Fractional',
+    'Aaron & Trecker', 'Advanced Sanitation', 'State 48 Garage Doors'],
+  '2025 - Pantheon': ['Colony Heating and Air Conditioning', 'Bath Fitter', 'Hickory', 'networktradies.com.au'],
+  '2026 - Qualified Remodeler Top 500': ['Improveit! Home Remodeling', 'Improveit', 'Beartooth Bathrooms',
+    'FA Outdoor Spaces', 'Esler Companies', 'Renewal by Andersen / Esler Companies', 'Century City Baths',
+    'BN Covered Exteriors', 'Kowalske Kitchen & Bath', 'Nu-Face', 'Nu-face home improvements',
+    'Mainstream home improvement', 'Absolute Aluminum'],
+  '2026 - Home Service Freedom': ['Vidal flooring, inc', 'Floorizon', 'Carey-Sodergren, Inc.', 'Sullivan Plumbing & Heating Inc.',
+    'Allsafe Appliance', 'Jasper Plumbing Services', 'Septic Solutions', 'Profit in Your Pocket', 'Solid Structures',
+    'HomeSpec Waterproofing and Foundation Repair', 'HomeSpec', 'Cold Factor Heating & Air', 'Cold Factor',
+    'Noma Home Pros', 'G&C Plumbing and Heating LLC', 'Texas Quality Plumbing'],
   '2025 - Home Service Freedom': ['Smartron Electric', 'Easy Livin Solutions', 'Duct Cleaning Solution'],
-  '2026 - Home Service Freedom': ['Vidal flooring, inc', 'Carey-Sodergren, Inc.', 'Sullivan Plumbing & Heating Inc.',
-    'Allsafe Appliance'],
+  '2026 - CCN Elevate': ['Five Star Contractors', 'Coors Remodeling', 'Pinnacle Exteriors', 'Precision Roofing', 'Outback Deck'],
+  '2026 - CertainPath Partner Jam': ['JDP Electric LLC', 'JDP Electric', 'Lloyd Home Service'],
+  '2026 - Lennox Live - Anaheim': ['Applewood Heating & Air Conditioning', 'Klebs Mechanical', 'Bernard Heating & Cooling',
+    'Hillside', 'Hilo Aire', "HARDON'S"],
+  '2026 - Lennox Live - New Orleans': ['Homestead Home Services', "Gilley's Heating And Cooling"],
+  '2026 - Certain Path Spring Expo': ['Action Overhead', 'Loughlin Electric Inc', 'Woodie Woods'],
+  '2026 - RynoX': ['Staton Heating Cooling and Plumbing'],
   '2026 - Grosso University': ['Pure Way'],
-  '2026 - Home Service Hoorah': ['Larry Stinson Plumbing', 'Paradise Outdoors'],
+  '2026 - Home Service Hoorah': ['Larry Stinson Plumbing', 'Paradise Outdoors', 'Zippity Split Plumbing'],
   '2026 - Nexstar Super Meeting': ['Capital Heating, Cooling, Plumbing & Electric', 'springbranchair.com',
-    'Integrity Heating & Cooling', 'Done Right Today'],
+    'Integrity Heating & Cooling', 'Done Right Today', 'Progressive Heating, Air and Plumbing'],
+  '2026 - BDR - Spark Conference': ['Radlee Heating and Cooling'],
+  '2026 - The Dirty Dozen': ['Bath Fitter'],
+  '2026 - Nuve Home Contractor Trades Event': ['Vera Plumbing', 'Ascani Electric'],
+  '2026 - Raising Goats': ['Home Heating & Cooling'],
 };
 // Stripe accounts that are one customer: one owner's separate businesses, each
 // with its own won deal, counted as one win of grouped deals (Josh, 22 Oct 2026).
@@ -4390,6 +4408,8 @@ export const HUBSPOT_EVENT_WINS = [
   // payment in the data yet.
   { source: '2026 - Home Service Freedom', company: 'GATORWRAPS', dealId: '360608975587', closed: '2026-10-30', amount: 750 },
   { source: '2026 - Home Service Freedom', company: 'Legacy Painting', dealId: '364182682302', closed: '2026-11-09', amount: 1000 },
+  // Checked live 10 Nov 2026 (contact tagged "2026 - HSF Freedom").
+  { source: '2026 - Home Service Freedom', company: 'Empowered Electric', dealId: '361031392954', closed: '2026-11-06', amount: 1000 },
 ];
 
 export const HUBSPOT_USER_NAMES = {
