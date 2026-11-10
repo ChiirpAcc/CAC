@@ -1,9 +1,86 @@
 {
- "checked": "2026-11-03",
+ "checked": "2026-11-10",
  "setter": "Ryan Peterson",
  "portal": "23947290",
  "note": "HubSpot contacts whose Setter is Ryan Peterson, every source; each demo is the first new-business deal on the contact, which HubSpot opens once the demo is held. Company names and record ids only.",
  "sets": [
+  {
+   "contactId": 590603546338,
+   "company": "Bill's Heating and Air",
+   "source": "FieldEdge",
+   "setOn": "2026-11-10",
+   "setBasis": "contact created",
+   "created": "2026-11-10",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 589636069101,
+   "company": "ONeill Contracting",
+   "source": "FieldEdge",
+   "setOn": "2026-11-10",
+   "setBasis": "contact created",
+   "created": "2026-11-10",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 584339569349,
+   "company": "South Suburban Heating & Air Conditioning, Inc.",
+   "source": "FieldEdge",
+   "setOn": "2026-11-09",
+   "setBasis": "contact created",
+   "created": "2026-11-09",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 589522646724,
+   "company": "Airstream Plumbing & Heating",
+   "source": "FieldEdge",
+   "setOn": "2026-11-09",
+   "setBasis": "contact created",
+   "created": "2026-11-09",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 587158294202,
+   "company": "J.D. Indoor Comfort, Inc.",
+   "source": "FieldEdge",
+   "setOn": "2026-11-06",
+   "setBasis": "contact created",
+   "created": "2026-11-06",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 583134104287,
+   "company": "Reece windows and doors",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-11-02",
+   "setBasis": "contact created",
+   "created": "2026-11-02",
+   "demoScheduled": "2026-11-30",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 583051504377,
+   "company": "Pella Windows & Doors",
+   "source": "2026 - Qualified Remodeler Top 500",
+   "setOn": "2026-11-02",
+   "setBasis": "contact created",
+   "created": "2026-11-02",
+   "demoScheduled": "2026-11-12",
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
   {
    "contactId": 581345054396,
    "company": "ET&M REFRIGERATION",
@@ -31,7 +108,15 @@
    "setBasis": "contact created",
    "created": "2026-10-28",
    "demoScheduled": "2026-11-04",
-   "demo": null,
+   "demo": {
+    "dealId": 362277925621,
+    "on": "2026-11-04",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -108,7 +193,15 @@
    "setBasis": "contact created",
    "created": "2026-10-27",
    "demoScheduled": "2026-11-06",
-   "demo": null,
+   "demo": {
+    "dealId": 363842320064,
+    "on": "2026-11-06",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -119,7 +212,15 @@
    "setBasis": "contact created",
    "created": "2026-10-27",
    "demoScheduled": "2026-11-04",
-   "demo": null,
+   "demo": {
+    "dealId": 364166958821,
+    "on": "2026-11-06",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -130,7 +231,15 @@
    "setBasis": "contact created",
    "created": "2026-10-27",
    "demoScheduled": "2026-11-04",
-   "demo": null,
+   "demo": {
+    "dealId": 362174078662,
+    "on": "2026-11-04",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -174,7 +283,15 @@
    "setBasis": "contact created",
    "created": "2026-10-27",
    "demoScheduled": null,
-   "demo": null,
+   "demo": {
+    "dealId": 362432531170,
+    "on": "2026-11-04",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -809,6 +926,25 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 460952782549,
+   "company": "Tony Kelly Heating & Air Conditioning",
+   "source": "FieldEdge",
+   "setOn": "2026-03-24",
+   "setBasis": "contact created",
+   "created": "2026-03-24",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 364574009044,
+    "on": "2026-11-09",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 455354973883,
    "company": "Joyce",
    "source": "2026 - Lennox Live - New Orleans",
@@ -872,7 +1008,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": "84662",
+   "contactId": 84662,
    "company": "Northern Services",
    "source": "2026 - EGIA Epic Tradeshow",
    "setOn": "2026-02-26",
@@ -1279,7 +1415,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": "12660485685",
+   "contactId": 12660485685,
    "company": "Hey Bo LLC dba Hey Bo Garage Doors",
    "source": "Garage Door Freedom",
    "setOn": "2025-10-09",
@@ -1538,7 +1674,7 @@
   },
   {
    "contactId": 64721692024,
-   "company": "Aireflo",
+   "company": "Aire-Flo Heating Cooling & Generators",
    "source": "Hero Marketing Agency",
    "setOn": "2025-09-25",
    "setBasis": "set",
@@ -1855,7 +1991,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": "113901",
+   "contactId": 113901,
    "company": "Lakeview window cleaning",
    "source": "2025 - Home Service Freedom",
    "setOn": "2025-09-05",
@@ -2133,7 +2269,7 @@
   },
   {
    "contactId": 138830432876,
-   "company": "Tech-On-Deck Heating, Air & Electric",
+   "company": "Tech-On-Deck",
    "source": "FieldEdge",
    "setOn": "2025-07-17",
    "setBasis": "contact created",
@@ -2966,6 +3102,17 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 71985821052,
+   "company": "Reliable Tech",
+   "source": "FieldEdge",
+   "setOn": "2024-10-25",
+   "setBasis": "contact created",
+   "created": "2024-10-25",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 455870058232,
    "company": "Perfect Temp",
    "source": "Certain Path",
@@ -3061,7 +3208,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": "313351",
+   "contactId": 313351,
    "company": "Service Relief Llc",
    "source": "2025 - Pantheon",
    "setOn": "2024-06-03",
@@ -3077,6 +3224,17 @@
     "amount": 650.0,
     "laterWonDealId": null
    },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 25427431602,
+   "company": "JEM Plumbing, Inc",
+   "source": "FieldEdge",
+   "setOn": "2024-05-29",
+   "setBasis": "contact created",
+   "created": "2024-05-29",
+   "demoScheduled": null,
+   "demo": null,
    "firstDealIsRenewal": false
   },
   {
@@ -3208,7 +3366,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": "21266394942",
+   "contactId": 21266394942,
    "company": "Bill Fry The Plumbing Guy",
    "source": "2026 - BCSG Acceleration Days",
    "setOn": "2024-05-14",
@@ -3227,7 +3385,7 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": "13357939046",
+   "contactId": 13357939046,
    "company": "Delta heating cooling and plumbing",
    "source": "2026 - Pantheon",
    "setOn": "2024-04-17",
