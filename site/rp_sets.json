@@ -5,6 +5,91 @@
  "note": "HubSpot contacts whose Setter is Ryan Peterson, every source, plus demos whose deal names him as Setter; each demo is the first new-business deal on the contact, which HubSpot opens once the demo is held. Company names and record ids only.",
  "sets": [
   {
+   "contactId": 590603546338,
+   "company": "Bill's Heating and Air",
+   "source": "FieldEdge",
+   "setOn": "2026-11-10",
+   "setBasis": "contact created",
+   "created": "2026-11-10",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-17",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
+  },
+  {
+   "contactId": 589636069101,
+   "company": "ONeill Contracting",
+   "source": "FieldEdge",
+   "setOn": "2026-11-10",
+   "setBasis": "contact created",
+   "created": "2026-11-10",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-12",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
+  },
+  {
+   "contactId": 584339569349,
+   "company": "South Suburban Heating & Air Conditioning, Inc.",
+   "source": "FieldEdge",
+   "setOn": "2026-11-09",
+   "setBasis": "contact created",
+   "created": "2026-11-09",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-11",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
+  },
+  {
+   "contactId": 589522646724,
+   "company": "Airstream Plumbing & Heating",
+   "source": "FieldEdge",
+   "setOn": "2026-11-09",
+   "setBasis": "contact created",
+   "created": "2026-11-09",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-12",
+    "outcome": "upcoming",
+    "shown": "Scheduled"
+   }
+  },
+  {
+   "contactId": 587158294202,
+   "company": "J.D. Indoor Comfort, Inc.",
+   "source": "FieldEdge",
+   "setOn": "2026-11-06",
+   "setBasis": "contact created",
+   "created": "2026-11-06",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-17",
+    "outcome": "upcoming",
+    "shown": "Rescheduled to 17 Nov"
+   }
+  },
+  {
    "contactId": 583134104287,
    "company": "Reece windows and doors",
    "source": "2026 - Qualified Remodeler Top 500",
@@ -36,6 +121,31 @@
     "on": "2026-11-12",
     "outcome": "upcoming",
     "shown": "Scheduled"
+   }
+  },
+  {
+   "contactId": 581345054396,
+   "company": "ET&M REFRIGERATION",
+   "source": "FieldEdge",
+   "setOn": "2026-10-29",
+   "setBasis": "contact created",
+   "created": "2026-10-29",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 361160858305,
+    "on": "2026-11-02",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-02",
+    "outcome": "completed",
+    "shown": "Completed"
    }
   },
   {
@@ -4168,48 +4278,6 @@
    "source": "2026 - HSF Freedom",
    "setOn": "2026-10-27",
    "why": "Home Service Freedom 2026 (2026-10-26): Ryan Peterson is not on its attendee list"
-  },
-  {
-   "contactId": 590603546338,
-   "company": "Bill's Heating and Air",
-   "source": "FieldEdge",
-   "setOn": "2026-11-10",
-   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
-  },
-  {
-   "contactId": 589636069101,
-   "company": "ONeill Contracting",
-   "source": "FieldEdge",
-   "setOn": "2026-11-10",
-   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
-  },
-  {
-   "contactId": 584339569349,
-   "company": "South Suburban Heating & Air Conditioning, Inc.",
-   "source": "FieldEdge",
-   "setOn": "2026-11-09",
-   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
-  },
-  {
-   "contactId": 589522646724,
-   "company": "Airstream Plumbing & Heating",
-   "source": "FieldEdge",
-   "setOn": "2026-11-09",
-   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
-  },
-  {
-   "contactId": 587158294202,
-   "company": "J.D. Indoor Comfort, Inc.",
-   "source": "FieldEdge",
-   "setOn": "2026-11-06",
-   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
-  },
-  {
-   "contactId": 581345054396,
-   "company": "ET&M REFRIGERATION",
-   "source": "FieldEdge",
-   "setOn": "2026-10-29",
-   "why": "not booked by Ryan: the prospect booked online through the FieldEdge partner form, not Ryan"
   },
   {
    "contactId": 570165320435,
