@@ -1239,13 +1239,16 @@
     <figure class="card wide">
       <figcaption><h3>Every set</h3></figcaption>
       <div class="table-scroll"><table class="data-table" id="rp-sets"></table></div>
-      <p class="note">Dated by the contact's SDR set date. Where HubSpot has none, by the demo date, else the day the contact
-        was created; the row says which. The setter is written on the contact, sometimes after the fact.</p>
+      <p class="note">Dated by the contact's SDR set date. Where HubSpot has none, by the nearest dated sign of the set: a demo
+        booking, a 2026 event the contact is tagged to and met at after it was created, a first demo well after the contact was
+        created, the first check that listed Ryan as its setter, or else the day the contact was created; the row says which.
+        The setter is written on the contact, sometimes after the fact.</p>
     </figure>
     <figure class="card wide">
-      <figcaption><h3>Every demo completed</h3></figcaption>
+      <figcaption><h3>Demos from these sets</h3></figcaption>
       <div class="table-scroll"><table class="data-table" id="rp-demos"></table></div>
-      <p class="note">Dated by when the deal opened. "Lost, then won" is a first demo that was lost and a later new-business deal
+      <p class="note">Only demos that came from the period's sets; a demo from an earlier set is not counted here, and a deal
+        from more than 60 days before a set is an earlier sale, not its demo. Dated by when the deal opened. "Lost, then won" is a first demo that was lost and a later new-business deal
         for the same company that was won. Deal amount is what the deal said, not what Stripe billed.</p>
     </figure>
     <figure class="card wide">

@@ -27,6 +27,36 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 71985821052,
+   "company": "Reliable Tech",
+   "source": "FieldEdge",
+   "setOn": "2026-11-10",
+   "setBasis": "first listed",
+   "created": "2024-10-25",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 25427431602,
+   "company": "JEM Plumbing, Inc",
+   "source": "FieldEdge",
+   "setOn": "2026-11-10",
+   "setBasis": "demo date",
+   "created": "2024-05-29",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 365603122928,
+    "on": "2026-11-10",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 584339569349,
    "company": "South Suburban Heating & Air Conditioning, Inc.",
    "source": "FieldEdge",
@@ -49,12 +79,42 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 460952782549,
+   "company": "Tony Kelly Heating & Air Conditioning",
+   "source": "FieldEdge",
+   "setOn": "2026-11-09",
+   "setBasis": "demo date",
+   "created": "2026-03-24",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 364574009044,
+    "on": "2026-11-09",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 587158294202,
    "company": "J.D. Indoor Comfort, Inc.",
    "source": "FieldEdge",
    "setOn": "2026-11-06",
    "setBasis": "contact created",
    "created": "2026-11-06",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 138830432876,
+   "company": "Tech-On-Deck",
+   "source": "FieldEdge",
+   "setOn": "2026-11-03",
+   "setBasis": "first listed",
+   "created": "2025-07-17",
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -295,6 +355,17 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 431153140420,
+   "company": "HSF test",
+   "source": "2026 - HSF Freedom",
+   "setOn": "2026-10-26",
+   "setBasis": "event date",
+   "created": "2026-02-16",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 573639352023,
    "company": "Hickory",
    "source": "2026 - Pantheon",
@@ -353,6 +424,39 @@
    "setOn": "2026-10-14",
    "setBasis": "contact created",
    "created": "2026-10-14",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 492068408053,
+   "company": "CW Cummings Plb Co",
+   "source": "2026 - CertainPath Partner Jam",
+   "setOn": "2026-10-14",
+   "setBasis": "event date",
+   "created": "2026-05-26",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 453667767023,
+   "company": "Krumm exteriors",
+   "source": "2026 - CertainPath Partner Jam",
+   "setOn": "2026-10-14",
+   "setBasis": "event date",
+   "created": "2024-05-29",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 21630948954,
+   "company": "A perfect climate",
+   "source": "2026 - CertainPath Partner Jam",
+   "setOn": "2026-10-14",
+   "setBasis": "event date",
+   "created": "2024-05-15",
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -511,6 +615,113 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 349339525818,
+   "company": "Climate Tech",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "event date",
+   "created": "2025-12-10",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 319723830996,
+   "company": "Hanna Plumbing",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "event date",
+   "created": "2025-11-11",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 260706899644,
+   "company": "Notturno plumbing and heating",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "event date",
+   "created": "2025-09-25",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 247426927298,
+   "company": "Blessing Co",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "event date",
+   "created": "2025-09-15",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 138829733796,
+   "company": "RJ Groner",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "event date",
+   "created": "2025-07-17",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 138832032273,
+   "company": "24/7 Services Inc",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "event date",
+   "created": "2025-07-17",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 356419716845,
+    "on": "2026-10-21",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 102702370198,
+   "company": "Strickland Plumbing hvac & electric",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "event date",
+   "created": "2025-02-27",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": true
+  },
+  {
+   "contactId": 21884055180,
+   "company": "Aqua Systems",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "event date",
+   "created": "2024-05-16",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": true
+  },
+  {
+   "contactId": 13357939046,
+   "company": "Delta heating cooling and plumbing",
+   "source": "2026 - Pantheon",
+   "setOn": "2026-10-05",
+   "setBasis": "event date",
+   "created": "2024-04-17",
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": true
+  },
+  {
    "contactId": 561876604645,
    "company": "Englewood Glass",
    "source": "2026 - CCN Elevate",
@@ -620,22 +831,11 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 516365749952,
-   "company": "Unlockit Locksmith & Security",
-   "source": "FieldEdge",
-   "setOn": "2026-07-09",
-   "setBasis": "contact created",
-   "created": "2026-07-09",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 508042532598,
    "company": "1 800 Plumber + Air",
    "source": "Certain Path",
-   "setOn": "2026-06-24",
-   "setBasis": "contact created",
+   "setOn": "2026-09-09",
+   "setBasis": "demo date",
    "created": "2026-06-24",
    "demoScheduled": null,
    "demo": {
@@ -650,14 +850,33 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 492068408053,
-   "company": "CW Cummings Plb Co",
-   "source": "2026 - CertainPath Partner Jam",
-   "setOn": "2026-05-26",
+   "contactId": 516365749952,
+   "company": "Unlockit Locksmith & Security",
+   "source": "FieldEdge",
+   "setOn": "2026-07-09",
    "setBasis": "contact created",
-   "created": "2026-05-26",
+   "created": "2026-07-09",
    "demoScheduled": null,
    "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 470553678556,
+   "company": "Armor Air",
+   "source": "Vault",
+   "setOn": "2026-07-06",
+   "setBasis": "demo date",
+   "created": "2026-04-13",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 334696235746,
+    "on": "2026-07-06",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -753,16 +972,8 @@
    "setBasis": "demo date",
    "created": "2024-05-29",
    "demoScheduled": "2026-04-16",
-   "demo": {
-    "dealId": "34886309971",
-    "on": "2025-03-20",
-    "ranBy": "Chelsea Allred",
-    "outcome": "lost",
-    "closedOn": "2025-04-08",
-    "amount": 650.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
+   "demo": null,
+   "firstDealIsRenewal": true
   },
   {
    "contactId": 469028820702,
@@ -813,16 +1024,8 @@
    "setBasis": "demo date",
    "created": "2025-03-06",
    "demoScheduled": "2026-04-14",
-   "demo": {
-    "dealId": 34297904972,
-    "on": "2025-03-06",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2026-01-27",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
+   "demo": null,
+   "firstDealIsRenewal": true
   },
   {
    "contactId": 86464232106,
@@ -833,27 +1036,8 @@
    "created": "2024-12-20",
    "demoScheduled": "2026-04-14",
    "demo": {
-    "dealId": 30846153473,
-    "on": "2024-12-20",
-    "ranBy": "Parker Joos",
-    "outcome": "lost",
-    "closedOn": "2025-03-10",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 470553678556,
-   "company": "Armor Air",
-   "source": "Vault",
-   "setOn": "2026-04-13",
-   "setBasis": "contact created",
-   "created": "2026-04-13",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 334696235746,
-    "on": "2026-07-06",
+    "dealId": 321682180811,
+    "on": "2026-04-20",
     "ranBy": null,
     "outcome": "open",
     "closedOn": null,
@@ -926,25 +1110,6 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 460952782549,
-   "company": "Tony Kelly Heating & Air Conditioning",
-   "source": "FieldEdge",
-   "setOn": "2026-03-24",
-   "setBasis": "contact created",
-   "created": "2026-03-24",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 364574009044,
-    "on": "2026-11-09",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 455354973883,
    "company": "Joyce",
    "source": "2026 - Lennox Live - New Orleans",
@@ -996,16 +1161,8 @@
    "setBasis": "demo date",
    "created": "2024-05-29",
    "demoScheduled": "2026-03-03",
-   "demo": {
-    "dealId": "19680788555",
-    "on": "2024-05-28",
-    "ranBy": "Chelsea Allred",
-    "outcome": "lost",
-    "closedOn": "2025-02-20",
-    "amount": 650.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
+   "demo": null,
+   "firstDealIsRenewal": true
   },
   {
    "contactId": 84662,
@@ -1049,12 +1206,12 @@
    "created": "2025-02-27",
    "demoScheduled": "2026-02-25",
    "demo": {
-    "dealId": 34005195049,
-    "on": "2025-02-27",
-    "ranBy": "Parker Joos",
+    "dealId": 295151208147,
+    "on": "2026-02-12",
+    "ranBy": "Ky Decker",
     "outcome": "lost",
-    "closedOn": "2025-10-01",
-    "amount": 850.0,
+    "closedOn": "2026-02-27",
+    "amount": null,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
@@ -1131,25 +1288,14 @@
    "created": "2024-05-29",
    "demoScheduled": "2026-02-17",
    "demo": {
-    "dealId": "34367129953",
-    "on": "2025-03-07",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-09-05",
-    "amount": 650.0,
+    "dealId": 325840594667,
+    "on": "2026-05-19",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 431153140420,
-   "company": "HSF test",
-   "source": "2026 - HSF Freedom",
-   "setOn": "2026-02-16",
-   "setBasis": "contact created",
-   "created": "2026-02-16",
-   "demoScheduled": null,
-   "demo": null,
    "firstDealIsRenewal": false
   },
   {
@@ -1246,13 +1392,13 @@
    "created": "2024-05-29",
    "demoScheduled": "2026-02-02",
    "demo": {
-    "dealId": "35187083107",
-    "on": "2025-03-28",
-    "ranBy": "Parker Joos",
-    "outcome": "later won",
-    "closedOn": "2025-10-01",
-    "amount": 650.0,
-    "laterWonDealId": "278206800580"
+    "dealId": 278206800580,
+    "on": "2026-01-29",
+    "ranBy": "Colton Lingmann",
+    "outcome": "won",
+    "closedOn": "2026-02-02",
+    "amount": 1500.0,
+    "laterWonDealId": null
    },
    "firstDealIsRenewal": false
   },
@@ -1275,27 +1421,8 @@
    "setBasis": "demo date",
    "created": "2025-05-19",
    "demoScheduled": "2025-12-19",
-   "demo": {
-    "dealId": 37428532491,
-    "on": "2025-05-19",
-    "ranBy": "Parker Joos",
-    "outcome": "lost",
-    "closedOn": "2025-06-19",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 349339525818,
-   "company": "Climate Tech",
-   "source": "2026 - Pantheon",
-   "setOn": "2025-12-10",
-   "setBasis": "contact created",
-   "created": "2025-12-10",
-   "demoScheduled": null,
    "demo": null,
-   "firstDealIsRenewal": false
+   "firstDealIsRenewal": true
   },
   {
    "contactId": 346634215138,
@@ -1347,17 +1474,6 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 319723830996,
-   "company": "Hanna Plumbing",
-   "source": "2026 - Pantheon",
-   "setOn": "2025-11-11",
-   "setBasis": "contact created",
-   "created": "2025-11-11",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 319319698146,
    "company": "Big Family Electrical ",
    "source": "2026 - CertainPath Partner Jam",
@@ -1404,13 +1520,13 @@
    "created": "2024-12-03",
    "demoScheduled": "2025-10-23",
    "demo": {
-    "dealId": 29924095130,
-    "on": "2024-12-06",
-    "ranBy": "Rebekka Brimhall",
-    "outcome": "later won",
-    "closedOn": "2026-01-27",
-    "amount": null,
-    "laterWonDealId": 322469491428
+    "dealId": 322469491428,
+    "on": "2026-04-27",
+    "ranBy": "Colton Lingmann",
+    "outcome": "won",
+    "closedOn": "2026-04-27",
+    "amount": 850.0,
+    "laterWonDealId": null
    },
    "firstDealIsRenewal": false
   },
@@ -1441,16 +1557,8 @@
    "setBasis": "set",
    "created": "2024-04-15",
    "demoScheduled": "2025-10-31",
-   "demo": {
-    "dealId": "18657687312",
-    "on": "2024-04-15",
-    "ranBy": null,
-    "outcome": "lost",
-    "closedOn": "2026-01-27",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
+   "demo": null,
+   "firstDealIsRenewal": true
   },
   {
    "contactId": 113246715817,
@@ -1461,13 +1569,13 @@
    "created": "2025-05-08",
    "demoScheduled": "2025-10-07",
    "demo": {
-    "dealId": 36935081315,
-    "on": "2025-05-08",
-    "ranBy": "Chelsea Allred",
-    "outcome": "later won",
-    "closedOn": "2025-05-20",
-    "amount": 350.0,
-    "laterWonDealId": 179314650815
+    "dealId": 179314650815,
+    "on": "2025-10-06",
+    "ranBy": "Parker Joos",
+    "outcome": "won",
+    "closedOn": "2025-10-08",
+    "amount": 899.0,
+    "laterWonDealId": null
    },
    "firstDealIsRenewal": false
   },
@@ -1605,17 +1713,6 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 260706899644,
-   "company": "Notturno plumbing and heating",
-   "source": "2026 - Pantheon",
-   "setOn": "2025-09-25",
-   "setBasis": "contact created",
-   "created": "2025-09-25",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 259963502298,
    "company": "Kruger Electric",
    "source": "2025 - Certain Path Fall Expo",
@@ -1681,12 +1778,12 @@
    "created": "2025-03-28",
    "demoScheduled": null,
    "demo": {
-    "dealId": 35164529261,
-    "on": "2025-03-28",
+    "dealId": 169093371590,
+    "on": "2025-09-25",
     "ranBy": "Colton Lingmann",
     "outcome": "lost",
-    "closedOn": "2025-04-17",
-    "amount": 850.0,
+    "closedOn": "2026-01-27",
+    "amount": null,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
@@ -1737,16 +1834,8 @@
    "setBasis": "set",
    "created": "2024-05-29",
    "demoScheduled": "2025-10-15",
-   "demo": {
-    "dealId": "35191028047",
-    "on": "2025-03-28",
-    "ranBy": "Parker Joos",
-    "outcome": "lost",
-    "closedOn": "2025-11-17",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
+   "demo": null,
+   "firstDealIsRenewal": true
   },
   {
    "contactId": 252016020208,
@@ -1958,17 +2047,6 @@
     "amount": null,
     "laterWonDealId": null
    },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 247426927298,
-   "company": "Blessing Co",
-   "source": "2026 - Pantheon",
-   "setOn": "2025-09-15",
-   "setBasis": "contact created",
-   "created": "2025-09-15",
-   "demoScheduled": null,
-   "demo": null,
    "firstDealIsRenewal": false
   },
   {
@@ -2257,47 +2335,6 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 138829733796,
-   "company": "RJ Groner",
-   "source": "2026 - Pantheon",
-   "setOn": "2025-07-17",
-   "setBasis": "contact created",
-   "created": "2025-07-17",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 138832032273,
-   "company": "24/7 Services Inc",
-   "source": "2026 - Pantheon",
-   "setOn": "2025-07-17",
-   "setBasis": "contact created",
-   "created": "2025-07-17",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 356419716845,
-    "on": "2026-10-21",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 138830432876,
-   "company": "Tech-On-Deck",
-   "source": "FieldEdge",
-   "setOn": "2025-07-17",
-   "setBasis": "contact created",
-   "created": "2025-07-17",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 132347204926,
    "company": "Jet Plumbing",
    "source": "LAB",
@@ -2312,6 +2349,25 @@
     "outcome": "won",
     "closedOn": "2026-01-12",
     "amount": 699,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 69384501933,
+   "company": "Apollo Outdoor Lighting",
+   "source": "Other",
+   "setOn": "2025-06-21",
+   "setBasis": "demo date",
+   "created": "2024-10-18",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 39107446848,
+    "on": "2025-06-21",
+    "ranBy": "Parker Joos",
+    "outcome": "lost",
+    "closedOn": "2025-10-26",
+    "amount": null,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
@@ -2700,6 +2756,25 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 71987813519,
+   "company": "PCG Mechanical",
+   "source": "Referrals",
+   "setOn": "2025-04-03",
+   "setBasis": "demo date",
+   "created": "2024-10-25",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 35424524288,
+    "on": "2025-04-03",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-09-05",
+    "amount": 850.0,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 111034530688,
    "company": "Reiner",
    "source": "Referrals",
@@ -2776,6 +2851,25 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 71981086473,
+   "company": "Terry's AC and Heating",
+   "source": "Referrals",
+   "setOn": "2025-04-01",
+   "setBasis": "demo date",
+   "created": "2024-10-25",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 35317818168,
+    "on": "2025-04-01",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-10-01",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 109714356313,
    "company": "Next Level Pros",
    "source": "Referrals",
@@ -2789,6 +2883,25 @@
     "ranBy": "Colton Lingmann",
     "outcome": "lost",
     "closedOn": "2025-10-27",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 455954276057,
+   "company": "Roof Plus",
+   "source": "Certain Path",
+   "setOn": "2025-03-28",
+   "setBasis": "demo date",
+   "created": "2024-05-29",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "35186622808",
+    "on": "2025-03-28",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-10-26",
     "amount": null,
     "laterWonDealId": null
    },
@@ -2852,6 +2965,44 @@
    "firstDealIsRenewal": false
   },
   {
+   "contactId": 25429028895,
+   "company": "Climate Energy Solutions",
+   "source": "Other",
+   "setOn": "2025-03-06",
+   "setBasis": "demo date",
+   "created": "2024-05-29",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "34333280013",
+    "on": "2025-03-06",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-10-01",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 25428599221,
+   "company": "Honey's Air & Solar",
+   "source": "Other",
+   "setOn": "2025-03-06",
+   "setBasis": "demo date",
+   "created": "2024-05-29",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "34330809507",
+    "on": "2025-03-06",
+    "ranBy": "Parker Joos",
+    "outcome": "lost",
+    "closedOn": "2025-04-15",
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
    "contactId": 104203546422,
    "company": "Fulkerson Services",
    "source": "Other",
@@ -2885,6 +3036,25 @@
     "outcome": "won",
     "closedOn": "2025-03-24",
     "amount": 300.0,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 449878042344,
+   "company": "Cook's Heat & Air",
+   "source": "Certain Path",
+   "setOn": "2025-02-28",
+   "setBasis": "demo date",
+   "created": "2024-05-29",
+   "demoScheduled": null,
+   "demo": {
+    "dealId": "34072649539",
+    "on": "2025-02-28",
+    "ranBy": "Colton Lingmann",
+    "outcome": "lost",
+    "closedOn": "2025-11-17",
+    "amount": 650.0,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
@@ -2941,25 +3111,6 @@
     "ranBy": "Chelsea Allred",
     "outcome": "lost",
     "closedOn": "2025-05-28",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 102702370198,
-   "company": "Strickland Plumbing hvac & electric",
-   "source": "2026 - Pantheon",
-   "setOn": "2025-02-27",
-   "setBasis": "contact created",
-   "created": "2025-02-27",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 34038799140,
-    "on": "2025-02-27",
-    "ranBy": "Parker Joos",
-    "outcome": "lost",
-    "closedOn": "2025-10-01",
     "amount": null,
     "laterWonDealId": null
    },
@@ -3463,55 +3614,6 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 71987813519,
-   "company": "PCG Mechanical",
-   "source": "Referrals",
-   "setOn": "2024-10-25",
-   "setBasis": "contact created",
-   "created": "2024-10-25",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 35424524288,
-    "on": "2025-04-03",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-09-05",
-    "amount": 850.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 71981086473,
-   "company": "Terry's AC and Heating",
-   "source": "Referrals",
-   "setOn": "2024-10-25",
-   "setBasis": "contact created",
-   "created": "2024-10-25",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 35317818168,
-    "on": "2025-04-01",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-10-01",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 71985821052,
-   "company": "Reliable Tech",
-   "source": "FieldEdge",
-   "setOn": "2024-10-25",
-   "setBasis": "contact created",
-   "created": "2024-10-25",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 455870058232,
    "company": "Perfect Temp",
    "source": "Certain Path",
@@ -3526,25 +3628,6 @@
     "outcome": "lost",
     "closedOn": "2025-11-02",
     "amount": 650.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 69384501933,
-   "company": "Apollo Outdoor Lighting",
-   "source": "Other",
-   "setOn": "2024-10-18",
-   "setBasis": "contact created",
-   "created": "2024-10-18",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 39107446848,
-    "on": "2025-06-21",
-    "ranBy": "Parker Joos",
-    "outcome": "lost",
-    "closedOn": "2025-10-26",
-    "amount": null,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
@@ -3626,140 +3709,12 @@
    "firstDealIsRenewal": false
   },
   {
-   "contactId": 25427431602,
-   "company": "JEM Plumbing, Inc",
-   "source": "FieldEdge",
-   "setOn": "2024-05-29",
-   "setBasis": "contact created",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 25429028895,
-   "company": "Climate Energy Solutions",
-   "source": "Other",
-   "setOn": "2024-05-29",
-   "setBasis": "contact created",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "34333280013",
-    "on": "2025-03-06",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-10-01",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 25428599221,
-   "company": "Honey's Air & Solar",
-   "source": "Other",
-   "setOn": "2024-05-29",
-   "setBasis": "contact created",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "34330809507",
-    "on": "2025-03-06",
-    "ranBy": "Parker Joos",
-    "outcome": "lost",
-    "closedOn": "2025-04-15",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 455954276057,
-   "company": "Roof Plus",
-   "source": "Certain Path",
-   "setOn": "2024-05-29",
-   "setBasis": "contact created",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "35186622808",
-    "on": "2025-03-28",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-10-26",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 449878042344,
-   "company": "Cook's Heat & Air",
-   "source": "Certain Path",
-   "setOn": "2024-05-29",
-   "setBasis": "contact created",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "34072649539",
-    "on": "2025-02-28",
-    "ranBy": "Colton Lingmann",
-    "outcome": "lost",
-    "closedOn": "2025-11-17",
-    "amount": 650.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 453667767023,
-   "company": "Krumm exteriors",
-   "source": "2026 - CertainPath Partner Jam",
-   "setOn": "2024-05-29",
-   "setBasis": "contact created",
-   "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
    "contactId": 455468128966,
    "company": "A Brooks Construction KangaRoof®",
    "source": "Certain Path",
    "setOn": "2024-05-29",
    "setBasis": "contact created",
    "created": "2024-05-29",
-   "demoScheduled": null,
-   "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 21884055180,
-   "company": "Aqua Systems",
-   "source": "2026 - Pantheon",
-   "setOn": "2024-05-16",
-   "setBasis": "contact created",
-   "created": "2024-05-16",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "19407868246",
-    "on": "2024-05-16",
-    "ranBy": "Chelsea Allred",
-    "outcome": "lost",
-    "closedOn": "2025-02-10",
-    "amount": 699.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 21630948954,
-   "company": "A perfect climate",
-   "source": "2026 - CertainPath Partner Jam",
-   "setOn": "2024-05-15",
-   "setBasis": "contact created",
-   "created": "2024-05-15",
    "demoScheduled": null,
    "demo": null,
    "firstDealIsRenewal": false
@@ -3779,25 +3734,6 @@
     "outcome": "won",
     "closedOn": "2024-06-03",
     "amount": 650.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 13357939046,
-   "company": "Delta heating cooling and plumbing",
-   "source": "2026 - Pantheon",
-   "setOn": "2024-04-17",
-   "setBasis": "contact created",
-   "created": "2024-04-17",
-   "demoScheduled": null,
-   "demo": {
-    "dealId": "18709462030",
-    "on": "2024-04-17",
-    "ranBy": null,
-    "outcome": "lost",
-    "closedOn": "2026-01-27",
-    "amount": null,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false

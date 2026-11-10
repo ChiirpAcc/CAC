@@ -4805,7 +4805,7 @@ function renderRP() {
   const all = rpSets.sets;
   const sel = $('rp-quarter');
   if (!sel.dataset.ready) {
-    const qs = [...new Set([quarterNow(), ...all.map(x => quarterOfDay(x.setOn)), ...all.filter(x => x.demo).map(x => quarterOfDay(x.demo.on))].filter(Boolean))].sort().reverse();
+    const qs = [...new Set([quarterNow(), ...all.map(x => quarterOfDay(x.setOn))].filter(Boolean))].sort().reverse();
     sel.innerHTML = qs.map(q => `<option value="${q}">${q}${q === quarterNow() ? ' (this quarter)' : ''}</option>`).join('');
     sel.value = st.quarter;
     sel.addEventListener('change', () => { st.quarter = sel.value; renderRP(); });
@@ -4826,15 +4826,15 @@ function renderRP() {
   document.querySelectorAll('input[name="rp-mode"]').forEach(x => { x.checked = x.value === st.kind; });
   $('rp-quarter').hidden = st.kind !== 'quarter';
   $('rp-months-wrap').hidden = st.kind !== 'months';
-  // A set belongs to the period of its set date; a demo to the period of its
-  // demo date, so each list answers "what happened in this period".
+  // A set belongs to the period of its set date, and the demos are those that
+  // came from the period's sets: nothing from an earlier set (Josh, 10 Nov 2026).
   const thisMonth = new Date().toISOString().slice(0, 7);
   const from = monthAdd(thisMonth, -((st.months || 6) - 1));
   const inPeriod = d => (!d ? false : st.kind === 'all' ? true : st.kind === 'quarter' ? quarterOfDay(d) === st.quarter
     : d.slice(0, 7) >= from && d.slice(0, 7) <= thisMonth);
   const label = st.kind === 'all' ? 'All time' : st.kind === 'quarter' ? st.quarter : `${fmt.monthLabel(from)} to ${fmt.monthLabel(thisMonth)}`;
   const sets = all.filter(x => inPeriod(x.setOn));
-  const demos = all.filter(x => x.demo && inPeriod(x.demo.on)).sort((a, b) => b.demo.on.localeCompare(a.demo.on));
+  const demos = sets.filter(x => x.demo).sort((a, b) => b.demo.on.localeCompare(a.demo.on));
   const reached = sets.filter(x => x.demo);
   const wonish = o => o === 'won' || o === 'later won';
   const pc = (n, d) => (d ? fmt.pct(n / d, 0) : '–');
@@ -4843,32 +4843,32 @@ function renderRP() {
   $('rp-period').innerHTML = `<strong>${label}.</strong> From HubSpot, checked ${rpSets.checked}: contacts whose Setter is Ryan Peterson, from every source, and demos whose deal names him as Setter.`;
   $('rp-kpis').innerHTML =
     kpi('Sets', fmt.int(sets.length), 'contacts he set in the period')
-    + kpi('Demos completed', fmt.int(demos.length), 'demos held in the period, from any of his sets')
+    + kpi('Demos completed', fmt.int(demos.length), 'from the period’s sets, held so far')
     + kpi('Show rate', pc(reached.length, sets.length), `${fmt.int(reached.length)} of the period\u2019s ${fmt.int(sets.length)} sets reached a demo`)
     + kpi('Won', fmt.int(demos.filter(x => wonish(x.demo.outcome)).length),
       `of the period\u2019s ${fmt.int(demos.length)} demos · ${fmt.int(demos.filter(x => x.demo.outcome === 'open').length)} still open`);
   const outcomeCell = o => (o === 'won' ? '<span class="pos">won</span>' : o === 'later won' ? '<span class="pos">lost, then won</span>'
     : o === 'open' ? 'still open' : o === 'lost' ? '<span class="muted">lost</span>' : '–');
   const company = x => extLink(hubspotContactUrl(x.contactId), x.company || 'No company on the contact');
-  const dateCell = x => `${x.setOn || '–'}${x.setBasis !== 'set' ? `<br><span class="muted">${x.setBasis === 'demo date' ? 'demo date; no set date' : x.setBasis === 'deal setter' ? 'demo date; the deal names him as setter' : 'contact created; no set date'}</span>` : ''}`;
+  const dateCell = x => `${x.setOn || '–'}${x.setBasis !== 'set' ? `<br><span class="muted">${({ 'demo date': 'demo date; no set date', 'deal setter': 'demo date; the deal names him as setter', 'event date': 'event date; no set date', 'first listed': 'first listed under him; no set date' })[x.setBasis] || 'contact created; no set date'}</span>` : ''}`;
   $('rp-sets').innerHTML = !sets.length ? '<tbody><tr><td class="muted">No sets in this period.</td></tr></tbody>'
     : '<thead><tr><th>Set</th><th>Company (HubSpot contact)</th><th>Source</th><th>Demo completed</th><th>Ran by</th><th>Outcome</th></tr></thead><tbody>'
       + sets.map(x => `<tr><td>${dateCell(x)}</td><td>${company(x)}</td><td>${x.source || '<span class="muted">not recorded</span>'}</td>`
         + `<td>${x.demo ? extLink(hubspotDealUrl(x.demo.dealId), x.demo.on) : x.demoScheduled ? `<span class="muted">not yet; booked for ${x.demoScheduled}</span>` : '<span class="muted">no demo</span>'}</td>`
         + `<td>${x.demo && x.demo.ranBy ? x.demo.ranBy : '–'}</td><td>${x.demo ? outcomeCell(x.demo.outcome) : '–'}</td></tr>`).join('')
       + '</tbody>';
-  $('rp-demos').innerHTML = !demos.length ? '<tbody><tr><td class="muted">No demos completed in this period.</td></tr></tbody>'
+  $('rp-demos').innerHTML = !demos.length ? '<tbody><tr><td class="muted">No demos yet from this period’s sets.</td></tr></tbody>'
     : '<thead><tr><th>Demo completed</th><th>Company (HubSpot contact)</th><th>Deal</th><th>Set</th><th>Ran by</th><th>Outcome</th><th class="n">Deal amount</th></tr></thead><tbody>'
       + demos.map(x => `<tr><td>${x.demo.on}</td><td>${company(x)}</td><td>${extLink(hubspotDealUrl(x.demo.dealId), 'Open deal')}`
         + `${x.demo.laterWonDealId ? `<br>${extLink(hubspotDealUrl(x.demo.laterWonDealId), 'Won deal')}` : ''}</td>`
         + `<td>${x.setOn || '–'}</td><td>${x.demo.ranBy || '–'}</td><td>${outcomeCell(x.demo.outcome)}</td>`
         + `<td class="n">${x.demo.amount ? fmt.money(x.demo.amount) : '–'}</td></tr>`).join('')
       + '</tbody>';
-  // Every quarter: sets, demos completed and wins.
-  const qs = [...new Set([...all.map(x => quarterOfDay(x.setOn)), ...all.filter(x => x.demo).map(x => quarterOfDay(x.demo.on))].filter(Boolean))].sort().reverse().slice(0, 8);
+  // Every quarter: its sets, and the demos and wins that came from them.
+  const qs = [...new Set(all.map(x => quarterOfDay(x.setOn)).filter(Boolean))].sort().reverse().slice(0, 8);
   $('rp-trend').innerHTML = '<thead><tr><th>Quarter</th><th class="n">Sets</th><th class="n">Demos completed</th><th class="n">Won</th></tr></thead><tbody>'
     + qs.map(q => {
-      const d = all.filter(x => x.demo && quarterOfDay(x.demo.on) === q);
+      const d = all.filter(x => x.demo && quarterOfDay(x.setOn) === q);
       return `<tr${q === st.quarter && st.kind === 'quarter' ? ' class="row-featured"' : ''}><td>${q}</td><td class="n">${fmt.int(all.filter(x => quarterOfDay(x.setOn) === q).length)}</td>`
         + `<td class="n">${fmt.int(d.length)}</td><td class="n">${fmt.int(d.filter(x => wonish(x.demo.outcome)).length)}</td></tr>`;
     }).join('') + '</tbody>';
