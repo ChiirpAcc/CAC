@@ -1170,27 +1170,38 @@ function showView(which) {
   window.scrollTo({ top: 0 });
 }
 
+// Each tab has its own address, so a link opens the tab it names and the
+// browser's back button steps between tabs (Josh, 10 Nov 2026):
+// #charts, #upgrade-list, #summary, #events, #marketing, #rp. An event's own
+// page is #event=<name> and a source's is #source=<name>. #sales, the RP
+// tab's old address, still works.
+const TAB_HASH = { all: '#charts', list: '#upgrade-list', summary: '#summary', events: '#events',
+  marketing: '#marketing', sales: '#rp' };
 function wireTabs() {
-  $('tab-all').addEventListener('click', () => showView('all'));
-  if ($('tab-list')) $('tab-list').addEventListener('click', () => showView('list'));
-  if ($('tab-events')) $('tab-events').addEventListener('click', () => showView('events'));
-  if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => showView('marketing'));
-  if ($('tab-sales')) $('tab-sales').addEventListener('click', () => showView('sales'));
-  // #rp opens the RP tab (it keeps the view's old id, sales).
-  if ($('tab-summary')) $('tab-summary').addEventListener('click', () => { history.replaceState(null, '', '#summary'); showView('summary'); });
-  // An event's own page is #event=<name>; #events returns to the list.
+  const go = which => {
+    const hash = TAB_HASH[which];
+    if (location.hash === hash) showView(which);
+    else location.hash = hash;
+  };
+  $('tab-all').addEventListener('click', () => go('all'));
+  if ($('tab-list')) $('tab-list').addEventListener('click', () => go('list'));
+  if ($('tab-events')) $('tab-events').addEventListener('click', () => go('events'));
+  if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => go('marketing'));
+  if ($('tab-sales')) $('tab-sales').addEventListener('click', () => go('sales'));
+  if ($('tab-summary')) $('tab-summary').addEventListener('click', () => go('summary'));
   const route = () => {
-    const m = location.hash.match(/^#event=(.+)$/);
+    const h = location.hash;
+    const m = h.match(/^#event=(.+)$/);
     if (m) { renderEventPage(decodeURIComponent(m[1])); showView('event'); return true; }
-    if (location.hash === '#events') { showView('events'); return true; }
-    const src = location.hash.match(/^#source=(.+)$/);
+    const src = h.match(/^#source=(.+)$/);
     if (src) { renderSourcePage(decodeURIComponent(src[1])); showView('source'); return true; }
-    if (location.hash === '#marketing') { showView('marketing'); return true; }
-    if (location.hash === '#sales') { showView('sales'); return true; }
-    if (location.hash === '#summary') { showView('summary'); return true; }
+    if (h === '#rp' || h === '#sales') { showView('sales'); return true; }
+    if (h === '#upgrade-list' || h === '#list') { showView('list'); return true; }
+    if (h === '#charts' || h === '#all') { showView('all'); return true; }
+    for (const [which, hash] of Object.entries(TAB_HASH)) if (h === hash) { showView(which); return true; }
     return false;
   };
-  window.addEventListener('hashchange', route);
+  window.addEventListener('hashchange', () => { if (!route()) showView('all'); });
   if (!route()) showView('all');
 }
 
