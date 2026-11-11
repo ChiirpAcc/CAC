@@ -4378,7 +4378,8 @@ export const HUBSPOT_OPEN_DEALS = {
     'Aqua Systems and Skyward Heating Air Plumbing', 'Aqua Systems', 'Nemmer Electric',
     'Bill Leary Air Conditioning & Heating', 'Bill Leary Heating and Cooling', 'Iceberg Home Services',
     'Colony Heating and Air Conditioning', "A & J's Removal Services", 'Kerr Sprinkler Systems Inc', 'HVAC Fractional',
-    'Aaron & Trecker', 'Advanced Sanitation', 'State 48 Garage Doors'],
+    'Aaron & Trecker', 'Advanced Sanitation', 'State 48 Garage Doors',
+    'Seaside Heating & Cooling'], // opened 10 Nov 2026, checked live that evening
   '2025 - Pantheon': ['Colony Heating and Air Conditioning', 'Bath Fitter', 'Hickory', 'networktradies.com.au'],
   '2026 - Qualified Remodeler Top 500': ['Improveit! Home Remodeling', 'Improveit', 'Beartooth Bathrooms',
     'FA Outdoor Spaces', 'Esler Companies', 'Renewal by Andersen / Esler Companies', 'Century City Baths',
