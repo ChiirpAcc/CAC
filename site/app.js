@@ -3572,7 +3572,7 @@ function renderUpgradeList() {
     .join(' <span class="muted">→</span> ');
 
   const table = (rows, target) => {
-    const head = '<thead><tr><th>Company</th><th>Stripe ID</th><th>Group</th><th>Usage</th>'
+    const head = '<thead><tr><th>Company</th><th>Stripe ID</th><th>Industry</th><th>Group</th><th>Usage</th>'
       + '<th class="n">Texts a month</th><th class="n">Account age</th>'
       + '<th class="n">Now</th><th class="n">Settled peak</th>'
       + '<th class="n">Ask for</th><th class="n">Rise</th><th class="n">Leave</th><th>Call</th>'
@@ -3581,6 +3581,7 @@ function renderUpgradeList() {
     const body = rows.map(r => '<tr>'
       + `<td>${r.name ? r.name : '<span class="muted">no name in the file</span>'}</td>`
       + `<td class="mono">${r.id}</td>`
+      + `<td>${r.industry || '<span class="muted">not in the export</span>'}</td>`
       + `<td>${GROUP_WORDS[r.group] || '–'}</td>`
       + `<td>${BAND_WORDS[r.band] || '–'}</td>`
       + `<td class="n">${r.textsMeasured ? fmt.int(r.texts) : '–'}</td>`
@@ -3678,11 +3679,11 @@ function renderUpgradeList() {
   // with the switches and with the band file arriving.
   const csv = () => {
     const l = LIST_LAST;
-    const head = ['group', 'company', 'stripe_id', 'price_group', 'usage_band', 'texts_a_month', 'account_age_days',
+    const head = ['group', 'company', 'stripe_id', 'industry', 'price_group', 'usage_band', 'texts_a_month', 'account_age_days',
       'mrr_now', 'settled_peak', 'ask',
       'ask_multiple', 'chance_of_leaving', 'held_before', 'asked', 'note', 'uplift', 'months_here', 'environment',
       'cash_last_month', 'usage_last_month'].concat(l.window);
-    const line = (group, r) => [group, r.name || '', r.id, r.group || '', r.band || '',
+    const line = (group, r) => [group, r.name || '', r.id, r.industry || '', r.group || '', r.band || '',
       r.textsMeasured ? r.texts : '', r.ageDays ?? '',
       r.mrr, r.settledPeak, r.viable ? r.target : '', r.ask === null || !r.viable ? '' : r.ask.toFixed(2),
       r.viable && r.churn != null ? r.churn.toFixed(2) : '',
@@ -7445,6 +7446,7 @@ function loadCampBands() {
         ...(j.cleaning ? { cleaning: new Set(j.cleaning) } : {}),
         ...(j.ageDays ? { ageDays: new Map(Object.entries(j.ageDays)) } : {}),
         ...(j.excluded ? { excluded: new Map(Object.entries(j.excluded)) } : {}),
+        ...(j.industry ? { industry: new Map(Object.entries(j.industry)) } : {}),
       };
       renderCampaign();
       renderUpgradeList();
@@ -7529,6 +7531,21 @@ function renderCampaign() {
     + '<th class="n">Asked</th><th class="n">Typical ask</th><th class="n">Asks</th>'
     + '<th class="n">Expected to leave</th><th class="n">Revenue a month</th></tr></thead><tbody>'
     + groupRows + '</tbody></table></div>'
+    + (c.byIndustry.length
+      ? '<h4 class="sub-head">By industry, for the groups and bands ticked</h4>'
+        + '<div class="table-scroll"><table class="data-table calc-table"><thead><tr><th>Industry</th>'
+        + '<th class="n">Asked</th><th class="n">Pays now</th><th class="n">Typical ask</th><th class="n">Typical rise</th>'
+        + '<th class="n">Expected to leave</th><th class="n">Revenue a month</th></tr></thead><tbody>'
+        + c.byIndustry.map(b => '<tr>'
+          + `<td>${b.industry}${CLEANING_INDUSTRIES.has(b.industry) ? ' <span class="muted">(priced as cleaning)</span>' : ''}</td>`
+          + `<td class="n">${fmt.int(b.asked)}</td>`
+          + `<td class="n">${fmt.money(b.mrr / b.asked)}</td>`
+          + `<td class="n">${fmt.money(b.typical)}</td>`
+          + `<td class="n">${pctRise(b.rise)}</td>`
+          + `<td class="n">${fmt.int(Math.round(b.lost))}</td>`
+          + `<td class="n">${b.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(b.gain))}</td></tr>`).join('')
+        + '</tbody></table></div>'
+      : '')
     + '<table class="data-table calc-table"><tbody>'
     + r(`Accounts under ${fmt.money(c.lowBand)}, 12 months or more`, fmt.int(c.eligible))
     + r('Asked for an increase', fmt.int(c.asked))
@@ -7577,9 +7594,12 @@ function renderCampaign() {
     + 'lowest price, in $25 steps, that captures 97% of the most revenue the account could add. Asks stay '
     + 'inside what round one tested: +100% on the $200 plan, +90% from $213 up, and $500 for accounts paying '
     + '$62 to $199. Dormant accounts are not asked, nor are accounts migrated to Chiirp AI or, in the export, '
-    + 'cancelled, unpaid or past due. '
-    + 'Industry is read from the account name in the usage export, or the Stripe company name for accounts '
-    + 'not in it; on the $200 plan an account with neither is priced as cleaning, the cautious reading' + (c.unnamedAsCleaning ? ` (${fmt.int(c.unnamedAsCleaning)} asked here)` : '') + '. '
+    + 'cancelled, unpaid or past due, nor accounts whose Stripe subscription on ' + ENGAGEMENT.asOf + ' is more than '
+    + '$50 away from the price here (already raised or changed since October; the list says which). '
+    + 'Industry is the export\'s own classification, from the company name and the texts the account sends; '
+    + 'round one only separated cleaning from everything else, so the industries table shows where the asks land, '
+    + 'and every industry other than cleaning shares the trades and $213+ curves. Accounts not in the export are '
+    + 'read from the Stripe company name; on the $200 plan an account with no name is priced as cleaning, the cautious reading' + (c.unnamedAsCleaning ? ` (${fmt.int(c.unnamedAsCleaning)} asked here)` : '') + '. '
     + (c.usageMeasured ? 'Usage is each account\'s own texts sent a month, averaged over the three months to ' + ENGAGEMENT.asOf
         + '; accounts not in that export are not adjusted for usage. Account age in the list '
         + 'is from the same export (created in the app, not the subscription start) and does not change the ask. '
@@ -7611,6 +7631,9 @@ const RESEARCH = {
   over500: 'Not in round one. Borrows the $213+ curve with each account\'s own usage, so this is a guess.',
 };
 const pctRise = x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%';
+// The export's industries priced on the cleaning curve (engagement_bands.json cleaningNote).
+const CLEANING_INDUSTRIES = new Set(['Carpet & Upholstery Cleaning', 'Window & Exterior Cleaning',
+  'House & Commercial Cleaning', 'Duct & Dryer Vent Cleaning', 'Restoration']);
 
 function campSelection() {
   return {
@@ -7661,6 +7684,20 @@ function renderTradeoffs(c) {
       }).join(''),
     });
   };
+  // 1: the pricing curves themselves, chance of leaving in the round.
+  const churnLines = ['clean200', 'trades200', 'tier262', 'under200'].map(group => ({
+    label: TYPICAL[group].label, colour: GROUP_INK[group],
+    curve: tradeoffCurve(typicalAccount(group), rises, opts),
+  }));
+  multiLineChart($('trade-churn'), {
+    labels, yFormat: v => fmt.pct(v), yTitle: 'Chance of leaving in the round',
+    xTitle: 'Size of the rise',
+    series: churnLines.map(l => ({ label: l.label, colour: l.colour, values: l.curve.map(p => p.churn) })),
+    xMarks: [{ index: 10, label: 'Tested limit, $200 plan' }],
+    describe: i => `<strong>${labels[i]}</strong>` + churnLines.map(l =>
+      `<span>${l.label}: ${fmt.pct(l.curve[i].churn)} leave</span>`).join(''),
+  });
+
   keptChart('trade-industry', ['clean200', 'trades200', 'tier262', 'under200'].map(group => ({
     label: TYPICAL[group].label, colour: GROUP_INK[group],
     curve: tradeoffCurve(typicalAccount(group), rises, opts),
@@ -7720,14 +7757,16 @@ function renderTradeoffs(c) {
   $('trade-note').textContent =
     'The table gives the ask for a typical account in each category at four levels of texts sent, chosen as on the list: the '
     + 'lowest $25 step that captures 97% of the most revenue the account could add, inside what round one tested. Each '
-    + 'cell shows the ask, the rise, the chance of leaving in the round and the revenue added a month after churn. Charts 1 and 2 '
+    + 'cell shows the ask, the rise, the chance of leaving in the round and the revenue added a month after churn. Chart 1 is '
+    + 'round one\'s pricing curves: the chance a typical account in each group leaves in the round at each size of rise, '
+    + 'midway between the smooth and cliff readings of round one and at the list\'s median of 535 texts a month. Charts 2 and 3 '
     + 'show revenue kept per account, (1 + rise) × (1 − churn), as a share of what it pays today: above the Today line '
     + 'the rise pays for the customers it loses. The $200 plan was tested to +100% ($200 to $400) and the $213+ accounts to '
     + '+90%; past the marked line the curves carry their last slope and are guesses. Under $200, round one only gave rises '
-    + 'of +150% or more, so smaller rises ramp up to its churn from normal churn, an assumption. Charts 3 and 4 ask everyone '
+    + 'of +150% or more, so smaller rises ramp up to its churn from normal churn, an assumption. Charts 4 and 5 ask everyone '
     + 'the card asks the same rise, each account on its own curve: revenue gained a month after churn on the left, '
     + 'customers lost to the rise (above normal churn) on the right. A dollar rise is a far bigger shock to a $100 account '
-    + 'than to a $450 one, which is why chart 4 peaks higher and loses more customers.';
+    + 'than to a $450 one, which is why chart 5 peaks higher and loses more customers.';
   renderRoundTwoProjection();
 }
 

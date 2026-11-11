@@ -3017,14 +3017,18 @@ export function roundOneProfile(row, engagement) {
   // cleaner is never asked a trades price.
   // An account in the export has its industry read from the export's own
   // name, so only accounts outside it can be unknown.
+  // From the 11 Nov export (second file) the industry is the export's own
+  // classification, from the name and the texts sent, and it overrides the
+  // name: cleaning is exactly the export's cleaning industries.
   const named = !!(row.name && String(row.name).trim());
-  const flagged = !!(eng.cleaning && eng.cleaning.has(row.id));
+  const flagged = !!(eng.cleaning && (eng.cleaning.has(row.id) || (row.canonicalId && eng.cleaning.has(row.canonicalId))));
   const fromExport = !!eng.cleaning && band !== 'unbanded';
-  const cleaning = flagged || (named ? CLEANING_RE.test(row.name) : fromExport ? false : null);
+  const industry = eng.industry ? (eng.industry.get(row.id) || (row.canonicalId && eng.industry.get(row.canonicalId)) || null) : null;
+  const cleaning = industry ? flagged : flagged || (named ? CLEANING_RE.test(row.name) : fromExport ? false : null);
   const ageDays = eng.ageDays ? (eng.ageDays.get(row.id) ?? null) : null;
   const excluded = eng.excluded ? (eng.excluded.get(row.id) || (row.canonicalId && eng.excluded.get(row.canonicalId)) || null) : null;
   const mrr = row.eopMrr ?? row.mrr ?? 0;
-  return { mrr, band, texts, textsMeasured: own != null, ageDays, excluded, cleaning: cleaning !== false,
+  return { mrr, band, texts, textsMeasured: own != null, ageDays, excluded, industry, cleaning: cleaning !== false,
     industryKnown: cleaning !== null, group: priceGroup(mrr, cleaning !== false) };
 }
 export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1 } = {}) {
@@ -3110,6 +3114,8 @@ export function roundTwo(data, {
     { ...g, n: 0, mrr: 0, asked: 0, lost: 0, gain: 0, contribution: 0, targets: [] }]));
   let asked = 0, lost = 0, gain = 0, contrib = 0;
   const askedRows = [];
+  // The export's own industries, for the asked accounts in ticked groups.
+  const byIndustry = {};
   // Every group is costed whether or not it is ticked, so an unticked group
   // still shows what asking it would do; only ticked groups reach the totals.
   for (const r of list.low) {
@@ -3123,6 +3129,9 @@ export function roundTwo(data, {
     if (!g.ticked) continue;
     asked += 1; lost += r.churn; gain += dRev; contrib += dCon;
     askedRows.push(r);
+    const ind = r.industry || 'Not in the export';
+    const bi = byIndustry[ind] = byIndustry[ind] || { industry: ind, asked: 0, lost: 0, gain: 0, mrr: 0, targets: [], rises: [] };
+    bi.asked += 1; bi.lost += r.churn; bi.gain += dRev; bi.mrr += r.mrr; bi.targets.push(r.target); bi.rises.push(r.target / r.mrr - 1);
   }
   const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : null; };
   for (const g of Object.values(byGroup)) {
@@ -3145,6 +3154,8 @@ export function roundTwo(data, {
     overSix: askedRows.filter(r => r.target > 600).length,
     unnamedAsCleaning: askedRows.filter(r => r.why === 'No name in Stripe: priced as cleaning').length,
     byGroup: PRICE_GROUPS.map(g => byGroup[g.key]),
+    byIndustry: Object.values(byIndustry).map(b => ({ ...b, typical: median(b.targets), rise: median(b.rises) }))
+      .sort((x, y) => y.gain - x.gain),
     usageMeasured: list.low.some(r => r.textsMeasured),
   };
 }
@@ -3464,7 +3475,7 @@ function buildUpgradeList(data, {
     const own = prof ? roundOneAsk(prof, { textsScale, churnScale }) : null;
     const target = own ? own.target : rule === 'tiered' ? (cur <= 300 ? 500 : 750) : floor;
     return {
-      ...(own ? { group: prof.group, band: prof.band, cleaning: prof.cleaning, texts: prof.texts, ageDays: prof.ageDays, excluded: prof.excluded,
+      ...(own ? { group: prof.group, band: prof.band, industry: prof.industry, cleaning: prof.cleaning, texts: prof.texts, ageDays: prof.ageDays, excluded: prof.excluded,
         textsMeasured: prof.textsMeasured, churn: own.churn, churnNow: own.churnNow, why: own.why } : {}),
       id: row.id,
       canonicalId: row.canonicalId || null,
