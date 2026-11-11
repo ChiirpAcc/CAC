@@ -1288,6 +1288,46 @@
       <p class="note" id="camp-note"></p>
     </figure>
 
+    <figure class="card wide" id="fig-tradeoffs">
+      <figcaption><h3>The best ask for each kind of account, and what it trades off</h3></figcaption>
+      <p class="finding" id="trade-finding"></p>
+      <div class="table-scroll"><table class="data-table" id="trade-optimal"></table></div>
+      <h4 class="sub-head">1. By industry: revenue kept against the size of the rise</h4>
+      <div class="plot" id="trade-industry"></div>
+      <h4 class="sub-head">2. By texts sent: the same, for one group at four levels of use</h4>
+      <div class="calc-presets" id="trade-texts-group"></div>
+      <div class="plot" id="trade-texts"></div>
+      <h4 class="sub-head">3. One relative rise for everyone asked</h4>
+      <div class="plot" id="trade-relative"></div>
+      <h4 class="sub-head">4. One dollar rise for everyone asked</h4>
+      <div class="plot" id="trade-absolute"></div>
+      <p class="note" id="trade-note"></p>
+    </figure>
+
+    <figure class="card wide" id="fig-projection">
+      <figcaption><h3>The next 12 months under each scenario</h3></figcaption>
+      <fieldset class="cost-toggles" id="proj-scenarios">
+        <legend>Scenarios to show</legend>
+      </fieldset>
+      <div class="chart-control">
+        <label for="proj-rise">One relative rise for everyone</label>
+        <input type="range" id="proj-rise" min="0" max="100" step="5" value="90">
+        <output id="proj-rise-out"></output>
+      </div>
+      <div class="chart-control">
+        <label for="proj-add">One dollar rise for everyone</label>
+        <input type="range" id="proj-add" min="0" max="300" step="25" value="300">
+        <output id="proj-add-out"></output>
+      </div>
+      <fieldset class="preset-group">
+        <legend>Normal churn to project with</legend>
+        <div class="calc-presets" id="proj-base"></div>
+      </fieldset>
+      <div class="plot" id="proj-chart"></div>
+      <div class="table-scroll"><table class="data-table" id="proj-table"></table></div>
+      <p class="note" id="proj-note"></p>
+    </figure>
+
     <figure class="card wide">
       <figcaption><h3 id="list-low-title">Paying something, below cost to serve</h3></figcaption>
       <p class="finding" id="list-low-finding"></p>

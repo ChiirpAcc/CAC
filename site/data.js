@@ -3031,14 +3031,16 @@ export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1 } = {
   const coef = ROUND_ONE.logistic.log10Texts * textsScale;
   let p;
   if (acc.group === 'under200') {
-    // Round one's fit for accounts off the $200 plan: the size of the rise
-    // did not predict leaving, so churn is flat in price once asked.
+    // Round one's fit for accounts off the $200 plan. Every one of them got
+    // +150% or more and the size of the rise did not predict leaving, so the
+    // fit holds from +150%; a smaller rise ramps up to it from normal churn.
     const base = 0.03;
     if (x <= 0) p = base;
     else {
       const L = ROUND_ONE.logistic;
       const z = L.intercept + (acc.cleaning ? L.cleaning : 0) + coef * Math.log10(Math.max(acc.texts || 1, 1));
-      p = Math.max(base, 1 / (1 + Math.exp(-z)));
+      const fit = Math.max(base, 1 / (1 + Math.exp(-z)));
+      p = base + (fit - base) * Math.min(1, x / 1.5);
     }
   } else {
     p = curveAt(ROUND_ONE.curves[acc.group === 'over500' ? 'tier262' : acc.group], x);
@@ -3145,6 +3147,167 @@ export function roundTwo(data, {
   };
 }
 
+// ---- Tradeoff curves and the 12-month view (Josh, 11 Nov 2026: optimal
+// amounts for each category, tradeoff curves by industry, texts sent,
+// relative and absolute increase, and 12 months of revenue after churn).
+
+// A typical account in each price group, at the list's median usage.
+export const TYPICAL = {
+  clean200: { mrr: 200, label: '$200 plan, cleaning' },
+  trades200: { mrr: 200, label: '$200 plan, trades' },
+  tier262: { mrr: 350, label: '$213 to $499 (typical $350)' },
+  under200: { mrr: 100, label: 'Under $200 (typical $100)' },
+  over500: { mrr: 650, label: '$500 to $799 (typical $650)' },
+};
+export const TEXT_LEVELS = [
+  { texts: 100, label: '100 texts a month' },
+  { texts: ROUND_ONE.textsRef, label: `${ROUND_ONE.textsRef} (the list's median)` },
+  { texts: 2000, label: '2,000' },
+  { texts: 10000, label: '10,000' },
+];
+export const typicalAccount = (group, texts = ROUND_ONE.textsRef, mrr = TYPICAL[group].mrr) => ({
+  mrr, group, texts, band: 'users', cleaning: group === 'clean200', industryKnown: true,
+});
+
+// Churn and revenue kept for one account across a range of rises. Revenue
+// kept is (1 + rise) x (1 - churn), as a share of what the account pays now,
+// so 1.0 is break-even with changing nothing and no churn at all.
+export function tradeoffCurve(acc, rises, opts = {}) {
+  return rises.map(x => {
+    const churn = roundOneChurn(acc, acc.mrr * (1 + x), opts);
+    return { rise: x, churn, kept: (1 + x) * (1 - churn) };
+  });
+}
+
+// The optimum for each group at each usage level, by the same rule as the
+// list's asks, so the table and the list cannot disagree.
+export function optimalAsks(opts = {}) {
+  const rows = [];
+  for (const group of ['clean200', 'trades200', 'tier262', 'under200', 'over500']) {
+    for (const lvl of TEXT_LEVELS) {
+      const acc = typicalAccount(group, lvl.texts);
+      const a = roundOneAsk(acc, opts);
+      const keptNow = (1 - a.churnNow) * acc.mrr;
+      const keptAsk = (1 - a.churn) * a.target;
+      rows.push({ group, texts: lvl.texts, mrr: acc.mrr, target: a.target, rise: a.target / acc.mrr - 1,
+        added: a.target - acc.mrr, churn: a.churn, churnNow: a.churnNow, gain: keptAsk - keptNow, why: a.why });
+    }
+  }
+  return rows;
+}
+
+// Normal monthly churn by price, from the last six complete months: accounts
+// paying under the band and 12 months or older, the share gone the next month.
+export function listBaselineChurn(data, { lowBand = 800, months = 6 } = {}) {
+  const all = [...new Set(data.customers.map(r => r.month))].sort();
+  const last = data.lastMonth;
+  const upto = all.filter(m => m <= last);
+  const firstPaid = new Map();
+  const paid = new Map();
+  for (const r of data.customers) {
+    if (!r.active || !(r.eopMrr > 0)) continue;
+    if (!firstPaid.has(r.id) || r.month < firstPaid.get(r.id)) firstPaid.set(r.id, r.month);
+    paid.set(r.id + '|' + r.month, r.eopMrr);
+  }
+  const bucket = mrr => (mrr < 200 ? 'under200' : mrr <= 212 ? 'plan200' : mrr < 500 ? 'tier262' : 'over500');
+  const tally = {};
+  for (const m of upto.slice(-months)) {
+    const prev = monthAdd(m, -1);
+    for (const [key, mrr] of paid) {
+      const [id, month] = key.split('|');
+      if (month !== prev || mrr >= lowBand) continue;
+      if (monthDiff(firstPaid.get(id), prev) < 12) continue;
+      const b = bucket(mrr);
+      tally[b] = tally[b] || { atRisk: 0, gone: 0 };
+      tally[b].atRisk += 1;
+      if (!paid.has(id + '|' + m)) tally[b].gone += 1;
+    }
+  }
+  const rate = {};
+  let a = 0, g = 0;
+  for (const [b, t] of Object.entries(tally)) { rate[b] = t.atRisk ? t.gone / t.atRisk : 0; a += t.atRisk; g += t.gone; }
+  rate.all = a ? g / a : 0;
+  return { rate, tally, months };
+}
+const baselineFor = (base, group) => base.rate[group === 'clean200' || group === 'trades200' ? 'plan200' : group] ?? base.rate.all;
+
+// The accounts a scenario could touch: the list under the band, in the ticked
+// bands and groups, never dormant.
+function scenarioPool(data, { lowBand = 800, engagement = null, bands = null, groups = null, ...opts } = {}) {
+  const list = upgradeList(data, { lowBand, rule: 'account', engagement, ...opts });
+  if (!list) return null;
+  // scope: every account in the ticked groups, asked or not, which is the
+  // revenue the 12-month view follows.
+  const scope = list.low.filter(r => !groups || groups.has(r.group));
+  return { list, scope, pool: scope.filter(r => r.band !== 'dormant' && r.mrr > 2
+    && (!bands || bands.has(r.band))) };
+}
+
+// The list asked one rise for everyone, relative or absolute. Each account
+// keeps its own churn curve, so the same rise costs cleaners more than trades.
+export function portfolioCurve(data, { kind = 'relative', steps, ...rest } = {}) {
+  const sp = scenarioPool(data, rest);
+  if (!sp) return null;
+  const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
+  const profiles = sp.pool.map(r => ({ r, acc: { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band,
+    cleaning: r.cleaning, industryKnown: true } }));
+  const points = steps.map(s => {
+    let gain = 0, lost = 0, extra = 0;
+    const byGroup = {};
+    for (const { acc } of profiles) {
+      const price = kind === 'relative' ? acc.mrr * (1 + s) : acc.mrr + s;
+      const c1 = roundOneChurn(acc, price, opts), c0 = roundOneChurn(acc, acc.mrr, opts);
+      const d = (1 - c1) * price - (1 - c0) * acc.mrr;
+      gain += d; lost += c1; extra += c1 - c0;
+      const g = byGroup[acc.group] = byGroup[acc.group] || { gain: 0, extra: 0 };
+      g.gain += d; g.extra += c1 - c0;
+    }
+    return { step: s, gain, lost, extra, byGroup };
+  });
+  const best = points.reduce((a, b) => (b.gain > a.gain ? b : a), points[0]);
+  return { kind, points, best, accounts: profiles.length };
+}
+
+// Twelve months of the list's revenue under a scenario. Normal churn runs
+// every month at the group's own recent rate; the extra churn a rise causes
+// (its curve less the curve at no rise) lands over the first three months.
+export function projectScenario(data, { scenario = 'none', rise = 0, add = 0, horizon = 12, baseMonths = 6, ...rest } = {}) {
+  const sp = scenarioPool(data, rest);
+  if (!sp) return null;
+  const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
+  const base = listBaselineChurn(data, { lowBand: rest.lowBand ?? 800, months: baseMonths });
+  const inPool = new Set(sp.pool.map(r => r.id));
+  const mrr = new Array(horizon + 1).fill(0);
+  const logos = new Array(horizon + 1).fill(0);
+  let liftLost = 0;
+  for (const r of sp.scope) {
+    const acc = { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band, cleaning: r.cleaning, industryKnown: true };
+    let price = r.mrr;
+    if (inPool.has(r.id)) {
+      if (scenario === 'account' && r.viable) price = r.target;
+      else if (scenario === 'relative') price = r.mrr * (1 + rise);
+      else if (scenario === 'absolute') price = r.mrr + add;
+    }
+    const excess = price > r.mrr ? Math.max(0, roundOneChurn(acc, price, opts) - roundOneChurn(acc, r.mrr, opts)) : 0;
+    liftLost += excess;
+    const h = baselineFor(base, r.group);
+    for (let t = 0; t <= horizon; t += 1) {
+      const stay = Math.pow(1 - h, t) * (1 - excess * Math.min(t, 3) / 3);
+      mrr[t] += (t === 0 ? r.mrr : price) * stay;
+      logos[t] += stay;
+    }
+  }
+  const months = mrr.slice(1);
+  return {
+    scenario, rise, add, mrr, logos, accounts: sp.scope.length,
+    averageMrr: months.reduce((s, v) => s + v, 0) / months.length,
+    arr12: mrr[horizon] * 12,
+    revenue12: months.reduce((s, v) => s + v, 0),
+    liftLost, normalLost: logos[0] - logos[horizon] - liftLost,
+    baseline: base,
+  };
+}
+
 export function campaign(data, {
   rule = 'floor', churn = 0.33, floor = 600, cap = 3, viableOnly = true, ask = null, bandOf = null,
 } = {}) {
@@ -3235,7 +3398,21 @@ export function campaign(data, {
 // customer, so anything at or under $2 is out. And an account needs twelve
 // months behind it: a customer three months in has not yet shown what they
 // are worth, and re-pricing them is negotiating against your own onboarding.
-export function upgradeList(data, {
+// The round-two cards build the same list several times per redraw (asks,
+// curves, four projections), so the last few are kept, keyed on the inputs.
+const UPGRADE_CACHE = [];
+export function upgradeList(data, args = {}) {
+  const { lowBand = 500, floor = 600, minMrr = 2, minTenure = 12, rule = 'floor',
+    engagement = null, textsScale = 1, churnScale = 1 } = args;
+  const key = JSON.stringify([lowBand, floor, minMrr, minTenure, rule, textsScale, churnScale]);
+  const hit = UPGRADE_CACHE.find(c => c.data === data && c.engagement === engagement && c.key === key);
+  if (hit) return hit.value;
+  const value = buildUpgradeList(data, { lowBand, floor, minMrr, minTenure, rule, engagement, textsScale, churnScale });
+  UPGRADE_CACHE.unshift({ data, engagement, key, value });
+  UPGRADE_CACHE.length = Math.min(UPGRADE_CACHE.length, 8);
+  return value;
+}
+function buildUpgradeList(data, {
   lowBand = 500, floor = 600, minMrr = 2, minTenure = 12, rule = 'floor',
   engagement = null, textsScale = 1, churnScale = 1,
 } = {}) {

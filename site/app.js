@@ -20,7 +20,8 @@ import {
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
-  bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, TEXT_LEVELS, typicalAccount, ROUND_ONE, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -7588,6 +7589,235 @@ function renderCampaign() {
     + 'everyone the model expects to go in the round, normal churn included. The curves rest on 36 accounts '
     + 'and 15 churns; the trades curve on the $200 plan rests on 4. Log every outcome of round two with its '
     + 'ask and refit.';
+  LAST_CAMP = c;
+  renderTradeoffs(c);
+}
+
+// The tradeoff curves and the 12-month view under the campaign card (Josh,
+// 11 Nov 2026). They follow the card's switches: the same groups, bands and
+// trust setting, so every figure on the tab answers the same question.
+const TRADE = { textsGroup: 'clean200', baseMonths: 6, rise: null, add: null };
+const GROUP_INK = {
+  clean200: INK.negative, trades200: INK.primary, tier262: INK.secondary,
+  under200: INK.tertiary, over500: INK.accent,
+};
+const RESEARCH = {
+  clean200: 'Moved to $500 (+150%) in September: about 75% left. EZ Air and Roof Gutter accepted +35% to +40%.',
+  trades200: 'Same plan, far less churn than cleaners at the same price. Rests on 4 accounts.',
+  tier262: 'Round one\'s $262+ accounts, mostly trades, lost about 10% at +40% to +90%.',
+  under200: 'Accounts paying $62 to $192 went to $500 (+150% to +700%) and most stayed. The size of the rise did not predict leaving.',
+  over500: 'Not in round one or the usage export. Borrows the $213+ curve, so this is a guess.',
+};
+const pctRise = x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%';
+
+function campSelection() {
+  return {
+    lowBand: CAMP_LOW_BAND, engagement: CAMP_BANDS,
+    bands: $('camp-bands') && $('camp-bands').dataset.ready ? ticked('camp-bands') : null,
+    groups: ticked('camp-groups'), ...campOptions(),
+  };
+}
+
+function renderTradeoffs(c) {
+  if (!$('trade-optimal')) return;
+  const opts = campOptions();
+  const sel = campSelection();
+
+  // The optimal ask for each category at four levels of use.
+  const opt = optimalAsks(opts);
+  const cell = r => (r.target > r.mrr
+    ? `<strong>${fmt.money(r.target)}</strong> <span class="muted">${pctRise(r.rise)}, ${fmt.pct(r.churn)} leave, `
+      + `${r.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(r.gain))}</span>`
+    : '<span class="muted">no change</span>');
+  const applied = Object.fromEntries(c.byGroup.map(g => [g.key, g]));
+  $('trade-optimal').innerHTML = '<thead><tr><th>Category</th><th>What round one found</th>'
+    + TEXT_LEVELS.map(l => `<th>${l.texts === ROUND_ONE.textsRef ? fmt.int(l.texts) + ' texts (median)' : fmt.int(l.texts) + ' texts'}</th>`).join('')
+    + '<th>Applied on the list</th></tr></thead><tbody>'
+    + ['clean200', 'trades200', 'tier262', 'under200', 'over500'].map(group => {
+      const g = applied[group];
+      return `<tr><td><strong>${TYPICAL[group].label}</strong></td><td class="small">${RESEARCH[group]}</td>`
+        + TEXT_LEVELS.map(l => `<td>${cell(opt.find(r => r.group === group && r.texts === l.texts))}</td>`).join('')
+        + `<td>${g && g.asked ? `${fmt.int(g.asked)} asked, typically ${fmt.money(g.typical)}, `
+            + `${g.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(g.gain))} a month${g.ticked ? '' : ' <span class="muted">(not ticked)</span>'}`
+          : '<span class="muted">none asked</span>'}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  // 1 and 2: revenue kept per account as the rise grows.
+  const rises = Array.from({ length: 16 }, (_, i) => i / 10);
+  const labels = rises.map(pctRise);
+  const keptChart = (id, lines) => {
+    multiLineChart($(id), {
+      labels, yFormat: v => fmt.pct(v), yTitle: 'Revenue kept, share of today',
+      xTitle: 'Size of the rise',
+      series: lines.map(l => ({ label: l.label, colour: l.colour, values: l.curve.map(p => p.kept),
+        dashed: l.dashed })),
+      refs: [{ value: 1, label: 'Today' }],
+      xMarks: [{ index: 10, label: 'Tested limit, $200 plan' }],
+      describe: i => `<strong>${labels[i]}</strong>` + lines.map(l => {
+        const p = l.curve[i];
+        return `<span>${l.label}: keeps ${fmt.pct(p.kept)}, ${fmt.pct(p.churn)} leave</span>`;
+      }).join(''),
+    });
+  };
+  keptChart('trade-industry', ['clean200', 'trades200', 'tier262', 'under200'].map(group => ({
+    label: TYPICAL[group].label, colour: GROUP_INK[group],
+    curve: tradeoffCurve(typicalAccount(group), rises, opts),
+  })));
+
+  const box = $('trade-texts-group');
+  if (!box.dataset.ready) {
+    for (const group of ['clean200', 'trades200', 'tier262', 'under200']) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.dataset.key = group;
+      b.innerHTML = `<strong>${TYPICAL[group].label}</strong>`;
+      b.addEventListener('click', () => { TRADE.textsGroup = group; renderTradeoffs(LAST_CAMP); });
+      box.append(b);
+    }
+    box.dataset.ready = '1';
+  }
+  for (const b of box.querySelectorAll('button')) b.classList.toggle('is-on', b.dataset.key === TRADE.textsGroup);
+  const tInk = [INK.negative, INK.secondary, INK.primary, INK.positive];
+  keptChart('trade-texts', TEXT_LEVELS.map((l, i) => ({
+    label: l.label, colour: tInk[i],
+    curve: tradeoffCurve(typicalAccount(TRADE.textsGroup, l.texts), rises, opts),
+  })));
+
+  // 3 and 4: one rise for everyone asked, inside the range round one tested.
+  const rel = portfolioCurve(data, { ...sel, kind: 'relative', steps: Array.from({ length: 21 }, (_, i) => i / 20) });
+  const abs = portfolioCurve(data, { ...sel, kind: 'absolute', steps: Array.from({ length: 13 }, (_, i) => i * 25) });
+  const listChart = (id, curve, label) => {
+    const lab = curve.points.map(p => label(p.step));
+    dualAxisChart($(id), {
+      labels: lab,
+      left: { label: 'Revenue gained a month', colour: INK.primary, format: fmt.money, values: curve.points.map(p => Math.max(0, p.gain)) },
+      right: { label: 'Customers lost to the rise', colour: INK.negative, format: fmt.int, values: curve.points.map(p => p.extra) },
+      describe: i => {
+        const p = curve.points[i];
+        return `<strong>${lab[i]} for all ${fmt.int(curve.accounts)} asked</strong>`
+          + `<span>${p.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(p.gain))} a month after churn</span>`
+          + `<span>${fmt.int(Math.round(p.extra))} customers lost to the rise</span>`
+          + Object.entries(p.byGroup).map(([k, g]) => `<span class="muted">${TYPICAL[k] ? TYPICAL[k].label : k}: `
+            + `${g.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(g.gain))}, ${fmt.int(Math.round(g.extra))} lost</span>`).join('')
+          + (p === curve.best ? '<span><strong>The most revenue on this curve</strong></span>' : '');
+      },
+    });
+  };
+  listChart('trade-relative', rel, s => pctRise(s));
+  listChart('trade-absolute', abs, s => '+' + fmt.money(s));
+  LAST_CURVES = { rel, abs };
+
+  const each = c;
+  $('trade-finding').innerHTML =
+    `<strong>Asking each account its own price beats any single rise.</strong> `
+    + `Per-account asks add ${fmt.money(each.change)} a month and lose about ${fmt.int(Math.round(each.lost))} customers in the round. `
+    + `The best single relative rise (${pctRise(rel.best.step)} for everyone) adds ${fmt.money(rel.best.gain)} and loses `
+    + `${fmt.int(Math.round(rel.best.extra))} to the rise; the best single dollar rise (+${fmt.money(abs.best.step)}) adds `
+    + `${fmt.money(abs.best.gain)} and loses ${fmt.int(Math.round(abs.best.extra))}. A single rise overcharges cleaners and `
+    + `light users and undercharges heavy senders, which is the whole case for pricing by account.`;
+
+  $('trade-note').textContent =
+    'The table gives the ask for a typical account in each category at four levels of texts sent, chosen as on the list: the '
+    + 'lowest $25 step that captures 97% of the most revenue the account could add, inside what round one tested. Each '
+    + 'cell shows the ask, the rise, the chance of leaving in the round and the revenue added a month after churn. Charts 1 and 2 '
+    + 'show revenue kept per account, (1 + rise) × (1 − churn), as a share of what it pays today: above the Today line '
+    + 'the rise pays for the customers it loses. The $200 plan was tested to +100% ($200 to $400) and the $213+ accounts to '
+    + '+90%; past the marked line the curves carry their last slope and are guesses. Under $200, round one only gave rises '
+    + 'of +150% or more, so smaller rises ramp up to its churn from normal churn, an assumption. Charts 3 and 4 ask everyone '
+    + 'the card asks the same rise, each account on its own curve: revenue gained a month after churn on the left, '
+    + 'customers lost to the rise (above normal churn) on the right. A dollar rise is a far bigger shock to a $100 account '
+    + 'than to a $450 one, which is why chart 4 peaks higher and loses more customers.';
+  renderRoundTwoProjection();
+}
+
+let LAST_CAMP = null;
+let LAST_CURVES = null;
+
+function renderRoundTwoProjection() {
+  if (!$('proj-chart') || !LAST_CURVES) return;
+  const sel = campSelection();
+  const SCEN = [
+    { key: 'none', label: 'Change nothing', colour: INK.secondary, defaultOn: true },
+    { key: 'account', label: 'Each account its own ask', colour: INK.positive, defaultOn: true },
+    { key: 'relative', label: 'One relative rise', colour: INK.primary, defaultOn: true },
+    { key: 'absolute', label: 'One dollar rise', colour: INK.accent, defaultOn: true },
+  ];
+  buildToggles('proj-scenarios', SCEN.map(s => ({ key: s.key, label: s.label, defaultOn: s.defaultOn,
+    hint: s.key === 'none' ? 'Normal churn only.' : s.key === 'account' ? 'The asks in the list below.'
+      : s.key === 'relative' ? 'The slider below; it starts at the best rise on chart 3.' : 'The slider below; it starts at the best rise on chart 4.' })),
+    renderRoundTwoProjection);
+
+  const riseIn = $('proj-rise');
+  const addIn = $('proj-add');
+  if (!riseIn.dataset.ready) {
+    riseIn.value = Math.round(LAST_CURVES.rel.best.step * 100);
+    addIn.value = LAST_CURVES.abs.best.step;
+    riseIn.addEventListener('input', renderRoundTwoProjection);
+    addIn.addEventListener('input', renderRoundTwoProjection);
+    riseIn.dataset.ready = '1';
+  }
+  const rise = Number(riseIn.value) / 100;
+  const add = Number(addIn.value);
+  $('proj-rise-out').textContent = `${pctRise(rise)} for everyone asked`;
+  $('proj-add-out').textContent = `+${fmt.money(add)} for everyone asked`;
+
+  const bbox = $('proj-base');
+  if (!bbox.dataset.ready) {
+    for (const [months, label] of [[6, 'Last 6 months'], [12, 'Last 12 months']]) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.dataset.key = String(months);
+      b.innerHTML = `<strong>${label}</strong><span>Each price group's own rate of leaving among accounts 12 months or older.</span>`;
+      b.addEventListener('click', () => { TRADE.baseMonths = months; renderRoundTwoProjection(); });
+      bbox.append(b);
+    }
+    bbox.dataset.ready = '1';
+  }
+  for (const b of bbox.querySelectorAll('button')) b.classList.toggle('is-on', Number(b.dataset.key) === TRADE.baseMonths);
+
+  const on = ticked('proj-scenarios');
+  const runs = SCEN.map(s => ({ ...s, p: projectScenario(data, { ...sel, scenario: s.key, rise, add, baseMonths: TRADE.baseMonths }) }));
+  const none = runs[0].p;
+  if (!none) return;
+  const shown = runs.filter(r => on.has(r.key));
+  const start = data.lastMonth;
+  const labels = none.mrr.map((_, t) => (t === 0 ? 'Now' : fmt.monthLabel(monthAdd(start, t))));
+  multiLineChart($('proj-chart'), {
+    labels, yFormat: fmt.money, yTitle: 'MRR of the accounts in the ticked groups',
+    series: shown.map(r => ({ label: r.label, colour: r.colour, values: r.p.mrr, dashed: r.key === 'none' })),
+    xMarks: [{ index: 12, label: '12 months', highlight: true }],
+    describe: i => `<strong>${labels[i]}</strong>` + shown.map(r =>
+      `<span>${r.label}: ${fmt.money(r.p.mrr[i])} MRR, ${fmt.int(Math.round(r.p.logos[i]))} customers</span>`).join(''),
+  });
+
+  const d = (v, b) => `${v - b >= 0 ? '+' : '−'}${fmt.money(Math.abs(v - b))}`;
+  $('proj-table').innerHTML = '<thead><tr><th>Scenario</th><th class="n">MRR now</th><th class="n">MRR in 12 months</th>'
+    + '<th class="n">ARR in 12 months</th><th class="n">Average MRR, months 1–12</th><th class="n">Revenue over 12 months</th>'
+    + '<th class="n">Lost to the rise</th><th class="n">Lost to normal churn</th><th class="n">Customers left</th></tr></thead><tbody>'
+    + shown.map(r => {
+      const p = r.p;
+      const vs = r.key === 'none' ? '' : `<br><span class="muted">${d(p.averageMrr, none.averageMrr)}</span>`;
+      return `<tr><td>${r.label}${r.key === 'relative' ? ` (${pctRise(rise)})` : r.key === 'absolute' ? ` (+${fmt.money(add)})` : ''}</td>`
+        + `<td class="n">${fmt.money(p.mrr[0])}</td>`
+        + `<td class="n">${fmt.money(p.mrr[12])}${r.key === 'none' ? '' : `<br><span class="muted">${d(p.mrr[12], none.mrr[12])}</span>`}</td>`
+        + `<td class="n"><strong>${fmt.money(p.arr12)}</strong>${r.key === 'none' ? '' : `<br><span class="muted">${d(p.arr12, none.arr12)}</span>`}</td>`
+        + `<td class="n">${fmt.money(p.averageMrr)}${vs}</td>`
+        + `<td class="n">${fmt.money(p.revenue12)}${r.key === 'none' ? '' : `<br><span class="muted">${d(p.revenue12, none.revenue12)}</span>`}</td>`
+        + `<td class="n">${fmt.int(Math.round(p.liftLost))}</td>`
+        + `<td class="n">${fmt.int(Math.round(p.normalLost))}</td>`
+        + `<td class="n">${fmt.int(Math.round(p.logos[12]))} of ${fmt.int(Math.round(p.logos[0]))}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  const rate = none.baseline.rate;
+  $('proj-note').textContent =
+    `Follows the ${fmt.int(none.accounts)} accounts in the price groups ticked on the card above, asked or not, from `
+    + `${fmt.monthLabel(start)}. Normal churn runs every month at each group's own rate over the `
+    + `${TRADE.baseMonths === 6 ? 'last six' : 'last twelve'} complete months among accounts 12 months or older: `
+    + `under $200 ${fmt.pct(rate.under200 ?? rate.all, 1)}, $200 plan ${fmt.pct(rate.plan200 ?? rate.all, 1)}, `
+    + `$213 to $499 ${fmt.pct(rate.tier262 ?? rate.all, 1)}, $500 to $799 ${fmt.pct(rate.over500 ?? rate.all, 1)} a month. `
+    + 'That is why even "Change nothing" falls: churn across the book has run high since June 2026. An account counts as '
+    + 'gone in a month it pays nothing, so a pause reads as a loss. The extra churn a rise causes (its curve less the curve '
+    + 'at no rise) is spread over the first three months; the new price starts in month 1. ARR in 12 months is month 12\'s MRR '
+    + '× 12. Lost to normal churn is lower under a rise because fewer customers are left to lose. Nothing here includes '
+    + 'new customers, and the rest of the book is left out so the scenarios can be compared.';
 }
 
 // How old the hand-entered engagement bands are, in the reader's own terms.

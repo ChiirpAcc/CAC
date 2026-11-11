@@ -1414,3 +1414,6 @@ th.sorted { color: var(--ink); }
 /* RP tab: the Set column carries a note on how each set was dated, which can
    run long (a retargeted contact names its event and booking); let it wrap. */
 #rp-sets td:first-child { white-space: normal; min-width: 14rem; max-width: 20rem; vertical-align: top; }
+
+/* Numbered sub-charts inside one card (upgrade list tradeoffs). */
+.sub-head { margin: 1.4rem 0 0.4rem; font-size: 0.95rem; font-weight: 600; color: var(--ink); }
