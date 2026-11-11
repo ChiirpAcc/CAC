@@ -20,7 +20,7 @@ import {
   unclosedMonths,
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
-  bandEconomics, bandCampaign, ENGAGEMENT, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -3555,11 +3555,15 @@ function renderFloors() {
 
 // The upgrade list tab. A working document rather than a chart: the point is
 // that somebody can read a row, look the account up and make a call.
+let LIST_LAST = null;
 function renderUpgradeList() {
   if (!$('list-low-table')) return;
-  const l = upgradeList(data, { lowBand: 500, floor: 600, minMrr: 2, minTenure: 12,
-    rule: (typeof CAMP !== 'undefined' && CAMP.rule) || 'floor' });
+  const l = upgradeList(data, { lowBand: CAMP_LOW_BAND, minMrr: 2, minTenure: 12,
+    rule: 'account', engagement: CAMP_BANDS, ...campOptions() });
   if (!l) return;
+  LIST_LAST = l;
+  const GROUP_WORDS = Object.fromEntries(PRICE_GROUPS.map(g => [g.key, g.label]));
+  const BAND_WORDS = { users: 'active', light: 'light', dormant: 'dormant', unbanded: '–' };
 
   const money = v => (v ? fmt.money(v) : '–');
   const spark = series => series
@@ -3567,23 +3571,26 @@ function renderUpgradeList() {
     .join(' <span class="muted">→</span> ');
 
   const table = (rows, target) => {
-    const head = '<thead><tr><th>Company</th><th>Stripe ID</th>'
+    const head = '<thead><tr><th>Company</th><th>Stripe ID</th><th>Group</th><th>Usage</th>'
       + '<th class="n">Now</th><th class="n">Settled peak</th>'
-      + '<th class="n">Ask for</th><th class="n">Multiple</th><th>Call</th>'
+      + '<th class="n">Ask for</th><th class="n">Rise</th><th class="n">Leave</th><th>Call</th>'
       + '<th class="n">Months here</th><th>Env</th>'
       + '<th>Last six months</th></tr></thead>';
     const body = rows.map(r => '<tr>'
       + `<td>${r.name ? r.name : '<span class="muted">no name in the file</span>'}</td>`
       + `<td class="mono">${r.id}</td>`
+      + `<td>${GROUP_WORDS[r.group] || '–'}</td>`
+      + `<td>${BAND_WORDS[r.band] || '–'}</td>`
       + `<td class="n">${money(r.mrr)}</td>`
       + `<td class="n">${money(r.settledPeak)}</td>`
-      + `<td class="n"><strong>${money(r.target)}</strong></td>`
-      + `<td class="n">${r.ask === null ? '–' : r.ask.toFixed(1) + 'x'}</td>`
+      + `<td class="n">${r.viable ? `<strong>${money(r.target)}</strong>` : '<span class="muted">no change</span>'}</td>`
+      + `<td class="n">${r.viable ? '+' + Math.round((r.target / r.mrr - 1) * 100) + '%' : '–'}</td>`
+      + `<td class="n">${r.viable ? Math.round(r.churn * 100) + '%' : '–'}</td>`
       + `<td>${!r.viable
-          ? '<span class="notviable">not viable</span>'
+          ? `<span class="notviable">${r.why || 'not asked'}</span>`
           : r.heldBefore
             ? '<span class="held">held it before</span>'
-            : '<span class="muted">new price</span>'}</td>`
+            : `<span class="muted">${r.why || 'new price'}</span>`}</td>`
       // An account present in the window's first month may be older than the
       // window, so its tenure is a floor and is shown as one.
       + `<td class="n">${r.tenure === null ? '–' : fmt.int(r.tenure) + (r.since === data.historyStarts ? '+' : '')}</td>`
@@ -3602,18 +3609,14 @@ function renderUpgradeList() {
   const cleanup = l.low.filter(r => !r.viable);
   $('list-low-finding').innerHTML =
     `<strong>${fmt.int(l.low.length)} accounts are eligible, of which `
-    + `${fmt.int(viable.length)} are worth asking and ${fmt.int(held.length)} have already `
-    + `held the price.</strong> They pay ${fmt.money(l.totals.lowMrr)} a month between them; `
-    + `the ${fmt.int(viable.length)} worth asking pay ${fmt.money(l.totals.lowViableMrr)} and `
-    + `their targets sum to ${fmt.money(l.totals.lowViableTarget)}. `
-    + `<strong>Start with the "held it before" names.</strong> Asking a customer to return `
-    + `to a price they once accepted is a different conversation from inventing one, and `
-    + `treating that as half the churn risk is the single assumption this list rests on: `
-    + `the first calls will test it. `
+    + `${fmt.int(viable.length)} get an ask and ${fmt.int(held.length)} have already `
+    + `held the price they are asked.</strong> They pay ${fmt.money(l.totals.lowMrr)} a month between them; `
+    + `the ${fmt.int(viable.length)} asked pay ${fmt.money(l.totals.lowViableMrr)} and `
+    + `their asks sum to ${fmt.money(l.totals.lowViableTarget)}. Each ask is the account's own, `
+    + `from its price group and usage (the card above says how). `
     + (cleanup.length
-        ? `${fmt.int(cleanup.length)} are marked not viable: reaching the floor would mean `
-          + `a multiple nobody is going to ask for and they have never held that price, so `
-          + `they are a cancellation decision rather than a sale. `
+        ? `${fmt.int(cleanup.length)} get no ask: dormant accounts, which keep the most of what `
+          + `they pay, and accounts under $62, below anything round one tested. `
         : '')
     + `${fmt.int(l.totals.lowBeforeRules - l.low.length)} more sit under `
     + `${fmt.money(l.lowBand)} and are excluded by the eligibility rules: `
@@ -3633,11 +3636,10 @@ function renderUpgradeList() {
   $('list-note').textContent =
     'Active accounts in ' + fmt.monthLabel(l.month) + ' paying more than '
     + fmt.money(l.minMrr) + ' and less than ' + fmt.money(l.lowBand)
-    + ' a month, with at least ' + l.minTenure + ' months behind them. Every account is asked '
-    + 'for the same flat ' + fmt.money(600) + ' under the floor rule, or ' + fmt.money(500)
-    + ' at $300 or less and ' + fmt.money(750) + ' above it under the tiered rule; nothing is '
-    + 'scaled to the account. The settled peak, the highest month after the first, decides '
-    + 'only whether an account has held the price before and whether it is worth asking. The '
+    + ' a month, with at least ' + l.minTenure + ' months behind them. Each account is asked '
+    + 'its own price from its price group and usage, as the card above sets out; "Leave" is the '
+    + 'modelled chance it leaves at that ask, normal churn included. The settled peak, the highest '
+    + 'month after the first, decides only whether an account has held its ask before. The '
     + 'first month is left out of that peak because until mid-2025 a joining charge was '
     + 'booked into MRR there, so a raw peak can be a one-off dressed as a subscription: '
     + (inflated.length
@@ -3646,21 +3648,7 @@ function renderUpgradeList() {
         + fmt.money(worstInflated.peakEver) + ' against a settled price of '
         + fmt.money(worstInflated.settledPeak) + '. '
       : 'none on this list does now. ')
-    + fmt.money(600) + ' rather than the ' + (() => {
-        const pf = priceFloors(data);
-        if (!pf) return 'allocated floor';
-        // A third of the accounts ASKED, which is the viable ones, not the
-        // whole list. The floor is spread over everyone still paying.
-        const lost = viable.length / 3;
-        const after = (pf.fixedPerMonth / (pf.paying.length - lost)) / (1 - pf.variablePct);
-        return fmt.money(pf.allocatedFloor) + ' the cost base needs today, because losing a '
-          + 'third of the ' + fmt.int(viable.length) + ' accounts asked pushes that floor to '
-          + 'about ' + fmt.money(after);
-      })()
-    + ' and a target set at the floor would '
-    + 'be underwater the month it landed. Charts 37 and 38 have that arithmetic, and '
-    + 'tenure and usage were tested as multipliers on top of peak and made the result '
-    + 'worse, so they are not used. The Stripe identifier is '
+    + 'The Stripe identifier is '
     + 'the one in the billing export and is present for every account. The Chiirp '
     + 'identifier is not in the pushed data for these accounts: canonical_id is populated on '
     + fmt.int(canonicalHere) + ' of the ' + fmt.int(l.low.length) + ' here, so neither the '
@@ -3682,14 +3670,18 @@ function renderUpgradeList() {
     + 'and the judgement about which are worth a call is yours.';
 
   // A sales list that cannot be exported is a list nobody uses.
+  // Reads the latest list, not the one from the first render: the asks move
+  // with the switches and with the band file arriving.
   const csv = () => {
-    const head = ['group', 'company', 'stripe_id', 'mrr_now', 'settled_peak', 'target',
-      'ask_multiple', 'held_before', 'viable', 'uplift', 'months_here', 'environment',
+    const l = LIST_LAST;
+    const head = ['group', 'company', 'stripe_id', 'price_group', 'usage_band', 'mrr_now', 'settled_peak', 'ask',
+      'ask_multiple', 'chance_of_leaving', 'held_before', 'asked', 'note', 'uplift', 'months_here', 'environment',
       'cash_last_month', 'usage_last_month'].concat(l.window);
-    const line = (group, r) => [group, r.name || '', r.id,
-      r.mrr, r.settledPeak, r.target, r.ask === null ? '' : r.ask.toFixed(2),
-      r.heldBefore ? 'yes' : 'no', r.viable ? 'yes' : 'no',
-      Math.max(0, r.target - r.mrr), r.tenure === null ? '' : r.tenure,
+    const line = (group, r) => [group, r.name || '', r.id, r.group || '', r.band || '',
+      r.mrr, r.settledPeak, r.viable ? r.target : '', r.ask === null || !r.viable ? '' : r.ask.toFixed(2),
+      r.viable && r.churn != null ? r.churn.toFixed(2) : '',
+      r.heldBefore ? 'yes' : 'no', r.viable ? 'yes' : 'no', r.why || '',
+      r.viable ? Math.max(0, r.target - r.mrr) : 0, r.tenure === null ? '' : r.tenure,
       r.source || '', r.cash, r.usage]
       .concat(r.series.map(v => (v === null ? '' : v)))
       .map(v => {
@@ -3714,9 +3706,10 @@ function renderUpgradeList() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      const L = LIST_LAST;
       $('list-status').textContent =
-        `${fmt.int(l.low.length + l.zeros.length)} accounts exported: ${fmt.int(l.low.length)} `
-        + `paying under ${fmt.money(l.lowBand)} and ${fmt.int(l.zeros.length)} paying nothing.`;
+        `${fmt.int(L.low.length + L.zeros.length)} accounts exported: ${fmt.int(L.low.length)} `
+        + `paying under ${fmt.money(L.lowBand)} and ${fmt.int(L.zeros.length)} paying nothing.`;
     });
     button.dataset.ready = '1';
   }
@@ -7419,10 +7412,16 @@ function renderCalculator() {
 
 
 // The campaign calculator, sitting above the list it describes.
-let CAMP = { rule: 'floor', churn: 0.33 };
+//
+// Round two (Josh, 11 Nov 2026): no fixed target. Each account is asked its
+// own price from what round one showed (roundOneAsk in data.js), so the
+// switches choose who is asked and how far to trust round one, not the price.
+let CAMP = { trust: 'fitted' };
+const CAMP_LOW_BAND = 800;
 
-// Each account's engagement band on the export date (site/engagement_bands.json),
-// so the campaign headline asks only the bands ticked (11 Nov 2026).
+// Each account's engagement band on the export date (site/engagement_bands.json).
+// When the file also carries per-account texts or a cleaning flag they are
+// used; otherwise each band stands at its median usage.
 let CAMP_BANDS = null;
 let campBandsAsked = false;
 function loadCampBands() {
@@ -7431,96 +7430,59 @@ function loadCampBands() {
   fetch('engagement_bands.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
     .then(j => {
       if (!j || !j.bands) return;
-      CAMP_BANDS = { asOf: j.asOf, bandOf: new Map(Object.entries(j.bands)) };
+      CAMP_BANDS = {
+        asOf: j.asOf,
+        bandOf: new Map(Object.entries(j.bands)),
+        ...(j.texts ? { texts: new Map(Object.entries(j.texts)) } : {}),
+        ...(j.cleaning ? { cleaning: new Set(j.cleaning) } : {}),
+      };
       renderCampaign();
+      renderUpgradeList();
     });
 }
+const campTrust = () => TRUST_PRESETS.find(p => p.key === CAMP.trust) || TRUST_PRESETS[0];
+const campOptions = () => ({ textsScale: campTrust().textsScale ?? 1, churnScale: campTrust().churnScale ?? 1 });
 
 function renderCampaign() {
   if (!$('camp-result')) return;
   loadCampBands();
 
-  // Each option states its own figure. A preset called "expected" that does
-  // not say 33% is asking the reader to trust a label instead of a number.
-  const spread = ruleSpread(data);
-  const figureFor = {
-    // Every target is flat under either rule, so the total asked is what
-    // separates them, and each button carries its own pool's total.
-    floor: () => {
-      const s = spread.floor;
-      return s ? `${fmt.money(s.median)} each, ${fmt.money(s.total)} asked` : '';
-    },
-    tiered: () => {
-      const s = spread.tiered;
-      return s ? `$500 or $750, ${fmt.money(s.total)} asked` : '';
-    },
-    light: () => '20% leave',
-    expected: () => '33% leave',
-    hard: () => '50% leave',
-    scaled: () => '10% to 80%, by size of ask',
-  };
-
-  const buttons = (id, defs, pick, active) => {
-    const box = $(id);
-    if (!box.dataset.ready) {
-      for (const p of defs) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.dataset.key = p.key;
-        const fig = figureFor[p.key] ? figureFor[p.key]() : '';
-        b.innerHTML = `<strong>${p.label}</strong>`
-          + (fig ? `<em class="preset-figure">${fig}</em>` : '')
-          + `<span>${p.blurb}</span>`;
-        b.addEventListener('click', () => {
-          pick(p);
-          renderCampaign();
-          renderUpgradeList();
-        });
-        box.append(b);
-      }
-      box.dataset.ready = '1';
+  const box = $('camp-trust');
+  if (!box.dataset.ready) {
+    for (const p of TRUST_PRESETS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.key = p.key;
+      b.innerHTML = `<strong>${p.label}</strong><span>${p.blurb}</span>`;
+      b.addEventListener('click', () => { CAMP.trust = p.key; renderCampaign(); renderUpgradeList(); });
+      box.append(b);
     }
-    for (const b of box.querySelectorAll('button')) {
-      b.classList.toggle('is-on', b.dataset.key === active);
-    }
-  };
+    box.dataset.ready = '1';
+  }
+  for (const b of box.querySelectorAll('button')) b.classList.toggle('is-on', b.dataset.key === CAMP.trust);
 
-  buttons('camp-rule', PRICING_PRESETS, p => { CAMP.rule = p.key; }, CAMP.rule);
-  buttons('camp-churn', CHURN_PRESETS,
-    p => { CAMP.churn = p.rate; CAMP.churnKey = p.key; },
-    CAMP.churnKey || 'expected');
+  buildToggles('camp-groups', PRICE_GROUPS.map(g => ({ key: g.key, label: g.label, hint: g.hint,
+    defaultOn: !g.defaultOff })), () => { renderCampaign(); renderUpgradeList(); });
 
-  // Which bands to ask. Defaults to active users only, which is where the
-  // band economics land once cost follows usage rather than headcount.
   const econ = CAMP_BANDS ? bandEconomics(data, CAMP_BANDS.bandOf) : null;
   if (econ) {
     buildToggles('camp-bands', [...econ.bands.map(b => ({
-      key: b.key, label: b.label, defaultOn: b.key === 'users',
-      hint: `${b.definition} ${b.accounts} accounts, `
-        + `pays ${fmt.money(b.pays)}, costs ${fmt.money(b.cost)}, `
-        + `keeps ${fmt.money(b.keeps)}.`,
-    })), { key: 'unbanded', label: 'Not in the export', defaultOn: false,
-      hint: `On the list now but not in the ${ENGAGEMENT.asOf} engagement export, so how much they use it is unknown.` }],
-    renderCampaign);
+      key: b.key, label: b.label, defaultOn: b.key !== 'dormant',
+      hint: `${b.definition} ${b.accounts} accounts on the list, `
+        + `pays ${fmt.money(b.pays)}, costs ${fmt.money(b.cost)}, keeps ${fmt.money(b.keeps)}.`
+        + (b.key === 'dormant' ? ' Never asked: they keep the most of what they pay.' : ''),
+    })), { key: 'unbanded', label: 'Not in the export', defaultOn: true,
+      hint: `Not in the ${ENGAGEMENT.asOf} usage export, which covered only accounts then under $500, `
+        + 'so how much they use it is unknown and their ask is not adjusted for usage. Every $500 to $799 account is here.' }],
+    () => { renderCampaign(); renderUpgradeList(); });
   }
-  const askBands = econ ? [...ticked('camp-bands')] : [];
-  const exportBands = askBands.filter(k => k !== 'unbanded');
-  const bc = econ && exportBands.length
-    ? bandCampaign(data, { ask: exportBands, rule: CAMP.rule === 'tiered' ? 'tiered' : 'flat',
-        churn: CAMP.churn === 'scaled' ? null : CAMP.churn, bandOf: CAMP_BANDS.bandOf })
-    : null;
-
-  const c = campaign(data, { rule: CAMP.rule, churn: CAMP.churn,
-    ...(CAMP_BANDS && econ ? { ask: new Set(askBands), bandOf: CAMP_BANDS.bandOf } : {}) });
+  const bands = econ ? ticked('camp-bands') : null;
+  const groups = ticked('camp-groups');
+  const engagement = CAMP_BANDS;
+  const c = roundTwo(data, { lowBand: CAMP_LOW_BAND, engagement, bands, groups, ...campOptions() });
   if (!c) return;
-  const BAND_WORDS = { users: 'active users', light: 'light users', dormant: 'dormant', unbanded: 'not in the export' };
-  const askedWords = CAMP_BANDS && econ
-    ? (askBands.length ? askBands.map(k => BAND_WORDS[k] || k).join(', ') : 'no band ticked')
-    : null;
 
-  const good = c.change > 0 && c.clears;
-  const verdict = good ? 'good' : c.change > 0 ? 'thin' : 'under';
-
+  const verdict = c.change > 0 ? 'good' : 'under';
   $('camp-result').innerHTML =
     `<div class="calc-label">${c.change >= 0 ? 'Monthly revenue gained' : 'Monthly revenue lost'}</div>`
     + `<div class="calc-headline ${verdict}">`
@@ -7528,53 +7490,50 @@ function renderCampaign() {
     + `<span class="calc-unit">a month, ${fmt.money(Math.abs(c.annual))} a year</span>`
     + `</div>`
     + `<div class="calc-against">`
-    + `<span>${fmt.int(c.asked)} accounts asked${askedWords ? ` (${askedWords})` : ''}, about ${fmt.int(c.lost)} expected to leave</span>`
-    + `<strong class="${c.clears ? 'pos' : 'neg'}">`
-    + (c.clears
-        ? `everyone asked lands at ${fmt.money(c.lowestTouched)} or above, clear of the `
-          + `${fmt.money(c.floorAfter)} floor it creates`
-        : `the cheapest account asked lands at ${fmt.money(c.lowestTouched)}, below the `
-          + `${fmt.money(c.floorAfter)} floor it creates`)
-    + `</strong>`
-    + (c.untouchedBelowFloor
-        ? `<span class="muted">${fmt.int(c.untouchedBelowFloor)} accounts not in this `
-          + `campaign are still under that floor, worth `
-          + `${fmt.money(c.untouchedBelowMrr)} a month</span>`
-        : '')
+    + `<span>${fmt.int(c.asked)} accounts asked, each its own price; about ${fmt.int(Math.round(c.lost))} expected to leave</span>`
+    + `<strong>${fmt.int(c.overSix)} asks are over $600 and ${fmt.int(c.belowFloor)} are under the `
+    + `${fmt.money(c.floorAfter)} cost floor</strong>`
     + `</div>`;
 
   const r = (a, b) => `<tr><td>${a}</td><td class="n">${b}</td></tr>`;
+  const groupRows = c.byGroup.map(g => {
+    const off = !g.ticked;
+    const range = g.asked ? (g.low === g.high ? fmt.money(g.low) : `${fmt.money(g.low)}–${fmt.money(g.high)}`) : '–';
+    return `<tr class="${off ? 'muted' : ''}">`
+      + `<td>${g.label}${off ? ' <span class="muted">(not ticked: what asking would do)</span>' : ''}</td>`
+      + `<td class="n">${fmt.int(g.asked)} of ${fmt.int(g.n)}</td>`
+      + `<td class="n">${g.typical ? fmt.money(g.typical) : '–'}</td>`
+      + `<td class="n">${range}</td>`
+      + `<td class="n">${g.asked ? fmt.int(Math.round(g.lost)) : '–'}</td>`
+      + `<td class="n">${g.asked ? (g.gain >= 0 ? '+' : '−') + fmt.money(Math.abs(g.gain)) : '–'}</td>`
+      + '</tr>';
+  }).join('');
   $('camp-detail').innerHTML =
-    '<table class="data-table calc-table"><tbody>'
-    + r('Accounts eligible and worth asking', fmt.int(c.viableSize))
-    + (c.byBand && CAMP_BANDS
-        ? r('Of those, by band', ['users', 'light', 'dormant', 'unbanded'].filter(k => c.byBand[k])
-            .map(k => `${BAND_WORDS[k]} ${fmt.int(c.byBand[k])}`).join(', '))
-        : '')
+    '<div class="table-scroll"><table class="data-table calc-table"><thead><tr><th>Price group</th>'
+    + '<th class="n">Asked</th><th class="n">Typical ask</th><th class="n">Asks</th>'
+    + '<th class="n">Expected to leave</th><th class="n">Revenue a month</th></tr></thead><tbody>'
+    + groupRows + '</tbody></table></div>'
+    + '<table class="data-table calc-table"><tbody>'
+    + r(`Accounts under ${fmt.money(c.lowBand)}, 12 months or more`, fmt.int(c.eligible))
     + r('Asked for an increase', fmt.int(c.asked))
-    + r('Expected to accept', `<strong>${fmt.int(c.kept)}</strong>`)
-    + r('Expected to leave', `<strong>${fmt.int(c.lost)}</strong>`)
-    + r('Paying logos, before and after',
-        `${fmt.int(c.logosBefore)} → <strong>${fmt.int(c.logosAfter)}</strong>`)
+    + r('Expected to leave', `<strong>${fmt.int(Math.round(c.lost))}</strong>`)
     + r('Monthly revenue, before and after',
         `${fmt.money(c.before)} → <strong>${fmt.money(c.after)}</strong>`)
-    + r('Cost floor, before and after',
-        `${fmt.money(c.floorBefore)} → <strong>${fmt.money(c.floorAfter)}</strong>`)
+    + r('Gain after running costs (licence, hosting, fees)', `${c.contribution >= 0 ? '+' : '−'}${fmt.money(Math.abs(c.contribution))} a month`)
+    + r('Paying logos, before and after', `${fmt.int(c.logosBefore)} → <strong>${fmt.int(Math.round(c.logosAfter))}</strong>`)
+    + r('Cost floor, before and after', `${fmt.money(c.floorBefore)} → <strong>${fmt.money(c.floorAfter)}</strong>`)
     + '</tbody></table>';
 
   if (econ) {
-    const row = b => {
-      const r = bc ? bc.rows.find(x => x.key === b.key) : null;
-      return '<tr>'
-        + `<td>${b.label}${r && r.asked ? '' : ' <span class="muted">(left alone)</span>'}</td>`
-        + `<td class="n">${fmt.int(b.accounts)}</td>`
-        + `<td class="n">${fmt.money(b.pays)}</td>`
-        + `<td class="n">${fmt.money(b.cost)}</td>`
-        + `<td class="n"><strong>${fmt.money(b.keeps)}</strong></td>`
-        + `<td class="n">${b.returnOnCost ? b.returnOnCost.toFixed(1) + 'x' : '–'}</td>`
-        + `<td class="n">${fmt.money(b.keepsTotal)}</td>`
-        + '</tr>';
-    };
+    const row = b => '<tr>'
+      + `<td>${b.label}${bands && !bands.has(b.key) ? ' <span class="muted">(not asked)</span>' : ''}</td>`
+      + `<td class="n">${fmt.int(b.accounts)}</td>`
+      + `<td class="n">${fmt.money(b.pays)}</td>`
+      + `<td class="n">${fmt.money(b.cost)}</td>`
+      + `<td class="n"><strong>${fmt.money(b.keeps)}</strong></td>`
+      + `<td class="n">${b.returnOnCost ? b.returnOnCost.toFixed(1) + 'x' : '–'}</td>`
+      + `<td class="n">${fmt.money(b.keepsTotal)}</td>`
+      + '</tr>';
     $('camp-bandtable').innerHTML =
       '<table class="data-table calc-table"><thead><tr><th>Band</th>'
       + '<th class="n">Accounts</th><th class="n">Pays</th><th class="n">Costs</th>'
@@ -7585,75 +7544,35 @@ function renderCampaign() {
       + '<td></td><td></td><td></td><td></td><td></td>'
       + `<td class="n"><strong>${fmt.money(econ.totalKeeps)}</strong></td></tr>`
       + `<tr><td class="muted" colspan="7">The ${ENGAGEMENT.asOf} export listed `
-      + `${fmt.int(econ.totalExported)} accounts, the ones on the upgrade list then; `
+      + `${fmt.int(econ.totalExported)} accounts, the ones then under $500; `
       + `${fmt.int(econ.totalExported - econ.totalAccounts)} no longer pay. The other `
-      + `${fmt.int(econ.notExported)} paying accounts, mostly $500 a month or more, were not in it, `
-      + `so their usage is unknown.</td></tr>`
-      // The gain is measured from leaving every band alone, after its background
-      // churn and after revenue share as well as the merchant fee. That row was
-      // not shown, so the after-campaign figure sat under the bigger "All" total
-      // and read as a fall labelled as a gain.
-      + (bc
-          ? `<tr class="rule-above"><td>Left alone, after background churn and revenue share</td>`
-            + '<td></td><td></td><td></td><td></td><td></td>'
-            + `<td class="n">${fmt.money(bc.doNothing)}</td></tr>`
-            + `<tr><td><strong>After the campaign</strong>, same basis</td>`
-            + `<td class="n">${fmt.int(bc.kept)} kept, ${fmt.int(bc.lost)} lost</td>`
-            + '<td></td><td></td><td></td><td></td>'
-            + `<td class="n"><strong>${fmt.money(bc.contribution)}</strong> `
-            + `<span class="${bc.gain >= 0 ? 'held' : 'notviable'}">`
-            + `${bc.gain >= 0 ? '+' : ''}${fmt.money(bc.gain)}</span></td></tr>`
-          : '')
-      + '</tbody></table>'
-      + '<p class="note">The band switches choose which accounts are asked. The headline and the '
-      + 'table under it ask the list\'s viable accounts in the ticked bands, each placed in its band '
-      + 'by Stripe customer id from the ' + ENGAGEMENT.asOf + ' export; accounts not ticked keep '
-      + 'paying what they pay. This table is the export\'s ' + fmt.int(econ.totalAccounts)
-      + ' accounts still paying in ' + fmt.monthLabel(econ.month) + ', at what Stripe bills them, '
-      + 'on contribution, as a cross-check.</p>';
+      + `${fmt.int(econ.notExported)} paying accounts were not in it, so their usage is unknown.</td></tr>`
+      + '</tbody></table>';
   }
 
   $('camp-note').textContent =
-    'Both inputs are assumptions, not measurements, which is why they are switches: '
-    + 'nobody has run this campaign, so the honest output is a range with the inputs '
-    + 'visible. The pricing rule decides what each account is asked for; the churn '
-    + 'setting decides how many refuse. "Scaled to the ask" is the most realistic and the '
-    + 'least certain: it raises churn with the size of the increase and halves it '
-    + 'where the customer has held that price before, on the reasoning that returning to '
-    + 'a known number is an easier conversation than accepting a new one. That halving is '
-    + 'the single assumption the whole case rests on and it has never been tested here. '
-    + 'The floor line is the one to watch: losing accounts spreads the same fixed cost '
-    + 'across fewer payers, so an aggressive campaign can raise the bar faster than it '
-    + 'raises prices and leave the survivors underwater. Only accounts marked viable in '
-    + 'the list below, and in a band ticked above, are asked; the rest, and the accounts the eligibility rules leave '
-    + 'out, keep paying what they pay in the after figure, and asking them would flatter '
-    + 'every figure here. '
-    + 'The band table is the part that changes the conclusion. '
-    + (econ ? 'The bands pay ' + econ.bands.map(b => `${b.label.toLowerCase()} ${fmt.money(b.pays)}`).join(', ')
-        + ' a month on average, ' : '')
-    + 'but hosting and messaging follow usage while the per-seat licence does '
-    + 'not, so a dormant account costs '
-    + (() => {
-        const users = econ && econ.bands.find(b => b.key === 'users');
-        const dormant = econ && econ.bands.find(b => b.key === 'dormant');
-        return users && dormant && users.cost
-          ? fmt.pct(dormant.cost / users.cost, 0) + ' of what a heavy user costs'
-          : 'less than a heavy user';
-      })()
-    + ' and keeps more of what it pays. That inverts the obvious answer: the accounts that look most '
-    + 'worth re-pricing are the most profitable business on the book, and sending them an '
-    + 'invoice change is the fastest way to lose it. Active users are the only band whose '
-    + 'price is genuinely out of line with what they consume. '
-    + 'Band membership comes from an engagement export dated '
-    + ENGAGEMENT.asOf + ' (' + engagementAge() + '), joined on Stripe customer id; '
-    + 'it is not in the pushed workbook, so who sits in which band is as stale as that date '
-    + 'and nothing here will refresh it. What each account pays is read from Stripe for the '
-    + 'last complete month, so it moves with every push. The usage multiples behind '
-    + 'the cost column are estimates rather than measurements, 2.2x average hosting '
-    + 'for heavy senders, 0.6x for light and 0.05x for dormant, and they are the '
-    + 'assumption most worth replacing with real per-account message volume.';
+    'Each account is asked its own price, from what round one of the increases showed in September. '
+    + 'In round one the plan an account was on decided whether it left far more than the size of the rise: '
+    + 'the $200 plan, mostly cleaning businesses, lost about 75% at $500, while accounts paying $62 to $192 '
+    + 'took +150% to +700% and mostly stayed. So the $200 plan is split into cleaning and trades, each with '
+    + 'its own curve of churn against the size of the rise; accounts from $213 up share the curve of round '
+    + 'one\'s $262+ accounts, mostly trades, which lost about 10% at +40% to +90%. Each curve is shifted '
+    + 'by usage (round one\'s fit halves the odds of leaving for each tenfold more texts), and the ask is the '
+    + 'lowest price, in $25 steps, that captures 97% of the most revenue the account could add. Asks stay '
+    + 'inside what round one tested: +100% on the $200 plan, +90% from $213 up, and $500 for accounts paying '
+    + '$62 to $199. Dormant accounts are not asked. '
+    + 'Industry is read from the Stripe company name; on the $200 plan an account with no name is priced as '
+    + 'cleaning, the cautious reading' + (c.unnamedAsCleaning ? ` (${fmt.int(c.unnamedAsCleaning)} asked here)` : '') + '. '
+    + (c.usageMeasured ? 'Usage is each account\'s own texts from the export. '
+      : 'Usage is each band\'s median from the ' + ENGAGEMENT.asOf + ' export (active users 699 texts a month, light 183), '
+        + 'not each account\'s own count, so accounts in the same band and group get the same ask. ')
+    + 'The $500 to $799 accounts were in neither round one nor the export: their asks borrow the $262+ curve '
+    + 'with no usage adjustment and are a guess, which is why that group starts unticked. '
+    + 'Revenue gained is against changing nothing, with normal churn on both sides; "expected to leave" counts '
+    + 'everyone the model expects to go in the round, normal churn included. The curves rest on 36 accounts '
+    + 'and 15 churns; the trades curve on the $200 plan rests on 4. Log every outcome of round two with its '
+    + 'ask and refit.';
 }
-
 
 // How old the hand-entered engagement bands are, in the reader's own terms.
 // The date alone does not register; "94 days old" does, and it keeps counting

@@ -2940,6 +2940,207 @@ export function ruleSpread(data, { floor = 600, cap = 3 } = {}) {
 export const campaignBandOf = (r, bandOf) => (bandOf
   ? bandOf.get(r.id) || (r.canonicalId && bandOf.get(r.canonicalId)) || 'unbanded'
   : null);
+
+// Round two: an ask for each account, priced from what round one showed
+// (Josh, 11 Nov 2026: "disregard the 600 and step 500 750. we can go beyond
+// for some and under for others"; then "lets consider upgrading everyone
+// under 800 too").
+//
+// Round one moved 36 accounts in September and 15 left. The plan an account
+// was on decided it far more than the size of the rise: the $200-212 legacy
+// plan, mostly cleaning businesses, lost about 75% at $500, while accounts
+// paying $62-192 took +150% to +700% and mostly stayed. So each account is
+// priced on its own group's curve, shifted by how much it uses the product,
+// and the price is the lowest that captures 97% of the most revenue it could
+// add. Past the peak a higher price adds a few dollars and loses customers.
+//
+// The curves are the midpoint of a smooth and a cliff scenario fitted to round
+// one (the "Price increase round two" write-up). Asks stay inside what round
+// one tested: +100% on the $200 plan, +90% from $213 up, and $500 under $200
+// for accounts paying $62 or more. Nothing paying $500 or more was in round
+// one, so that group borrows the $262+ curve and is labelled as untested.
+//
+// Usage: round one's fit halves the odds of leaving for each 10x more texts
+// sent. Per-account texts come from the engagement export when the band file
+// carries them; until then each band stands at its median from that export
+// (active 699 a month, light 183), measured from the list's median of 535.
+export const ROUND_ONE = {
+  curves: {
+    clean200: [[0, 0.056], [0.2, 0.09], [0.3, 0.113], [0.4, 0.142], [0.5, 0.176], [0.75, 0.29], [1, 0.441], [1.5, 0.75]],
+    trades200: [[0, 0.02], [0.2, 0.032], [0.3, 0.042], [0.4, 0.053], [0.5, 0.067], [0.75, 0.121], [1, 0.209]],
+    tier262: [[0, 0.027], [0.2, 0.045], [0.3, 0.057], [0.4, 0.073], [0.5, 0.093], [0.75, 0.168], [1, 0.283]],
+  },
+  maxUp: { clean200: 1, trades200: 1, tier262: 0.9, over500: 0.9 },
+  logistic: { intercept: -0.52, cleaning: 1.03, log10Texts: -0.66 },
+  textsRef: 535,
+  bandTexts: { users: 699, light: 183 },
+  share: 0.97,
+  step: 25,
+  underTarget: 500,
+  underMinTested: 62,
+};
+export const CLEANING_RE = /clean|wash|carpet|maid|janitor|pressure|steam|duct|upholster|window|gutter|chem-?dry|kwik dry|rapid dry|mold|restor/i;
+export const PRICE_GROUPS = [
+  { key: 'under200', label: 'Under $200',
+    hint: 'Round one moved accounts paying $62 to $192 to $500 and most stayed. Asked $500; below $62 was never tested.' },
+  { key: 'clean200', label: '$200 plan, cleaning',
+    hint: 'The group that left in round one: about 75% at $500. Asks of about +40% to +60%, lower for light users. Unnamed $200 accounts are priced here too.' },
+  { key: 'trades200', label: '$200 plan, trades',
+    hint: 'Same plan, far less churn in round one (4 accounts). Asks up to +100%.' },
+  { key: 'tier262', label: '$213 to $499',
+    hint: 'Round one lost about 10% of these at +40% to +90%. Asks up to +90%.' },
+  { key: 'over500', label: '$500 to $799', defaultOff: true,
+    hint: 'Not in round one and not in the usage export. Priced on the $262+ curve, which is a guess for them. Off by default; its row below shows what asking would do.' },
+];
+export function priceGroup(mrr, cleaning) {
+  if (mrr < 200) return 'under200';
+  if (mrr <= 212) return cleaning ? 'clean200' : 'trades200';
+  return mrr < 500 ? 'tier262' : 'over500';
+}
+function curveAt(pts, x) {
+  if (x <= 0) return pts[0][1];
+  for (let i = 1; i < pts.length; i += 1) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    if (x <= x1) return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+  }
+  const [x0, y0] = pts[pts.length - 2], [x1, y1] = pts[pts.length - 1];
+  return Math.min(0.9, y1 + (y1 - y0) * (x - x1) / (x1 - x0));
+}
+// The account as the model sees it: group, band, usage.
+export function roundOneProfile(row, engagement) {
+  const eng = engagement || {};
+  const band = (eng.bandOf && (eng.bandOf.get(row.id) || (row.canonicalId && eng.bandOf.get(row.canonicalId)))) || 'unbanded';
+  const own = eng.texts && (eng.texts.get(row.id) ?? (row.canonicalId ? eng.texts.get(row.canonicalId) : undefined));
+  const texts = own ?? ROUND_ONE.bandTexts[band] ?? null;
+  // With no company name the industry is unknown. On the $200 plan that is
+  // priced as cleaning, the group that left in round one, so an unnamed
+  // cleaner is never asked a trades price.
+  const named = !!(row.name && String(row.name).trim());
+  const flagged = !!(eng.cleaning && eng.cleaning.has(row.id));
+  const cleaning = flagged || (named ? CLEANING_RE.test(row.name) : null);
+  const mrr = row.eopMrr ?? row.mrr ?? 0;
+  return { mrr, band, texts, textsMeasured: own != null, cleaning: cleaning !== false,
+    industryKnown: cleaning !== null, group: priceGroup(mrr, cleaning !== false) };
+}
+export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1 } = {}) {
+  const x = price / acc.mrr - 1;
+  const coef = ROUND_ONE.logistic.log10Texts * textsScale;
+  let p;
+  if (acc.group === 'under200') {
+    // Round one's fit for accounts off the $200 plan: the size of the rise
+    // did not predict leaving, so churn is flat in price once asked.
+    const base = 0.03;
+    if (x <= 0) p = base;
+    else {
+      const L = ROUND_ONE.logistic;
+      const z = L.intercept + (acc.cleaning ? L.cleaning : 0) + coef * Math.log10(Math.max(acc.texts || 1, 1));
+      p = Math.max(base, 1 / (1 + Math.exp(-z)));
+    }
+  } else {
+    p = curveAt(ROUND_ONE.curves[acc.group === 'over500' ? 'tier262' : acc.group], x);
+    if (acc.texts != null) {
+      const t = Math.min(Math.max(acc.texts, 25), 10000);
+      const o = (p / (1 - p)) * Math.pow(t / ROUND_ONE.textsRef, coef);
+      p = o / (1 + o);
+    }
+  }
+  return Math.min(0.95, p * churnScale);
+}
+export function roundOneAsk(acc, opts = {}) {
+  const stay = why => ({ target: acc.mrr, asked: false, churn: roundOneChurn(acc, acc.mrr, opts),
+    churnNow: roundOneChurn(acc, acc.mrr, opts), why });
+  if (!(acc.mrr > 0)) return stay('Pays nothing');
+  if (acc.band === 'dormant') return stay('Dormant: left alone');
+  let target;
+  let why = '';
+  if (acc.group === 'under200') {
+    if (acc.mrr < ROUND_ONE.underMinTested) return stay('Below what round one tested');
+    target = ROUND_ONE.underTarget;
+    why = 'Round one moved $62 to $192 accounts to $500';
+  } else {
+    const top = acc.mrr * (1 + ROUND_ONE.maxUp[acc.group]);
+    const grid = [acc.mrr];
+    for (let p = Math.ceil(acc.mrr / ROUND_ONE.step) * ROUND_ONE.step; p <= top + 1e-9; p += ROUND_ONE.step) {
+      if (p > acc.mrr) grid.push(p);
+    }
+    const rev = p => (1 - roundOneChurn(acc, p, opts)) * p;
+    const base = rev(acc.mrr);
+    const best = Math.max(...grid.map(rev));
+    target = best > base
+      ? Math.min(...grid.filter(p => rev(p) - base >= ROUND_ONE.share * (best - base)))
+      : acc.mrr;
+    if (target >= grid[grid.length - 1] && target > acc.mrr) why = 'At the top of the tested range';
+    if (acc.group === 'over500') why = 'Not in round one';
+    if (acc.group === 'clean200' && acc.industryKnown === false) why = 'No name in Stripe: priced as cleaning';
+  }
+  return { target, asked: target > acc.mrr, churn: roundOneChurn(acc, target, opts),
+    churnNow: roundOneChurn(acc, acc.mrr, opts), why };
+}
+
+export const TRUST_PRESETS = [
+  { key: 'fitted', label: 'Round one as fitted', defaultOn: true,
+    blurb: 'The group curves and the usage effect as round one measured them.' },
+  { key: 'halfTexts', label: 'Usage counts half as much', textsScale: 0.5,
+    blurb: 'The usage effect pointed the right way but was not significant (p = 0.26). Narrows the asks between light and active users.' },
+  { key: 'harsher', label: 'Half as many again leave', churnScale: 1.5,
+    blurb: 'Every curve 50% higher, in case round one was a kind sample.' },
+];
+
+// What round two is worth: each account asked its own price.
+export function roundTwo(data, {
+  lowBand = 800, engagement = null, bands = null, groups = null, textsScale = 1, churnScale = 1,
+} = {}) {
+  const list = upgradeList(data, { lowBand, rule: 'account', engagement, textsScale, churnScale });
+  const floors = priceFloors(data);
+  if (!list || !floors) return null;
+  const c = floors.components;
+  const usage = { users: 2.2, light: 0.6, dormant: 0.05, unbanded: 1 };
+  const runCost = (r, price) => c.software + c.hosting * (usage[r.band] ?? 1) + floors.variablePct * price;
+  const contribution = (r, price, churn) => (1 - churn) * (price - runCost(r, price));
+
+  const byGroup = Object.fromEntries(PRICE_GROUPS.map(g => [g.key,
+    { ...g, n: 0, mrr: 0, asked: 0, lost: 0, gain: 0, contribution: 0, targets: [] }]));
+  let asked = 0, lost = 0, gain = 0, contrib = 0;
+  const askedRows = [];
+  // Every group is costed whether or not it is ticked, so an unticked group
+  // still shows what asking it would do; only ticked groups reach the totals.
+  for (const r of list.low) {
+    const g = byGroup[r.group];
+    g.n += 1; g.mrr += r.mrr;
+    g.ticked = !groups || groups.has(r.group);
+    if (!r.viable || (bands && !bands.has(r.band))) continue;
+    const dRev = (1 - r.churn) * r.target - (1 - r.churnNow) * r.mrr;
+    const dCon = contribution(r, r.target, r.churn) - contribution(r, r.mrr, r.churnNow);
+    g.asked += 1; g.lost += r.churn; g.gain += dRev; g.contribution += dCon; g.targets.push(r.target);
+    if (!g.ticked) continue;
+    asked += 1; lost += r.churn; gain += dRev; contrib += dCon;
+    askedRows.push(r);
+  }
+  const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : null; };
+  for (const g of Object.values(byGroup)) {
+    g.typical = median(g.targets);
+    g.low = g.targets.length ? Math.min(...g.targets) : null;
+    g.high = g.targets.length ? Math.max(...g.targets) : null;
+  }
+  const logosAfter = floors.paying.length - lost;
+  const floorAfter = (floors.fixedPerMonth / logosAfter) / (1 - floors.variablePct);
+  return {
+    month: list.month, lowBand,
+    eligible: list.low.length,
+    offered: list.low.filter(r => r.viable).length,
+    asked, lost, kept: asked - lost,
+    change: gain, annual: gain * 12, contribution: contrib,
+    before: floors.totalMrr, after: floors.totalMrr + gain,
+    logosBefore: floors.paying.length, logosAfter,
+    floorBefore: floors.allocatedFloor, floorAfter,
+    belowFloor: askedRows.filter(r => r.target < floorAfter).length,
+    overSix: askedRows.filter(r => r.target > 600).length,
+    unnamedAsCleaning: askedRows.filter(r => r.why === 'No name in Stripe: priced as cleaning').length,
+    byGroup: PRICE_GROUPS.map(g => byGroup[g.key]),
+    usageMeasured: list.low.some(r => r.textsMeasured),
+  };
+}
+
 export function campaign(data, {
   rule = 'floor', churn = 0.33, floor = 600, cap = 3, viableOnly = true, ask = null, bandOf = null,
 } = {}) {
@@ -3032,6 +3233,7 @@ export function campaign(data, {
 // are worth, and re-pricing them is negotiating against your own onboarding.
 export function upgradeList(data, {
   lowBand = 500, floor = 600, minMrr = 2, minTenure = 12, rule = 'floor',
+  engagement = null, textsScale = 1, churnScale = 1,
 } = {}) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
@@ -3070,8 +3272,14 @@ export function upgradeList(data, {
     // The list shows what the selected rule would ask for, so the table and
     // the calculator above it can never disagree.
     const cur = row.eopMrr || 0;
-    const target = rule === 'tiered' ? (cur <= 300 ? 500 : 750) : floor;
+    // 'account' prices each account on its own (roundOneAsk); the flat rules
+    // are kept for the charts that still compare them.
+    const prof = rule === 'account' ? roundOneProfile(row, engagement) : null;
+    const own = prof ? roundOneAsk(prof, { textsScale, churnScale }) : null;
+    const target = own ? own.target : rule === 'tiered' ? (cur <= 300 ? 500 : 750) : floor;
     return {
+      ...(own ? { group: prof.group, band: prof.band, cleaning: prof.cleaning, texts: prof.texts,
+        textsMeasured: prof.textsMeasured, churn: own.churn, churnNow: own.churnNow, why: own.why } : {}),
       id: row.id,
       canonicalId: row.canonicalId || null,
       name: row.name || null,
@@ -3083,8 +3291,8 @@ export function upgradeList(data, {
       settledPeak: settled,
       target,
       ask: (row.eopMrr || 0) > 0 ? target / (row.eopMrr || 1) : null,
-      heldBefore: settled >= target,
-      viable: isUpgradeCandidate(cur, settled, { floor: target }),
+      heldBefore: own ? own.asked && settled >= target : settled >= target,
+      viable: own ? own.asked : isUpgradeCandidate(cur, settled, { floor: target }),
       tenure: firstSeen.has(row.id) ? monthDiff(firstSeen.get(row.id), last) : null,
       mrr: row.eopMrr || 0,
       cash: row.netCash || 0,
