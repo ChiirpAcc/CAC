@@ -7444,6 +7444,7 @@ function loadCampBands() {
         ...(j.texts ? { texts: new Map(Object.entries(j.texts)) } : {}),
         ...(j.cleaning ? { cleaning: new Set(j.cleaning) } : {}),
         ...(j.ageDays ? { ageDays: new Map(Object.entries(j.ageDays)) } : {}),
+        ...(j.excluded ? { excluded: new Map(Object.entries(j.excluded)) } : {}),
       };
       renderCampaign();
       renderUpgradeList();
@@ -7487,8 +7488,8 @@ function renderCampaign() {
         + `pays ${fmt.money(b.pays)}, costs ${fmt.money(b.cost)}, keeps ${fmt.money(b.keeps)}.`
         + (b.key === 'dormant' ? ' Never asked: they keep the most of what they pay.' : ''),
     })), { key: 'unbanded', label: 'Not in the export', defaultOn: true,
-      hint: `Not in the ${ENGAGEMENT.asOf} usage export, which covered only accounts then under $500, `
-        + 'so how much they use it is unknown and their ask is not adjusted for usage. Every $500 to $799 account is here.' }],
+      hint: `Not in the ${ENGAGEMENT.asOf} usage export, mostly accounts billed through the second Stripe account, `
+        + 'so how much they use it is unknown and their ask is not adjusted for usage.' }],
     () => { renderCampaign(); renderUpgradeList(); });
   }
   const bands = econ ? ticked('camp-bands') : null;
@@ -7559,9 +7560,9 @@ function renderCampaign() {
       + '<td></td><td></td><td></td><td></td><td></td>'
       + `<td class="n"><strong>${fmt.money(econ.totalKeeps)}</strong></td></tr>`
       + `<tr><td class="muted" colspan="7">The ${ENGAGEMENT.asOf} export listed `
-      + `${fmt.int(econ.totalExported)} accounts, the ones then under $500; `
-      + `${fmt.int(econ.totalExported - econ.totalAccounts)} no longer pay. The other `
-      + `${fmt.int(econ.notExported)} paying accounts were not in it, so their usage is unknown.</td></tr>`
+      + `${fmt.int(econ.totalExported)} accounts, every client on the main Stripe account, cancelled ones included; `
+      + `${fmt.int(econ.totalExported - econ.totalAccounts)} of them did not pay in ${fmt.monthLabel(econ.month)}. The other `
+      + `${fmt.int(econ.notExported)} paying accounts were not in it, mostly the second Stripe account, so their usage is unknown.</td></tr>`
       + '</tbody></table>';
   }
 
@@ -7575,16 +7576,17 @@ function renderCampaign() {
     + 'by usage (round one\'s fit halves the odds of leaving for each tenfold more texts), and the ask is the '
     + 'lowest price, in $25 steps, that captures 97% of the most revenue the account could add. Asks stay '
     + 'inside what round one tested: +100% on the $200 plan, +90% from $213 up, and $500 for accounts paying '
-    + '$62 to $199. Dormant accounts are not asked. '
+    + '$62 to $199. Dormant accounts are not asked, nor are accounts migrated to Chiirp AI or, in the export, '
+    + 'cancelled, unpaid or past due. '
     + 'Industry is read from the account name in the usage export, or the Stripe company name for accounts '
     + 'not in it; on the $200 plan an account with neither is priced as cleaning, the cautious reading' + (c.unnamedAsCleaning ? ` (${fmt.int(c.unnamedAsCleaning)} asked here)` : '') + '. '
-    + (c.usageMeasured ? 'Usage is each account\'s own texts sent in the 60 days to ' + ENGAGEMENT.asOf
-        + ', halved to a month; accounts not in that export are not adjusted for usage. Account age in the list '
+    + (c.usageMeasured ? 'Usage is each account\'s own texts sent a month, averaged over the three months to ' + ENGAGEMENT.asOf
+        + '; accounts not in that export are not adjusted for usage. Account age in the list '
         + 'is from the same export (created in the app, not the subscription start) and does not change the ask. '
       : 'Usage is each band\'s median from the ' + ENGAGEMENT.asOf + ' export (active users 699 texts a month, light 183), '
         + 'not each account\'s own count, so accounts in the same band and group get the same ask. ')
-    + 'The $500 to $799 accounts were in neither round one nor the export: their asks borrow the $262+ curve '
-    + 'with no usage adjustment and are a guess, which is why that group starts unticked. '
+    + 'The $500 to $799 accounts were not in round one: their asks borrow the $262+ curve, adjusted for their '
+    + 'own usage, and are a guess, which is why that group starts unticked. '
     + 'Revenue gained is against changing nothing, with normal churn on both sides; "expected to leave" counts '
     + 'everyone the model expects to go in the round, normal churn included. The curves rest on 36 accounts '
     + 'and 15 churns; the trades curve on the $200 plan rests on 4. Log every outcome of round two with its '
@@ -7606,7 +7608,7 @@ const RESEARCH = {
   trades200: 'Same plan, far less churn than cleaners at the same price. Rests on 4 accounts.',
   tier262: 'Round one\'s $262+ accounts, mostly trades, lost about 10% at +40% to +90%.',
   under200: 'Accounts paying $62 to $192 went to $500 (+150% to +700%) and most stayed. The size of the rise did not predict leaving.',
-  over500: 'Not in round one or the usage export. Borrows the $213+ curve, so this is a guess.',
+  over500: 'Not in round one. Borrows the $213+ curve with each account\'s own usage, so this is a guess.',
 };
 const pctRise = x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%';
 

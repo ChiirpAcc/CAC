@@ -2658,9 +2658,12 @@ export function isUpgradeCandidate(current, peak, { floor = 600, cap = 3 } = {})
 // profitable business on the book, and the group that looks like a loyal
 // core is the one whose price is out of line with what it consumes.
 //
-// Band membership comes from an engagement export dated 2026-09-22, saved as
-// site/engagement_bands.json (Stripe customer id -> band). It is not in the
-// pushed workbook, so membership is as stale as that date.
+// Band membership comes from the engagement export of 11 Nov 2026 (every
+// client on Stripe account S1), saved as site/engagement_bands.json (Stripe
+// customer id -> band). It is not in the pushed workbook, so membership is as
+// stale as that date. Bands are set by texts sent alone; logins are not used
+// (Josh, 11 Nov 2026). The 22 Sep 2026 export it replaces covered only the
+// accounts then under $500 and banded on logins as well.
 //
 // What each band pays is read from Stripe, not the export (Josh, 11 Nov 2026:
 // "the number of accounts seems low"). This constant used to carry an mrr per
@@ -2669,7 +2672,7 @@ export function isUpgradeCandidate(current, peak, { floor = 600, cap = 3 } = {})
 // $600, not what it pays. Every band showed "pays" of about $385 when Stripe
 // bills them about $200, which overstated what each band keeps by nearly 2x.
 export const ENGAGEMENT = {
-  asOf: '2026-09-22',
+  asOf: '2026-11-11',
   source: 'band membership from the engagement export; pay from Stripe',
   bands: [
     {
@@ -2678,22 +2681,19 @@ export const ENGAGEMENT = {
       // sender costs multiples of a dormant one and the flat per-logo figure
       // used everywhere else hides it.
       usageMultiple: 2.2,
-      definition: 'Logged in within 14 days, 3 or more logins this month, and '
-        + '100 or more texts sent in 60 days.',
+      definition: '50 or more texts sent a month, averaged over three months.',
       meaning: 'Actively using it and would notice losing it.',
     },
     {
       key: 'light', label: 'Light users',
       usageMultiple: 0.6,
-      definition: 'Uses it, but not on both counts: logs in without sending, '
-        + 'or sends without logging in.',
+      definition: 'Sends texts, but fewer than 50 a month.',
       meaning: 'Real but shallow engagement. The size of the ask decides the answer.',
     },
     {
       key: 'dormant', label: 'Dormant',
       usageMultiple: 0.05,
-      definition: 'No texts sent in 60 days, or no login in 60 days. Tested '
-        + 'first and overrides everything else.',
+      definition: 'No texts sent in the last three months.',
       meaning: 'Not price-sensitive. Already gone and has not cancelled.',
     },
   ],
@@ -2990,7 +2990,7 @@ export const PRICE_GROUPS = [
   { key: 'tier262', label: '$213 to $499',
     hint: 'Round one lost about 10% of these at +40% to +90%. Asks up to +90%.' },
   { key: 'over500', label: '$500 to $799', defaultOff: true,
-    hint: 'Not in round one and not in the usage export. Priced on the $262+ curve, which is a guess for them. Off by default; its row below shows what asking would do.' },
+    hint: 'Not in round one. Priced on the $262+ curve with their own usage, which is a guess for them. Off by default; its row below shows what asking would do.' },
 ];
 export function priceGroup(mrr, cleaning) {
   if (mrr < 200) return 'under200';
@@ -3022,8 +3022,9 @@ export function roundOneProfile(row, engagement) {
   const fromExport = !!eng.cleaning && band !== 'unbanded';
   const cleaning = flagged || (named ? CLEANING_RE.test(row.name) : fromExport ? false : null);
   const ageDays = eng.ageDays ? (eng.ageDays.get(row.id) ?? null) : null;
+  const excluded = eng.excluded ? (eng.excluded.get(row.id) || (row.canonicalId && eng.excluded.get(row.canonicalId)) || null) : null;
   const mrr = row.eopMrr ?? row.mrr ?? 0;
-  return { mrr, band, texts, textsMeasured: own != null, ageDays, cleaning: cleaning !== false,
+  return { mrr, band, texts, textsMeasured: own != null, ageDays, excluded, cleaning: cleaning !== false,
     industryKnown: cleaning !== null, group: priceGroup(mrr, cleaning !== false) };
 }
 export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1 } = {}) {
@@ -3056,6 +3057,7 @@ export function roundOneAsk(acc, opts = {}) {
   const stay = why => ({ target: acc.mrr, asked: false, churn: roundOneChurn(acc, acc.mrr, opts),
     churnNow: roundOneChurn(acc, acc.mrr, opts), why });
   if (!(acc.mrr > 0)) return stay('Pays nothing');
+  if (acc.excluded) return stay(acc.excluded);
   if (acc.band === 'dormant') return stay('Dormant: left alone');
   let target;
   let why = '';
@@ -3239,7 +3241,7 @@ function scenarioPool(data, { lowBand = 800, engagement = null, bands = null, gr
   // scope: every account in the ticked groups, asked or not, which is the
   // revenue the 12-month view follows.
   const scope = list.low.filter(r => !groups || groups.has(r.group));
-  return { list, scope, pool: scope.filter(r => r.band !== 'dormant' && r.mrr > 2
+  return { list, scope, pool: scope.filter(r => r.band !== 'dormant' && !r.excluded && r.mrr > 2
     && (!bands || bands.has(r.band))) };
 }
 
@@ -3291,8 +3293,11 @@ export function projectScenario(data, { scenario = 'none', rise = 0, add = 0, ho
     const excess = price > r.mrr ? Math.max(0, roundOneChurn(acc, price, opts) - roundOneChurn(acc, r.mrr, opts)) : 0;
     liftLost += excess;
     const h = baselineFor(base, r.group);
+    // Cancelled since the last month (in the export) is gone from month 1 in
+    // every scenario, so it moves the levels and not the gaps between them.
+    const gone = /^Cancelled/.test(r.excluded || '');
     for (let t = 0; t <= horizon; t += 1) {
-      const stay = Math.pow(1 - h, t) * (1 - excess * Math.min(t, 3) / 3);
+      const stay = gone && t > 0 ? 0 : Math.pow(1 - h, t) * (1 - excess * Math.min(t, 3) / 3);
       mrr[t] += (t === 0 ? r.mrr : price) * stay;
       logos[t] += stay;
     }
@@ -3459,7 +3464,7 @@ function buildUpgradeList(data, {
     const own = prof ? roundOneAsk(prof, { textsScale, churnScale }) : null;
     const target = own ? own.target : rule === 'tiered' ? (cur <= 300 ? 500 : 750) : floor;
     return {
-      ...(own ? { group: prof.group, band: prof.band, cleaning: prof.cleaning, texts: prof.texts, ageDays: prof.ageDays,
+      ...(own ? { group: prof.group, band: prof.band, cleaning: prof.cleaning, texts: prof.texts, ageDays: prof.ageDays, excluded: prof.excluded,
         textsMeasured: prof.textsMeasured, churn: own.churn, churnNow: own.churnNow, why: own.why } : {}),
       id: row.id,
       canonicalId: row.canonicalId || null,
