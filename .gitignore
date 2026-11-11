@@ -8,6 +8,9 @@
 # Ryan Peterson's sets and demos for the RP tab, a dated HubSpot pull:
 # company names and record ids only.
 !site/rp_sets.json
+# Which engagement band each account was in on the export date, for the
+# Upgrade list's campaign: Stripe customer ids and a band only.
+!site/engagement_bands.json
 
 # Re-block the credential filenames even inside data/, because the
 # negation above would otherwise let data/key.json through.

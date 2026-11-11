@@ -2909,14 +2909,25 @@ export function ruleSpread(data, { floor = 600, cap = 3 } = {}) {
   return out;
 }
 
+// Which accounts to ask (Josh, 11 Nov 2026: the headline did not move with
+// the band switches). With `ask` and `bandOf`, only viable accounts in the
+// ticked bands are asked; an account the engagement export does not list is
+// 'unbanded' and asked only when that is ticked. The rest keep paying what
+// they pay, as every account outside the pool already does.
+export const campaignBandOf = (r, bandOf) => (bandOf
+  ? bandOf.get(r.id) || (r.canonicalId && bandOf.get(r.canonicalId)) || 'unbanded'
+  : null);
 export function campaign(data, {
-  rule = 'floor', churn = 0.33, floor = 600, cap = 3, viableOnly = true,
+  rule = 'floor', churn = 0.33, floor = 600, cap = 3, viableOnly = true, ask = null, bandOf = null,
 } = {}) {
   const list = upgradeList(data, { lowBand: 500, floor, rule });
   const floors = priceFloors(data);
   if (!list || !floors) return null;
 
-  const pool = viableOnly ? list.low.filter(r => r.viable) : list.low;
+  const viable = viableOnly ? list.low.filter(r => r.viable) : list.low;
+  const pool = ask && bandOf ? viable.filter(r => ask.has(campaignBandOf(r, bandOf))) : viable;
+  const byBand = {};
+  if (bandOf) for (const r of viable) { const k = campaignBandOf(r, bandOf); byBand[k] = (byBand[k] || 0) + 1; }
   const others = floors.paying.filter(v => v >= 500);
 
   let asked = 0;
@@ -2967,6 +2978,8 @@ export function campaign(data, {
     lost: Math.round(lost),
     kept: Math.round(asked - lost),
     poolSize: pool.length,
+    viableSize: viable.length,
+    byBand,
     before: Math.round(before),
     after: Math.round(after),
     change: Math.round(after - before),

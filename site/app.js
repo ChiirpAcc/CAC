@@ -7421,8 +7421,24 @@ function renderCalculator() {
 // The campaign calculator, sitting above the list it describes.
 let CAMP = { rule: 'floor', churn: 0.33 };
 
+// Each account's engagement band on the export date (site/engagement_bands.json),
+// so the campaign headline asks only the bands ticked (11 Nov 2026).
+let CAMP_BANDS = null;
+let campBandsAsked = false;
+function loadCampBands() {
+  if (campBandsAsked) return;
+  campBandsAsked = true;
+  fetch('engagement_bands.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+    .then(j => {
+      if (!j || !j.bands) return;
+      CAMP_BANDS = { asOf: j.asOf, bandOf: new Map(Object.entries(j.bands)) };
+      renderCampaign();
+    });
+}
+
 function renderCampaign() {
   if (!$('camp-result')) return;
+  loadCampBands();
 
   // Each option states its own figure. A preset called "expected" that does
   // not say 33% is asking the reader to trust a label instead of a number.
@@ -7478,21 +7494,29 @@ function renderCampaign() {
   // band economics land once cost follows usage rather than headcount.
   const econ = bandEconomics(data);
   if (econ) {
-    buildToggles('camp-bands', econ.bands.map(b => ({
+    buildToggles('camp-bands', [...econ.bands.map(b => ({
       key: b.key, label: b.label, defaultOn: b.key === 'users',
       hint: `${b.definition} ${b.accounts} accounts, `
         + `pays ${fmt.money(b.pays)}, costs ${fmt.money(b.cost)}, `
         + `keeps ${fmt.money(b.keeps)}.`,
-    })), renderCampaign);
+    })), { key: 'unbanded', label: 'Not in the export', defaultOn: false,
+      hint: `On the list now but not in the ${ENGAGEMENT.asOf} engagement export, so how much they use it is unknown.` }],
+    renderCampaign);
   }
   const askBands = econ ? [...ticked('camp-bands')] : [];
-  const bc = econ && askBands.length
-    ? bandCampaign(data, { ask: askBands, rule: CAMP.rule === 'tiered' ? 'tiered' : 'flat',
+  const exportBands = askBands.filter(k => k !== 'unbanded');
+  const bc = econ && exportBands.length
+    ? bandCampaign(data, { ask: exportBands, rule: CAMP.rule === 'tiered' ? 'tiered' : 'flat',
         churn: CAMP.churn === 'scaled' ? null : CAMP.churn })
     : null;
 
-  const c = campaign(data, { rule: CAMP.rule, churn: CAMP.churn });
+  const c = campaign(data, { rule: CAMP.rule, churn: CAMP.churn,
+    ...(CAMP_BANDS && econ ? { ask: new Set(askBands), bandOf: CAMP_BANDS.bandOf } : {}) });
   if (!c) return;
+  const BAND_WORDS = { users: 'active users', light: 'light users', dormant: 'dormant', unbanded: 'not in the export' };
+  const askedWords = CAMP_BANDS && econ
+    ? (askBands.length ? askBands.map(k => BAND_WORDS[k] || k).join(', ') : 'no band ticked')
+    : null;
 
   const good = c.change > 0 && c.clears;
   const verdict = good ? 'good' : c.change > 0 ? 'thin' : 'under';
@@ -7504,7 +7528,7 @@ function renderCampaign() {
     + `<span class="calc-unit">a month, ${fmt.money(Math.abs(c.annual))} a year</span>`
     + `</div>`
     + `<div class="calc-against">`
-    + `<span>${fmt.int(c.asked)} accounts asked, about ${fmt.int(c.lost)} expected to leave</span>`
+    + `<span>${fmt.int(c.asked)} accounts asked${askedWords ? ` (${askedWords})` : ''}, about ${fmt.int(c.lost)} expected to leave</span>`
     + `<strong class="${c.clears ? 'pos' : 'neg'}">`
     + (c.clears
         ? `everyone asked lands at ${fmt.money(c.lowestTouched)} or above, clear of the `
@@ -7522,7 +7546,11 @@ function renderCampaign() {
   const r = (a, b) => `<tr><td>${a}</td><td class="n">${b}</td></tr>`;
   $('camp-detail').innerHTML =
     '<table class="data-table calc-table"><tbody>'
-    + r('Accounts eligible and worth asking', fmt.int(c.poolSize))
+    + r('Accounts eligible and worth asking', fmt.int(c.viableSize))
+    + (c.byBand && CAMP_BANDS
+        ? r('Of those, by band', ['users', 'light', 'dormant', 'unbanded'].filter(k => c.byBand[k])
+            .map(k => `${BAND_WORDS[k]} ${fmt.int(c.byBand[k])}`).join(', '))
+        : '')
     + r('Asked for an increase', fmt.int(c.asked))
     + r('Expected to accept', `<strong>${fmt.int(c.kept)}</strong>`)
     + r('Expected to leave', `<strong>${fmt.int(c.lost)}</strong>`)
@@ -7572,10 +7600,11 @@ function renderCampaign() {
             + `${bc.gain >= 0 ? '+' : ''}${fmt.money(bc.gain)}</span></td></tr>`
           : '')
       + '</tbody></table>'
-      + '<p class="note">A separate scenario on the ' + fmt.int(econ.totalAccounts)
-      + ' accounts in the engagement export. The band switches drive only the last two rows; '
-      + 'the headline and the table below run on the list\'s viable accounts and do not read '
-      + 'the bands.</p>';
+      + '<p class="note">The band switches choose which accounts are asked. The headline and the '
+      + 'table under it ask the list\'s viable accounts in the ticked bands, each placed in its band '
+      + 'by Stripe customer id from the ' + ENGAGEMENT.asOf + ' export; accounts not ticked keep '
+      + 'paying what they pay. This table is the export\'s own ' + fmt.int(econ.totalAccounts)
+      + ' accounts, on contribution, as a cross-check.</p>';
   }
 
   $('camp-note').textContent =
@@ -7590,7 +7619,7 @@ function renderCampaign() {
     + 'The floor line is the one to watch: losing accounts spreads the same fixed cost '
     + 'across fewer payers, so an aggressive campaign can raise the bar faster than it '
     + 'raises prices and leave the survivors underwater. Only accounts marked viable in '
-    + 'the list below are asked; the rest, and the accounts the eligibility rules leave '
+    + 'the list below, and in a band ticked above, are asked; the rest, and the accounts the eligibility rules leave '
     + 'out, keep paying what they pay in the after figure, and asking them would flatter '
     + 'every figure here. '
     + 'The band table is the part that changes the conclusion. All three bands pay about '
