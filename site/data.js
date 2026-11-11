@@ -4624,6 +4624,11 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
   // it carries a year, as the pipeline's own rule has it.
   const rawMediumOf = new Map();
   for (const r of data.customers) if (r.leadSource && r.leadMediumRaw) rawMediumOf.set(r.leadSource, r.leadMediumRaw);
+  // The medium of a source value, read the way the first-touch medium is:
+  // the pipeline's medium for that value, else an event only if it carries a
+  // year. A won deal naming Facebook or a partner is not an event (10 Nov
+  // 2026: the deal rule read every won deal source as one).
+  const valueMedium = v => leadMediumOf(v, rawMediumOf.get(v) || (/^20\d\d\s*-/.test(v) ? 'event' : null));
   const wonDealOf = new Map();
   for (const r of data.customers) if (r.wonDealSource) wonDealOf.set(r.id, r.wonDealSource);
   // The pipeline grades a customer against their current tag, so the grade
@@ -4664,7 +4669,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     for (const [id, won] of wonDealOf) {
       const tag = sourceOf.get(id);
       const w = mergeSource(won);
-      if (!tag || w === tag || mediumOf.get(id) !== 'event' || leadMediumOf(w, 'event') !== 'event') continue;
+      if (!tag || w === tag || mediumOf.get(id) !== 'event' || valueMedium(w) !== 'event') continue;
       const mt = monthOfSource(tag);
       const mw = monthOfSource(w);
       const fp = firstPaidOf.get(id);
@@ -4686,7 +4691,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
   if (creditRule === 'deal') {
     for (const [id, won] of wonDealOf) {
       const w = mergeSource(won);
-      if (leadMediumOf(w, 'event') !== 'event') continue;
+      if (valueMedium(w) !== 'event') continue;
       sourceOf.set(id, w);
       mediumOf.set(id, 'event');
       tagOf.set(id, w);
@@ -5032,7 +5037,7 @@ export function eventRoi(data, { promptTagsOnly = false, creditRule = DEFAULT_CR
     e.matched = Boolean(e.cost && e.source);
     const meta = e.cost ? byEventName(EVENT_META, e.cost.event, e.cost.month) : null;
     e.type = meta ? meta.type : e.cost ? EVENT_UNCLASSIFIED : null;
-    e.organiser = meta ? meta.organiser : e.cost ? EVENT_UNCLASSIFIED : null;
+    e.organiser = meta ? meta.organiser || EVENT_UNCLASSIFIED : e.cost ? EVENT_UNCLASSIFIED : null;
     e.plan2027 = meta ? meta.plan2027 : null;
     e.presence = meta && meta.presence ? meta.presence : null;
     e.conflict = meta && meta.conflict ? meta.conflict : null;
