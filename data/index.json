@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-10T17:08:41",
+  "pushed_at": "2026-11-11T13:06:16",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -34,7 +34,7 @@
     {
       "tab": "Cash Detail",
       "file": "cash_detail.json",
-      "rows": 47711
+      "rows": 47740
     },
     {
       "tab": "Subscription Lifetimes",
@@ -59,7 +59,7 @@
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 1013
+      "rows": 1014
     },
     {
       "tab": "Webinars",
@@ -79,8 +79,8 @@
   ],
   "missing_required": [],
   "failed": [],
-  "pull_version": "hs-v99",
+  "pull_version": "hs-v101",
   "row_format": "arrays",
   "pipeline_version": "v190",
-  "push_version": "gh-v15"
+  "push_version": "gh-v16"
 }
