@@ -3572,6 +3572,7 @@ function renderUpgradeList() {
 
   const table = (rows, target) => {
     const head = '<thead><tr><th>Company</th><th>Stripe ID</th><th>Group</th><th>Usage</th>'
+      + '<th class="n">Texts a month</th><th class="n">Account age</th>'
       + '<th class="n">Now</th><th class="n">Settled peak</th>'
       + '<th class="n">Ask for</th><th class="n">Rise</th><th class="n">Leave</th><th>Call</th>'
       + '<th class="n">Months here</th><th>Env</th>'
@@ -3581,6 +3582,8 @@ function renderUpgradeList() {
       + `<td class="mono">${r.id}</td>`
       + `<td>${GROUP_WORDS[r.group] || '–'}</td>`
       + `<td>${BAND_WORDS[r.band] || '–'}</td>`
+      + `<td class="n">${r.textsMeasured ? fmt.int(r.texts) : '–'}</td>`
+      + `<td class="n">${r.ageDays == null ? '–' : (r.ageDays / 365.25).toFixed(1) + ' yrs'}</td>`
       + `<td class="n">${money(r.mrr)}</td>`
       + `<td class="n">${money(r.settledPeak)}</td>`
       + `<td class="n">${r.viable ? `<strong>${money(r.target)}</strong>` : '<span class="muted">no change</span>'}</td>`
@@ -3674,10 +3677,12 @@ function renderUpgradeList() {
   // with the switches and with the band file arriving.
   const csv = () => {
     const l = LIST_LAST;
-    const head = ['group', 'company', 'stripe_id', 'price_group', 'usage_band', 'mrr_now', 'settled_peak', 'ask',
+    const head = ['group', 'company', 'stripe_id', 'price_group', 'usage_band', 'texts_a_month', 'account_age_days',
+      'mrr_now', 'settled_peak', 'ask',
       'ask_multiple', 'chance_of_leaving', 'held_before', 'asked', 'note', 'uplift', 'months_here', 'environment',
       'cash_last_month', 'usage_last_month'].concat(l.window);
     const line = (group, r) => [group, r.name || '', r.id, r.group || '', r.band || '',
+      r.textsMeasured ? r.texts : '', r.ageDays ?? '',
       r.mrr, r.settledPeak, r.viable ? r.target : '', r.ask === null || !r.viable ? '' : r.ask.toFixed(2),
       r.viable && r.churn != null ? r.churn.toFixed(2) : '',
       r.heldBefore ? 'yes' : 'no', r.viable ? 'yes' : 'no', r.why || '',
@@ -7424,17 +7429,20 @@ const CAMP_LOW_BAND = 800;
 // used; otherwise each band stands at its median usage.
 let CAMP_BANDS = null;
 let campBandsAsked = false;
+let campBandsSettled = false;
 function loadCampBands() {
   if (campBandsAsked) return;
   campBandsAsked = true;
   fetch('engagement_bands.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
     .then(j => {
-      if (!j || !j.bands) return;
+      campBandsSettled = true;
+      if (!j || !j.bands) { renderCampaign(); renderUpgradeList(); return; }
       CAMP_BANDS = {
         asOf: j.asOf,
         bandOf: new Map(Object.entries(j.bands)),
         ...(j.texts ? { texts: new Map(Object.entries(j.texts)) } : {}),
         ...(j.cleaning ? { cleaning: new Set(j.cleaning) } : {}),
+        ...(j.ageDays ? { ageDays: new Map(Object.entries(j.ageDays)) } : {}),
       };
       renderCampaign();
       renderUpgradeList();
@@ -7446,6 +7454,12 @@ const campOptions = () => ({ textsScale: campTrust().textsScale ?? 1, churnScale
 function renderCampaign() {
   if (!$('camp-result')) return;
   loadCampBands();
+  // The asks depend on usage, so nothing is shown until the band file has
+  // answered (or failed, when the card falls back to no usage).
+  if (!campBandsSettled) {
+    $('camp-result').innerHTML = '<p class="muted">Loading usage for each account…</p>';
+    return;
+  }
 
   const box = $('camp-trust');
   if (!box.dataset.ready) {
@@ -7561,9 +7575,11 @@ function renderCampaign() {
     + 'lowest price, in $25 steps, that captures 97% of the most revenue the account could add. Asks stay '
     + 'inside what round one tested: +100% on the $200 plan, +90% from $213 up, and $500 for accounts paying '
     + '$62 to $199. Dormant accounts are not asked. '
-    + 'Industry is read from the Stripe company name; on the $200 plan an account with no name is priced as '
-    + 'cleaning, the cautious reading' + (c.unnamedAsCleaning ? ` (${fmt.int(c.unnamedAsCleaning)} asked here)` : '') + '. '
-    + (c.usageMeasured ? 'Usage is each account\'s own texts from the export. '
+    + 'Industry is read from the account name in the usage export, or the Stripe company name for accounts '
+    + 'not in it; on the $200 plan an account with neither is priced as cleaning, the cautious reading' + (c.unnamedAsCleaning ? ` (${fmt.int(c.unnamedAsCleaning)} asked here)` : '') + '. '
+    + (c.usageMeasured ? 'Usage is each account\'s own texts sent in the 60 days to ' + ENGAGEMENT.asOf
+        + ', halved to a month; accounts not in that export are not adjusted for usage. Account age in the list '
+        + 'is from the same export (created in the app, not the subscription start) and does not change the ask. '
       : 'Usage is each band\'s median from the ' + ENGAGEMENT.asOf + ' export (active users 699 texts a month, light 183), '
         + 'not each account\'s own count, so accounts in the same band and group get the same ask. ')
     + 'The $500 to $799 accounts were in neither round one nor the export: their asks borrow the $262+ curve '

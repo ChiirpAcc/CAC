@@ -2984,7 +2984,7 @@ export const PRICE_GROUPS = [
   { key: 'under200', label: 'Under $200',
     hint: 'Round one moved accounts paying $62 to $192 to $500 and most stayed. Asked $500; below $62 was never tested.' },
   { key: 'clean200', label: '$200 plan, cleaning',
-    hint: 'The group that left in round one: about 75% at $500. Asks of about +40% to +60%, lower for light users. Unnamed $200 accounts are priced here too.' },
+    hint: 'The group that left in round one: about 75% at $500. Asks of $275 to $400, set by texts sent.' },
   { key: 'trades200', label: '$200 plan, trades',
     hint: 'Same plan, far less churn in round one (4 accounts). Asks up to +100%.' },
   { key: 'tier262', label: '$213 to $499',
@@ -3015,11 +3015,15 @@ export function roundOneProfile(row, engagement) {
   // With no company name the industry is unknown. On the $200 plan that is
   // priced as cleaning, the group that left in round one, so an unnamed
   // cleaner is never asked a trades price.
+  // An account in the export has its industry read from the export's own
+  // name, so only accounts outside it can be unknown.
   const named = !!(row.name && String(row.name).trim());
   const flagged = !!(eng.cleaning && eng.cleaning.has(row.id));
-  const cleaning = flagged || (named ? CLEANING_RE.test(row.name) : null);
+  const fromExport = !!eng.cleaning && band !== 'unbanded';
+  const cleaning = flagged || (named ? CLEANING_RE.test(row.name) : fromExport ? false : null);
+  const ageDays = eng.ageDays ? (eng.ageDays.get(row.id) ?? null) : null;
   const mrr = row.eopMrr ?? row.mrr ?? 0;
-  return { mrr, band, texts, textsMeasured: own != null, cleaning: cleaning !== false,
+  return { mrr, band, texts, textsMeasured: own != null, ageDays, cleaning: cleaning !== false,
     industryKnown: cleaning !== null, group: priceGroup(mrr, cleaning !== false) };
 }
 export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1 } = {}) {
@@ -3278,7 +3282,7 @@ export function upgradeList(data, {
     const own = prof ? roundOneAsk(prof, { textsScale, churnScale }) : null;
     const target = own ? own.target : rule === 'tiered' ? (cur <= 300 ? 500 : 750) : floor;
     return {
-      ...(own ? { group: prof.group, band: prof.band, cleaning: prof.cleaning, texts: prof.texts,
+      ...(own ? { group: prof.group, band: prof.band, cleaning: prof.cleaning, texts: prof.texts, ageDays: prof.ageDays,
         textsMeasured: prof.textsMeasured, churn: own.churn, churnNow: own.churnNow, why: own.why } : {}),
       id: row.id,
       canonicalId: row.canonicalId || null,
