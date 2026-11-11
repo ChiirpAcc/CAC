@@ -301,7 +301,7 @@ judgement for a person.
 | Report | Source | Transformation |
 |---|---|---|
 | Campaign calculator | `data.customers`, `data.expenses` | `campaign` + `ruleSpread`, each rule on its own viable pool. The pricing rule and the churn assumption are both switches, because nobody has run this campaign. Accounts excluded by the eligibility rules keep paying in the after figure. |
-| Band economics | `ENGAGEMENT` constant, `priceFloors` | `bandEconomics` / `bandCampaign`. Contribution basis rather than revenue: a dormant account and a heavy user paying the same are worth different amounts. The merchant fee is charged once, in the variable rate. A separate scenario from the calculator. |
+| Band economics | `site/engagement_bands.json` (band membership, 22 Sep 2026 export), Stripe MRR for the last complete month, `ENGAGEMENT` (labels and usage multiples), `priceFloors` | `bandEconomics` / `bandCampaign`. Pay is read from Stripe per account; the export's own "upgrade amount" column is the increase to $600, not pay, and is not used. Only the list's viable accounts are asked, as in the headline. Contribution basis rather than revenue: a dormant account and a heavy user paying the same are worth different amounts. The merchant fee is charged once, in the variable rate. A separate scenario from the calculator. |
 | Accounts worth a conversation | `data.customers` | `upgradeList`. Eligibility is **12 months of age or more** and **above $2 MRR**: a dollar a month is a free account with a token charge, not a cheap customer. Every target is a flat $600, or $500 and $750 under the tiered rule. `settledPeaks`, which excludes each customer's first month because it carries the joining charge, decides only "held it before" and viability. |
 
 ---

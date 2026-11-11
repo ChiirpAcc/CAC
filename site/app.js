@@ -7492,7 +7492,7 @@ function renderCampaign() {
 
   // Which bands to ask. Defaults to active users only, which is where the
   // band economics land once cost follows usage rather than headcount.
-  const econ = bandEconomics(data);
+  const econ = CAMP_BANDS ? bandEconomics(data, CAMP_BANDS.bandOf) : null;
   if (econ) {
     buildToggles('camp-bands', [...econ.bands.map(b => ({
       key: b.key, label: b.label, defaultOn: b.key === 'users',
@@ -7507,7 +7507,7 @@ function renderCampaign() {
   const exportBands = askBands.filter(k => k !== 'unbanded');
   const bc = econ && exportBands.length
     ? bandCampaign(data, { ask: exportBands, rule: CAMP.rule === 'tiered' ? 'tiered' : 'flat',
-        churn: CAMP.churn === 'scaled' ? null : CAMP.churn })
+        churn: CAMP.churn === 'scaled' ? null : CAMP.churn, bandOf: CAMP_BANDS.bandOf })
     : null;
 
   const c = campaign(data, { rule: CAMP.rule, churn: CAMP.churn,
@@ -7581,9 +7581,14 @@ function renderCampaign() {
       + '<th class="n">Keeps</th><th class="n">Per $1 of cost</th>'
       + '<th class="n">Total a month</th></tr></thead><tbody>'
       + econ.bands.map(row).join('')
-      + `<tr class="rule-above emphasis"><td><strong>All ${fmt.int(econ.totalAccounts)}</strong></td>`
+      + `<tr class="rule-above emphasis"><td><strong>All ${fmt.int(econ.totalAccounts)} in the export</strong></td>`
       + '<td></td><td></td><td></td><td></td><td></td>'
       + `<td class="n"><strong>${fmt.money(econ.totalKeeps)}</strong></td></tr>`
+      + `<tr><td class="muted" colspan="7">The ${ENGAGEMENT.asOf} export listed `
+      + `${fmt.int(econ.totalExported)} accounts, the ones on the upgrade list then; `
+      + `${fmt.int(econ.totalExported - econ.totalAccounts)} no longer pay. The other `
+      + `${fmt.int(econ.notExported)} paying accounts, mostly $500 a month or more, were not in it, `
+      + `so their usage is unknown.</td></tr>`
       // The gain is measured from leaving every band alone, after its background
       // churn and after revenue share as well as the merchant fee. That row was
       // not shown, so the after-campaign figure sat under the bigger "All" total
@@ -7603,8 +7608,9 @@ function renderCampaign() {
       + '<p class="note">The band switches choose which accounts are asked. The headline and the '
       + 'table under it ask the list\'s viable accounts in the ticked bands, each placed in its band '
       + 'by Stripe customer id from the ' + ENGAGEMENT.asOf + ' export; accounts not ticked keep '
-      + 'paying what they pay. This table is the export\'s own ' + fmt.int(econ.totalAccounts)
-      + ' accounts, on contribution, as a cross-check.</p>';
+      + 'paying what they pay. This table is the export\'s ' + fmt.int(econ.totalAccounts)
+      + ' accounts still paying in ' + fmt.monthLabel(econ.month) + ', at what Stripe bills them, '
+      + 'on contribution, as a cross-check.</p>';
   }
 
   $('camp-note').textContent =
@@ -7622,8 +7628,10 @@ function renderCampaign() {
     + 'the list below, and in a band ticked above, are asked; the rest, and the accounts the eligibility rules leave '
     + 'out, keep paying what they pay in the after figure, and asking them would flatter '
     + 'every figure here. '
-    + 'The band table is the part that changes the conclusion. All three bands pay about '
-    + 'the same, but hosting and messaging follow usage while the per-seat licence does '
+    + 'The band table is the part that changes the conclusion. '
+    + (econ ? 'The bands pay ' + econ.bands.map(b => `${b.label.toLowerCase()} ${fmt.money(b.pays)}`).join(', ')
+        + ' a month on average, ' : '')
+    + 'but hosting and messaging follow usage while the per-seat licence does '
     + 'not, so a dormant account costs '
     + (() => {
         const users = econ && econ.bands.find(b => b.key === 'users');
@@ -7636,10 +7644,11 @@ function renderCampaign() {
     + 'worth re-pricing are the most profitable business on the book, and sending them an '
     + 'invoice change is the fastest way to lose it. Active users are the only band whose '
     + 'price is genuinely out of line with what they consume. '
-    + 'Band membership and counts are hand entered from an engagement export dated '
-    + ENGAGEMENT.asOf + ' (' + engagementAge() + ') and joined on Stripe customer id; '
-    + 'they are not in the pushed workbook, so they are exactly as stale as that date '
-    + 'and nothing here will refresh them. The usage multiples behind '
+    + 'Band membership comes from an engagement export dated '
+    + ENGAGEMENT.asOf + ' (' + engagementAge() + '), joined on Stripe customer id; '
+    + 'it is not in the pushed workbook, so who sits in which band is as stale as that date '
+    + 'and nothing here will refresh it. What each account pays is read from Stripe for the '
+    + 'last complete month, so it moves with every push. The usage multiples behind '
     + 'the cost column are estimates rather than measurements, 2.2x average hosting '
     + 'for heavy senders, 0.6x for light and 0.05x for dormant, and they are the '
     + 'assumption most worth replacing with real per-account message volume.';

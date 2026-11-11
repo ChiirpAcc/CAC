@@ -2658,17 +2658,22 @@ export function isUpgradeCandidate(current, peak, { floor = 600, cap = 3 } = {})
 // profitable business on the book, and the group that looks like a loyal
 // core is the one whose price is out of line with what it consumes.
 //
-// HAND ENTERED. These counts come from an engagement export dated 2026-09-22
-// joined on Stripe customer id, and are not in the pushed workbook. When an
-// engagement tab exists they should be read from it and this constant
-// deleted; until then the figures are as stale as the date says.
+// Band membership comes from an engagement export dated 2026-09-22, saved as
+// site/engagement_bands.json (Stripe customer id -> band). It is not in the
+// pushed workbook, so membership is as stale as that date.
+//
+// What each band pays is read from Stripe, not the export (Josh, 11 Nov 2026:
+// "the number of accounts seems low"). This constant used to carry an mrr per
+// band of 29,689 / 11,682 / 16,295, and they were the export's sum of its
+// "upgrade amount" column: the dollar increase each account needed to reach
+// $600, not what it pays. Every band showed "pays" of about $385 when Stripe
+// bills them about $200, which overstated what each band keeps by nearly 2x.
 export const ENGAGEMENT = {
   asOf: '2026-09-22',
-  source: 'hand entered from the engagement export, not the pipeline',
+  source: 'band membership from the engagement export; pay from Stripe',
   bands: [
     {
-      key: 'users', label: 'Active users', accounts: 78, mrr: 29689.01,
-      underThreeHundred: 23, overThreeHundred: 55,
+      key: 'users', label: 'Active users',
       // Hosting and messaging cost relative to the average logo. A heavy
       // sender costs multiples of a dormant one and the flat per-logo figure
       // used everywhere else hides it.
@@ -2678,16 +2683,14 @@ export const ENGAGEMENT = {
       meaning: 'Actively using it and would notice losing it.',
     },
     {
-      key: 'light', label: 'Light users', accounts: 30, mrr: 11682,
-      underThreeHundred: 4, overThreeHundred: 26,
+      key: 'light', label: 'Light users',
       usageMultiple: 0.6,
       definition: 'Uses it, but not on both counts: logs in without sending, '
         + 'or sends without logging in.',
       meaning: 'Real but shallow engagement. The size of the ask decides the answer.',
     },
     {
-      key: 'dormant', label: 'Dormant', accounts: 42, mrr: 16295,
-      underThreeHundred: 14, overThreeHundred: 28,
+      key: 'dormant', label: 'Dormant',
       usageMultiple: 0.05,
       definition: 'No texts sent in 60 days, or no login in 60 days. Tested '
         + 'first and overrides everything else.',
@@ -2697,15 +2700,36 @@ export const ENGAGEMENT = {
 };
 
 // What each band actually keeps, once cost follows usage rather than headcount.
-export function bandEconomics(data) {
+// `bandOf` maps Stripe customer id to band (site/engagement_bands.json). Each
+// band is the export's accounts still paying in the last complete month, at
+// what Stripe bills them that month.
+export function bandMembers(data, bandOf) {
+  const out = new Map(ENGAGEMENT.bands.map(b => [b.key, []]));
+  let paying = 0;
+  for (const r of data.customers) {
+    if (r.month !== data.lastMonth || !r.active || !(r.eopMrr > 0)) continue;
+    paying += 1;
+    const band = bandOf.get(r.id) || (r.canonicalId && bandOf.get(r.canonicalId));
+    if (band && out.has(band)) out.get(band).push({ id: r.id, canonicalId: r.canonicalId, mrr: r.eopMrr });
+  }
+  return { members: out, paying };
+}
+
+export function bandEconomics(data, bandOf) {
   const f = priceFloors(data);
-  if (!f) return null;
+  if (!f || !bandOf) return null;
   const c = f.components;
   const avgMrr = f.paying.length ? f.totalMrr / f.paying.length : 0;
   const merchantShare = avgMrr ? c.merchant / avgMrr : 0.043;
+  const { members, paying } = bandMembers(data, bandOf);
+  const exported = {};
+  for (const k of bandOf.values()) exported[k] = (exported[k] || 0) + 1;
 
-  const bands = ENGAGEMENT.bands.map(b => {
-    const pays = b.mrr / b.accounts;
+  const bands = ENGAGEMENT.bands.map(def => {
+    const list = members.get(def.key);
+    const b = { ...def, members: list, accounts: list.length, exported: exported[def.key] || 0,
+      mrr: list.reduce((s, m) => s + m.mrr, 0) };
+    const pays = b.accounts ? b.mrr / b.accounts : 0;
     // Per-seat licence is the same for everyone; hosting scales with use;
     // the merchant fee is a share of whatever they pay.
     const fixedCost = c.software + c.hosting * b.usageMultiple;
@@ -2721,12 +2745,18 @@ export function bandEconomics(data) {
     };
   });
 
+  const totalAccounts = bands.reduce((s, b) => s + b.accounts, 0);
   return {
     asOf: ENGAGEMENT.asOf,
     source: ENGAGEMENT.source,
+    month: data.lastMonth,
     bands,
     inputs: { software: c.software, hosting: c.hosting, merchantShare },
-    totalAccounts: bands.reduce((s, b) => s + b.accounts, 0),
+    totalAccounts,
+    totalExported: bandOf.size,
+    // Paying accounts the export never covered. It was pulled for the
+    // upgrade list's accounts, not the whole book.
+    notExported: paying - totalAccounts,
     totalKeeps: bands.reduce((s, b) => s + b.keepsTotal, 0),
   };
 }
@@ -2736,8 +2766,8 @@ export function bandEconomics(data) {
 // Revenue is the wrong measure here: a dormant account and a heavy user
 // paying the same amount are worth very different things, and a plan that
 // maximises revenue will happily trade a $294 contribution for a $221 one.
-export function bandCampaign(data, { ask = ['users'], rule = 'tiered', churn = null } = {}) {
-  const econ = bandEconomics(data);
+export function bandCampaign(data, { ask = ['users'], rule = 'tiered', churn = null, bandOf = null } = {}) {
+  const econ = bandEconomics(data, bandOf);
   if (!econ) return null;
   const f = priceFloors(data);
 
@@ -2746,38 +2776,31 @@ export function bandCampaign(data, { ask = ['users'], rule = 'tiered', churn = n
   const background = { users: 0.02, light: 0.04, dormant: 0.15 };
   const resistance = { users: 0.5, light: 1.0, dormant: 2.2 };
 
+  // Account by account, on what each pays in Stripe. Only the accounts the
+  // list marks viable are asked, the same pool as the headline, so a $10
+  // account is not priced to $600 here when the headline leaves it alone.
+  const listRule = rule === 'tiered' ? 'tiered' : 'floor';
+  const list = upgradeList(data, { lowBand: 500, floor: 600, rule: listRule });
+  const viable = new Map((list ? list.low : []).filter(r => r.viable).map(r => [r.id, r]));
+
   const rows = econ.bands.map(b => {
-    const asked = ask.includes(b.key);
-    // Split the band at $300 so the tiered rule can be applied honestly.
-    const lowN = b.underThreeHundred;
-    const highN = b.overThreeHundred;
-    const lowPays = 175;
-    const highPays = highN ? (b.mrr - lowN * lowPays) / highN : 0;
-
-    const tiers = [
-      { n: lowN, pays: lowPays, target: rule === 'flat' ? 600 : 500 },
-      { n: highN, pays: highPays, target: rule === 'flat' ? 600 : 750 },
-    ];
-
+    const askBand = ask.includes(b.key);
     let revenue = 0;
     let kept = 0;
     let lost = 0;
-    for (const t of tiers) {
-      if (!t.n) continue;
-      const rises = asked && t.target > t.pays;
+    let asked = 0;
+    for (const m of b.members) {
+      const listed = viable.get(m.id) || (m.canonicalId && viable.get(m.canonicalId));
+      const o = askBand && listed ? outcome(listed, listRule, churn, 600, 3) : null;
+      const rises = !!(o && o.asked);
       let p;
-      if (!rises) {
-        p = background[b.key];
-      } else if (churn !== null) {
-        p = churn;
-      } else {
-        const mult = t.target / t.pays;
-        p = Math.min(0.85, Math.max(0.08, 0.333 * (mult - 1)) * resistance[b.key]);
-      }
-      const survivors = t.n * (1 - p);
-      revenue += survivors * (rises ? t.target : t.pays);
-      kept += survivors;
-      lost += t.n * p;
+      if (!rises) p = background[b.key];
+      else if (churn !== null) p = churn;
+      else p = Math.min(0.85, o.churn * resistance[b.key]);
+      if (rises) asked += 1;
+      revenue += (1 - p) * (rises ? o.target : m.mrr);
+      kept += 1 - p;
+      lost += p;
     }
     // The merchant fee is in variablePct, which follows the new price. b.cost
     // carries it too, on the old price, so subtracting both charged it twice;
