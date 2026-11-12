@@ -11,6 +11,9 @@
 # Which engagement band each account was in on the export date, for the
 # Upgrade list's campaign: Stripe customer ids and a band only.
 !site/engagement_bands.json
+# The 500+ churn model's score for each $500-799 account on the Upgrade list
+# (Josh, 11 Nov 2026): Stripe customer ids and a score only.
+!site/churn_risk_500.json
 
 # Re-block the credential filenames even inside data/, because the
 # negation above would otherwise let data/key.json through.
