@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, TEXT_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianTexts, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, TEXT_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianTexts, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -8020,7 +8020,192 @@ function renderTradeoffs(c) {
     + 'draws of what round one could not pin down, with standard errors from the refit on its 34 texting accounts: the '
     + '$200-plan effect (1.26), cleaning (1.22), texts (0.97 per tenfold), the off-plan level (0.90) and the curve\'s shape '
     + 'between the smooth and cliff readings; for $500 to $799 only what the rise adds is drawn.';
+  renderTextsSweep();
   renderRoundTwoProjection();
+}
+
+// 3b and 3c: every account the card asks, with its texting set by the slider
+// (Josh, 12 Nov 2026). The slider is on a log scale from 50 to 10,000 texts a
+// month, so it climbs smoothly through the range where the effect is.
+const SWEEP = { texts: ROUND_ONE.textsRef, split: false, pool: null, poolKey: null, best: null, bestKey: null, queued: false };
+const SWEEP_MIN = 50, SWEEP_MAX = 10000;
+const sweepTextsAt = v => SWEEP_MIN * Math.pow(SWEEP_MAX / SWEEP_MIN, v / 1000);
+const sweepSliderAt = t => Math.round(1000 * Math.log(t / SWEEP_MIN) / Math.log(SWEEP_MAX / SWEEP_MIN));
+const SWEEP_INK = [INK.primary, INK.secondary, INK.positive, INK.negative, INK.accent, INK.tertiary];
+const SWEEP_MAX_LINES = 6;
+const SWEEP_GRID = Array.from({ length: 41 }, (_, i) => SWEEP_MIN * Math.pow(SWEEP_MAX / SWEEP_MIN, i / 40));
+const roundTexts = t => (t < 100 ? Math.round(t / 5) * 5 : t < 1000 ? Math.round(t / 10) * 10 : Math.round(t / 100) * 100);
+
+function sweepIndustryControls(pool) {
+  const box = $('sweep-industries');
+  const key = pool.industries.map(i => `${i.key}:${i.n}`).join('|');
+  if (box.dataset.key === key) return;
+  const prev = box.dataset.key ? ticked('sweep-industries') : null;
+  const known = new Set((box.dataset.known || '').split('|'));
+  box.querySelector('.toggles')?.remove();
+  const grid = document.createElement('div');
+  grid.className = 'toggles';
+  for (const i of pool.industries) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox'; input.value = i.key;
+    // Keep what was ticked; an industry new to the pool starts ticked.
+    input.checked = !prev || prev.has(i.key) || !known.has(i.key);
+    const text = document.createElement('span');
+    text.innerHTML = `<span>${i.key}</span><span class="group-hint">${fmt.int(i.n)} account${i.n === 1 ? '' : 's'}, `
+      + `${fmt.money(i.mrr)} a month${i.key === SWEEP_UNKNOWN ? '' : i.cleaning ? '; cleaning curve' : '; trades curve'}</span>`;
+    label.append(input, text);
+    grid.append(label);
+  }
+  box.append(grid);
+  box.dataset.key = key;
+  box.dataset.known = pool.industries.map(i => i.key).join('|');
+  if (!box.dataset.ready) {
+    box.addEventListener('change', () => renderTextsSweep());
+    const quick = $('sweep-quick');
+    for (const [label, pickOn] of [['All', () => true], ['None', () => false],
+      ['Cleaning only', k => CLEANING_INDUSTRIES.has(k)], ['All but cleaning', k => !CLEANING_INDUSTRIES.has(k)]]) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'link-button'; b.textContent = label;
+      b.addEventListener('click', e => {
+        e.preventDefault();
+        for (const inp of box.querySelectorAll('input[type=checkbox]')) inp.checked = pickOn(inp.value);
+        renderTextsSweep();
+      });
+      quick.append(b);
+    }
+    box.dataset.ready = '1';
+  }
+}
+
+function renderTextsSweep() {
+  if (!$('sweep-chart')) return;
+  const sel = campSelection();
+  const poolKey = JSON.stringify([[...(sel.groups || [])], [...(sel.bands || [])], sel.textsScale, sel.churnScale]);
+  if (SWEEP.poolKey !== poolKey) { SWEEP.pool = sweepPool(data, sel); SWEEP.poolKey = poolKey; }
+  const pool = SWEEP.pool;
+  if (!pool) return;
+  sweepIndustryControls(pool);
+
+  const slider = $('sweep-texts');
+  if (!slider.dataset.ready) {
+    slider.value = sweepSliderAt(SWEEP.texts);
+    slider.addEventListener('input', () => {
+      SWEEP.texts = sweepTextsAt(Number(slider.value));
+      $('sweep-texts-out').textContent = `${fmt.int(roundTexts(SWEEP.texts))} texts a month`;
+      if (SWEEP.queued) return;
+      SWEEP.queued = true;
+      requestAnimationFrame(() => { SWEEP.queued = false; renderTextsSweep(); });
+    });
+    slider.dataset.ready = '1';
+  }
+  $('sweep-texts-out').textContent = `${fmt.int(roundTexts(SWEEP.texts))} texts a month`;
+
+  const mode = $('sweep-mode');
+  if (!mode.dataset.ready) {
+    for (const [split, label, blurb] of [[false, 'One line for all ticked', 'The ticked industries together, weighted by what each account pays.'],
+      [true, 'A line per industry', `Each ticked industry on its own, the ${SWEEP_MAX_LINES} largest drawn, beside all ticked together.`]]) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.dataset.split = String(split);
+      b.innerHTML = `<strong>${label}</strong><span>${blurb}</span>`;
+      b.addEventListener('click', () => { SWEEP.split = split; renderTextsSweep(); });
+      mode.append(b);
+    }
+    mode.dataset.ready = '1';
+  }
+  for (const b of mode.querySelectorAll('button')) b.classList.toggle('is-on', b.dataset.split === String(SWEEP.split));
+
+  const on = ticked('sweep-industries');
+  const rises = Array.from({ length: 16 }, (_, i) => i / 10);
+  const labels = rises.map(pctRise);
+  const order = new Map(pool.industries.map((i, k) => [i.key, k]));
+  // Which lines to draw: all ticked, plus the largest ticked industries.
+  const pick = lines => {
+    const all = lines.find(l => l.key === 'all');
+    const rest = lines.filter(l => l.key !== 'all').sort((a, b) => order.get(a.key) - order.get(b.key)).slice(0, SWEEP_MAX_LINES);
+    return { all, rest, hidden: Math.max(0, lines.length - 1 - rest.length) };
+  };
+  const style = (l, i) => (l.key === 'all'
+    ? { colour: 'var(--ink)', dashed: SWEEP.split, label: `All ticked (${fmt.int(l.n)})` }
+    : { colour: SWEEP_INK[i % SWEEP_INK.length], dashed: false, label: `${l.label} (${fmt.int(l.n)})` });
+  const now = pick(sweepLines(pool, { texts: SWEEP.texts, rises, ticked: on, split: SWEEP.split }));
+  if (!now.all) {
+    $('sweep-chart').innerHTML = '<p class="empty">Tick at least one industry.</p>';
+    $('sweep-best').innerHTML = ''; $('sweep-table').innerHTML = ''; $('sweep-finding').textContent = '';
+    return;
+  }
+  const drawn = [now.all, ...now.rest].map((l, i) => ({ ...l, ...style(l, i - 1) }));
+
+  // 3b: revenue kept against the size of the rise at the slider's texting.
+  multiLineChart($('sweep-chart'), {
+    labels, yFormat: v => fmt.pct(v), yTitle: 'Revenue kept, against no rise', xTitle: 'Size of the rise, for every account',
+    series: drawn.map(l => ({ label: l.label, colour: l.colour, dashed: l.dashed, values: l.points.map(p => p.kept) })),
+    refs: [{ value: 1, label: 'No rise' }],
+    xMarks: [{ index: 10, label: 'Tested limit, $200 plan' }],
+    describe: i => `<strong>${labels[i]} for everyone, at ${fmt.int(roundTexts(SWEEP.texts))} texts a month</strong>`
+      + drawn.map(l => {
+        const p = l.points[i];
+        return `<span>${l.label}: ${fmt.pct(p.kept)} of the revenue with no rise, ${fmt.pct(p.churn)} leave, `
+          + `${p.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(p.gain))} a month</span>`;
+      }).join(''),
+  });
+
+  // 3c: the peak of each line at every level of texting. Cached: it only
+  // changes with the industries, the split and the card's switches.
+  const bestKey = JSON.stringify([poolKey, [...on].sort(), SWEEP.split]);
+  if (SWEEP.bestKey !== bestKey) {
+    SWEEP.best = SWEEP_GRID.map(t => pick(sweepLines(pool, { texts: t, rises, ticked: on, split: SWEEP.split })));
+    SWEEP.bestKey = bestKey;
+  }
+  const gridLabels = SWEEP_GRID.map(t => fmt.int(roundTexts(t)));
+  const at = SWEEP_GRID.reduce((bi, t, i) => (Math.abs(Math.log(t / SWEEP.texts)) < Math.abs(Math.log(SWEEP_GRID[bi] / SWEEP.texts)) ? i : bi), 0);
+  const series = drawn.map(l => ({ ...l, values: SWEEP.best.map(b => {
+    const m = l.key === 'all' ? b.all : b.rest.find(x => x.key === l.key);
+    return m ? m.best : null;
+  }) }));
+  multiLineChart($('sweep-best'), {
+    labels: gridLabels, yFormat: v => fmt.pct(v), yTitle: 'Revenue kept at the best single rise', xTitle: 'Texts a month, every account',
+    series: series.map(l => ({ label: l.label, colour: l.colour, dashed: l.dashed, values: l.values.map(b => (b ? b.kept : null)) })),
+    refs: [{ value: 1, label: 'No rise' }],
+    xMarks: [{ index: at, label: `Slider: ${fmt.int(roundTexts(SWEEP.texts))}` }],
+    describe: i => `<strong>${gridLabels[i]} texts a month, every account</strong>`
+      + series.map(l => {
+        const b = l.values[i];
+        return b ? `<span>${l.label}: best ${pctRise(b.rise)}, keeps ${fmt.pct(b.kept)}, ${fmt.pct(b.churn)} leave, `
+          + `${b.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(b.gain))} a month</span>` : '';
+      }).join(''),
+  });
+
+  // The table: each drawn line at the slider, and where its best rise moves.
+  const at100 = SWEEP_GRID.findIndex(t => t >= 100 - 1e-9), at2000 = SWEEP_GRID.findIndex(t => t >= 2000 - 1e-9);
+  const bestOf = (l, idx) => { const b = series.find(x => x.key === l.key).values[idx]; return b ? `${pctRise(b.rise)} (${fmt.pct(b.kept)})` : '–'; };
+  $('sweep-table').innerHTML = '<thead><tr><th></th><th class="n">Accounts</th><th class="n">Pay now</th>'
+    + `<th class="n">Best rise at ${fmt.int(roundTexts(SWEEP.texts))} texts</th><th class="n">Revenue kept</th><th class="n">Leave</th>`
+    + '<th class="n">Revenue a month</th><th class="n">Best at 100 texts</th><th class="n">Best at 2,000 texts</th></tr></thead><tbody>'
+    + drawn.map(l => `<tr><td><span class="swatch" style="background:${l.colour}"></span>${l.label}</td>`
+      + `<td class="n">${fmt.int(l.n)}</td><td class="n">${fmt.money(l.mrr)}</td>`
+      + `<td class="n">${pctRise(l.best.rise)}</td><td class="n">${fmt.pct(l.best.kept)}</td><td class="n">${fmt.pct(l.best.churn)}</td>`
+      + `<td class="n">${l.best.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(l.best.gain))}</td>`
+      + `<td class="n">${bestOf(l, at100)}</td><td class="n">${bestOf(l, at2000)}</td></tr>`).join('') + '</tbody>';
+
+  const a = now.all;
+  $('sweep-finding').innerHTML = `<strong>At ${fmt.int(roundTexts(SWEEP.texts))} texts a month for every account, the best single `
+    + `rise for the ${fmt.int(a.n)} ticked is ${pctRise(a.best.rise)}</strong>, keeping ${fmt.pct(a.best.kept)} of the revenue `
+    + `they bring with no rise (${a.best.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(a.best.gain))} a month), with `
+    + `${fmt.pct(a.best.churn)} leaving in the round.`
+    + (now.hidden > 0 ? ` <span class="muted">${fmt.int(now.hidden)} smaller industr${now.hidden === 1 ? 'y is' : 'ies are'} `
+      + 'in "All ticked" but not drawn on its own.</span>' : '');
+  $('sweep-note').textContent =
+    'Every account the card asks (the groups and bands ticked above, not dormant or excluded) at its own price and on its '
+    + 'own group\'s curve, with only its texting changed: the slider sets every account to the same texts a month, on a '
+    + 'log scale from 50 to 10,000, so the line climbs smoothly. Revenue kept is the MRR-weighted average, the sum of '
+    + '(1 + rise) × (1 − churn) × price over the sum of (1 − churn with no rise) × price, so a line above 100% means the '
+    + 'rise pays for the customers it loses; "leave" is the average chance of leaving in the round, normal churn included. '
+    + 'Industry is the export\'s classification. Industries differ here only through their price group and the cleaning '
+    + 'curve: round one separated cleaning from everything else, not HVAC from plumbing. Under $200 a relative rise is '
+    + 'outside what round one tested (it moved those accounts to $500), and past +100% every line is a guess. Chart 3c '
+    + 'takes the peak of 3b at each level of texting, up to +100%: the best single rise inside what round one tested and what it keeps. The $500 to $799 accounts, '
+    + 'when ticked, carry their 500+ score and do not move with texts.';
 }
 
 let LAST_CAMP = null;
@@ -8143,8 +8328,11 @@ function renderRoundTwoProjection() {
     + `under $200 ${fmt.pct(rate.under200 ?? rate.all, 1)}, $200 plan ${fmt.pct(rate.plan200 ?? rate.all, 1)}, `
     + `$213 to $499 ${fmt.pct(rate.tier262 ?? rate.all, 1)}, $500 to $799 ${fmt.pct(rate.over500 ?? rate.all, 1)} a month. `
     + 'That is why even "Change nothing" falls: churn across the book has run high since June 2026. An account counts as '
-    + 'gone in a month it pays nothing, so a pause reads as a loss. The extra churn a rise causes (its curve less the curve '
-    + 'at no rise) is spread over the first three months; the new price starts in month 1. ARR in 12 months is month 12\'s MRR '
+    + 'gone in a month it pays nothing, so a pause reads as a loss. Round one\'s 36 test accounts are left out of these '
+    + 'rates: their leaving after the September rise is what the rise curves already count. The new price starts in month '
+    + '1 for every account asked, which is the jump there; the extra churn a rise causes (its curve less the curve at no '
+    + 'rise, about one in seven of those asked) is spread over the first three months, so most of the asked keep paying '
+    + 'the new price and the line then falls at the normal rate. ARR in 12 months is month 12\'s MRR '
     + '× 12. Lost to normal churn is lower under a rise because fewer customers are left to lose. Accounts already raised '
     + 'or repriced in Stripe since October are carried at their October price in every scenario, so the levels run a '
     + 'little low but the gaps between scenarios do not move. Nothing here includes '

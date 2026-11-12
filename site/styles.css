@@ -1430,3 +1430,10 @@ th.sorted { color: var(--ink); }
 
 /* Numbered sub-charts inside one card (upgrade list tradeoffs). */
 .sub-head { margin: 1.4rem 0 0.4rem; font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+
+/* 3b: quick picks beside the industries legend, and the table's colour keys. */
+.sweep-quick { margin-left: .6rem; font-weight: 400; }
+.link-button { background: none; border: 0; padding: 0 .35rem; font: inherit; font-size: .85rem;
+  color: var(--series-1); text-decoration: underline; cursor: pointer; }
+.link-button:hover { color: var(--ink); }
+#sweep-table .swatch { margin-right: .4rem; vertical-align: baseline; }

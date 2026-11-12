@@ -3371,6 +3371,19 @@ export function optimalAsks(opts = {}, prices = null) {
 // paying under the band and 12 months or older, the share gone the next month.
 // Cached per data set, band and window: it scans every customer row and the
 // 12-month view asks for it four times on every slider step.
+//
+// Round one's 36 test accounts are left out (12 Nov 2026): their leaving is
+// what the rise curves already count, and in the last six months 12 of the 23
+// $200-plan accounts gone were theirs, which put "normal" churn on that plan at
+// 6.2% a month against 4.0% without them (3.4% in the year before the test).
+// Stripe customer ids from first_round_price_increase_enriched.csv.
+export const ROUND_ONE_TEST_IDS = new Set(('cus_Hqu1k1XInnV23a cus_HtyLHDV88bQbP3 cus_L2gMje0TmO4F9w cus_L2n6eY1Ow2iSC0 '
+  + 'cus_LChTjIICuhgcpk cus_LDGRqz4ph6Cg5O cus_LEhZnSf7SBCatu cus_LFQnvaRi3NJ34b cus_LIaE7B9OQHfnfc cus_LV9w0UYlDyepBe '
+  + 'cus_LYaDxiZ9KLn3Ds cus_LlOo8gPtFNqjTA cus_LxK9cjqXzwLeSx cus_MAiQkfujqc0vWK cus_MTVztSpOO7RExo cus_MYKmtQFIMqTw7B '
+  + 'cus_MjyrfkVsmJ5UJU cus_MlnuTI8rbjQ0xZ cus_Mq3WCRQdPph4NF cus_NCV5nkb3hFUaGS cus_NGZrqijCo6z4UH cus_NN0FXEIuYcKJT6 '
+  + 'cus_NP95Pk2lDX7mDj cus_NScjN6LB9iU901 cus_NVAgkQCAwagyBC cus_NkTBD8JEDF8eXH cus_Nu40WC8e6VoD1B cus_OaaxfQ5j3kzQfW '
+  + 'cus_PC4MAnpf6BjEUN cus_Pp1RycoTNLrfoe cus_Pyp6XM6Q0uf68v cus_Q40n9fmfzMfR4O cus_RFUGrXTIHGraF3 cus_RlEukeDgtbIj4N '
+  + 'cus_SVhDZ208pxCQKr cus_SekKic7jmkB77v').split(' '));
 const BASELINE_CACHE = new WeakMap();
 export function listBaselineChurn(data, { lowBand = 800, months = 6 } = {}) {
   const byData = BASELINE_CACHE.get(data) || new Map();
@@ -3398,6 +3411,7 @@ function computeBaselineChurn(data, { lowBand, months }) {
       const [id, month] = key.split('|');
       if (month !== prev || mrr >= lowBand) continue;
       if (monthDiff(firstPaid.get(id), prev) < 12) continue;
+      if (ROUND_ONE_TEST_IDS.has(id)) continue;
       const b = bucket(mrr);
       tally[b] = tally[b] || { atRisk: 0, gone: 0 };
       tally[b].atRisk += 1;
@@ -3447,6 +3461,52 @@ export function portfolioCurve(data, { kind = 'relative', steps, ...rest } = {})
   });
   const best = points.reduce((a, b) => (b.gain > a.gain ? b : a), points[0]);
   return { kind, points, best, accounts: profiles.length };
+}
+
+// Every account asked, with its texting set to one level (Josh, 12 Nov 2026:
+// "as number of text messages increase what is the average increase for all
+// customers for rev kept relative to the size of the rise ... toggle the
+// industries to separate"). The pool is chart 5's: everyone the card asks,
+// each on its own group's curve at its own price; only texts change.
+export const SWEEP_UNKNOWN = 'Not in the export';
+export function sweepPool(data, rest = {}) {
+  const sp = scenarioPool(data, rest);
+  if (!sp) return null;
+  const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
+  const accounts = sp.pool.map(r => ({ industry: r.industry || SWEEP_UNKNOWN,
+    acc: { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band, cleaning: r.cleaning, industryKnown: true,
+      riskShift: r.riskShift } }));
+  const tally = new Map();
+  for (const a of accounts) {
+    const t = tally.get(a.industry) || { key: a.industry, n: 0, mrr: 0, cleaning: a.acc.cleaning };
+    t.n += 1; t.mrr += a.acc.mrr; tally.set(a.industry, t);
+  }
+  return { opts, accounts, industries: [...tally.values()].sort((a, b) => b.n - a.n || a.key.localeCompare(b.key)) };
+}
+// Revenue kept against no rise, for the ticked industries together and, when
+// split, each on its own: sum of (1 + rise)(1 - churn) x price over sum of
+// (1 - churn at no rise) x price, so a line is the MRR-weighted average.
+export function sweepLines(pool, { texts, rises, ticked = null, split = false, bestUpTo = 1 } = {}) {
+  const lines = new Map();
+  const line = (key, label) => lines.get(key) || lines.set(key, { key, label, n: 0, mrr: 0,
+    num: rises.map(() => 0), den: 0, lost: rises.map(() => 0) }).get(key);
+  for (const { industry, acc } of pool.accounts) {
+    if (ticked && !ticked.has(industry)) continue;
+    const a = { ...acc, texts };
+    const c0 = roundOneChurn(a, a.mrr, pool.opts);
+    const c = rises.map(x => roundOneChurn(a, a.mrr * (1 + x), pool.opts));
+    for (const l of split ? [line('all', 'All ticked'), line(industry, industry)] : [line('all', 'All ticked')]) {
+      l.n += 1; l.mrr += a.mrr; l.den += (1 - c0) * a.mrr;
+      rises.forEach((x, i) => { l.num[i] += (1 + x) * (1 - c[i]) * a.mrr; l.lost[i] += c[i]; });
+    }
+  }
+  return [...lines.values()].map(l => {
+    const points = rises.map((x, i) => ({ rise: x, kept: l.den ? l.num[i] / l.den : null,
+      churn: l.n ? l.lost[i] / l.n : null, gain: l.num[i] - l.den }));
+    // The best rise stays inside what round one tested (+100% on the $200 plan).
+    const best = points.filter(p => p.rise <= bestUpTo + 1e-9).reduce((a, b) => (b.kept > a.kept ? b : a), points[0]);
+    return { key: l.key, label: l.label, n: l.n, mrr: l.mrr, points, best };
+  });
 }
 
 // Twelve months of the list's revenue under a scenario. Normal churn runs
