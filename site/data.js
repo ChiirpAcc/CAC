@@ -3401,10 +3401,23 @@ export function optimalAsks(opts = {}, prices = null) {
   return rows;
 }
 
-// Normal monthly churn by price, from the last six complete months: accounts
-// paying under the band and 12 months or older, the share gone the next month.
-// Cached per data set, band and window: it scans every customer row and the
-// 12-month view asks for it four times on every slider step.
+// Normal churn by price, for the 12-month view. Two readings (12 Nov 2026):
+//
+// 'year' (the default): follow every account paying under the band and 12
+// months or older at a start month for a year, and take the share no longer
+// paying 12 months later, pooled over the last few start months; the monthly
+// rate is the one that compounds to it, 1 - (1 - lost)^(1/12). Josh asked
+// whether losing half the revenue in a year was right: it was not. Of the
+// accounts in these groups in Apr, Jul and Oct 2025, 59% to 65% were still
+// paying a year later, where the month-by-month share (about 7% a month)
+// compounds to 57% lost. The riskiest accounts leave first, so a group followed
+// for a year loses less each month than the book's monthly share, which stays
+// high only because new at-risk accounts keep reaching 12 months.
+//
+// 'month' (the old reading): the share of those accounts gone the next month,
+// over the last six or twelve months. Kept as an option to compare.
+//
+// Cached per data set, band, window and reading: it scans every customer row.
 //
 // Round one's 36 test accounts are left out (12 Nov 2026): their leaving is
 // what the rise curves already count, and in the last six months 12 of the 23
@@ -3419,12 +3432,58 @@ export const ROUND_ONE_TEST_IDS = new Set(('cus_Hqu1k1XInnV23a cus_HtyLHDV88bQbP
   + 'cus_PC4MAnpf6BjEUN cus_Pp1RycoTNLrfoe cus_Pyp6XM6Q0uf68v cus_Q40n9fmfzMfR4O cus_RFUGrXTIHGraF3 cus_RlEukeDgtbIj4N '
   + 'cus_SVhDZ208pxCQKr cus_SekKic7jmkB77v').split(' '));
 const BASELINE_CACHE = new WeakMap();
-export function listBaselineChurn(data, { lowBand = 800, months = 6 } = {}) {
+export function listBaselineChurn(data, { lowBand = 800, months = 6, method = 'year' } = {}) {
   const byData = BASELINE_CACHE.get(data) || new Map();
   BASELINE_CACHE.set(data, byData);
-  const key = lowBand + '|' + months;
-  if (!byData.has(key)) byData.set(key, computeBaselineChurn(data, { lowBand, months }));
+  const key = lowBand + '|' + months + '|' + method;
+  if (!byData.has(key)) {
+    byData.set(key, method === 'year' ? computeYearChurn(data, { lowBand, months }) : computeBaselineChurn(data, { lowBand, months }));
+  }
   return byData.get(key);
+}
+// Year on year: the last `months` start months whose year has ended. The
+// tally is scaled to distinct accounts (each account appears once per start
+// month), so the ranges' draws are not made narrower by the overlap.
+function computeYearChurn(data, { lowBand, months }) {
+  const last = data.lastMonth;
+  const firstPaid = new Map();
+  const paid = new Map();
+  for (const r of data.customers) {
+    if (!r.active || !(r.eopMrr > 0)) continue;
+    if (!firstPaid.has(r.id) || r.month < firstPaid.get(r.id)) firstPaid.set(r.id, r.month);
+    paid.set(r.id + '|' + r.month, r.eopMrr);
+  }
+  const bucket = mrr => (mrr < 200 ? 'under200' : mrr <= 212 ? 'plan200' : mrr < 500 ? 'tier262' : 'over500');
+  const raw = {};
+  const starts = [];
+  for (let k = 0; k < months; k += 1) {
+    const start = monthAdd(last, -12 - k);
+    let any = false;
+    for (const [key, mrr] of paid) {
+      const [id, month] = key.split('|');
+      if (month !== start || mrr >= lowBand) continue;
+      if (monthDiff(firstPaid.get(id), start) < 12) continue;
+      if (ROUND_ONE_TEST_IDS.has(id)) continue;
+      any = true;
+      const b = bucket(mrr);
+      raw[b] = raw[b] || { atRisk: 0, gone: 0 };
+      raw[b].atRisk += 1;
+      if (!paid.has(id + '|' + monthAdd(start, 12))) raw[b].gone += 1;
+    }
+    if (any) starts.push(start);
+  }
+  const n = Math.max(1, starts.length);
+  const rate = {}, lostYear = {}, tally = {};
+  let a = 0, g = 0;
+  for (const [b, t] of Object.entries(raw)) {
+    lostYear[b] = t.atRisk ? t.gone / t.atRisk : 0;
+    rate[b] = 1 - Math.pow(1 - lostYear[b], 1 / 12);
+    tally[b] = { atRisk: t.atRisk / n, gone: t.gone / n, accountYears: t.atRisk, goneYears: t.gone };
+    a += t.atRisk; g += t.gone;
+  }
+  lostYear.all = a ? g / a : 0;
+  rate.all = 1 - Math.pow(1 - lostYear.all, 1 / 12);
+  return { rate, tally, months, method: 'year', lostYear, starts: starts.sort() };
 }
 function computeBaselineChurn(data, { lowBand, months }) {
   const all = [...new Set(data.customers.map(r => r.month))].sort();
@@ -3456,7 +3515,7 @@ function computeBaselineChurn(data, { lowBand, months }) {
   let a = 0, g = 0;
   for (const [b, t] of Object.entries(tally)) { rate[b] = t.atRisk ? t.gone / t.atRisk : 0; a += t.atRisk; g += t.gone; }
   rate.all = a ? g / a : 0;
-  return { rate, tally, months };
+  return { rate, tally, months, method: 'month' };
 }
 const baselineFor = (base, group) => base.rate[group === 'clean200' || group === 'trades200' ? 'plan200' : group] ?? base.rate.all;
 
@@ -3545,13 +3604,13 @@ export function sweepLines(pool, { usage, rises, ticked = null, split = false, b
 }
 
 // Twelve months of the list's revenue under a scenario. Normal churn runs
-// every month at the group's own recent rate; the extra churn a rise causes
-// (its curve less the curve at no rise) lands over the first three months.
-export function projectScenario(data, { scenario = 'none', rise = 0, add = 0, horizon = 12, baseMonths = 6, ...rest } = {}) {
+// every month at the group's own rate (listBaselineChurn); the extra churn a
+// rise causes (its curve less the curve at no rise) lands over months 1 to 3.
+export function projectScenario(data, { scenario = 'none', rise = 0, add = 0, horizon = 12, baseMonths = 6, baseMethod = 'year', ...rest } = {}) {
   const sp = scenarioPool(data, rest);
   if (!sp) return null;
   const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
-  const base = listBaselineChurn(data, { lowBand: rest.lowBand ?? 800, months: baseMonths });
+  const base = listBaselineChurn(data, { lowBand: rest.lowBand ?? 800, months: baseMonths, method: baseMethod });
   const out = projectCore(sp, { scenario, rise, add, horizon, rate: base.rate, opts });
   return { scenario, rise, add, ...out, accounts: sp.scope.length, baseline: base };
 }
@@ -3652,17 +3711,21 @@ export function curveRange(acc, rises, opts = {}, draws = 400) {
 // The 12-month view: each scenario's range, and its gap to changing nothing
 // drawn in the same world (same churn draw, same normal churn), so the gap's
 // range is not two independent ranges subtracted.
-export function projectRange(data, { scenarios, horizon = 12, baseMonths = 6, draws = 400, ...rest } = {}) {
+export function projectRange(data, { scenarios, horizon = 12, baseMonths = 6, baseMethod = 'year', draws = 400, ...rest } = {}) {
   const sp = scenarioPool(data, rest);
   if (!sp) return null;
-  const base = listBaselineChurn(data, { lowBand: rest.lowBand ?? 800, months: baseMonths });
+  const base = listBaselineChurn(data, { lowBand: rest.lowBand ?? 800, months: baseMonths, method: baseMethod });
   const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
   const acc = Object.fromEntries(scenarios.map(sc => [sc.key, { mrr: Array.from({ length: horizon + 1 }, () => []),
     arr12: [], averageMrr: [], revenue12: [], dArr12: [], dAverage: [], dRevenue12: [], lost: [] }]));
   for (const d of churnDraws(draws)) {
     const rand = mulberry32(d.seed);
     const rate = { ...base.rate };
-    for (const [b, t] of Object.entries(base.tally)) rate[b] = betaFrom(rand, t.gone + 1, t.atRisk - t.gone + 1);
+    // A year's loss under 'year', a month's under 'month'; either way a monthly rate.
+    for (const [b, t] of Object.entries(base.tally)) {
+      const q = betaFrom(rand, t.gone + 1, t.atRisk - t.gone + 1);
+      rate[b] = base.method === 'year' ? 1 - Math.pow(1 - q, 1 / 12) : q;
+    }
     const o = { ...opts, draw: d };
     const none = projectCore(sp, { scenario: 'none', horizon, rate, opts: o });
     for (const sc of scenarios) {

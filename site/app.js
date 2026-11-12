@@ -7832,7 +7832,7 @@ function formulaHtml() {
 // The tradeoff curves and the 12-month view under the campaign card (Josh,
 // 11 Nov 2026). They follow the card's switches: the same groups, bands and
 // trust setting, so every figure on the tab answers the same question.
-const TRADE = { textsGroup: 'clean200', baseMonths: 6, rise: null, add: null };
+const TRADE = { textsGroup: 'clean200', baseMonths: 6, baseMethod: 'year', rise: null, add: null };
 const GROUP_INK = {
   clean200: INK.negative, trades200: INK.primary, tier262: INK.secondary,
   under200: INK.tertiary, over500: INK.accent,
@@ -8309,28 +8309,31 @@ function renderRoundTwoProjection() {
 
   const bbox = $('proj-base');
   if (!bbox.dataset.ready) {
-    for (const [months, label] of [[6, 'Last 6 months'], [12, 'Last 12 months']]) {
+    for (const [method, months, label, blurb] of [
+      ['year', 6, 'A year on, last 6 start months', 'Accounts 12 months or older at each start month, followed a year: the share still paying. The default.'],
+      ['year', 12, 'A year on, every start month', 'The same, pooled over every start month the data allows.'],
+      ['month', 6, 'Month by month, last 6 months', 'The old reading: the share gone each month, compounded. Higher, because the riskiest accounts keep being counted.']]) {
       const b = document.createElement('button');
-      b.type = 'button'; b.dataset.key = String(months);
-      b.innerHTML = `<strong>${label}</strong><span>Each price group's own rate of leaving among accounts 12 months or older.</span>`;
-      b.addEventListener('click', () => { TRADE.baseMonths = months; renderRoundTwoProjection(); });
+      b.type = 'button'; b.dataset.key = `${method}|${months}`;
+      b.innerHTML = `<strong>${label}</strong><span>${blurb}</span>`;
+      b.addEventListener('click', () => { TRADE.baseMethod = method; TRADE.baseMonths = months; renderRoundTwoProjection(); });
       bbox.append(b);
     }
     bbox.dataset.ready = '1';
   }
-  for (const b of bbox.querySelectorAll('button')) b.classList.toggle('is-on', Number(b.dataset.key) === TRADE.baseMonths);
+  for (const b of bbox.querySelectorAll('button')) b.classList.toggle('is-on', b.dataset.key === `${TRADE.baseMethod}|${TRADE.baseMonths}`);
 
   const on = ticked('proj-scenarios');
-  const runs = SCEN.map(s => ({ ...s, p: projectScenario(data, { ...sel, scenario: s.key, rise, add, baseMonths: TRADE.baseMonths }) }));
+  const runs = SCEN.map(s => ({ ...s, p: projectScenario(data, { ...sel, scenario: s.key, rise, add, baseMonths: TRADE.baseMonths, baseMethod: TRADE.baseMethod }) }));
   // Ranges take ~100 ms, so they are drawn once the slider has stopped for a
   // moment; until then the lines move on their own.
-  const rangeKey = JSON.stringify([rise, add, TRADE.baseMonths, [...(sel.groups || [])], [...(sel.bands || [])], CAMP.trust]);
+  const rangeKey = JSON.stringify([rise, add, TRADE.baseMonths, TRADE.baseMethod, [...(sel.groups || [])], [...(sel.bands || [])], CAMP.trust]);
   const ranges = PROJ_RANGE.key === rangeKey ? PROJ_RANGE.value : null;
   if (!ranges) {
     clearTimeout(PROJ_RANGE.timer);
     PROJ_RANGE.timer = setTimeout(() => {
       PROJ_RANGE.key = rangeKey;
-      PROJ_RANGE.value = projectRange(data, { ...sel, baseMonths: TRADE.baseMonths,
+      PROJ_RANGE.value = projectRange(data, { ...sel, baseMonths: TRADE.baseMonths, baseMethod: TRADE.baseMethod,
         scenarios: SCEN.map(s => ({ key: s.key, rise, add })) });
       renderRoundTwoProjection();
     }, 250);
@@ -8393,12 +8396,22 @@ function renderRoundTwoProjection() {
   const rate = none.baseline.rate;
   $('proj-note').textContent =
     `Follows the ${fmt.int(none.accounts)} accounts in the price groups ticked on the card above, asked or not, from `
-    + `${fmt.monthLabel(start)}. Normal churn runs every month at each group's own rate over the `
-    + `${TRADE.baseMonths === 6 ? 'last six' : 'last twelve'} complete months among accounts 12 months or older: `
-    + `under $200 ${fmt.pct(rate.under200 ?? rate.all, 1)}, $200 plan ${fmt.pct(rate.plan200 ?? rate.all, 1)}, `
-    + `$213 to $499 ${fmt.pct(rate.tier262 ?? rate.all, 1)}, $500 to $799 ${fmt.pct(rate.over500 ?? rate.all, 1)} a month. `
-    + 'That is why even "Change nothing" falls: churn across the book has run high since June 2026. An account counts as '
-    + 'gone in a month it pays nothing, so a pause reads as a loss. Round one\'s 36 test accounts are left out of these '
+    + `${fmt.monthLabel(start)}. ` + (none.baseline.method === 'year'
+      ? `Normal churn is what each price group actually lost in a year: every account 12 months or older paying under $800 `
+        + `at a start month from ${fmt.monthLabel(none.baseline.starts[0])} to ${fmt.monthLabel(none.baseline.starts[none.baseline.starts.length - 1])}, `
+        + `followed 12 months. Lost in a year: under $200 ${fmt.pct(none.baseline.lostYear.under200 ?? none.baseline.lostYear.all)}, `
+        + `$200 plan ${fmt.pct(none.baseline.lostYear.plan200 ?? none.baseline.lostYear.all)}, $213 to $499 ${fmt.pct(none.baseline.lostYear.tier262 ?? none.baseline.lostYear.all)}, `
+        + `$500 to $799 ${fmt.pct(none.baseline.lostYear.over500 ?? none.baseline.lostYear.all)}; spread evenly that is `
+        + `${fmt.pct(rate.under200 ?? rate.all, 1)}, ${fmt.pct(rate.plan200 ?? rate.all, 1)}, ${fmt.pct(rate.tier262 ?? rate.all, 1)} and `
+        + `${fmt.pct(rate.over500 ?? rate.all, 1)} a month. The share gone each month is higher (about 7%), but compounding it `
+        + 'overstates a year\'s loss: the riskiest accounts go first, and new ones keep reaching 12 months. The third '
+        + 'button above shows that reading. '
+      : `Normal churn here is the old reading, the share gone each month over the last ${TRADE.baseMonths === 6 ? 'six' : 'twelve'} `
+        + `complete months among accounts 12 months or older: under $200 ${fmt.pct(rate.under200 ?? rate.all, 1)}, `
+        + `$200 plan ${fmt.pct(rate.plan200 ?? rate.all, 1)}, $213 to $499 ${fmt.pct(rate.tier262 ?? rate.all, 1)}, `
+        + `$500 to $799 ${fmt.pct(rate.over500 ?? rate.all, 1)} a month, compounded; it overstates a year\'s loss, because the `
+        + 'riskiest accounts go first. ')
+    + 'An account counts as gone when it pays nothing, so a pause reads as a loss. Round one\'s 36 test accounts are left out of these '
     + 'rates: their leaving after the September rise is what the rise curves already count. The new price starts in month '
     + '1 for every account asked, which is the jump there; the extra churn a rise causes (its curve less the curve at no '
     + 'rise, about one in seven of those asked) is spread over the first three months, so most of the asked keep paying '
@@ -8408,7 +8421,7 @@ function renderRoundTwoProjection() {
     + 'little low but the gaps between scenarios do not move. Nothing here includes '
     + 'new customers, and the rest of the book is left out so the scenarios can be compared. The shaded ranges and the '
     + '"90%" figures are the middle 90% of 400 draws: each redraws round one\'s uncertain parts and each group\'s normal '
-    + 'churn from its own counts (for example 10 of 172 under-$200 accounts leaving a month). The gap to changing nothing '
+    + 'churn from its own counts (each account counted once, however many start months it appears in). The gap to changing nothing '
     + 'is drawn in the same world as changing nothing, so it is narrower than the two ranges side by side suggest.';
 }
 
