@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, TEXT_LEVELS, typicalAccount, ROUND_ONE, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, TEXT_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianTexts, underMoveCurve, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -7678,19 +7678,29 @@ function renderTradeoffs(c) {
   const opts = campOptions();
   const sel = campSelection();
 
+  // "Typical" is each group's median price on the list, named in every label.
+  const med = groupMedianPrices(data, { lowBand: CAMP_LOW_BAND, engagement: CAMP_BANDS });
+  const tlabel = g => `${TYPICAL[g].label} (median ${fmt.money(med[g])})`;
+  const RISE_GROUPS = ['clean200', 'trades200', 'tier262', 'over500'];
+  const typ = (g, texts) => typicalAccount(g, texts, med[g]);
+  // Charts 1 and 2 show each group's median account: median price and median
+  // texts, so groups that share a curve still differ by how much they use it.
+  const medT = groupMedianTexts(data, { lowBand: CAMP_LOW_BAND, engagement: CAMP_BANDS });
+  const mlabel = g => `${TYPICAL[g].label} (median ${fmt.money(med[g])}, ${fmt.int(medT[g])} texts)`;
+
   // The optimal ask for each category at four levels of use.
-  const opt = optimalAsks(opts);
+  const opt = optimalAsks(opts, med);
   const cell = r => (r.target > r.mrr
     ? `<strong>${fmt.money(r.target)}</strong> <span class="muted">${pctRise(r.rise)}, ${fmt.pct(r.churn)} leave, `
       + `${r.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(r.gain))}</span>`
     : '<span class="muted">no change</span>');
   const applied = Object.fromEntries(c.byGroup.map(g => [g.key, g]));
   $('trade-optimal').innerHTML = '<thead><tr><th>Category</th><th>What round one found</th>'
-    + TEXT_LEVELS.map(l => `<th>${l.texts === ROUND_ONE.textsRef ? fmt.int(l.texts) + ' texts (median)' : fmt.int(l.texts) + ' texts'}</th>`).join('')
+    + TEXT_LEVELS.map(l => `<th>${l.texts === ROUND_ONE.textsRef ? fmt.int(l.texts) + ' texts (round one median)' : fmt.int(l.texts) + ' texts'}</th>`).join('')
     + '<th>Applied on the list</th></tr></thead><tbody>'
     + ['clean200', 'trades200', 'tier262', 'under200', 'over500'].map(group => {
       const g = applied[group];
-      return `<tr><td><strong>${TYPICAL[group].label}</strong></td><td class="small">${RESEARCH[group]}</td>`
+      return `<tr><td><strong>${tlabel(group)}</strong></td><td class="small">${RESEARCH[group]}</td>`
         + TEXT_LEVELS.map(l => `<td>${cell(opt.find(r => r.group === group && r.texts === l.texts))}</td>`).join('')
         + `<td>${g && g.asked ? `${fmt.int(g.asked)} asked, typically ${fmt.money(g.typical)}, `
             + `${g.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(g.gain))} a month${g.ticked ? '' : ' <span class="muted">(not ticked)</span>'}`
@@ -7719,41 +7729,68 @@ function renderTradeoffs(c) {
     });
   };
   // 1: the pricing curves themselves, chance of leaving in the round.
-  const churnLines = ['clean200', 'trades200', 'tier262', 'under200'].map(group => ({
-    label: TYPICAL[group].label, colour: GROUP_INK[group],
-    curve: tradeoffCurve(typicalAccount(group), rises, opts),
+  const churnLines = RISE_GROUPS.map(group => ({
+    label: mlabel(group), colour: GROUP_INK[group], dashed: group === 'over500',
+    curve: tradeoffCurve(typ(group, medT[group]), rises, opts),
   }));
   multiLineChart($('trade-churn'), {
     labels, yFormat: v => fmt.pct(v), yTitle: 'Chance of leaving in the round',
     xTitle: 'Size of the rise',
-    series: churnLines.map(l => ({ label: l.label, colour: l.colour, values: l.curve.map(p => p.churn) })),
+    series: churnLines.map(l => ({ label: l.label, colour: l.colour, dashed: l.dashed, values: l.curve.map(p => p.churn) })),
     xMarks: [{ index: 10, label: 'Tested limit, $200 plan' }],
     describe: i => `<strong>${labels[i]}</strong>` + churnLines.map(l =>
       `<span>${l.label}: ${fmt.pct(l.curve[i].churn)} leave</span>`).join(''),
   });
 
-  keptChart('trade-industry', ['clean200', 'trades200', 'tier262', 'under200'].map(group => ({
-    label: TYPICAL[group].label, colour: GROUP_INK[group],
-    curve: tradeoffCurve(typicalAccount(group), rises, opts),
+  keptChart('trade-industry', RISE_GROUPS.map(group => ({
+    label: mlabel(group), colour: GROUP_INK[group], dashed: group === 'over500',
+    curve: tradeoffCurve(typ(group, medT[group]), rises, opts),
   })));
 
   const box = $('trade-texts-group');
   if (!box.dataset.ready) {
-    for (const group of ['clean200', 'trades200', 'tier262', 'under200']) {
+    for (const group of RISE_GROUPS) {
       const b = document.createElement('button');
       b.type = 'button'; b.dataset.key = group;
-      b.innerHTML = `<strong>${TYPICAL[group].label}</strong>`;
       b.addEventListener('click', () => { TRADE.textsGroup = group; renderTradeoffs(LAST_CAMP); });
       box.append(b);
     }
     box.dataset.ready = '1';
   }
-  for (const b of box.querySelectorAll('button')) b.classList.toggle('is-on', b.dataset.key === TRADE.textsGroup);
+  for (const b of box.querySelectorAll('button')) {
+    b.innerHTML = `<strong>${tlabel(b.dataset.key)}</strong>`;
+    b.classList.toggle('is-on', b.dataset.key === TRADE.textsGroup);
+  }
   const tInk = [INK.negative, INK.secondary, INK.primary, INK.positive];
   keptChart('trade-texts', TEXT_LEVELS.map((l, i) => ({
     label: l.label, colour: tInk[i],
-    curve: tradeoffCurve(typicalAccount(TRADE.textsGroup, l.texts), rises, opts),
+    curve: tradeoffCurve(typ(TRADE.textsGroup, l.texts), rises, opts),
   })));
+
+  // 4: under $200, the one move round one tested, $62-$192 to $500. The size
+  // of the rise did not predict leaving, so what matters is what the account
+  // pays now (what it gives up) and its usage and industry (whether it goes).
+  const underPrices = [62, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 199];
+  const underLines = [
+    { label: 'Trades, 535 texts (round one median)', colour: INK.primary, cleaning: false, texts: ROUND_ONE.textsRef },
+    { label: 'Trades, 100 texts', colour: INK.secondary, cleaning: false, texts: 100 },
+    { label: 'Cleaning, 535 texts', colour: INK.negative, cleaning: true, texts: ROUND_ONE.textsRef },
+    { label: 'Cleaning, 100 texts', colour: INK.positive, cleaning: true, texts: 100 },
+  ].map(l => ({ ...l, curve: underMoveCurve(underPrices, l, opts) }));
+  const underLabels = underPrices.map(p => fmt.money(p));
+  const medIdx = underPrices.reduce((bi, p, i) => (Math.abs(p - med.under200) < Math.abs(underPrices[bi] - med.under200) ? i : bi), 0);
+  multiLineChart($('trade-under'), {
+    labels: underLabels, yFormat: v => fmt.money(v), yTitle: 'Revenue added a month at $500',
+    xTitle: 'What the account pays now',
+    series: underLines.map(l => ({ label: l.label, colour: l.colour, values: l.curve.map(p => p.gain) })),
+    refs: [{ value: 0, label: 'No rise' }],
+    xMarks: [{ index: medIdx, label: `Median on the list, ${fmt.money(med.under200)}` }],
+    describe: i => `<strong>Paying ${underLabels[i]}, moved to $500 (${pctRise(500 / underPrices[i] - 1)})</strong>`
+      + underLines.map(l => {
+        const p = l.curve[i];
+        return `<span>${l.label}: ${fmt.pct(p.churn)} leave, ${p.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(p.gain))} a month</span>`;
+      }).join(''),
+  });
 
   // 3 and 4: one rise for everyone asked, inside the range round one tested.
   const rel = portfolioCurve(data, { ...sel, kind: 'relative', steps: Array.from({ length: 21 }, (_, i) => i / 20) });
@@ -7790,19 +7827,27 @@ function renderTradeoffs(c) {
     + `light users and undercharges heavy senders, which is the whole case for pricing by account.`;
 
   $('trade-note').textContent =
-    'The table gives the ask for a typical account in each category at four levels of texts sent, chosen as on the list: the '
+    'The table gives the ask for a typical account in each category, at the group\'s median price on the list (accounts '
+    + 'that could be asked, not dormant or excluded) and at four levels of texts sent, chosen as on the list: the '
     + 'lowest $25 step that captures 97% of the most revenue the account could add, inside what round one tested. Each '
     + 'cell shows the ask, the rise, the chance of leaving in the round and the revenue added a month after churn. Chart 1 is '
-    + 'round one\'s pricing curves: the chance a typical account in each group leaves in the round at each size of rise, '
-    + 'midway between the smooth and cliff readings of round one and at the list\'s median of 535 texts a month. Charts 2 and 3 '
+    + 'round one\'s pricing curves: the chance the median account in each group leaves in the round at each size of rise, '
+    + 'midway between the smooth and cliff readings of round one. Charts 1 and 2 take each group\'s median account on the '
+    + 'list, its median price and median texts sent, both named in the legend; chart 3 and the table hold usage at four fixed '
+    + 'levels instead (535 is round one\'s median). Charts 2 and 3 '
     + 'show the revenue an account is expected to bring after the round, (1 + rise) × (1 − churn), against what it brings '
     + 'with no rise, (1 − churn at no rise), since some leave either way: above the No rise line the rise pays for the '
     + 'customers it loses. The $200 plan was tested to +100% ($200 to $400) and the $213+ accounts to '
-    + '+90%; past the marked line the curves carry their last slope and are guesses. Under $200, round one only gave rises '
-    + 'of +150% or more, so smaller rises ramp up to its churn from normal churn, an assumption. Charts 4 and 5 ask everyone '
+    + '+90%; past the marked line the curves carry their last slope and are guesses. The $500 to $799 line is dashed: '
+    + 'round one had no accounts there, so it borrows the $213+ curve. Under $200 has its own chart, 4, because round one '
+    + 'tested one move there, accounts paying $62 to $192 to $500 (+150% to +700%), and how big the rise was did not predict '
+    + 'leaving: whether an account goes depends on its usage and on being a cleaning business, and what moving it adds '
+    + 'depends on what it pays now. Each line is one account moved to $500, revenue after churn against leaving it alone. '
+    + 'Charts 5 and 6 ask everyone '
     + 'the card asks the same rise, each account on its own curve: revenue gained a month after churn on the left, '
     + 'customers lost to the rise (above normal churn) on the right. A dollar rise is a far bigger shock to a $100 account '
-    + 'than to a $450 one, which is why chart 5 peaks higher and loses more customers.';
+    + 'than to a $450 one, which is why chart 6 peaks higher and loses more customers. They and the 12-month view include '
+    + 'the $500 to $799 accounts when that group is ticked on the card.';
   renderRoundTwoProjection();
 }
 
@@ -7820,7 +7865,7 @@ function renderRoundTwoProjection() {
   ];
   buildToggles('proj-scenarios', SCEN.map(s => ({ key: s.key, label: s.label, defaultOn: s.defaultOn,
     hint: s.key === 'none' ? 'Normal churn only.' : s.key === 'account' ? 'The asks in the list below.'
-      : s.key === 'relative' ? 'The slider below; it starts at the best rise on chart 4.' : 'The slider below; it starts at the best rise on chart 5.' })),
+      : s.key === 'relative' ? 'The slider below; it starts at the best rise on chart 5.' : 'The slider below; it starts at the best rise on chart 6.' })),
     renderRoundTwoProjection);
 
   const riseIn = $('proj-rise');

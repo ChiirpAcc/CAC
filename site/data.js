@@ -3169,17 +3169,56 @@ export function roundTwo(data, {
 // amounts for each category, tradeoff curves by industry, texts sent,
 // relative and absolute increase, and 12 months of revenue after churn).
 
-// A typical account in each price group, at the list's median usage.
+// A typical account in each price group: the group's median price on the
+// list (groupMedianPrices), at a stated usage. These prices are the
+// fallback when the list is not to hand; they were the medians on 11 Nov 2026.
 export const TYPICAL = {
   clean200: { mrr: 200, label: '$200 plan, cleaning' },
   trades200: { mrr: 200, label: '$200 plan, trades' },
-  tier262: { mrr: 350, label: '$213 to $499 (typical $350)' },
-  under200: { mrr: 100, label: 'Under $200 (typical $100)' },
-  over500: { mrr: 650, label: '$500 to $799 (typical $650)' },
+  tier262: { mrr: 350, label: '$213 to $499' },
+  under200: { mrr: 100, label: 'Under $200' },
+  over500: { mrr: 700, label: '$500 to $799' },
 };
+// The median price in each group among the accounts that could be asked
+// (on the list, not dormant, not excluded), so "typical" is a named account
+// price rather than a round number.
+export function groupMedianPrices(data, { lowBand = 800, engagement = null } = {}) {
+  const list = upgradeList(data, { lowBand, rule: 'account', engagement });
+  const out = Object.fromEntries(Object.entries(TYPICAL).map(([k, v]) => [k, v.mrr]));
+  if (!list) return out;
+  for (const key of Object.keys(TYPICAL)) {
+    const v = list.low.filter(r => r.group === key && r.band !== 'dormant' && !r.excluded && r.mrr > 2)
+      .map(r => r.mrr).sort((a, b) => a - b);
+    if (v.length) out[key] = v.length % 2 ? v[v.length >> 1] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+  }
+  return out;
+}
+// The median texts sent a month in each group, among the same accounts, for
+// charts that show each group's median account rather than one usage level.
+export function groupMedianTexts(data, { lowBand = 800, engagement = null } = {}) {
+  const list = upgradeList(data, { lowBand, rule: 'account', engagement });
+  const out = Object.fromEntries(Object.keys(TYPICAL).map(k => [k, ROUND_ONE.textsRef]));
+  if (!list) return out;
+  for (const key of Object.keys(TYPICAL)) {
+    const v = list.low.filter(r => r.group === key && r.band !== 'dormant' && !r.excluded && r.mrr > 2 && r.textsMeasured)
+      .map(r => r.texts).sort((a, b) => a - b);
+    if (v.length) out[key] = v.length % 2 ? v[v.length >> 1] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+  }
+  return out;
+}
+// Under $200, round one tested one move: to $500 from $62 to $192. What that
+// move does to one account, by what it pays now, at a given usage.
+export function underMoveCurve(prices, { texts = ROUND_ONE.textsRef, cleaning = false } = {}, opts = {}) {
+  return prices.map(p => {
+    const acc = { mrr: p, group: 'under200', texts, band: 'users', cleaning, industryKnown: true };
+    const target = ROUND_ONE.underTarget;
+    const churn = roundOneChurn(acc, target, opts), churnNow = roundOneChurn(acc, p, opts);
+    return { price: p, target, churn, churnNow, gain: (1 - churn) * target - (1 - churnNow) * p };
+  });
+}
 export const TEXT_LEVELS = [
   { texts: 100, label: '100 texts a month' },
-  { texts: ROUND_ONE.textsRef, label: `${ROUND_ONE.textsRef} (the list's median)` },
+  { texts: ROUND_ONE.textsRef, label: `${ROUND_ONE.textsRef} (round one's median)` },
   { texts: 2000, label: '2,000' },
   { texts: 10000, label: '10,000' },
 ];
@@ -3199,11 +3238,11 @@ export function tradeoffCurve(acc, rises, opts = {}) {
 
 // The optimum for each group at each usage level, by the same rule as the
 // list's asks, so the table and the list cannot disagree.
-export function optimalAsks(opts = {}) {
+export function optimalAsks(opts = {}, prices = null) {
   const rows = [];
   for (const group of ['clean200', 'trades200', 'tier262', 'under200', 'over500']) {
     for (const lvl of TEXT_LEVELS) {
-      const acc = typicalAccount(group, lvl.texts);
+      const acc = typicalAccount(group, lvl.texts, (prices && prices[group]) || TYPICAL[group].mrr);
       const a = roundOneAsk(acc, opts);
       const keptNow = (1 - a.churnNow) * acc.mrr;
       const keptAsk = (1 - a.churn) * a.target;
