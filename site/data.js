@@ -3077,8 +3077,18 @@ export function roundOneProfile(row, engagement) {
 // term is half the gap, on the log-odds scale, between round one's smooth and
 // cliff readings of the cleaning curve (8% / 3% at no rise, 22% / 13% at +50%,
 // 48% / 40% at +100%).
+// Drawn jointly (12 Nov 2026, Josh: "the confidence ranges are very wide"):
+// the off-plan level at the reference account, the $200-plan effect and the
+// contacts-replying effect come from the fit's own covariance, through this
+// Cholesky factor. Drawn apart, as before, the plan's level carried 1.78 on the
+// log-odds scale; the fit says 0.67, because the off-plan level and the plan
+// effect are strongly opposed (correlation -0.88). Cleaning is out of the model
+// and out of the draws, so both $200-plan groups have one curve and one range.
+// The level draws build with the rise like engagement (none at no rise, full
+// from +40%): round one measured churn after a rise, not without one.
 export const ROUND_ONE_UNCERTAINTY = {
-  se: { plan: 1.38, cleaning: 1.45, texts: 1.245, offPlan: 1.12 },
+  se: { plan: 1.382, cleaning: 0, texts: 1.245, offPlan: 1.121 },
+  chol: [[1.1211, 0, 0], [-1.2127, 0.6635, 0], [0.6637, -0.2309, 1.0277]],
   shape: [[0, 0.52], [0.25, 0.385], [0.5, 0.32], [0.75, 0.245], [1, 0.16], [1.5, 0]],
   level: 0.9,
 };
@@ -3129,12 +3139,17 @@ export function churnDraws(n = 400, seed = 20261111) {
   const key = n + '|' + seed;
   if (DRAW_CACHE.has(key)) return DRAW_CACHE.get(key);
   const rand = mulberry32(seed);
-  const se = ROUND_ONE_UNCERTAINTY.se;
-  const out = Array.from({ length: n }, () => ({
-    plan: normalFrom(rand) * se.plan, cleaning: normalFrom(rand) * se.cleaning,
-    texts: normalFrom(rand) * se.texts, off: normalFrom(rand) * se.offPlan,
-    shape: rand() * 2 - 1, seed: Math.floor(rand() * 2 ** 31),
-  }));
+  const [c0, c1, c2] = ROUND_ONE_UNCERTAINTY.chol;
+  const out = Array.from({ length: n }, () => {
+    const z = [normalFrom(rand), normalFrom(rand), normalFrom(rand)];
+    return {
+      off: c0[0] * z[0],
+      plan: c1[0] * z[0] + c1[1] * z[1],
+      texts: c2[0] * z[0] + c2[1] * z[1] + c2[2] * z[2],
+      cleaning: 0,
+      shape: rand() * 2 - 1, seed: Math.floor(rand() * 2 ** 31),
+    };
+  });
   DRAW_CACHE.set(key, out);
   return out;
 }
@@ -3180,9 +3195,8 @@ export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1, draw
   } else {
     let z = logit(curveAt(ROUND_ONE.curves[acc.group === 'over500' ? 'tier262' : acc.group], x));
     if (draw) {
-      z += draw.off + draw.shape * shapeAt(x);
-      if (acc.group === 'clean200' || acc.group === 'trades200') z += draw.plan;
-      if (acc.group === 'clean200') z += draw.cleaning;
+      const level = draw.off + (acc.group === 'clean200' || acc.group === 'trades200' ? draw.plan : 0);
+      z += level * Math.min(1, Math.max(0, x) / ROUND_ONE.usageRamp) + draw.shape * shapeAt(x);
     }
     p = sigmoid(z + usage * Math.min(1, Math.max(0, x) / ROUND_ONE.usageRamp));
   }

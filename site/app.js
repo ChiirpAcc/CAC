@@ -7657,8 +7657,8 @@ function renderCampaign() {
     + 'Revenue gained is against changing nothing, with normal churn on both sides; "expected to leave" counts '
     + 'everyone the model expects to go in the round, normal churn included. The curves rest on 36 accounts '
     + 'and 15 churns, the engagement fit on the 34 that were texting. The ranges under the headline and in the tables are '
-    + 'the middle 90% of 1,000 draws of round one\'s uncertain parts (the coefficients\' standard errors from their p-values, '
-    + 'and the smooth or cliff shape), with the asks held where they are: they are what these asks could bring, not '
+    + 'the middle 90% of 1,000 draws of round one\'s uncertain parts (the refit\'s coefficients drawn together from its '
+    + 'covariance, and the smooth or cliff shape), with the asks held where they are: they are what these asks could bring, not '
     + 'different asks. They are wide because round one is small. The $500 to $799 group uses the 500+ model\'s score for '
     + 'each account. Log every outcome of round two with its ask and refit.';
   LAST_CAMP = c;
@@ -7955,9 +7955,15 @@ function renderTradeoffs(c) {
     range: curveRange(typ(group, medT[group]), rises, opts),
   })));
 
+  // One button for the $200 plan (Josh, 12 Nov 2026: "cleaning and trades do
+  // not change the chart"). Since the refit on contacts replying, cleaning adds
+  // nothing, so cleaners and trades on the plan share one curve and two buttons
+  // drew the same chart.
+  const TEXT_GROUPS = ['clean200', 'tier262', 'over500'];
+  if (TRADE.textsGroup === 'trades200') TRADE.textsGroup = 'clean200';
   const box = $('trade-texts-group');
   if (!box.dataset.ready) {
-    for (const group of RISE_GROUPS) {
+    for (const group of TEXT_GROUPS) {
       const b = document.createElement('button');
       b.type = 'button'; b.dataset.key = group;
       b.addEventListener('click', () => { TRADE.textsGroup = group; renderTradeoffs(LAST_CAMP); });
@@ -7966,7 +7972,9 @@ function renderTradeoffs(c) {
     box.dataset.ready = '1';
   }
   for (const b of box.querySelectorAll('button')) {
-    b.innerHTML = `<strong>${tlabel(b.dataset.key)}</strong>`;
+    b.innerHTML = b.dataset.key === 'clean200'
+      ? `<strong>$200 plan (median ${fmt.money(med.clean200)})</strong><span>Cleaning and trades: one curve once contacts replying are counted.</span>`
+      : `<strong>${tlabel(b.dataset.key)}</strong>`;
     b.classList.toggle('is-on', b.dataset.key === TRADE.textsGroup);
   }
   const tInk = [INK.negative, INK.secondary, INK.primary, INK.positive];
@@ -8066,10 +8074,11 @@ function renderTradeoffs(c) {
     + 'with fewer than 20 contacts replying a month, 35% both; the $213+ curve is moved on the log-odds scale until it '
     + 'starts at the account\'s score, so the rise adds what it added for round one\'s $262+ accounts, and engagement no longer '
     + 'move it, since the score already reflects engagement. The shaded ranges on charts 1 and 2 are the middle 90% of 400 '
-    + 'draws of what round one could not pin down, with standard errors from the refit on its 34 texting accounts: the '
-    + '$200-plan effect (1.38), cleaning (1.45, though it is left out), contacts replying (1.245 per tenfold), the off-plan '
-    + 'level (1.12) and the curve\'s shape '
-    + 'between the smooth and cliff readings; for $500 to $799 only what the rise adds is drawn.';
+    + 'draws of what round one could not pin down: the off-plan level, the $200-plan effect and the contacts-replying '
+    + 'effect drawn together from the refit\'s own covariance on its 34 texting accounts (the plan\'s level is far surer '
+    + 'than its effect alone suggests, because the two are tied), building with the rise as engagement does, and the '
+    + 'curve\'s shape between the smooth and cliff readings; for $500 to $799 only what the rise adds is drawn. The bands '
+    + 'stay wide past +50% because round one rests on 34 accounts and 14 who left.';
   renderTextsSweep();
   renderRoundTwoProjection();
 }
