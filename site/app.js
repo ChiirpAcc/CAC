@@ -7634,7 +7634,8 @@ function renderCampaign() {
     + 'took +150% to +700% and mostly stayed. So the $200 plan is split into cleaning and trades, each with '
     + 'its own curve of churn against the size of the rise; accounts from $213 up share the curve of round '
     + 'one\'s $262+ accounts, mostly trades, which lost about 10% at +40% to +90%. Each curve is shifted '
-    + 'by usage (round one\'s fit halves the odds of leaving for each tenfold more texts), and the ask is the '
+    + 'by usage (refit on round one\'s 34 texting accounts, each tenfold more texts cuts the odds of leaving about '
+    + '8 times), and the ask is the '
     + 'lowest price, in $25 steps, that captures 97% of the most revenue the account could add. Asks stay '
     + 'inside what round one tested: +100% on the $200 plan, +90% from $213 up, and $500 for accounts paying '
     + '$62 to $199. Dormant accounts are not asked, nor are accounts migrated to Chiirp AI or, in the export, '
@@ -7700,53 +7701,68 @@ function renderFindings(c, cr) {
   const risk = CAMP_BANDS && CAMP_BANDS.risk500;
 
   box.innerHTML =
-    `<p class="finding"><strong>The plan an account is on decides most of who leaves; industry and usage come next; `
-    + `the size of the rise matters within a plan, not across plans.</strong> So each account is asked its own price, `
-    + `set where it earns the most after the customers expected to leave. On the $200 plan cleaners are asked less than `
-    + `trades because they leave more at every rise; under $200 everyone moves to $500, the one move round one tested, `
-    + `and cleaners simply carry more of the risk.</p>`
+    `<p class="finding"><strong>The plan an account is on decides most of who leaves, and how much it texts comes next; `
+    + `once texting is counted, industry adds little. The size of the rise matters within a plan, not across plans.</strong> `
+    + `So each account is asked its own price, set where it earns the most after the customers expected to leave. `
+    + `The asks follow usage rather than industry: at the same usage a cleaner is only slightly more likely to leave `
+    + `than a trades account, so cleaners and trades on the same plan end up asked about the same. Under $200 everyone `
+    + `moves to $500, the one move round one tested, and light users carry most of the risk.</p>`
 
     + '<h4 class="sub-head">What identifies who leaves at a price rise</h4>'
     + '<div class="table-scroll"><table class="data-table findings-table"><thead><tr><th>Signal</th><th>What we found</th>'
     + '<th>How sure</th><th>How the asks use it</th></tr></thead><tbody>'
     + '<tr><td><strong>On the $200–212 legacy plan</strong></td>'
-    + '<td>About 9 times the odds of leaving. In September about 75% of the $200 cleaners moved to $500 left, while '
-    + 'accounts paying $62 to $192 moved to the same $500 (+150% to +700%) mostly stayed: $200 had become what Chiirp '
-    + 'costs, and $500 broke it.</td><td>Strong (p = 0.03)</td>'
-    + '<td>The $200 plan has its own curves, split by cleaning and trades, and rises stop at +100%.</td></tr>'
+    + '<td>About 22 times the odds of leaving at the same usage. In September about 75% of the $200 accounts moved to '
+    + '$500 left, while accounts paying $62 to $192 moved to the same $500 (+150% to +700%) mostly stayed: $200 had '
+    + 'become what Chiirp costs, and $500 broke it.</td><td>Strong (p = 0.01)</td>'
+    + '<td>The $200 plan has its own curves and rises stop at +100%.</td></tr>'
+    + '<tr><td><strong>Texts sent</strong></td>'
+    + '<td>Each tenfold more texts sent cuts the odds of leaving about 8 times: an account that relies on Chiirp keeps '
+    + 'it. Refit on 12 Nov on the 34 round-one accounts that were texting; the two that sent 0 and 1 texts a month are '
+    + 'left out, as the list never asks a dormant account, and with them in the effect looked far weaker.</td>'
+    + '<td>Strong, on 34 accounts (p = 0.03)</td>'
+    + '<td>Each account\'s own texts a month moves its curve, held between 60 and 10,000 a month. "Usage counts half as '
+    + 'much" on the card tests a weaker effect.</td></tr>'
     + '<tr><td><strong>Size of the rise, within a plan</strong></td>'
-    + '<td>Leaving climbs with the rise: cleaners on $200 from 6% with no rise to 18% at +50% and 44% at +100%; '
-    + 'trades on $200 from 2% to 7% and 21%; $213 and up from 3% to 9% and 28%. Across plans the size alone predicted '
-    + 'nothing (the biggest rises, under $200, lost the fewest).</td>'
+    + '<td>Leaving climbs with the rise, for an account sending 535 texts a month: cleaners on $200 from 6% with no rise '
+    + 'to 18% at +50% and 44% at +100%; trades on $200 from 5% to 16% and 41%; $213 and up from 3% to 9% and 28%. '
+    + 'Across plans the size alone predicted nothing (the biggest rises, under $200, lost the fewest).</td>'
     + '<td>Shape uncertain: midway between round one\'s smooth and cliff readings</td>'
     + '<td>Each group\'s curve sets the chance of leaving at every possible ask.</td></tr>'
     + '<tr><td><strong>Cleaning or wash business</strong></td>'
-    + '<td>About 2.8 times the odds, but most $200 accounts were cleaners, so this overlaps with the plan.</td>'
-    + '<td>Weak once the plan is counted (p = 0.29)</td>'
-    + '<td>Cleaners on $200 get the steeper cleaning curve; under $200 cleaning raises the chance of leaving at $500. '
+    + '<td>On its own about 2.8 times the odds, but cleaners texted less. Once texting is counted, being a cleaner adds '
+    + 'about 15% to the odds (1.15 times).</td>'
+    + '<td>Not significant (p = 0.91)</td>'
+    + '<td>The cleaning curve sits 0.14 above trades on the log-odds scale, on the $200 plan and under $200. '
     + 'Industry comes from the export\'s classification.</td></tr>'
-    + '<tr><td><strong>Texts sent</strong></td>'
-    + '<td>Each tenfold more texts sent roughly halves the odds of leaving: an account that relies on Chiirp keeps it.</td>'
-    + '<td>Directional (p = 0.26)</td>'
-    + '<td>Each account\'s own texts a month moves its curve. "Usage counts half as much" on the card tests a weaker effect.</td></tr>'
     + '<tr><td><strong>For $500 and up: replies and age</strong></td>'
-    + '<td>The 500+ model, built on round one\'s pattern: 11% leave at a round-one-sized rise normally, 14% if the '
-    + 'account is under a year old, 27% if few contacts reply, 35% for both. Failed charges are watched but do not move it.'
-    + (risk ? ` ${fmt.int([...risk.values()].filter(v => v >= 0.27).length)} of the ${fmt.int(risk.size)} scored `
-      + '$500 to $799 accounts are at 27% or more.' : '') + '</td>'
-    + '<td>Untested: no $500+ account was in round one</td>'
-    + '<td>Each $500 to $799 account\'s curve passes through its score.</td></tr>'
+    + '<td>The 500+ model, fitted on 732 $500+ accounts with no price change: 10% leave in three months normally, 15% if '
+    + 'the account is under a year old, 26% if fewer than 20 contacts reply a month, 35% for both.'
+    + (risk ? ` ${fmt.int([...risk.values()].filter(v => v >= 0.26).length)} of the ${fmt.int(risk.size)} scored `
+      + '$500 to $799 accounts are at 26% or more.' : '') + '</td>'
+    + '<td>The level is well measured (117 left); what a rise adds above $500 is untested</td>'
+    + '<td>Each $500 to $799 account starts at its score, and the rise adds what it added for round one\'s $262+ '
+    + 'accounts on the log-odds scale.</td></tr>'
     + '<tr><td><strong>Did not help</strong></td>'
     + '<td>The rise in percent or dollars on its own, and every interaction tried (industry by texts, industry by rise). '
-    + 'Logins are not used. No texts in three months marks an account dormant, and dormant accounts are not asked.</td>'
-    + '<td>Tested in round one\'s fits (leave-one-out)</td><td>Left out.</td></tr>'
+    + 'From the 12 Nov forecast models: reply rate, the trend in texts and account age added nothing on the texting '
+    + 'accounts, and the squared-rise Model B scored worse on accounts it had not seen (0.78 AUC against 0.83) and bends '
+    + 'so that churn falls at the biggest rises. Logins are not used. Accounts with no texts in three months are '
+    + 'dormant and are not asked.</td>'
+    + '<td>Tested leave-one-out on the 34 texting accounts</td><td>Left out.</td></tr>'
+    + '<tr><td><strong>Job revenue</strong></td>'
+    + '<td>The strongest signal found: the rise measured against the account\'s monthly job revenue (Model A, 0.94 AUC '
+    + 'on accounts it had not seen). It is pulled for only 28 round-one accounts so far.</td>'
+    + '<td>Strong, on 28 accounts</td>'
+    + '<td>Not used yet: pull job revenue for the accounts being asked, then it can set their asks.</td></tr>'
     + '</tbody></table></div>'
 
     + '<h4 class="sub-head">How the asks balance industries</h4>'
     + '<p>For every account the card weighs a higher price against the chance it leaves at that price, and takes the '
     + 'lowest $25 step that earns at least 97% of the most it could add. Giving up that last 3% of revenue buys a '
     + 'noticeably smaller rise and fewer leavers, because each curve is nearly flat at its peak. The asks stay inside '
-    + 'what round one tested. Since cleaners leave more at every size of rise, their best price sits lower'
+    + 'what round one tested. Light users leave more at every size of rise, so their best price sits lower; being a '
+    + 'cleaner moves it only a little'
     + (planLine ? `: ${planLine}` : '') + '. The table below is the balance that produces inside each price group, '
     + 'for the groups and bands ticked on the card. Compare within a group: the groups start from such different '
     + 'prices that a rise in percent means little across them.</p>'
@@ -7760,7 +7776,7 @@ function renderFindings(c, cr) {
     + 'trades share one set of curves: the industry table in the card below shows where their asks land, not a separate '
     + 'fit for each. Under $200 the rise is a fixed move to $500, the one move round one tested there.'
     + (cr ? ` How sure: the asks on the card add ${sm(c.change)} a month, with a 90% range of ${sm(cr.gain.low)} to `
-      + `${sm(cr.gain.high)}, because round one rests on 36 accounts and 15 who left. Log every outcome of round two `
+      + `${sm(cr.gain.high)}, because round one rests on 34 texting accounts and 14 who left. Log every outcome of round two `
       + 'with its ask and refit; that is what narrows the range.' : '') + '</p>';
 }
 
@@ -7774,10 +7790,10 @@ const GROUP_INK = {
 };
 const RESEARCH = {
   clean200: 'Moved to $500 (+150%) in September: about 75% left. EZ Air and Roof Gutter accepted +35% to +40%.',
-  trades200: 'Same plan, far less churn than cleaners at the same price. Rests on 4 accounts.',
+  trades200: 'Same plan. Once texting is counted, trades left about as often as cleaners: 2 of the 3 texting trades accounts left at $500.',
   tier262: 'Round one\'s $262+ accounts, mostly trades, lost about 10% at +40% to +90%.',
   under200: 'Accounts paying $62 to $192 went to $500 (+150% to +700%) and most stayed. The size of the rise did not predict leaving.',
-  over500: 'Not in round one. The 500+ model scores each account 11% to 35% at a round-one-sized rise (+40% to +90%); the $213+ curve is set to pass through each score.',
+  over500: 'Not in round one. The 500+ model scores each account 10% to 35% leaving in three months with no rise; the rise adds what it added for round one\'s $262+ accounts.',
 };
 const pctRise = x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%';
 // The export's industries priced on the cleaning curve (engagement_bands.json cleaningNote).
@@ -7825,7 +7841,7 @@ function renderTradeoffs(c) {
       const g = applied[group];
       return `<tr><td><strong>${tlabel(group)}</strong></td><td class="small">${RESEARCH[group]}</td>`
         + (group === 'over500' && medRisk != null
-          ? [0.11, 0.14, 0.27, 0.35].map(rk => {
+          ? [0.104, 0.148, 0.264, 0.348].map(rk => {
             const a = typ('over500', ROUND_ONE.textsRef, rk);
             const own = roundOneAsk({ ...a, band: 'users' }, opts);
             const g2 = (1 - own.churn) * own.target - (1 - own.churnNow) * a.mrr;
@@ -7908,7 +7924,7 @@ function renderTradeoffs(c) {
   // Texts do not move a $500 to $799 account once it carries a 500+ score
   // (the score already reflects usage), so that group is drawn by score.
   keptChart('trade-texts', TRADE.textsGroup === 'over500' && medRisk != null
-    ? [[0.11, 'Score 11% (normal)'], [0.14, 'Score 14% (under a year)'], [0.27, 'Score 27% (few replying)'], [0.35, 'Score 35% (both)']]
+    ? [[0.104, 'Score 10% (normal)'], [0.148, 'Score 15% (under a year)'], [0.264, 'Score 26% (few replying)'], [0.348, 'Score 35% (both)']]
       .map(([rk, label], i) => ({ label: `500+ model, ${label}`, colour: tInk[i],
         curve: tradeoffCurve(typ('over500', ROUND_ONE.textsRef, rk), rises, opts) }))
     : TEXT_LEVELS.map((l, i) => ({
@@ -7972,8 +7988,8 @@ function renderTradeoffs(c) {
     + `The best single relative rise (${pctRise(rel.best.step)} for everyone) adds ${fmt.money(rel.best.gain)} and loses `
     + `${fmt.int(Math.round(rel.best.extra))} to the rise; the best single dollar rise (+${fmt.money(abs.best.step)}`
     + `${abs.best === abs.points[abs.points.length - 1] ? ', the most charted, so a larger one could add more' : ''}) adds `
-    + `${fmt.money(abs.best.gain)} and loses ${fmt.int(Math.round(abs.best.extra))}. A single rise overcharges cleaners and `
-    + `light users and undercharges heavy senders, which is the whole case for pricing by account.`;
+    + `${fmt.money(abs.best.gain)} and loses ${fmt.int(Math.round(abs.best.extra))}. A single rise overcharges light users `
+    + `and undercharges heavy senders, which is the whole case for pricing by account.`;
 
   $('trade-note').textContent =
     'The table gives the ask for a typical account in each category, at the group\'s median price on the list (accounts '
@@ -7990,19 +8006,20 @@ function renderTradeoffs(c) {
     + '+90%; past the marked line the curves carry their last slope and are guesses. The $500 to $799 line is dashed: '
     + 'round one had no accounts there, so it borrows the $213+ curve. Under $200 has its own chart, 4, because round one '
     + 'tested one move there, accounts paying $62 to $192 to $500 (+150% to +700%), and how big the rise was did not predict '
-    + 'leaving: whether an account goes depends on its usage and on being a cleaning business, and what moving it adds '
+    + 'leaving: whether an account goes depends mostly on its usage, a little on being a cleaning business, and what moving it adds '
     + 'depends on what it pays now. Each line is one account moved to $500, revenue after churn against leaving it alone. '
     + 'Charts 5 and 6 ask everyone '
     + 'the card asks the same rise, each account on its own curve: revenue gained a month after churn on the left, '
     + 'customers lost to the rise (above normal churn) on the right. A dollar rise is a far bigger shock to a $100 account '
     + 'than to a $450 one, which is why chart 6 peaks higher and loses more customers. They and the 12-month view include '
     + 'the $500 to $799 accounts when that group is ticked on the card. The $500 to $799 accounts use the 500+ model: '
-    + 'each has a score for its chance of leaving under a round-one-sized rise (+40% to +90%), 11% normal, 14% under a '
-    + 'year old, 27% with few contacts replying, 35% both; the $213+ curve is moved on the log-odds scale until its '
-    + 'average over that range is the account\'s score, and texts no longer move it, since the score already reflects '
-    + 'usage. The shaded ranges on charts 1 and 2 are the middle 90% of 400 draws of what round one could not pin down: '
-    + 'the $200-plan effect (standard error 1.01, from p = 0.03), cleaning (0.97, from p = 0.29), texts (0.58, from '
-    + 'p = 0.26), the off-plan level (0.6, about 20 accounts) and the curve\'s shape between the smooth and cliff readings.';
+    + 'each has a score for its chance of leaving in three months with no rise, 10% normal, 15% under a year old, 26% '
+    + 'with fewer than 20 contacts replying a month, 35% both; the $213+ curve is moved on the log-odds scale until it '
+    + 'starts at the account\'s score, so the rise adds what it added for round one\'s $262+ accounts, and texts no longer '
+    + 'move it, since the score already reflects engagement. The shaded ranges on charts 1 and 2 are the middle 90% of 400 '
+    + 'draws of what round one could not pin down, with standard errors from the refit on its 34 texting accounts: the '
+    + '$200-plan effect (1.26), cleaning (1.22), texts (0.97 per tenfold), the off-plan level (0.90) and the curve\'s shape '
+    + 'between the smooth and cliff readings; for $500 to $799 only what the rise adds is drawn.';
   renderRoundTwoProjection();
 }
 
