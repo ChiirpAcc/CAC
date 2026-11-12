@@ -784,6 +784,13 @@ figcaption { margin-bottom: .9rem; }
 .calc-against .neg { color: var(--series-neg); }
 .calc-table { font-size: .84rem; }
 .calc-table td:first-child { color: var(--ink-mid); }
+/* A footnote row inside a table wraps instead of widening the table. */
+.data-table td.wrap-note { white-space: normal; }
+.kv-table td:first-child { white-space: normal; }
+/* The optimal-ask table: the research text and each ask wrap, so the four
+   usage columns stay on screen. */
+#trade-optimal td { white-space: normal; vertical-align: top; min-width: 8.5rem; }
+#trade-optimal td.small { min-width: 14rem; max-width: 20rem; }
 
 .calc-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-bottom: .9rem; }
 @media (max-width: 720px) { .calc-presets { grid-template-columns: 1fr; } }

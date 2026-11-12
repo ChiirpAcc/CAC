@@ -3559,9 +3559,28 @@ function renderFloors() {
 let LIST_LAST = null;
 function renderUpgradeList() {
   if (!$('list-low-table')) return;
-  const l = upgradeList(data, { lowBand: CAMP_LOW_BAND, minMrr: 2, minTenure: 12,
+  const l0 = upgradeList(data, { lowBand: CAMP_LOW_BAND, minMrr: 2, minTenure: 12,
     rule: 'account', engagement: CAMP_BANDS, ...campOptions() });
-  if (!l) return;
+  if (!l0) return;
+  // The list follows the card's switches: an account in a group or band the
+  // card leaves unticked is not asked here either, and says what it would be.
+  const groupsOn = $('camp-groups') && $('camp-groups').dataset.ready ? ticked('camp-groups') : null;
+  const bandsOn = $('camp-bands') && $('camp-bands').dataset.ready ? ticked('camp-bands') : null;
+  const GROUP_OFF = Object.fromEntries(PRICE_GROUPS.map(g => [g.key, g.label]));
+  const low = l0.low.map(r => {
+    if (!r.viable) return r;
+    const offGroup = groupsOn && !groupsOn.has(r.group);
+    const offBand = bandsOn && !bandsOn.has(r.band);
+    if (!offGroup && !offBand) return r;
+    return { ...r, viable: false, heldBefore: false, offCard: true,
+      why: `${offGroup ? GROUP_OFF[r.group] + ' not ticked' : 'Usage band not ticked'} on the card (would ask ${fmt.money(r.target)})` };
+  });
+  const asked = low.filter(r => r.viable);
+  const l = { ...l0, low, totals: { ...l0.totals,
+    lowViable: asked.length,
+    lowViableMrr: asked.reduce((t, r) => t + r.mrr, 0),
+    lowViableTarget: asked.reduce((t, r) => t + r.target, 0),
+    lowHeldBefore: low.filter(r => r.heldBefore).length } };
   LIST_LAST = l;
   const GROUP_WORDS = Object.fromEntries(PRICE_GROUPS.map(g => [g.key, g.label]));
   const BAND_WORDS = { users: 'active', light: 'light', dormant: 'dormant', unbanded: '–' };
@@ -3620,8 +3639,19 @@ function renderUpgradeList() {
     + `their asks sum to ${fmt.money(l.totals.lowViableTarget)}. Each ask is the account's own, `
     + `from its price group and usage (the card above says how). `
     + (cleanup.length
-        ? `${fmt.int(cleanup.length)} get no ask: dormant accounts, which keep the most of what `
-          + `they pay, and accounts under $62, below anything round one tested. `
+        ? (() => {
+          const n = f => cleanup.filter(f).length;
+          const parts = [
+            [n(r => r.offCard), 'in a group or band not ticked on the card'],
+            [n(r => !r.offCard && !r.excluded && r.band === 'dormant'), 'dormant, which keep the most of what they pay'],
+            [n(r => /^Already raised|^Price changed/.test(r.excluded || '')), 'already raised or repriced in Stripe since October'],
+            [n(r => /^Cancelled/.test(r.excluded || '')), 'cancelled'],
+            [n(r => /^Payment failing/.test(r.excluded || '')), 'with payments failing'],
+            [n(r => /^Migrated/.test(r.excluded || '')), 'migrated to Chiirp AI'],
+            [n(r => !r.offCard && !r.excluded && r.band !== 'dormant'), 'under $62, below anything round one tested, or no rise pays'],
+          ].filter(([k]) => k > 0).map(([k, w]) => `${fmt.int(k)} ${w}`);
+          return `${fmt.int(cleanup.length)} get no ask: ${parts.join('; ')}. `;
+        })()
         : '')
     + `${fmt.int(l.totals.lowBeforeRules - l.low.length)} more sit under `
     + `${fmt.money(l.lowBand)} and are excluded by the eligibility rules: `
@@ -7486,7 +7516,7 @@ function renderCampaign() {
   if (econ) {
     buildToggles('camp-bands', [...econ.bands.map(b => ({
       key: b.key, label: b.label, defaultOn: b.key !== 'dormant',
-      hint: `${b.definition} ${b.accounts} accounts on the list, `
+      hint: `${b.definition} ${b.accounts} accounts in the export paying in ${fmt.monthLabel(econ.month)}, at any price, `
         + `pays ${fmt.money(b.pays)}, costs ${fmt.money(b.cost)}, keeps ${fmt.money(b.keeps)}.`
         + (b.key === 'dormant' ? ' Never asked: they keep the most of what they pay.' : ''),
     })), { key: 'unbanded', label: 'Not in the export', defaultOn: true,
@@ -7534,19 +7564,19 @@ function renderCampaign() {
     + (c.byIndustry.length
       ? '<h4 class="sub-head">By industry, for the groups and bands ticked</h4>'
         + '<div class="table-scroll"><table class="data-table calc-table"><thead><tr><th>Industry</th>'
-        + '<th class="n">Asked</th><th class="n">Pays now</th><th class="n">Typical ask</th><th class="n">Typical rise</th>'
+        + '<th class="n">Asked</th><th class="n">Pays now, average</th><th class="n">Ask, average</th><th class="n">Rise</th>'
         + '<th class="n">Expected to leave</th><th class="n">Revenue a month</th></tr></thead><tbody>'
         + c.byIndustry.map(b => '<tr>'
           + `<td>${b.industry}${CLEANING_INDUSTRIES.has(b.industry) ? ' <span class="muted">(priced as cleaning)</span>' : ''}</td>`
           + `<td class="n">${fmt.int(b.asked)}</td>`
-          + `<td class="n">${fmt.money(b.mrr / b.asked)}</td>`
-          + `<td class="n">${fmt.money(b.typical)}</td>`
+          + `<td class="n">${fmt.money(b.averagePays)}</td>`
+          + `<td class="n">${fmt.money(b.averageAsk)}</td>`
           + `<td class="n">${pctRise(b.rise)}</td>`
           + `<td class="n">${fmt.int(Math.round(b.lost))}</td>`
           + `<td class="n">${b.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(b.gain))}</td></tr>`).join('')
         + '</tbody></table></div>'
       : '')
-    + '<table class="data-table calc-table"><tbody>'
+    + '<div class="table-scroll"><table class="data-table calc-table kv-table"><tbody>'
     + r(`Accounts under ${fmt.money(c.lowBand)}, 12 months or more`, fmt.int(c.eligible))
     + r('Asked for an increase', fmt.int(c.asked))
     + r('Expected to leave', `<strong>${fmt.int(Math.round(c.lost))}</strong>`)
@@ -7555,7 +7585,7 @@ function renderCampaign() {
     + r('Gain after running costs (licence, hosting, fees)', `${c.contribution >= 0 ? '+' : '−'}${fmt.money(Math.abs(c.contribution))} a month`)
     + r('Paying logos, before and after', `${fmt.int(c.logosBefore)} → <strong>${fmt.int(Math.round(c.logosAfter))}</strong>`)
     + r('Cost floor, before and after', `${fmt.money(c.floorBefore)} → <strong>${fmt.money(c.floorAfter)}</strong>`)
-    + '</tbody></table>';
+    + '</tbody></table></div>';
 
   if (econ) {
     const row = b => '<tr>'
@@ -7568,7 +7598,7 @@ function renderCampaign() {
       + `<td class="n">${fmt.money(b.keepsTotal)}</td>`
       + '</tr>';
     $('camp-bandtable').innerHTML =
-      '<table class="data-table calc-table"><thead><tr><th>Band</th>'
+      '<div class="table-scroll"><table class="data-table calc-table"><thead><tr><th>Band</th>'
       + '<th class="n">Accounts</th><th class="n">Pays</th><th class="n">Costs</th>'
       + '<th class="n">Keeps</th><th class="n">Per $1 of cost</th>'
       + '<th class="n">Total a month</th></tr></thead><tbody>'
@@ -7576,11 +7606,11 @@ function renderCampaign() {
       + `<tr class="rule-above emphasis"><td><strong>All ${fmt.int(econ.totalAccounts)} in the export</strong></td>`
       + '<td></td><td></td><td></td><td></td><td></td>'
       + `<td class="n"><strong>${fmt.money(econ.totalKeeps)}</strong></td></tr>`
-      + `<tr><td class="muted" colspan="7">The ${ENGAGEMENT.asOf} export listed `
+      + `<tr><td class="muted wrap-note" colspan="7">The ${ENGAGEMENT.asOf} export listed `
       + `${fmt.int(econ.totalExported)} accounts, every client on the main Stripe account, cancelled ones included; `
       + `${fmt.int(econ.totalExported - econ.totalAccounts)} of them did not pay in ${fmt.monthLabel(econ.month)}. The other `
       + `${fmt.int(econ.notExported)} paying accounts were not in it, mostly the second Stripe account, so their usage is unknown.</td></tr>`
-      + '</tbody></table>';
+      + '</tbody></table></div>';
   }
 
   $('camp-note').textContent =
@@ -7670,17 +7700,21 @@ function renderTradeoffs(c) {
   // 1 and 2: revenue kept per account as the rise grows.
   const rises = Array.from({ length: 16 }, (_, i) => i / 10);
   const labels = rises.map(pctRise);
+  // Against changing nothing, (1 + rise) x (1 - churn) over (1 - churn at no
+  // rise), so 100% is break-even with leaving the price alone: normal churn
+  // happens either way and is not charged to the rise.
   const keptChart = (id, lines) => {
+    const rel = l => l.curve.map(p => p.kept / l.curve[0].kept);
     multiLineChart($(id), {
-      labels, yFormat: v => fmt.pct(v), yTitle: 'Revenue kept, share of today',
+      labels, yFormat: v => fmt.pct(v), yTitle: 'Revenue kept, against no rise',
       xTitle: 'Size of the rise',
-      series: lines.map(l => ({ label: l.label, colour: l.colour, values: l.curve.map(p => p.kept),
+      series: lines.map(l => ({ label: l.label, colour: l.colour, values: rel(l),
         dashed: l.dashed })),
-      refs: [{ value: 1, label: 'Today' }],
+      refs: [{ value: 1, label: 'No rise' }],
       xMarks: [{ index: 10, label: 'Tested limit, $200 plan' }],
       describe: i => `<strong>${labels[i]}</strong>` + lines.map(l => {
         const p = l.curve[i];
-        return `<span>${l.label}: keeps ${fmt.pct(p.kept)}, ${fmt.pct(p.churn)} leave</span>`;
+        return `<span>${l.label}: ${fmt.pct(p.kept / l.curve[0].kept)} of the revenue with no rise, ${fmt.pct(p.churn)} leave</span>`;
       }).join(''),
     });
   };
@@ -7750,7 +7784,8 @@ function renderTradeoffs(c) {
     `<strong>Asking each account its own price beats any single rise.</strong> `
     + `Per-account asks add ${fmt.money(each.change)} a month and lose about ${fmt.int(Math.round(each.lost))} customers in the round. `
     + `The best single relative rise (${pctRise(rel.best.step)} for everyone) adds ${fmt.money(rel.best.gain)} and loses `
-    + `${fmt.int(Math.round(rel.best.extra))} to the rise; the best single dollar rise (+${fmt.money(abs.best.step)}) adds `
+    + `${fmt.int(Math.round(rel.best.extra))} to the rise; the best single dollar rise (+${fmt.money(abs.best.step)}`
+    + `${abs.best === abs.points[abs.points.length - 1] ? ', the most charted, so a larger one could add more' : ''}) adds `
     + `${fmt.money(abs.best.gain)} and loses ${fmt.int(Math.round(abs.best.extra))}. A single rise overcharges cleaners and `
     + `light users and undercharges heavy senders, which is the whole case for pricing by account.`;
 
@@ -7760,8 +7795,9 @@ function renderTradeoffs(c) {
     + 'cell shows the ask, the rise, the chance of leaving in the round and the revenue added a month after churn. Chart 1 is '
     + 'round one\'s pricing curves: the chance a typical account in each group leaves in the round at each size of rise, '
     + 'midway between the smooth and cliff readings of round one and at the list\'s median of 535 texts a month. Charts 2 and 3 '
-    + 'show revenue kept per account, (1 + rise) × (1 − churn), as a share of what it pays today: above the Today line '
-    + 'the rise pays for the customers it loses. The $200 plan was tested to +100% ($200 to $400) and the $213+ accounts to '
+    + 'show the revenue an account is expected to bring after the round, (1 + rise) × (1 − churn), against what it brings '
+    + 'with no rise, (1 − churn at no rise), since some leave either way: above the No rise line the rise pays for the '
+    + 'customers it loses. The $200 plan was tested to +100% ($200 to $400) and the $213+ accounts to '
     + '+90%; past the marked line the curves carry their last slope and are guesses. Under $200, round one only gave rises '
     + 'of +150% or more, so smaller rises ramp up to its churn from normal churn, an assumption. Charts 4 and 5 ask everyone '
     + 'the card asks the same rise, each account on its own curve: revenue gained a month after churn on the left, '
@@ -7784,7 +7820,7 @@ function renderRoundTwoProjection() {
   ];
   buildToggles('proj-scenarios', SCEN.map(s => ({ key: s.key, label: s.label, defaultOn: s.defaultOn,
     hint: s.key === 'none' ? 'Normal churn only.' : s.key === 'account' ? 'The asks in the list below.'
-      : s.key === 'relative' ? 'The slider below; it starts at the best rise on chart 3.' : 'The slider below; it starts at the best rise on chart 4.' })),
+      : s.key === 'relative' ? 'The slider below; it starts at the best rise on chart 4.' : 'The slider below; it starts at the best rise on chart 5.' })),
     renderRoundTwoProjection);
 
   const riseIn = $('proj-rise');
@@ -7857,7 +7893,9 @@ function renderRoundTwoProjection() {
     + 'That is why even "Change nothing" falls: churn across the book has run high since June 2026. An account counts as '
     + 'gone in a month it pays nothing, so a pause reads as a loss. The extra churn a rise causes (its curve less the curve '
     + 'at no rise) is spread over the first three months; the new price starts in month 1. ARR in 12 months is month 12\'s MRR '
-    + '× 12. Lost to normal churn is lower under a rise because fewer customers are left to lose. Nothing here includes '
+    + '× 12. Lost to normal churn is lower under a rise because fewer customers are left to lose. Accounts already raised '
+    + 'or repriced in Stripe since October are carried at their October price in every scenario, so the levels run a '
+    + 'little low but the gaps between scenarios do not move. Nothing here includes '
     + 'new customers, and the rest of the book is left out so the scenarios can be compared.';
 }
 

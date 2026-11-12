@@ -3154,7 +3154,12 @@ export function roundTwo(data, {
     overSix: askedRows.filter(r => r.target > 600).length,
     unnamedAsCleaning: askedRows.filter(r => r.why === 'No name in Stripe: priced as cleaning').length,
     byGroup: PRICE_GROUPS.map(g => byGroup[g.key]),
-    byIndustry: Object.values(byIndustry).map(b => ({ ...b, typical: median(b.targets), rise: median(b.rises) }))
+    // Averages throughout, so pays, ask and rise in a row agree: the rise is
+    // the industry's asks over what the same accounts pay now.
+    byIndustry: Object.values(byIndustry).map(b => {
+      const asks = b.targets.reduce((x, y) => x + y, 0);
+      return { ...b, typical: median(b.targets), averageAsk: asks / b.asked, averagePays: b.mrr / b.asked, rise: asks / b.mrr - 1 };
+    })
       .sort((x, y) => y.gain - x.gain),
     usageMeasured: list.low.some(r => r.textsMeasured),
   };
