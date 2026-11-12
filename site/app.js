@@ -8123,11 +8123,11 @@ function renderRoundTwoProjection() {
         + `<td class="n">${fmt.money(p.mrr[0])}</td>`
         + `<td class="n">${fmt.money(p.mrr[12])}${r.key === 'none' ? '' : `<br><span class="muted">${d(p.mrr[12], none.mrr[12])}</span>`}</td>`
         + `<td class="n"><strong>${fmt.money(p.arr12)}</strong>${r.key === 'none' ? '' : `<br><span class="muted">${d(p.arr12, none.arr12)}</span>`}`
-        + (ranges ? `<br><span class="muted ci">90%: ${fmt.money(ranges[r.key].arr12.low)} to ${fmt.money(ranges[r.key].arr12.high)}`
-          + (r.key === 'none' ? '' : `; gap ${d(ranges[r.key].dArr12.low, 0)} to ${d(ranges[r.key].dArr12.high, 0)}`) + '</span>' : '')
+        + (ranges ? `<br><span class="muted ci">90%: ${fmt.money(ranges[r.key].arr12.low)}–${fmt.money(ranges[r.key].arr12.high)}</span>`
+          + (r.key === 'none' ? '' : `<br><span class="muted ci">gap ${d(ranges[r.key].dArr12.low, 0)} to ${d(ranges[r.key].dArr12.high, 0)}</span>`) : '')
         + '</td>'
         + `<td class="n">${fmt.money(p.averageMrr)}${vs}`
-        + (ranges ? `<br><span class="muted ci">90%: ${fmt.money(ranges[r.key].averageMrr.low)} to ${fmt.money(ranges[r.key].averageMrr.high)}</span>` : '')
+        + (ranges ? `<br><span class="muted ci">90%: ${fmt.money(ranges[r.key].averageMrr.low)}–${fmt.money(ranges[r.key].averageMrr.high)}</span>` : '')
         + '</td>'
         + `<td class="n">${fmt.money(p.revenue12)}${r.key === 'none' ? '' : `<br><span class="muted">${d(p.revenue12, none.revenue12)}</span>`}</td>`
         + `<td class="n">${fmt.int(Math.round(p.liftLost))}</td>`
@@ -8229,6 +8229,7 @@ function boot() {
     $('dashboard').hidden = false;
     // Sits above every tab, so it is drawn whichever tab opens first.
     renderVocabularyWarning();
+    renderStamp();
     watchTables();
     // Draws the tab the address names; the others draw on first visit.
     wireTabs();
@@ -8359,30 +8360,12 @@ function yearStepSentence() {
 }
 
 // Everything on the page, drawn once. Nothing here is adjustable any more.
-function renderStatic() {
-  const w = data.waterfall;
-  const recent = w.slice(-36);
-  const labels = recent.map(r => fmt.monthLabel(r.month));
-
-  const censored = cohorts.censoredCount || 0;
-  renderVocabularyWarning();
-
-  // The one churn number for the board, as METRICS.md proposes it: customers
-  // lost over the last three complete months as a share of the customers there
-  // at the start of each (chart 5's count, pooled), with chart 45's revenue
-  // kept at twelve months beside it. Labelled a proposal until it is agreed.
-  if ($('board-number')) {
-    const last3 = departures(data).filter(d => d.rate !== null).slice(-3);
-    const left = last3.reduce((t, d) => t + d.left, 0);
-    const base = last3.reduce((t, d) => t + d.base, 0);
-    const kept12 = (revenueRetentionAtAges(cohorts).pooled || []).find(p => p.age === 12);
-    $('board-number').innerHTML = last3.length && base
-      ? `<strong>Board churn number (proposed):</strong> ${fmt.pct(left / base, 1)} of customers a month `
-        + `left over ${fmt.monthLabel(last3[0].month)} to ${fmt.monthLabel(last3[last3.length - 1].month)}`
-        + (kept12 ? `, and cohorts keep ${fmt.pct(kept12.value, 0)} of their starting revenue at twelve months` : '')
-        + '. Definition in METRICS.md.'
-      : '';
-  }
+// The line under the title: when the workbook was pushed, what it covers and
+// whether its revenue reconciles. It sits above every tab, so it is written at
+// load whichever tab opens first (12 Nov 2026: a link straight to a tab other
+// than Every chart left it on "Loading.").
+function renderStamp() {
+  const censored = (cohorts && cohorts.censoredCount) || 0;
   $('stamp').textContent =
     (data.pushedAt ? `Workbook pushed ${data.pushedAt.replace('T', ' ')}${data.pipelineVersion || data.pullVersion
       ? ` (${[data.pipelineVersion ? `pipeline ${data.pipelineVersion}` : '', data.pullVersion ? `HubSpot pull ${data.pullVersion}` : '']
@@ -8435,6 +8418,33 @@ function renderStatic() {
           + `cash carries no product name and the published residual is `
           + `${fmt.pct(Math.abs(rc.residualShare), 1)} of it.`;
       })();
+}
+
+function renderStatic() {
+  const w = data.waterfall;
+  const recent = w.slice(-36);
+  const labels = recent.map(r => fmt.monthLabel(r.month));
+
+  const censored = cohorts.censoredCount || 0;
+  renderVocabularyWarning();
+
+  // The one churn number for the board, as METRICS.md proposes it: customers
+  // lost over the last three complete months as a share of the customers there
+  // at the start of each (chart 5's count, pooled), with chart 45's revenue
+  // kept at twelve months beside it. Labelled a proposal until it is agreed.
+  if ($('board-number')) {
+    const last3 = departures(data).filter(d => d.rate !== null).slice(-3);
+    const left = last3.reduce((t, d) => t + d.left, 0);
+    const base = last3.reduce((t, d) => t + d.base, 0);
+    const kept12 = (revenueRetentionAtAges(cohorts).pooled || []).find(p => p.age === 12);
+    $('board-number').innerHTML = last3.length && base
+      ? `<strong>Board churn number (proposed):</strong> ${fmt.pct(left / base, 1)} of customers a month `
+        + `left over ${fmt.monthLabel(last3[0].month)} to ${fmt.monthLabel(last3[last3.length - 1].month)}`
+        + (kept12 ? `, and cohorts keep ${fmt.pct(kept12.value, 0)} of their starting revenue at twelve months` : '')
+        + '. Definition in METRICS.md.'
+      : '';
+  }
+  renderStamp();
 
   // 4. Blended retention curve, indexed to month 1, the second month a cohort
   // carries revenue (month 0 is the first, as on charts 3 and 8).

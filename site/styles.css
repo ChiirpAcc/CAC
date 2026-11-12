@@ -786,6 +786,8 @@ figcaption { margin-bottom: .9rem; }
 .calc-table td:first-child { color: var(--ink-mid); }
 /* A footnote row inside a table wraps instead of widening the table. */
 .data-table td.wrap-note { white-space: normal; }
+/* The 12-month table: headers wrap so ten columns fit the card. */
+#proj-table th { white-space: normal; min-width: 5.5rem; vertical-align: bottom; }
 .kv-table td:first-child { white-space: normal; }
 /* The optimal-ask table: the research text and each ask wrap, so the four
    usage columns stay on screen. */
