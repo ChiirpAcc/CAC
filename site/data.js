@@ -3061,7 +3061,13 @@ export function roundOneProfile(row, engagement) {
   const industry = eng.industry ? (eng.industry.get(row.id) || (row.canonicalId && eng.industry.get(row.canonicalId)) || null) : null;
   const cleaning = industry ? flagged : flagged || (named ? CLEANING_RE.test(row.name) : fromExport ? false : null);
   const ageDays = eng.ageDays ? (eng.ageDays.get(row.id) ?? null) : null;
-  const excluded = eng.excluded ? (eng.excluded.get(row.id) || (row.canonicalId && eng.excluded.get(row.canonicalId)) || null) : null;
+  // Round one's own accounts are not asked again (12 Nov 2026): they were told
+  // a new price in September, and some (Gutter Now, Testerman's Pro Wash) are
+  // still on the old one or a negotiated one, which a second ask two months on
+  // would reopen.
+  const excluded = (eng.excluded ? (eng.excluded.get(row.id) || (row.canonicalId && eng.excluded.get(row.canonicalId)) || null) : null)
+    || (ROUND_ONE_TEST_IDS.has(row.id) || (row.canonicalId && ROUND_ONE_TEST_IDS.has(row.canonicalId))
+      ? 'In round one: told a new price in September, not asked again' : null);
   const mrr = row.eopMrr ?? row.mrr ?? 0;
   const group = priceGroup(mrr, cleaning !== false);
   const risk500 = group === 'over500' && eng.risk500
@@ -3731,6 +3737,7 @@ export function projectRange(data, { scenarios, horizon = 12, baseMonths = 6, ba
   const base = listBaselineChurn(data, { lowBand: rest.lowBand ?? 800, months: baseMonths, method: baseMethod });
   const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
   const acc = Object.fromEntries(scenarios.map(sc => [sc.key, { mrr: Array.from({ length: horizon + 1 }, () => []),
+    dMrr: Array.from({ length: horizon + 1 }, () => []), dCum: Array.from({ length: horizon + 1 }, () => []),
     arr12: [], averageMrr: [], revenue12: [], dArr12: [], dAverage: [], dRevenue12: [], lost: [] }]));
   for (const d of churnDraws(draws)) {
     const rand = mulberry32(d.seed);
@@ -3746,13 +3753,17 @@ export function projectRange(data, { scenarios, horizon = 12, baseMonths = 6, ba
       const r = sc.key === 'none' ? none : projectCore(sp, { scenario: sc.key, rise: sc.rise || 0, add: sc.add || 0, horizon, rate, opts: o });
       const a = acc[sc.key];
       r.mrr.forEach((v, t) => a.mrr[t].push(v));
+      // The month's revenue added over changing nothing, and its running total
+      // from month 1, both in the same draw as changing nothing.
+      let cum = 0;
+      r.mrr.forEach((v, t) => { const dv = v - none.mrr[t]; if (t > 0) cum += dv; a.dMrr[t].push(dv); a.dCum[t].push(cum); });
       a.arr12.push(r.arr12); a.averageMrr.push(r.averageMrr); a.revenue12.push(r.revenue12);
       a.dArr12.push(r.arr12 - none.arr12); a.dAverage.push(r.averageMrr - none.averageMrr);
       a.dRevenue12.push(r.revenue12 - none.revenue12); a.lost.push(r.liftLost);
     }
   }
   return Object.fromEntries(Object.entries(acc).map(([k, a]) => [k, {
-    mrr: a.mrr.map(v => rangeOf(v)),
+    mrr: a.mrr.map(v => rangeOf(v)), dMrr: a.dMrr.map(v => rangeOf(v)), dCum: a.dCum.map(v => rangeOf(v)),
     arr12: rangeOf(a.arr12), averageMrr: rangeOf(a.averageMrr), revenue12: rangeOf(a.revenue12),
     dArr12: rangeOf(a.dArr12), dAverage: rangeOf(a.dAverage), dRevenue12: rangeOf(a.dRevenue12), liftLost: rangeOf(a.lost),
   }]));

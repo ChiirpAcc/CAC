@@ -7832,7 +7832,7 @@ function formulaHtml() {
 // The tradeoff curves and the 12-month view under the campaign card (Josh,
 // 11 Nov 2026). They follow the card's switches: the same groups, bands and
 // trust setting, so every figure on the tab answers the same question.
-const TRADE = { textsGroup: 'clean200', baseMonths: 6, baseMethod: 'year', rise: null, add: null };
+const TRADE = { textsGroup: 'clean200', baseMonths: 6, baseMethod: 'year', rise: null, add: null, addedMode: 'month' };
 const GROUP_INK = {
   clean200: INK.negative, trades200: INK.primary, tier262: INK.secondary,
   under200: INK.tertiary, over500: INK.accent,
@@ -8378,6 +8378,59 @@ function renderRoundTwoProjection() {
       + (ranges && i > 0 ? ` (90%: ${fmt.money(ranges[r.key].mrr[i].low)} to ${fmt.money(ranges[r.key].mrr[i].high)})` : '')
       + `, ${fmt.int(Math.round(r.p.logos[i]))} customers</span>`).join(''),
   });
+
+  // Revenue added against changing nothing (Josh, 12 Nov 2026: "a sub chart
+  // with additional revenue over time"): each scenario's MRR less changing
+  // nothing's, month by month or as a running total from month 1.
+  const amode = $('proj-added-mode');
+  if (!amode.dataset.ready) {
+    for (const [key, label, blurb] of [['month', 'Each month', 'The extra MRR in that month.'],
+      ['total', 'Running total', 'Extra revenue collected from month 1 to that month.']]) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.dataset.key = key;
+      b.innerHTML = `<strong>${label}</strong><span>${blurb}</span>`;
+      b.addEventListener('click', () => { TRADE.addedMode = key; renderRoundTwoProjection(); });
+      amode.append(b);
+    }
+    amode.dataset.ready = '1';
+  }
+  for (const b of amode.querySelectorAll('button')) b.classList.toggle('is-on', b.dataset.key === TRADE.addedMode);
+  const addedRuns = shown.filter(r => r.key !== 'none');
+  const totalMode = TRADE.addedMode === 'total';
+  const addedOf = r => {
+    let cum = 0;
+    return r.p.mrr.map((v, t) => { const dv = v - none.mrr[t]; if (t > 0) cum += dv; return totalMode ? cum : dv; });
+  };
+  const rkey = totalMode ? 'dCum' : 'dMrr';
+  if (addedRuns.length) {
+    multiLineChart($('proj-added'), {
+      labels, yFormat: fmt.money, yTitle: totalMode ? 'Extra revenue collected so far' : 'Extra MRR that month',
+      series: addedRuns.map(r => ({ label: r.label, colour: r.colour, values: addedOf(r) })),
+      refs: [{ value: 0, label: 'Changing nothing' }],
+      ...(ranges ? {
+        bands: addedRuns.map(r => ({ label: r.label, colour: r.colour, low: ranges[r.key][rkey].map(v => v.low), high: ranges[r.key][rkey].map(v => v.high) })),
+        legendItems: [...addedRuns.map(r => ({ label: r.label, colour: r.colour })),
+          { label: 'Shaded: 90% range, paired with changing nothing', colour: INK.muted }] } : {}),
+      xMarks: [{ index: 12, label: '12 months', highlight: true }],
+      describe: i => `<strong>${labels[i]}</strong>` + addedRuns.map(r => {
+        const v = addedOf(r)[i];
+        return `<span>${r.label}: ${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}${totalMode ? ' so far' : ' that month'}`
+          + (ranges && i > 0 ? ` (90%: ${fmt.money(ranges[r.key][rkey][i].low)} to ${fmt.money(ranges[r.key][rkey][i].high)})` : '') + '</span>';
+      }).join(''),
+    });
+    const best = addedRuns.map(r => ({ r, total: r.p.mrr.slice(1).reduce((t, v, k) => t + v - none.mrr[k + 1], 0),
+      m1: r.p.mrr[1] - none.mrr[1], m12: r.p.mrr[12] - none.mrr[12] }));
+    $('proj-added-finding').innerHTML = best.map(({ r, total, m1, m12 }) =>
+      `<strong>${r.label}${r.key === 'relative' ? ` (${pctRise(rise)})` : r.key === 'absolute' ? ` (+${fmt.money(add)})` : ''}</strong>: `
+      + `${m1 >= 0 ? '+' : '−'}${fmt.money(Math.abs(m1))} in month 1, ${m12 >= 0 ? '+' : '−'}${fmt.money(Math.abs(m12))} in month 12, `
+      + `${total >= 0 ? '+' : '−'}${fmt.money(Math.abs(total))} over the 12 months`
+      + (ranges ? ` (90%: ${fmt.money(ranges[r.key].dCum[12].low)} to ${fmt.money(ranges[r.key].dCum[12].high)})` : '') + '.').join('<br>')
+      + '<br><span class="muted">The extra shrinks after month 1 because the rise\'s leavers go over months 1 to 3 and normal '
+      + 'churn then takes the same share of a higher bill each month; it stays above changing nothing throughout.</span>';
+  } else {
+    $('proj-added').innerHTML = '<p class="empty">Tick a scenario other than changing nothing.</p>';
+    $('proj-added-finding').textContent = '';
+  }
 
   const d = (v, b) => `${v - b >= 0 ? '+' : '−'}${fmt.money(Math.abs(v - b))}`;
   $('proj-table').innerHTML = '<thead><tr><th>Scenario</th><th class="n">MRR now</th><th class="n">MRR in 12 months</th>'
