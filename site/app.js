@@ -7657,7 +7657,109 @@ function renderCampaign() {
     + 'different asks. They are wide because round one is small. The $500 to $799 group uses the 500+ model\'s score for '
     + 'each account. Log every outcome of round two with its ask and refit.';
   LAST_CAMP = c;
+  renderFindings(c, cr);
   renderTradeoffs(c);
+}
+
+// The write-up at the top of the tab (Josh, 12 Nov 2026): what round one and
+// the 500+ model found identifies who leaves at a price rise, and how the
+// asks balance cleaning against trades. The figures are the card's own, so
+// they move with the switches.
+function renderFindings(c, cr) {
+  const box = $('findings-body');
+  if (!box) return;
+  const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
+  const g = Object.fromEntries(c.byGroup.map(x => [x.key, x]));
+  const row = (label, x, strong = false) => (x && x.asked
+    ? `<tr${strong ? ' class="rule-above"' : ''}><td>${strong ? `<strong>${label}</strong>` : label}</td><td class="n">${fmt.int(x.asked)}</td>`
+      + `<td class="n">${fmt.money(x.mrr / x.asked)}</td><td class="n">${fmt.money(x.asks / x.asked)}</td>`
+      + `<td class="n">${pctRise(x.asks / x.mrr - 1)}</td>`
+      + `<td class="n">${fmt.pct(x.lost / x.asked)}</td><td class="n">${fmt.pct(x.extra / x.asked)}</td>`
+      + `<td class="n">${strong ? `<strong>${sm(x.gain)}</strong>` : sm(x.gain)}</td></tr>` : '');
+  const add = (t, x) => ({ asked: t.asked + x.asked, mrr: t.mrr + x.mrr, asks: t.asks + x.asks, lost: t.lost + x.lost,
+    extra: t.extra + x.extra, gain: t.gain + x.gain });
+  const zero = { asked: 0, mrr: 0, asks: 0, lost: 0, extra: 0, gain: 0 };
+  // Inside each price group, cleaning against the rest: that is where the
+  // balance is set, since the groups start from such different prices.
+  const bc = k => c.byCleaning[k] || { cleaning: zero, other: zero };
+  const blocks = [
+    ['Under $200, all moved to $500', bc('under200').cleaning, bc('under200').other, 'Everyone else'],
+    ['$200 plan', bc('clean200').cleaning, bc('trades200').other, 'Trades and other'],
+    ['$213 to $499', bc('tier262').cleaning, bc('tier262').other, 'Everyone else'],
+    ['$500 to $799', bc('over500').cleaning, bc('over500').other, 'Everyone else'],
+  ];
+  const balanceRows = blocks.filter(([, x, y]) => x.asked || y.asked).map(([label, x, y, other]) =>
+    `<tr><td colspan="8" class="balance-group"><strong>${label}</strong></td></tr>`
+    + row('Cleaning businesses', x) + row(other, y)).join('');
+  const tot = Object.values(c.byCleaning).reduce((t, bc) => add(add(t, bc.cleaning), bc.other), zero);
+  const plan = (k, label) => (g[k] && g[k].asked
+    ? `${label} are asked a typical ${fmt.money(g[k].typical)} (${pctRise(g[k].typical / 200 - 1)})` : null);
+  const planLine = [plan('clean200', 'cleaners on the $200 plan'), plan('trades200', 'trades on the same plan')].filter(Boolean).join(' and ');
+  const risk = CAMP_BANDS && CAMP_BANDS.risk500;
+
+  box.innerHTML =
+    `<p class="finding"><strong>The plan an account is on decides most of who leaves; industry and usage come next; `
+    + `the size of the rise matters within a plan, not across plans.</strong> So each account is asked its own price, `
+    + `set where it earns the most after the customers expected to leave. On the $200 plan cleaners are asked less than `
+    + `trades because they leave more at every rise; under $200 everyone moves to $500, the one move round one tested, `
+    + `and cleaners simply carry more of the risk.</p>`
+
+    + '<h4 class="sub-head">What identifies who leaves at a price rise</h4>'
+    + '<div class="table-scroll"><table class="data-table findings-table"><thead><tr><th>Signal</th><th>What we found</th>'
+    + '<th>How sure</th><th>How the asks use it</th></tr></thead><tbody>'
+    + '<tr><td><strong>On the $200–212 legacy plan</strong></td>'
+    + '<td>About 9 times the odds of leaving. In September about 75% of the $200 cleaners moved to $500 left, while '
+    + 'accounts paying $62 to $192 moved to the same $500 (+150% to +700%) mostly stayed: $200 had become what Chiirp '
+    + 'costs, and $500 broke it.</td><td>Strong (p = 0.03)</td>'
+    + '<td>The $200 plan has its own curves, split by cleaning and trades, and rises stop at +100%.</td></tr>'
+    + '<tr><td><strong>Size of the rise, within a plan</strong></td>'
+    + '<td>Leaving climbs with the rise: cleaners on $200 from 6% with no rise to 18% at +50% and 44% at +100%; '
+    + 'trades on $200 from 2% to 7% and 21%; $213 and up from 3% to 9% and 28%. Across plans the size alone predicted '
+    + 'nothing (the biggest rises, under $200, lost the fewest).</td>'
+    + '<td>Shape uncertain: midway between round one\'s smooth and cliff readings</td>'
+    + '<td>Each group\'s curve sets the chance of leaving at every possible ask.</td></tr>'
+    + '<tr><td><strong>Cleaning or wash business</strong></td>'
+    + '<td>About 2.8 times the odds, but most $200 accounts were cleaners, so this overlaps with the plan.</td>'
+    + '<td>Weak once the plan is counted (p = 0.29)</td>'
+    + '<td>Cleaners on $200 get the steeper cleaning curve; under $200 cleaning raises the chance of leaving at $500. '
+    + 'Industry comes from the export\'s classification.</td></tr>'
+    + '<tr><td><strong>Texts sent</strong></td>'
+    + '<td>Each tenfold more texts sent roughly halves the odds of leaving: an account that relies on Chiirp keeps it.</td>'
+    + '<td>Directional (p = 0.26)</td>'
+    + '<td>Each account\'s own texts a month moves its curve. "Usage counts half as much" on the card tests a weaker effect.</td></tr>'
+    + '<tr><td><strong>For $500 and up: replies and age</strong></td>'
+    + '<td>The 500+ model, built on round one\'s pattern: 11% leave at a round-one-sized rise normally, 14% if the '
+    + 'account is under a year old, 27% if few contacts reply, 35% for both. Failed charges are watched but do not move it.'
+    + (risk ? ` ${fmt.int([...risk.values()].filter(v => v >= 0.27).length)} of the ${fmt.int(risk.size)} scored `
+      + '$500 to $799 accounts are at 27% or more.' : '') + '</td>'
+    + '<td>Untested: no $500+ account was in round one</td>'
+    + '<td>Each $500 to $799 account\'s curve passes through its score.</td></tr>'
+    + '<tr><td><strong>Did not help</strong></td>'
+    + '<td>The rise in percent or dollars on its own, and every interaction tried (industry by texts, industry by rise). '
+    + 'Logins are not used. No texts in three months marks an account dormant, and dormant accounts are not asked.</td>'
+    + '<td>Tested in round one\'s fits (leave-one-out)</td><td>Left out.</td></tr>'
+    + '</tbody></table></div>'
+
+    + '<h4 class="sub-head">How the asks balance industries</h4>'
+    + '<p>For every account the card weighs a higher price against the chance it leaves at that price, and takes the '
+    + 'lowest $25 step that earns at least 97% of the most it could add. Giving up that last 3% of revenue buys a '
+    + 'noticeably smaller rise and fewer leavers, because each curve is nearly flat at its peak. The asks stay inside '
+    + 'what round one tested. Since cleaners leave more at every size of rise, their best price sits lower'
+    + (planLine ? `: ${planLine}` : '') + '. The table below is the balance that produces inside each price group, '
+    + 'for the groups and bands ticked on the card. Compare within a group: the groups start from such different '
+    + 'prices that a rise in percent means little across them.</p>'
+    + '<div class="table-scroll"><table class="data-table calc-table"><thead><tr><th></th><th class="n">Asked</th>'
+    + '<th class="n">Pays now, average</th><th class="n">Ask, average</th><th class="n">Rise</th>'
+    + '<th class="n">Expected to leave</th><th class="n">Of which the rise</th><th class="n">Revenue a month</th></tr></thead><tbody>'
+    + balanceRows + row('All asked', tot, true)
+    + '</tbody></table></div>'
+    + '<p class="note">"Expected to leave" is the chance in the round, normal churn included; "of which the rise" is the '
+    + 'part the rise adds. Round one only separated cleaning from everything else, so HVAC, plumbing and the other '
+    + 'trades share one set of curves: the industry table in the card below shows where their asks land, not a separate '
+    + 'fit for each. Under $200 the rise is a fixed move to $500, the one move round one tested there.'
+    + (cr ? ` How sure: the asks on the card add ${sm(c.change)} a month, with a 90% range of ${sm(cr.gain.low)} to `
+      + `${sm(cr.gain.high)}, because round one rests on 36 accounts and 15 who left. Log every outcome of round two `
+      + 'with its ask and refit; that is what narrows the range.' : '') + '</p>';
 }
 
 // The tradeoff curves and the 12-month view under the campaign card (Josh,

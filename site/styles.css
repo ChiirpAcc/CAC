@@ -791,6 +791,10 @@ figcaption { margin-bottom: .9rem; }
    usage columns stay on screen. */
 #trade-optimal td { white-space: normal; vertical-align: top; min-width: 8.5rem; }
 #trade-optimal td.small { min-width: 14rem; max-width: 20rem; }
+/* The write-up's signal table: prose cells wrap. */
+.findings-table td { white-space: normal; vertical-align: top; min-width: 9rem; }
+.findings-table td:nth-child(2) { min-width: 18rem; }
+.balance-group { padding-top: .7rem; color: var(--ink); }
 
 .calc-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-bottom: .9rem; }
 @media (max-width: 720px) { .calc-presets { grid-template-columns: 1fr; } }

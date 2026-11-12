@@ -3211,6 +3211,9 @@ export function roundTwo(data, {
   const askedRows = [];
   // The export's own industries, for the asked accounts in ticked groups.
   const byIndustry = {};
+  // Cleaning businesses against everyone else, for the write-up at the top.
+  const side = () => ({ asked: 0, mrr: 0, asks: 0, lost: 0, extra: 0, gain: 0 });
+  const byCleaning = {};
   // Every group is costed whether or not it is ticked, so an unticked group
   // still shows what asking it would do; only ticked groups reach the totals.
   for (const r of list.low) {
@@ -3227,6 +3230,9 @@ export function roundTwo(data, {
     const ind = r.industry || 'Not in the export';
     const bi = byIndustry[ind] = byIndustry[ind] || { industry: ind, asked: 0, lost: 0, gain: 0, mrr: 0, targets: [], rises: [] };
     bi.asked += 1; bi.lost += r.churn; bi.gain += dRev; bi.mrr += r.mrr; bi.targets.push(r.target); bi.rises.push(r.target / r.mrr - 1);
+    const bg = byCleaning[r.group] = byCleaning[r.group] || { cleaning: side(), other: side() };
+    const sd = bg[r.cleaning ? 'cleaning' : 'other'];
+    sd.asked += 1; sd.mrr += r.mrr; sd.asks += r.target; sd.lost += r.churn; sd.extra += r.churn - r.churnNow; sd.gain += dRev;
   }
   const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : null; };
   for (const g of Object.values(byGroup)) {
@@ -3257,6 +3263,7 @@ export function roundTwo(data, {
     })
       .sort((x, y) => y.gain - x.gain),
     usageMeasured: list.low.some(r => r.textsMeasured),
+    byCleaning,
   };
 }
 
