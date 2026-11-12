@@ -1442,3 +1442,11 @@ th.sorted { color: var(--ink); }
 /* The write-up's formula block. */
 .formula { border-left: 2px solid var(--rule-strong); padding: .2rem 0 .2rem .9rem; margin: .6rem 0 1rem; }
 .formula p { margin: .35rem 0; }
+
+/* Upgrade plan: the timeline's prose wraps. */
+.plan-timeline td { white-space: normal; vertical-align: top; }
+.plan-timeline td:first-child { min-width: 9rem; }
+.plan-table th, .plan-table td { white-space: normal; vertical-align: top; }
+.plan-table td:first-child { min-width: 11rem; }
+.plan-accounts td:nth-child(1), .plan-accounts td:nth-child(2), .plan-accounts td:nth-child(4) { white-space: normal; }
+.plan-accounts td:nth-child(2) { min-width: 9rem; }

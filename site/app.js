@@ -7514,6 +7514,10 @@ function renderUpgradePlan() {
   const floorAt = s => Math.max(0, Math.floor(S[s].chance.low) - 1);
   const win = `${PLAN.readMonths * 30} days`;
   const n12 = S.stage1.n + S.stage2.n;
+  const D = PLAN.dates;
+  const day = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US',
+    { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const up = s => S[s].n - S[s].window;
 
   const stageRow = (s, when) => {
     const x = S[s];
@@ -7522,7 +7526,8 @@ function renderUpgradePlan() {
       + `<td class="n">${fmt.money(x.mrr)}</td><td class="n">${fmt.money(x.asks)}</td>`
       + `<td class="n">${sm(x.gain)}<br><span class="muted ci">90%: ${sm(x.gainRange.low)} to ${sm(x.gainRange.high)}</span></td>`
       + `<td class="n">${x.window.toFixed(1)}<br><span class="muted">${x.extra.toFixed(1)} from the rise, ${x.normal.toFixed(1)} normal</span></td>`
-      + `<td class="n">${fmt.int(x.chance.low)} to ${fmt.int(x.chance.high)}<br><span class="muted">${fmt.int(x.seen.low)} to ${fmt.int(x.seen.high)} with round one's doubts</span></td></tr>`;
+      + `<td class="n">${fmt.int(x.chance.low)} to ${fmt.int(x.chance.high)}<br><span class="muted">${fmt.int(x.seen.low)} to ${fmt.int(x.seen.high)} with round one's doubts</span></td>`
+      + `<td class="n"><strong>${fmt.int(Math.round(x.n - x.window))}</strong><br><span class="muted">of ${fmt.int(x.n)} told</span></td></tr>`;
   };
 
   box.innerHTML =
@@ -7536,11 +7541,11 @@ function renderUpgradePlan() {
     + '<h3 class="sub-head">The stages</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">Accounts</th>'
     + '<th class="n">Pay now a month</th><th class="n">Asked a month</th><th class="n">Revenue added a month</th>'
-    + `<th class="n">Expected to leave in ${win}</th><th class="n">Could see leave (90%)</th></tr></thead><tbody>`
-    + stageRow('stage1', 'Notices first; read 60 days later')
-    + stageRow('pilot', 'Alongside stage 1')
-    + stageRow('stage2', 'After the stage 1 read-out, about 10 weeks on')
-    + stageRow('later', 'Only if the pilot holds')
+    + `<th class="n">Expected to leave in ${win}</th><th class="n">Could see leave (90%)</th><th class="n">Upgraded, expected</th></tr></thead><tbody>`
+    + stageRow('stage1', `Told by ${day(D.notice1)}; new price from ${day(D.effective1)}`)
+    + stageRow('pilot', `With stage 1: told by ${day(D.notice1)}; from ${day(D.effective1)}`)
+    + stageRow('stage2', `Told ${day(D.notice2)}; new price from ${day(D.effective2)}`)
+    + stageRow('later', `With stage 2, only if the pilot holds`)
     + '</tbody></table></div>'
     + `<p class="note">"Expected to leave" over the ${win} is what the rise adds (the model) plus each group's measured normal `
     + `churn over the same weeks (accounts here a year or more lose ${fmt.pct(p.normalRate.under200 ?? p.normalRate.all, 1)} a month under $200, `
@@ -7550,6 +7555,30 @@ function renderUpgradePlan() {
     + 'doubts as well, which is far wider. The revenue range is the middle 90% of the '
     + `model's ${fmt.int(PLAN.draws)} draws. These are the model's own numbers, and the model is optimistic: 5 of round one's 21 `
     + 'accounts counted as staying never moved to the new price. Refit on "paying the new price" before sending stage 1.</p>'
+
+    + '<h3 class="sub-head">Timeline</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table plan-timeline"><thead><tr><th>Date</th><th>What happens</th></tr></thead><tbody>'
+    + [[`Now to ${day('2026-11-30')}`, 'Refit the model on "paying the new price" (round one counted five accounts as staying that never paid it), '
+        + 'confirm the stage 1 list, decide Testerman\'s second subscription, write the notice, and schedule each price change in Stripe '
+        + 'to start with the first bill on or after 1 January, so nobody is charged a part-month.'],
+      [`${day(D.notice1)}`, `<strong>Stage 1 notices: ${fmt.int(S.stage1.n)} accounts, plus ${fmt.int(S.pilot.n)} in the $500 to $799 pilot.</strong> `
+        + `${PLAN.noticeDays}-day notice; ${day(D.notice1Latest)} is the last day that still gives ${PLAN.noticeDays} days before 1 January.`],
+      [`${day(D.effective1)}`, 'Stage 1 and pilot prices take effect. Each account pays the new price from its first bill on or after this date, '
+        + 'so the first bills at the new price fall across January.'],
+      [`January`, 'Log every reply, cancellation, request to negotiate and failed payment as it comes in, in the CSV below.'],
+      [`${day(D.readout1)}`, `<strong>Read-out.</strong> About ${win} after the notices; every stage 1 account has had one bill at the new price, `
+        + `with a few days for failed payments to retry. Stage 1: ${fmt.int(trigger('stage1'))} or more of ${fmt.int(S.stage1.n)} gone pauses stage 2. `
+        + `Pilot: ${fmt.int(trigger('pilot'))} or more of ${fmt.int(S.pilot.n)} gone stops the rest of $500 to $799.`],
+      [`February, to ${day(D.refit)}`, 'Second bills at the new price confirm who really accepted. Refit on round one and stage 1 together; '
+        + 'the site rebuilds the stage 2 asks.'],
+      [`${day(D.notice2)}`, `<strong>Stage 2 notices: ${fmt.int(S.stage2.n)} accounts</strong>, plus the other ${fmt.int(S.later.n)} $500 to $799 `
+        + 'accounts if the pilot held.'],
+      [`${day(D.effective2)}`, 'Stage 2 prices take effect, again from each account\'s first bill on or after this date.'],
+      [`${day(D.readout2)}`, 'Stage 2 read-out, the same way.']]
+      .map(([d, w]) => `<tr><td><strong>${d}</strong></td><td>${w}</td></tr>`).join('')
+    + '</tbody></table></div>'
+    + `<p class="note">Faster, if needed: stage 2 notices on ${day('2027-02-12')} for ${day('2027-03-15')}, refit on the first bills only. `
+    + 'That gives up the second-bill check, which is the step that would have caught round one\'s five accounts that never paid.</p>'
 
     + '<h3 class="sub-head">After stage 1: what decides stage 2</h3>'
     + '<ol class="plan-rules">'
@@ -7591,7 +7620,7 @@ function renderUpgradePlan() {
     + '<h3 class="sub-head">Every account in the plan</h3>'
     + '<div class="chart-control"><button type="button" id="plan-download">Download the plan as CSV, with columns to log outcomes</button>'
     + '<span class="muted" id="plan-status"></span></div>'
-    + '<div class="table-scroll"><table class="data-table"><thead><tr><th>Stage</th><th>Company</th><th>Stripe ID</th><th>Price group</th>'
+    + '<div class="table-scroll"><table class="data-table plan-accounts"><thead><tr><th>Stage</th><th>Company</th><th>Stripe ID</th><th>Price group</th>'
     + '<th class="n">Contacts replying</th><th class="n">Pays now</th><th class="n">Ask</th><th class="n">Rise</th>'
     + '<th class="n">Chance of leaving</th><th class="n">Revenue added</th></tr></thead><tbody>'
     + [...p.items].sort((a, b) => ['stage1', 'pilot', 'stage2', 'later'].indexOf(a.stage) - ['stage1', 'pilot', 'stage2', 'later'].indexOf(b.stage)
@@ -7611,10 +7640,13 @@ function renderUpgradePlan() {
     const P = PLAN_LAST;
     const q = v => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
     const head = ['stage', 'company', 'stripe_id', 'price_group', 'industry', 'contacts_replying_a_month', 'pays_now', 'ask', 'rise',
-      'chance_of_leaving', 'revenue_added_a_month', 'notice_sent', 'effective_date', 'response', 'outcome_day_60',
+      'chance_of_leaving', 'revenue_added_a_month', 'notice_by', 'new_price_from', 'notice_sent', 'response', 'outcome_day_60',
       'paid_first_bill_at_new_price', 'paid_second_bill_at_new_price', 'notes'];
     const lines = [head.join(',')].concat(P.items.map(x => [STAGE[x.stage], x.r.name || '', x.r.id, PLAN_GROUPS[x.group], x.r.industry || '',
-      x.r.replying ?? '', x.r.mrr, x.ask, x.rise.toFixed(3), x.c1.toFixed(3), x.gain.toFixed(2), '', '', '', '', '', '', ''].map(q).join(',')));
+      x.r.replying ?? '', x.r.mrr, x.ask, x.rise.toFixed(3), x.c1.toFixed(3), x.gain.toFixed(2),
+      x.stage === 'stage1' || x.stage === 'pilot' ? PLAN.dates.notice1 : PLAN.dates.notice2,
+      x.stage === 'stage1' || x.stage === 'pilot' ? PLAN.dates.effective1 : PLAN.dates.effective2,
+      '', '', '', '', '', ''].map(q).join(',')));
     const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url; a.download = `chiirp-upgrade-plan-${P.month}.csv`;

@@ -3635,7 +3635,19 @@ export function sweepLines(pool, { usage, rises, ticked = null, split = false, b
 // for stage 2 are the comparison group while stage 1 runs. The $500 to $799
 // accounts were never tested: a pilot of 18 goes with stage 1 and the rest wait
 // on it.
-export const PLAN = { stage1Share: 0.45, pilot500: 18, seed: 20261112, round: 50, draws: 400, readMonths: 2 };
+export const PLAN = { stage1Share: 0.45, pilot500: 18, seed: 20261112, round: 50, draws: 400, readMonths: 2,
+  // The timeline (Josh, 12 Nov 2026: "notify each customer 30 days in advance
+  // ... the first upgrade can start on Jan 1 2027, this is the exploratory one").
+  // Stage 1 and the pilot take effect on 1 Jan, so notices go by 2 Dec at the
+  // latest; 1 Dec leaves a day. The read-out is once every stage 1 account has
+  // had a bill at the new price (their first falls between 1 and 31 Jan) and a
+  // few days of failed-payment retries. Stage 2 waits for the second bills in
+  // February, so the refit rests on paying twice, then gives 30 days again.
+  dates: {
+    notice1: '2026-12-01', notice1Latest: '2026-12-02', effective1: '2027-01-01', readout1: '2027-02-05',
+    refit: '2027-02-26', notice2: '2027-03-01', effective2: '2027-04-01', readout2: '2027-05-07',
+  },
+  noticeDays: 30 };
 export const PLAN_GROUPS = { under200: 'Under $200', plan200: '$200 plan', tier262: '$213 to $499', over500: '$500 to $799' };
 export const planEngagement = u => (u == null ? 'unknown' : u < 20 ? 'quiet' : u < 50 ? 'middle' : 'engaged');
 export function upgradePlan(data, { engagement = null, lowBand = 800 } = {}) {
