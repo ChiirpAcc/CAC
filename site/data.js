@@ -4187,11 +4187,19 @@ export function accountServeCost(data, { lapsedCarry = false } = {}) {
   const months = [...new Set(data.customers.filter(r => r.active).map(r => r.month))].sort();
   if (!months.length) return null;
   const never = neverPaidIds(data);
+  // Each month's live rows in file order, grouped once rather than scanning
+  // every row for every month (12 Nov 2026).
+  const activeIn = new Map();
+  for (const r of data.customers) {
+    if (!r.active) continue;
+    if (!activeIn.has(r.month)) activeIn.set(r.month, []);
+    activeIn.get(r.month).push(r);
+  }
 
   const byMonth = [];
   const rows = [];
   for (const month of months) {
-    const live = data.customers.filter(r => r.active && r.month === month && !never.has(r.id));
+    const live = (activeIn.get(month) || []).filter(r => !never.has(r.id));
     const payingRows = live.filter(r => (r.eopMrr || 0) > 0);
     if (!payingRows.length) continue;
     const revenueOf = r => (r.eopMrr || 0) + (r.usage || 0) + (r.oneTime || 0) + (r.passThrough || 0);
@@ -6260,13 +6268,22 @@ export function eventReports(data, options = {}) {
     const kept = eligible.filter(id => live.get(id) && live.get(id).has(monthAdd(firstRevenue.get(id), k)));
     return { rate: kept.length / eligible.length, n: eligible.length };
   };
+  // A customer's first row in a month, looked up instead of scanning every
+  // row once per customer (12 Nov 2026: several seconds on the Events tab).
+  const firstRows = new Map();
+  for (const r of data.customers) {
+    if (!firstRows.has(r.id)) firstRows.set(r.id, new Map());
+    const byMonth = firstRows.get(r.id);
+    if (!byMonth.has(r.month)) byMonth.set(r.month, r);
+  }
+  const firstRowOf = (id, month) => (firstRows.has(id) ? firstRows.get(id).get(month) : undefined);
   const channels = channelKeys.map(key => {
     const ids = starters.filter(([id]) => channelOf(id) === key).map(([id]) => id);
     const paid = ids.filter(id => revenueRows.has(id));
     const rev = paid.reduce((s, id) => s + revenueRows.get(id).revenue, 0);
     const months = paid.reduce((s, id) => s + revenueRows.get(id).months, 0);
     const firstMrr = ids.map(id => {
-      const row = data.customers.find(r => r.id === id && r.month === firstRevenue.get(id));
+      const row = firstRowOf(id, firstRevenue.get(id));
       return row ? row.eopMrr || 0 : null;
     }).filter(v => v !== null).sort((a, b) => a - b);
     const mid = firstMrr.length >> 1;
@@ -7674,6 +7691,15 @@ function buildStripeMatch(data) {
     by.get(k).push(x);
   }
   const keys = [...by.keys()];
+  // The names by their first word, in the same order. One name starting
+  // another, with a space after it, shares its first word, so the
+  // part-of-the-name rules below only need to look at that word's names.
+  const byFirstWord = new Map();
+  for (const n of keys) {
+    const w = n.split(' ')[0];
+    if (!byFirstWord.has(w)) byFirstWord.set(w, []);
+    byFirstWord.get(w).push(n);
+  }
   // The same name with the spaces taken out: "TemperaturePro Kalamazoo" in
   // HubSpot is "Temperature Pro Kalamazoo" in Stripe (13 Oct 2026).
   const squash = k => k.replace(/ /g, '');
@@ -7691,9 +7717,19 @@ function buildStripeMatch(data) {
     return { ...best, firstPaid, how: `${how}, ${list.length} Stripe accounts` };
   };
   const linked = new Map(Object.values(HUBSPOT_COMPANY_STRIPE).map(([name, cus]) => [norm(name), cus]));
+  // The answer depends only on the normalised name, and the part-of-the-name
+  // rules scan every Stripe name, so each name is matched once (12 Nov 2026:
+  // the scans were most of the Events tab's 15 seconds). Every call still
+  // gets its own copy, as before, so a caller writing to one cannot reach another.
+  const seen = new Map();
   return company => {
     const k = norm(company);
     if (!k) return null;
+    if (!seen.has(k)) seen.set(k, matchKey(k));
+    const hit = seen.get(k);
+    return hit ? { ...hit } : null;
+  };
+  function matchKey(k) {
     if (linked.has(k)) {
       const x = sum.get(linked.get(k));
       return x ? { ...x, how: 'HubSpot company’s Stripe account' } : null;
@@ -7708,18 +7744,19 @@ function buildStripeMatch(data) {
     // exactly one customer fits, and the rest is not "of <place>": a
     // franchise's locations are different businesses.
     if (k.split(' ').length < 2 || FRANCHISE.test(k)) return null;
-    const fits = keys.filter(n => n.startsWith(k + ' ') && !/^of /.test(n.slice(k.length + 1)));
+    const sameFirstWord = byFirstWord.get(k.split(' ')[0]) || [];
+    const fits = sameFirstWord.filter(n => n.startsWith(k + ' ') && !/^of /.test(n.slice(k.length + 1)));
     const hits = fits.flatMap(n => by.get(n));
     if (hits.length === 1) return { ...hits[0], how: 'part of the name' };
     if (hits.length) return null;
     // Or the other way round: Stripe holds the shorter name ("Aether
     // Mechanical" for HubSpot's "Aether Mechanical, Heating, Cooling &
     // Plumbing"), on the same terms.
-    const shorter = keys.filter(n => n.split(' ').length >= 2 && !FRANCHISE.test(n) && k.startsWith(n + ' ')
+    const shorter = sameFirstWord.filter(n => n.split(' ').length >= 2 && !FRANCHISE.test(n) && k.startsWith(n + ' ')
       && !/^of /.test(k.slice(n.length + 1)));
     const back = shorter.flatMap(n => by.get(n));
     return back.length === 1 ? { ...back[0], how: 'part of the name' } : null;
-  };
+  }
 }
 
 export const personName = who => (who === null || who === undefined ? null

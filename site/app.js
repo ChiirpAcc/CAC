@@ -1144,6 +1144,8 @@ function renderEra() {
 
 // The views: every chart, the Upgrade list, Events and Marketing.
 function showView(which) {
+  // Drawn while still hidden, as every tab was when all of them drew at load.
+  drawView(which);
   $('view-all').hidden = which !== 'all';
   if ($('view-list')) $('view-list').hidden = which !== 'list';
   if ($('view-events')) $('view-events').hidden = which !== 'events';
@@ -8208,6 +8210,33 @@ function boot() {
     cohorts = buildCohorts(data);
     $('loading').hidden = true;
     $('dashboard').hidden = false;
+    // Sits above every tab, so it is drawn whichever tab opens first.
+    renderVocabularyWarning();
+    watchTables();
+    // Draws the tab the address names; the others draw on first visit.
+    wireTabs();
+  }).catch(showRenderError);
+}
+
+// This used to write into #loading after #loading had been hidden, so any
+// failure after the first render vanished: the page looked half drawn and
+// the console stayed clean. Un-hide it and log, so a broken render says so.
+function showRenderError(err) {
+  console.error('Render failed:', err);
+  $('loading').hidden = false;
+  $('loading').innerHTML =
+    `<p class="empty">Could not draw the page: ${err && err.message}. ` +
+    `The workbook may not have pushed yet, or a chart is broken.</p>`;
+}
+
+// Each tab draws the first time it is shown, not all of them at load (12 Nov
+// 2026). Drawing every tab up front took 13 to 20 seconds before the tab
+// asked for appeared, most of it the Events and Events summary tabs. The
+// draws are the same functions in the same order within each tab, so every
+// figure is what it was. An event's or a source's own page draws on its
+// address, as before.
+const VIEW_DRAWS = {
+  all: () => {
     renderStatic();
     renderForward();
     renderSeasonal();
@@ -8227,7 +8256,6 @@ function boot() {
     renderRevChurnTenure();
     renderWindowCurve();
     renderLevers();
-    watchTables();
     renderArrivalAnimations();
     renderProjection();
     renderCalculator();
@@ -8235,16 +8263,8 @@ function boot() {
     renderLedger();
     renderOngoing();
     renderAccountServe();
-    renderEvents();
-    renderEventAttribution();
-    renderMarketing();
-    renderRP();
-    renderSummary();
     renderFloors();
-    renderUpgradeList();
-    renderCampaign();
     renderFullCost();
-    wireTabs();
     $('horizon').addEventListener('input', renderSeasonal);
     $('ltv-age').addEventListener('input', renderLtvAtAge);
     if ($('era-depth')) $('era-depth').addEventListener('input', renderEra);
@@ -8265,16 +8285,18 @@ function boot() {
     if ($('horizons-step')) $('horizons-step').addEventListener('input', renderHorizons);
     if ($('full-cost-age')) $('full-cost-age').addEventListener('input', renderFullCost);
     renderAssumptionDependent();
-  }).catch(err => {
-    // This used to write into #loading after #loading had been hidden, so any
-    // failure after the first render vanished: the page looked half drawn and
-    // the console stayed clean. Un-hide it and log, so a broken render says so.
-    console.error('Render failed:', err);
-    $('loading').hidden = false;
-    $('loading').innerHTML =
-      `<p class="empty">Could not draw the page: ${err && err.message}. ` +
-      `The workbook may not have pushed yet, or a chart is broken.</p>`;
-  });
+  },
+  list: () => { renderUpgradeList(); renderCampaign(); },
+  events: () => { renderEvents(); renderEventAttribution(); },
+  marketing: () => renderMarketing(),
+  sales: () => renderRP(),
+  summary: () => renderSummary(),
+};
+const viewsDrawn = new Set();
+function drawView(which) {
+  if (viewsDrawn.has(which) || !VIEW_DRAWS[which]) return;
+  viewsDrawn.add(which);
+  try { VIEW_DRAWS[which](); } catch (err) { showRenderError(err); }
 }
 
 // What revenue per surviving customer does between month 11 and month 12,
