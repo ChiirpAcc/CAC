@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, TEXT_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianTexts, underMoveCurve, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, TEXT_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianTexts, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -3711,12 +3711,13 @@ function renderUpgradeList() {
     const l = LIST_LAST;
     const head = ['group', 'company', 'stripe_id', 'industry', 'price_group', 'usage_band', 'texts_a_month', 'account_age_days',
       'mrr_now', 'settled_peak', 'ask',
-      'ask_multiple', 'chance_of_leaving', 'held_before', 'asked', 'note', 'uplift', 'months_here', 'environment',
+      'ask_multiple', 'chance_of_leaving', 'risk_500_model', 'held_before', 'asked', 'note', 'uplift', 'months_here', 'environment',
       'cash_last_month', 'usage_last_month'].concat(l.window);
     const line = (group, r) => [group, r.name || '', r.id, r.industry || '', r.group || '', r.band || '',
       r.textsMeasured ? r.texts : '', r.ageDays ?? '',
       r.mrr, r.settledPeak, r.viable ? r.target : '', r.ask === null || !r.viable ? '' : r.ask.toFixed(2),
       r.viable && r.churn != null ? r.churn.toFixed(2) : '',
+      r.risk500 != null ? r.risk500 : '',
       r.heldBefore ? 'yes' : 'no', r.viable ? 'yes' : 'no', r.why || '',
       r.viable ? Math.max(0, r.target - r.mrr) : 0, r.tenure === null ? '' : r.tenure,
       r.source || '', r.cash, r.usage]
@@ -7465,8 +7466,9 @@ let campBandsSettled = false;
 function loadCampBands() {
   if (campBandsAsked) return;
   campBandsAsked = true;
-  fetch('engagement_bands.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
-    .then(j => {
+  const getJson = f => fetch(f, { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+  Promise.all([getJson('engagement_bands.json'), getJson('churn_risk_500.json')])
+    .then(([j, risk]) => {
       campBandsSettled = true;
       if (!j || !j.bands) { renderCampaign(); renderUpgradeList(); return; }
       CAMP_BANDS = {
@@ -7477,6 +7479,8 @@ function loadCampBands() {
         ...(j.ageDays ? { ageDays: new Map(Object.entries(j.ageDays)) } : {}),
         ...(j.excluded ? { excluded: new Map(Object.entries(j.excluded)) } : {}),
         ...(j.industry ? { industry: new Map(Object.entries(j.industry)) } : {}),
+        // The 500+ model's score for each $500 to $799 account (churn_risk_500.json).
+        ...(risk && risk.risk ? { risk500: new Map(Object.entries(risk.risk)) } : {}),
       };
       renderCampaign();
       renderUpgradeList();
@@ -7530,6 +7534,11 @@ function renderCampaign() {
   const c = roundTwo(data, { lowBand: CAMP_LOW_BAND, engagement, bands, groups, ...campOptions() });
   if (!c) return;
 
+  // The 90% range of what these asks bring, from round one's uncertainty.
+  const cr = roundTwoRange(data, { lowBand: CAMP_LOW_BAND, engagement, bands, groups, ...campOptions() });
+  const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
+  const ci = (rg, f = sm) => (rg ? `<br><span class="muted ci">${f(rg.low)} to ${f(rg.high)}</span>` : '');
+  const ciInt = rg => ci(rg, v => fmt.int(Math.round(v)));
   const verdict = c.change > 0 ? 'good' : 'under';
   $('camp-result').innerHTML =
     `<div class="calc-label">${c.change >= 0 ? 'Monthly revenue gained' : 'Monthly revenue lost'}</div>`
@@ -7539,6 +7548,8 @@ function renderCampaign() {
     + `</div>`
     + `<div class="calc-against">`
     + `<span>${fmt.int(c.asked)} accounts asked, each its own price; about ${fmt.int(Math.round(c.lost))} expected to leave</span>`
+    + (cr ? `<span>90% range: ${sm(cr.gain.low)} to ${sm(cr.gain.high)} a month, ${fmt.int(Math.round(cr.lost.low))} to `
+      + `${fmt.int(Math.round(cr.lost.high))} leaving. Round one rests on 36 accounts, so the range is wide.</span>` : '')
     + `<strong>${fmt.int(c.overSix)} asks are over $600 and ${fmt.int(c.belowFloor)} are under the `
     + `${fmt.money(c.floorAfter)} cost floor</strong>`
     + `</div>`;
@@ -7552,20 +7563,21 @@ function renderCampaign() {
       + `<td class="n">${fmt.int(g.asked)} of ${fmt.int(g.n)}</td>`
       + `<td class="n">${g.typical ? fmt.money(g.typical) : '–'}</td>`
       + `<td class="n">${range}</td>`
-      + `<td class="n">${g.asked ? fmt.int(Math.round(g.lost)) : '–'}</td>`
-      + `<td class="n">${g.asked ? (g.gain >= 0 ? '+' : '−') + fmt.money(Math.abs(g.gain)) : '–'}</td>`
+      + `<td class="n">${g.asked ? fmt.int(Math.round(g.lost)) + ciInt(cr && cr.byGroup[g.key] && cr.byGroup[g.key].lost) : '–'}</td>`
+      + `<td class="n">${g.asked ? sm(g.gain) + ci(cr && cr.byGroup[g.key] && cr.byGroup[g.key].gain) : '–'}</td>`
       + '</tr>';
   }).join('');
   $('camp-detail').innerHTML =
     '<div class="table-scroll"><table class="data-table calc-table"><thead><tr><th>Price group</th>'
     + '<th class="n">Asked</th><th class="n">Typical ask</th><th class="n">Asks</th>'
-    + '<th class="n">Expected to leave</th><th class="n">Revenue a month</th></tr></thead><tbody>'
+    + '<th class="n">Expected to leave<br><span class="muted">90% range</span></th>'
+    + '<th class="n">Revenue a month<br><span class="muted">90% range</span></th></tr></thead><tbody>'
     + groupRows + '</tbody></table></div>'
     + (c.byIndustry.length
       ? '<h4 class="sub-head">By industry, for the groups and bands ticked</h4>'
         + '<div class="table-scroll"><table class="data-table calc-table"><thead><tr><th>Industry</th>'
         + '<th class="n">Asked</th><th class="n">Pays now, average</th><th class="n">Ask, average</th><th class="n">Rise</th>'
-        + '<th class="n">Expected to leave</th><th class="n">Revenue a month</th></tr></thead><tbody>'
+        + '<th class="n">Expected to leave</th><th class="n">Revenue a month<br><span class="muted">90% range</span></th></tr></thead><tbody>'
         + c.byIndustry.map(b => '<tr>'
           + `<td>${b.industry}${CLEANING_INDUSTRIES.has(b.industry) ? ' <span class="muted">(priced as cleaning)</span>' : ''}</td>`
           + `<td class="n">${fmt.int(b.asked)}</td>`
@@ -7573,7 +7585,7 @@ function renderCampaign() {
           + `<td class="n">${fmt.money(b.averageAsk)}</td>`
           + `<td class="n">${pctRise(b.rise)}</td>`
           + `<td class="n">${fmt.int(Math.round(b.lost))}</td>`
-          + `<td class="n">${b.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(b.gain))}</td></tr>`).join('')
+          + `<td class="n">${sm(b.gain)}${ci(cr && cr.byIndustry[b.industry])}</td></tr>`).join('')
         + '</tbody></table></div>'
       : '')
     + '<div class="table-scroll"><table class="data-table calc-table kv-table"><tbody>'
@@ -7639,8 +7651,11 @@ function renderCampaign() {
     + 'own usage, and are a guess, which is why that group starts unticked. '
     + 'Revenue gained is against changing nothing, with normal churn on both sides; "expected to leave" counts '
     + 'everyone the model expects to go in the round, normal churn included. The curves rest on 36 accounts '
-    + 'and 15 churns; the trades curve on the $200 plan rests on 4. Log every outcome of round two with its '
-    + 'ask and refit.';
+    + 'and 15 churns; the trades curve on the $200 plan rests on 4. The ranges under the headline and in the tables are '
+    + 'the middle 90% of 1,000 draws of round one\'s uncertain parts (the coefficients\' standard errors from their p-values, '
+    + 'and the smooth or cliff shape), with the asks held where they are: they are what these asks could bring, not '
+    + 'different asks. They are wide because round one is small. The $500 to $799 group uses the 500+ model\'s score for '
+    + 'each account. Log every outcome of round two with its ask and refit.';
   LAST_CAMP = c;
   renderTradeoffs(c);
 }
@@ -7658,7 +7673,7 @@ const RESEARCH = {
   trades200: 'Same plan, far less churn than cleaners at the same price. Rests on 4 accounts.',
   tier262: 'Round one\'s $262+ accounts, mostly trades, lost about 10% at +40% to +90%.',
   under200: 'Accounts paying $62 to $192 went to $500 (+150% to +700%) and most stayed. The size of the rise did not predict leaving.',
-  over500: 'Not in round one. Borrows the $213+ curve with each account\'s own usage, so this is a guess.',
+  over500: 'Not in round one. The 500+ model scores each account 11% to 35% at a round-one-sized rise (+40% to +90%); the $213+ curve is set to pass through each score.',
 };
 const pctRise = x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%';
 // The export's industries priced on the cleaning curve (engagement_bands.json cleaningNote).
@@ -7682,7 +7697,11 @@ function renderTradeoffs(c) {
   const med = groupMedianPrices(data, { lowBand: CAMP_LOW_BAND, engagement: CAMP_BANDS });
   const tlabel = g => `${TYPICAL[g].label} (median ${fmt.money(med[g])})`;
   const RISE_GROUPS = ['clean200', 'trades200', 'tier262', 'over500'];
-  const typ = (g, texts) => typicalAccount(g, texts, med[g]);
+  // The $500 to $799 median account carries the 500+ model's median score.
+  const risks = CAMP_BANDS && CAMP_BANDS.risk500 ? [...CAMP_BANDS.risk500.values()].sort((a, b) => a - b) : [];
+  const medRisk = risks.length ? risks[risks.length >> 1] : null;
+  const typ = (g, texts, risk = medRisk) => ({ ...typicalAccount(g, texts, med[g]),
+    ...(g === 'over500' && risk != null ? { riskShift: riskShiftFor(risk) } : {}) });
   // Charts 1 and 2 show each group's median account: median price and median
   // texts, so groups that share a curve still differ by how much they use it.
   const medT = groupMedianTexts(data, { lowBand: CAMP_LOW_BAND, engagement: CAMP_BANDS });
@@ -7701,7 +7720,15 @@ function renderTradeoffs(c) {
     + ['clean200', 'trades200', 'tier262', 'under200', 'over500'].map(group => {
       const g = applied[group];
       return `<tr><td><strong>${tlabel(group)}</strong></td><td class="small">${RESEARCH[group]}</td>`
-        + TEXT_LEVELS.map(l => `<td>${cell(opt.find(r => r.group === group && r.texts === l.texts))}</td>`).join('')
+        + (group === 'over500' && medRisk != null
+          ? [0.11, 0.14, 0.27, 0.35].map(rk => {
+            const a = typ('over500', ROUND_ONE.textsRef, rk);
+            const own = roundOneAsk({ ...a, band: 'users' }, opts);
+            const g2 = (1 - own.churn) * own.target - (1 - own.churnNow) * a.mrr;
+            return `<td><span class="muted">500+ score ${Math.round(rk * 100)}%:</span> `
+              + cell({ target: own.target, mrr: a.mrr, rise: own.target / a.mrr - 1, churn: own.churn, gain: g2 }) + '</td>';
+          }).join('')
+          : TEXT_LEVELS.map(l => `<td>${cell(opt.find(r => r.group === group && r.texts === l.texts))}</td>`).join(''))
         + `<td>${g && g.asked ? `${fmt.int(g.asked)} asked, typically ${fmt.money(g.typical)}, `
             + `${g.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(g.gain))} a month${g.ticked ? '' : ' <span class="muted">(not ticked)</span>'}`
           : '<span class="muted">none asked</span>'}</td></tr>`;
@@ -7720,11 +7747,17 @@ function renderTradeoffs(c) {
       xTitle: 'Size of the rise',
       series: lines.map(l => ({ label: l.label, colour: l.colour, values: rel(l),
         dashed: l.dashed })),
+      ...(lines.some(l => l.range) ? {
+        bands: lines.filter(l => l.range).map(l => ({ label: l.label, colour: l.colour,
+          low: l.range.kept.map(r => r.low), high: l.range.kept.map(r => r.high) })),
+        legendItems: rangeLegend(lines) } : {}),
       refs: [{ value: 1, label: 'No rise' }],
       xMarks: [{ index: 10, label: 'Tested limit, $200 plan' }],
       describe: i => `<strong>${labels[i]}</strong>` + lines.map(l => {
         const p = l.curve[i];
-        return `<span>${l.label}: ${fmt.pct(p.kept / l.curve[0].kept)} of the revenue with no rise, ${fmt.pct(p.churn)} leave</span>`;
+        return `<span>${l.label}: ${fmt.pct(p.kept / l.curve[0].kept)} of the revenue with no rise`
+          + (l.range ? ` (90%: ${fmt.pct(l.range.kept[i].low)} to ${fmt.pct(l.range.kept[i].high)})` : '')
+          + `, ${fmt.pct(p.churn)} leave</span>`;
       }).join(''),
     });
   };
@@ -7732,19 +7765,25 @@ function renderTradeoffs(c) {
   const churnLines = RISE_GROUPS.map(group => ({
     label: mlabel(group), colour: GROUP_INK[group], dashed: group === 'over500',
     curve: tradeoffCurve(typ(group, medT[group]), rises, opts),
+    range: curveRange(typ(group, medT[group]), rises, opts),
   }));
+  const rangeLegend = lines => [...lines.map(l => ({ label: l.label, colour: l.colour })),
+    { label: 'Shaded: 90% range from round one\'s uncertainty', colour: INK.muted }];
   multiLineChart($('trade-churn'), {
     labels, yFormat: v => fmt.pct(v), yTitle: 'Chance of leaving in the round',
     xTitle: 'Size of the rise',
     series: churnLines.map(l => ({ label: l.label, colour: l.colour, dashed: l.dashed, values: l.curve.map(p => p.churn) })),
+    bands: churnLines.map(l => ({ label: l.label, colour: l.colour, low: l.range.churn.map(r => r.low), high: l.range.churn.map(r => r.high) })),
+    legendItems: rangeLegend(churnLines),
     xMarks: [{ index: 10, label: 'Tested limit, $200 plan' }],
     describe: i => `<strong>${labels[i]}</strong>` + churnLines.map(l =>
-      `<span>${l.label}: ${fmt.pct(l.curve[i].churn)} leave</span>`).join(''),
+      `<span>${l.label}: ${fmt.pct(l.curve[i].churn)} leave (90%: ${fmt.pct(l.range.churn[i].low)} to ${fmt.pct(l.range.churn[i].high)})</span>`).join(''),
   });
 
   keptChart('trade-industry', RISE_GROUPS.map(group => ({
     label: mlabel(group), colour: GROUP_INK[group], dashed: group === 'over500',
     curve: tradeoffCurve(typ(group, medT[group]), rises, opts),
+    range: curveRange(typ(group, medT[group]), rises, opts),
   })));
 
   const box = $('trade-texts-group');
@@ -7762,10 +7801,16 @@ function renderTradeoffs(c) {
     b.classList.toggle('is-on', b.dataset.key === TRADE.textsGroup);
   }
   const tInk = [INK.negative, INK.secondary, INK.primary, INK.positive];
-  keptChart('trade-texts', TEXT_LEVELS.map((l, i) => ({
-    label: l.label, colour: tInk[i],
-    curve: tradeoffCurve(typ(TRADE.textsGroup, l.texts), rises, opts),
-  })));
+  // Texts do not move a $500 to $799 account once it carries a 500+ score
+  // (the score already reflects usage), so that group is drawn by score.
+  keptChart('trade-texts', TRADE.textsGroup === 'over500' && medRisk != null
+    ? [[0.11, 'Score 11% (normal)'], [0.14, 'Score 14% (under a year)'], [0.27, 'Score 27% (few replying)'], [0.35, 'Score 35% (both)']]
+      .map(([rk, label], i) => ({ label: `500+ model, ${label}`, colour: tInk[i],
+        curve: tradeoffCurve(typ('over500', ROUND_ONE.textsRef, rk), rises, opts) }))
+    : TEXT_LEVELS.map((l, i) => ({
+      label: l.label, colour: tInk[i],
+      curve: tradeoffCurve(typ(TRADE.textsGroup, l.texts), rises, opts),
+    })));
 
   // 4: under $200, the one move round one tested, $62-$192 to $500. The size
   // of the rise did not predict leaving, so what matters is what the account
@@ -7847,12 +7892,19 @@ function renderTradeoffs(c) {
     + 'the card asks the same rise, each account on its own curve: revenue gained a month after churn on the left, '
     + 'customers lost to the rise (above normal churn) on the right. A dollar rise is a far bigger shock to a $100 account '
     + 'than to a $450 one, which is why chart 6 peaks higher and loses more customers. They and the 12-month view include '
-    + 'the $500 to $799 accounts when that group is ticked on the card.';
+    + 'the $500 to $799 accounts when that group is ticked on the card. The $500 to $799 accounts use the 500+ model: '
+    + 'each has a score for its chance of leaving under a round-one-sized rise (+40% to +90%), 11% normal, 14% under a '
+    + 'year old, 27% with few contacts replying, 35% both; the $213+ curve is moved on the log-odds scale until its '
+    + 'average over that range is the account\'s score, and texts no longer move it, since the score already reflects '
+    + 'usage. The shaded ranges on charts 1 and 2 are the middle 90% of 400 draws of what round one could not pin down: '
+    + 'the $200-plan effect (standard error 1.01, from p = 0.03), cleaning (0.97, from p = 0.29), texts (0.58, from '
+    + 'p = 0.26), the off-plan level (0.6, about 20 accounts) and the curve\'s shape between the smooth and cliff readings.';
   renderRoundTwoProjection();
 }
 
 let LAST_CAMP = null;
 let LAST_CURVES = null;
+const PROJ_RANGE = { key: null, value: null, timer: null };
 
 function renderRoundTwoProjection() {
   if (!$('proj-chart') || !LAST_CURVES) return;
@@ -7873,8 +7925,18 @@ function renderRoundTwoProjection() {
   if (!riseIn.dataset.ready) {
     riseIn.value = Math.round(LAST_CURVES.rel.best.step * 100);
     addIn.value = LAST_CURVES.abs.best.step;
-    riseIn.addEventListener('input', renderRoundTwoProjection);
-    addIn.addEventListener('input', renderRoundTwoProjection);
+    // Dragging fires many input events; redraw at most once a frame, and show
+    // the slider's value straight away so it never looks stuck.
+    let queued = false;
+    const onSlide = () => {
+      $('proj-rise-out').textContent = `${pctRise(Number(riseIn.value) / 100)} for everyone asked`;
+      $('proj-add-out').textContent = `+${fmt.money(Number(addIn.value))} for everyone asked`;
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; renderRoundTwoProjection(); });
+    };
+    riseIn.addEventListener('input', onSlide);
+    addIn.addEventListener('input', onSlide);
     riseIn.dataset.ready = '1';
   }
   const rise = Number(riseIn.value) / 100;
@@ -7897,6 +7959,19 @@ function renderRoundTwoProjection() {
 
   const on = ticked('proj-scenarios');
   const runs = SCEN.map(s => ({ ...s, p: projectScenario(data, { ...sel, scenario: s.key, rise, add, baseMonths: TRADE.baseMonths }) }));
+  // Ranges take ~100 ms, so they are drawn once the slider has stopped for a
+  // moment; until then the lines move on their own.
+  const rangeKey = JSON.stringify([rise, add, TRADE.baseMonths, [...(sel.groups || [])], [...(sel.bands || [])], CAMP.trust]);
+  const ranges = PROJ_RANGE.key === rangeKey ? PROJ_RANGE.value : null;
+  if (!ranges) {
+    clearTimeout(PROJ_RANGE.timer);
+    PROJ_RANGE.timer = setTimeout(() => {
+      PROJ_RANGE.key = rangeKey;
+      PROJ_RANGE.value = projectRange(data, { ...sel, baseMonths: TRADE.baseMonths,
+        scenarios: SCEN.map(s => ({ key: s.key, rise, add })) });
+      renderRoundTwoProjection();
+    }, 250);
+  }
   const none = runs[0].p;
   if (!none) return;
   const shown = runs.filter(r => on.has(r.key));
@@ -7905,9 +7980,15 @@ function renderRoundTwoProjection() {
   multiLineChart($('proj-chart'), {
     labels, yFormat: fmt.money, yTitle: 'MRR of the accounts in the ticked groups',
     series: shown.map(r => ({ label: r.label, colour: r.colour, values: r.p.mrr, dashed: r.key === 'none' })),
+    ...(ranges ? {
+      bands: shown.map(r => ({ label: r.label, colour: r.colour, low: ranges[r.key].mrr.map(v => v.low), high: ranges[r.key].mrr.map(v => v.high) })),
+      legendItems: [...shown.map(r => ({ label: r.label, colour: r.colour })),
+        { label: 'Shaded: 90% range (round one and normal churn)', colour: INK.muted }] } : {}),
     xMarks: [{ index: 12, label: '12 months', highlight: true }],
     describe: i => `<strong>${labels[i]}</strong>` + shown.map(r =>
-      `<span>${r.label}: ${fmt.money(r.p.mrr[i])} MRR, ${fmt.int(Math.round(r.p.logos[i]))} customers</span>`).join(''),
+      `<span>${r.label}: ${fmt.money(r.p.mrr[i])} MRR`
+      + (ranges && i > 0 ? ` (90%: ${fmt.money(ranges[r.key].mrr[i].low)} to ${fmt.money(ranges[r.key].mrr[i].high)})` : '')
+      + `, ${fmt.int(Math.round(r.p.logos[i]))} customers</span>`).join(''),
   });
 
   const d = (v, b) => `${v - b >= 0 ? '+' : '−'}${fmt.money(Math.abs(v - b))}`;
@@ -7920,8 +8001,13 @@ function renderRoundTwoProjection() {
       return `<tr><td>${r.label}${r.key === 'relative' ? ` (${pctRise(rise)})` : r.key === 'absolute' ? ` (+${fmt.money(add)})` : ''}</td>`
         + `<td class="n">${fmt.money(p.mrr[0])}</td>`
         + `<td class="n">${fmt.money(p.mrr[12])}${r.key === 'none' ? '' : `<br><span class="muted">${d(p.mrr[12], none.mrr[12])}</span>`}</td>`
-        + `<td class="n"><strong>${fmt.money(p.arr12)}</strong>${r.key === 'none' ? '' : `<br><span class="muted">${d(p.arr12, none.arr12)}</span>`}</td>`
-        + `<td class="n">${fmt.money(p.averageMrr)}${vs}</td>`
+        + `<td class="n"><strong>${fmt.money(p.arr12)}</strong>${r.key === 'none' ? '' : `<br><span class="muted">${d(p.arr12, none.arr12)}</span>`}`
+        + (ranges ? `<br><span class="muted ci">90%: ${fmt.money(ranges[r.key].arr12.low)} to ${fmt.money(ranges[r.key].arr12.high)}`
+          + (r.key === 'none' ? '' : `; gap ${d(ranges[r.key].dArr12.low, 0)} to ${d(ranges[r.key].dArr12.high, 0)}`) + '</span>' : '')
+        + '</td>'
+        + `<td class="n">${fmt.money(p.averageMrr)}${vs}`
+        + (ranges ? `<br><span class="muted ci">90%: ${fmt.money(ranges[r.key].averageMrr.low)} to ${fmt.money(ranges[r.key].averageMrr.high)}</span>` : '')
+        + '</td>'
         + `<td class="n">${fmt.money(p.revenue12)}${r.key === 'none' ? '' : `<br><span class="muted">${d(p.revenue12, none.revenue12)}</span>`}</td>`
         + `<td class="n">${fmt.int(Math.round(p.liftLost))}</td>`
         + `<td class="n">${fmt.int(Math.round(p.normalLost))}</td>`
@@ -7941,7 +8027,10 @@ function renderRoundTwoProjection() {
     + '× 12. Lost to normal churn is lower under a rise because fewer customers are left to lose. Accounts already raised '
     + 'or repriced in Stripe since October are carried at their October price in every scenario, so the levels run a '
     + 'little low but the gaps between scenarios do not move. Nothing here includes '
-    + 'new customers, and the rest of the book is left out so the scenarios can be compared.';
+    + 'new customers, and the rest of the book is left out so the scenarios can be compared. The shaded ranges and the '
+    + '"90%" figures are the middle 90% of 400 draws: each redraws round one\'s uncertain parts and each group\'s normal '
+    + 'churn from its own counts (for example 10 of 172 under-$200 accounts leaving a month). The gap to changing nothing '
+    + 'is drawn in the same world as changing nothing, so it is narrower than the two ranges side by side suggest.';
 }
 
 // How old the hand-entered engagement bands are, in the reader's own terms.

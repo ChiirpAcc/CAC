@@ -2990,7 +2990,7 @@ export const PRICE_GROUPS = [
   { key: 'tier262', label: '$213 to $499',
     hint: 'Round one lost about 10% of these at +40% to +90%. Asks up to +90%.' },
   { key: 'over500', label: '$500 to $799', defaultOff: true,
-    hint: 'Not in round one. Priced on the $262+ curve with their own usage, which is a guess for them. Off by default; its row below shows what asking would do.' },
+    hint: 'Not in round one. Priced on the $262+ curve set to each account\'s 500+ model score (11% to 35% at a round-one rise). Off by default; its row below shows what asking would do.' },
 ];
 export function priceGroup(mrr, cleaning) {
   if (mrr < 200) return 'under200';
@@ -3028,12 +3028,96 @@ export function roundOneProfile(row, engagement) {
   const ageDays = eng.ageDays ? (eng.ageDays.get(row.id) ?? null) : null;
   const excluded = eng.excluded ? (eng.excluded.get(row.id) || (row.canonicalId && eng.excluded.get(row.canonicalId)) || null) : null;
   const mrr = row.eopMrr ?? row.mrr ?? 0;
+  const group = priceGroup(mrr, cleaning !== false);
+  const risk500 = group === 'over500' && eng.risk500
+    ? (eng.risk500.get(row.id) ?? (row.canonicalId ? eng.risk500.get(row.canonicalId) : undefined) ?? null) : null;
   return { mrr, band, texts, textsMeasured: own != null, ageDays, excluded, industry, cleaning: cleaning !== false,
-    industryKnown: cleaning !== null, group: priceGroup(mrr, cleaning !== false) };
+    industryKnown: cleaning !== null, group, risk500, riskShift: risk500 != null ? riskShiftFor(risk500) : null };
 }
-export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1 } = {}) {
+// How sure round one is, for the confidence intervals (Josh, 11 Nov 2026).
+// Standard errors are backed out of round one's own coefficients and p-values
+// (z = coefficient / SE): the $200 plan 2.20 at p = 0.03, cleaning 1.03 at
+// p = 0.29, texts -0.66 at p = 0.26. Round one gave no p-value for the
+// intercept; 0.6 is the error of a rate from about 20 off-plan accounts with
+// three or four leaving. The shape term is half the gap, on the log-odds
+// scale, between round one's smooth and cliff readings of the cleaning curve
+// (8% / 3% at no rise, 22% / 13% at +50%, 48% / 40% at +100%).
+export const ROUND_ONE_UNCERTAINTY = {
+  se: { plan: 1.01, cleaning: 0.97, texts: 0.58, offPlan: 0.6 },
+  shape: [[0, 0.52], [0.25, 0.385], [0.5, 0.32], [0.75, 0.245], [1, 0.16], [1.5, 0]],
+  level: 0.9,
+};
+const logit = p => Math.log(p / (1 - p));
+const sigmoid = z => 1 / (1 + Math.exp(-z));
+const shapeAt = x => curveAt(ROUND_ONE_UNCERTAINTY.shape, Math.max(0, x));
+// The $500 to $799 accounts were not in round one. The 500+ model scores each
+// one's chance of leaving under a round-one-sized rise, +40% to +90%, the range
+// round one's $262+ accounts were tested at; the $262+ curve is moved up or
+// down on the log-odds scale until its average over that range is the score.
+const RISK_RANGE = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+export function riskShiftFor(risk) {
+  const pts = ROUND_ONE.curves.tier262;
+  const at = d => RISK_RANGE.reduce((t, x) => t + sigmoid(logit(curveAt(pts, x)) + d), 0) / RISK_RANGE.length;
+  let lo = -8, hi = 8;
+  for (let i = 0; i < 60; i += 1) { const mid = (lo + hi) / 2; if (at(mid) < risk) lo = mid; else hi = mid; }
+  return (lo + hi) / 2;
+}
+// Repeatable random draws of round one's uncertain parts: one set of shifts
+// per draw, the same set for every account, so totals carry the correlation.
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function normalFrom(rand) {
+  let u = 0;
+  while (u === 0) u = rand();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand());
+}
+function gammaFrom(rand, k) {
+  // Marsaglia and Tsang; k >= 1 here (counts plus one).
+  const d = k - 1 / 3, c = 1 / Math.sqrt(9 * d);
+  for (;;) {
+    let x, v;
+    do { x = normalFrom(rand); v = 1 + c * x; } while (v <= 0);
+    v = v * v * v;
+    const u = rand();
+    if (u < 1 - 0.0331 * x ** 4 || Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+  }
+}
+export function betaFrom(rand, a, b) { const x = gammaFrom(rand, a); return x / (x + gammaFrom(rand, b)); }
+const DRAW_CACHE = new Map();
+export function churnDraws(n = 400, seed = 20261111) {
+  const key = n + '|' + seed;
+  if (DRAW_CACHE.has(key)) return DRAW_CACHE.get(key);
+  const rand = mulberry32(seed);
+  const se = ROUND_ONE_UNCERTAINTY.se;
+  const out = Array.from({ length: n }, () => ({
+    plan: normalFrom(rand) * se.plan, cleaning: normalFrom(rand) * se.cleaning,
+    texts: normalFrom(rand) * se.texts, off: normalFrom(rand) * se.offPlan,
+    shape: rand() * 2 - 1, seed: Math.floor(rand() * 2 ** 31),
+  }));
+  DRAW_CACHE.set(key, out);
+  return out;
+}
+export const quantile = (sorted, q) => {
+  if (!sorted.length) return null;
+  const i = (sorted.length - 1) * q, lo = Math.floor(i), hi = Math.ceil(i);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+};
+export const rangeOf = (values, level = ROUND_ONE_UNCERTAINTY.level) => {
+  const s = [...values].sort((a, b) => a - b);
+  return { low: quantile(s, (1 - level) / 2), high: quantile(s, 1 - (1 - level) / 2), median: quantile(s, 0.5) };
+};
+
+export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1, draw = null } = {}) {
   const x = price / acc.mrr - 1;
-  const coef = ROUND_ONE.logistic.log10Texts * textsScale;
+  const coef = (ROUND_ONE.logistic.log10Texts + (draw ? draw.texts : 0)) * textsScale;
   let p;
   if (acc.group === 'under200') {
     // Round one's fit for accounts off the $200 plan. Every one of them got
@@ -3043,17 +3127,27 @@ export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1 } = {
     if (x <= 0) p = base;
     else {
       const L = ROUND_ONE.logistic;
-      const z = L.intercept + (acc.cleaning ? L.cleaning : 0) + coef * Math.log10(Math.max(acc.texts || 1, 1));
-      const fit = Math.max(base, 1 / (1 + Math.exp(-z)));
+      const z = L.intercept + (acc.cleaning ? L.cleaning : 0) + coef * Math.log10(Math.max(acc.texts || 1, 1))
+        + (draw ? draw.off + (acc.cleaning ? draw.cleaning : 0) : 0);
+      const fit = Math.max(base, sigmoid(z));
       p = base + (fit - base) * Math.min(1, x / 1.5);
     }
+  } else if (acc.group === 'over500' && acc.riskShift != null) {
+    // Calibrated to the 500+ model's score, which already reflects usage.
+    p = sigmoid(logit(curveAt(ROUND_ONE.curves.tier262, x)) + acc.riskShift
+      + (draw ? draw.off + draw.shape * shapeAt(x) : 0));
   } else {
-    p = curveAt(ROUND_ONE.curves[acc.group === 'over500' ? 'tier262' : acc.group], x);
+    let z = logit(curveAt(ROUND_ONE.curves[acc.group === 'over500' ? 'tier262' : acc.group], x));
+    if (draw) {
+      z += draw.off + draw.shape * shapeAt(x);
+      if (acc.group === 'clean200' || acc.group === 'trades200') z += draw.plan;
+      if (acc.group === 'clean200') z += draw.cleaning;
+    }
     if (acc.texts != null) {
       const t = Math.min(Math.max(acc.texts, 25), 10000);
-      const o = (p / (1 - p)) * Math.pow(t / ROUND_ONE.textsRef, coef);
-      p = o / (1 + o);
+      z += coef * Math.log(t / ROUND_ONE.textsRef);
     }
+    p = sigmoid(z);
   }
   return Math.min(0.95, p * churnScale);
 }
@@ -3082,7 +3176,8 @@ export function roundOneAsk(acc, opts = {}) {
       ? Math.min(...grid.filter(p => rev(p) - base >= ROUND_ONE.share * (best - base)))
       : acc.mrr;
     if (target >= grid[grid.length - 1] && target > acc.mrr) why = 'At the top of the tested range';
-    if (acc.group === 'over500') why = 'Not in round one';
+    if (acc.group === 'over500') why = acc.risk500 != null
+      ? `500+ model: ${Math.round(acc.risk500 * 100)}% at a round-one rise` : 'Not in round one or the 500+ model';
     if (acc.group === 'clean200' && acc.industryKnown === false) why = 'No name in Stripe: priced as cleaning';
   }
   return { target, asked: target > acc.mrr, churn: roundOneChurn(acc, target, opts),
@@ -3255,7 +3350,17 @@ export function optimalAsks(opts = {}, prices = null) {
 
 // Normal monthly churn by price, from the last six complete months: accounts
 // paying under the band and 12 months or older, the share gone the next month.
+// Cached per data set, band and window: it scans every customer row and the
+// 12-month view asks for it four times on every slider step.
+const BASELINE_CACHE = new WeakMap();
 export function listBaselineChurn(data, { lowBand = 800, months = 6 } = {}) {
+  const byData = BASELINE_CACHE.get(data) || new Map();
+  BASELINE_CACHE.set(data, byData);
+  const key = lowBand + '|' + months;
+  if (!byData.has(key)) byData.set(key, computeBaselineChurn(data, { lowBand, months }));
+  return byData.get(key);
+}
+function computeBaselineChurn(data, { lowBand, months }) {
   const all = [...new Set(data.customers.map(r => r.month))].sort();
   const last = data.lastMonth;
   const upto = all.filter(m => m <= last);
@@ -3307,7 +3412,7 @@ export function portfolioCurve(data, { kind = 'relative', steps, ...rest } = {})
   if (!sp) return null;
   const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
   const profiles = sp.pool.map(r => ({ r, acc: { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band,
-    cleaning: r.cleaning, industryKnown: true } }));
+    cleaning: r.cleaning, industryKnown: true, riskShift: r.riskShift } }));
   const points = steps.map(s => {
     let gain = 0, lost = 0, extra = 0;
     const byGroup = {};
@@ -3333,12 +3438,17 @@ export function projectScenario(data, { scenario = 'none', rise = 0, add = 0, ho
   if (!sp) return null;
   const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
   const base = listBaselineChurn(data, { lowBand: rest.lowBand ?? 800, months: baseMonths });
-  const inPool = new Set(sp.pool.map(r => r.id));
+  const out = projectCore(sp, { scenario, rise, add, horizon, rate: base.rate, opts });
+  return { scenario, rise, add, ...out, accounts: sp.scope.length, baseline: base };
+}
+function projectCore(sp, { scenario, rise, add, horizon = 12, rate, opts }) {
+  const inPool = sp.inPool || (sp.inPool = new Set(sp.pool.map(r => r.id)));
   const mrr = new Array(horizon + 1).fill(0);
   const logos = new Array(horizon + 1).fill(0);
   let liftLost = 0;
   for (const r of sp.scope) {
-    const acc = { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band, cleaning: r.cleaning, industryKnown: true };
+    const acc = { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band, cleaning: r.cleaning, industryKnown: true,
+      riskShift: r.riskShift };
     let price = r.mrr;
     if (inPool.has(r.id)) {
       if (scenario === 'account' && r.viable) price = r.target;
@@ -3347,7 +3457,7 @@ export function projectScenario(data, { scenario = 'none', rise = 0, add = 0, ho
     }
     const excess = price > r.mrr ? Math.max(0, roundOneChurn(acc, price, opts) - roundOneChurn(acc, r.mrr, opts)) : 0;
     liftLost += excess;
-    const h = baselineFor(base, r.group);
+    const h = rate[r.group === 'clean200' || r.group === 'trades200' ? 'plan200' : r.group] ?? rate.all;
     // Cancelled since the last month (in the export) is gone from month 1 in
     // every scenario, so it moves the levels and not the gaps between them.
     const gone = /^Cancelled/.test(r.excluded || '');
@@ -3359,13 +3469,102 @@ export function projectScenario(data, { scenario = 'none', rise = 0, add = 0, ho
   }
   const months = mrr.slice(1);
   return {
-    scenario, rise, add, mrr, logos, accounts: sp.scope.length,
-    averageMrr: months.reduce((s, v) => s + v, 0) / months.length,
+    mrr, logos,
+    averageMrr: months.reduce((t, v) => t + v, 0) / months.length,
     arr12: mrr[horizon] * 12,
-    revenue12: months.reduce((s, v) => s + v, 0),
+    revenue12: months.reduce((t, v) => t + v, 0),
     liftLost, normalLost: logos[0] - logos[horizon] - liftLost,
-    baseline: base,
   };
+}
+
+// ---- Confidence intervals (Josh, 11 Nov 2026: "establish confidence
+// intervals where necessary"). Every range is the middle 90% of 400 draws of
+// what round one could not pin down (ROUND_ONE_UNCERTAINTY); in the 12-month
+// view, each draw also redraws each group's normal churn from its own counts.
+// The asks stay as set: the ranges are what those asks could bring.
+
+// The card: revenue, customers lost, by group and by industry.
+export function roundTwoRange(data, { lowBand = 800, engagement = null, bands = null, groups = null,
+  textsScale = 1, churnScale = 1, draws = 1000 } = {}) {
+  const list = upgradeList(data, { lowBand, rule: 'account', engagement, textsScale, churnScale });
+  if (!list) return null;
+  const rows = list.low.filter(r => r.viable && (!bands || bands.has(r.band)));
+  const accs = rows.map(r => ({ r, acc: { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band, cleaning: r.cleaning,
+    industryKnown: true, riskShift: r.riskShift } }));
+  const tot = [], lost = [], byGroup = {}, byIndustry = {};
+  for (const d of churnDraws(draws)) {
+    const o = { textsScale, churnScale, draw: d };
+    let g = 0, l = 0;
+    const gG = {}, lG = {}, gI = {};
+    for (const { r, acc } of accs) {
+      const c1 = roundOneChurn(acc, r.target, o), c0 = roundOneChurn(acc, r.mrr, o);
+      const dv = (1 - c1) * r.target - (1 - c0) * r.mrr;
+      gG[r.group] = (gG[r.group] || 0) + dv; lG[r.group] = (lG[r.group] || 0) + c1;
+      if (groups && !groups.has(r.group)) continue;
+      g += dv; l += c1;
+      const ind = r.industry || 'Not in the export';
+      gI[ind] = (gI[ind] || 0) + dv;
+    }
+    tot.push(g); lost.push(l);
+    for (const k of Object.keys(gG)) {
+      (byGroup[k] = byGroup[k] || { gain: [], lost: [] }).gain.push(gG[k]);
+      byGroup[k].lost.push(lG[k]);
+    }
+    for (const k of Object.keys(gI)) (byIndustry[k] = byIndustry[k] || []).push(gI[k]);
+  }
+  return {
+    gain: rangeOf(tot), lost: rangeOf(lost),
+    byGroup: Object.fromEntries(Object.entries(byGroup).map(([k, v]) => [k, { gain: rangeOf(v.gain), lost: rangeOf(v.lost) }])),
+    byIndustry: Object.fromEntries(Object.entries(byIndustry).map(([k, v]) => [k, rangeOf(v)])),
+    draws,
+  };
+}
+
+// One account's curve, with the range at each rise: chance of leaving, and
+// revenue kept against no rise.
+export function curveRange(acc, rises, opts = {}, draws = 400) {
+  const ch = rises.map(() => []), kept = rises.map(() => []);
+  for (const d of churnDraws(draws)) {
+    const o = { ...opts, draw: d };
+    const c0 = roundOneChurn(acc, acc.mrr, o);
+    rises.forEach((x, i) => {
+      const c = roundOneChurn(acc, acc.mrr * (1 + x), o);
+      ch[i].push(c); kept[i].push((1 + x) * (1 - c) / (1 - c0));
+    });
+  }
+  return { churn: ch.map(v => rangeOf(v)), kept: kept.map(v => rangeOf(v)) };
+}
+
+// The 12-month view: each scenario's range, and its gap to changing nothing
+// drawn in the same world (same churn draw, same normal churn), so the gap's
+// range is not two independent ranges subtracted.
+export function projectRange(data, { scenarios, horizon = 12, baseMonths = 6, draws = 400, ...rest } = {}) {
+  const sp = scenarioPool(data, rest);
+  if (!sp) return null;
+  const base = listBaselineChurn(data, { lowBand: rest.lowBand ?? 800, months: baseMonths });
+  const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
+  const acc = Object.fromEntries(scenarios.map(sc => [sc.key, { mrr: Array.from({ length: horizon + 1 }, () => []),
+    arr12: [], averageMrr: [], revenue12: [], dArr12: [], dAverage: [], dRevenue12: [], lost: [] }]));
+  for (const d of churnDraws(draws)) {
+    const rand = mulberry32(d.seed);
+    const rate = { ...base.rate };
+    for (const [b, t] of Object.entries(base.tally)) rate[b] = betaFrom(rand, t.gone + 1, t.atRisk - t.gone + 1);
+    const o = { ...opts, draw: d };
+    const none = projectCore(sp, { scenario: 'none', horizon, rate, opts: o });
+    for (const sc of scenarios) {
+      const r = sc.key === 'none' ? none : projectCore(sp, { scenario: sc.key, rise: sc.rise || 0, add: sc.add || 0, horizon, rate, opts: o });
+      const a = acc[sc.key];
+      r.mrr.forEach((v, t) => a.mrr[t].push(v));
+      a.arr12.push(r.arr12); a.averageMrr.push(r.averageMrr); a.revenue12.push(r.revenue12);
+      a.dArr12.push(r.arr12 - none.arr12); a.dAverage.push(r.averageMrr - none.averageMrr);
+      a.dRevenue12.push(r.revenue12 - none.revenue12); a.lost.push(r.liftLost);
+    }
+  }
+  return Object.fromEntries(Object.entries(acc).map(([k, a]) => [k, {
+    mrr: a.mrr.map(v => rangeOf(v)),
+    arr12: rangeOf(a.arr12), averageMrr: rangeOf(a.averageMrr), revenue12: rangeOf(a.revenue12),
+    dArr12: rangeOf(a.dArr12), dAverage: rangeOf(a.dAverage), dRevenue12: rangeOf(a.dRevenue12), liftLost: rangeOf(a.lost),
+  }]));
 }
 
 export function campaign(data, {
@@ -3519,7 +3718,7 @@ function buildUpgradeList(data, {
     const own = prof ? roundOneAsk(prof, { textsScale, churnScale }) : null;
     const target = own ? own.target : rule === 'tiered' ? (cur <= 300 ? 500 : 750) : floor;
     return {
-      ...(own ? { group: prof.group, band: prof.band, industry: prof.industry, cleaning: prof.cleaning, texts: prof.texts, ageDays: prof.ageDays, excluded: prof.excluded,
+      ...(own ? { group: prof.group, band: prof.band, industry: prof.industry, cleaning: prof.cleaning, risk500: prof.risk500, riskShift: prof.riskShift, texts: prof.texts, ageDays: prof.ageDays, excluded: prof.excluded,
         textsMeasured: prof.textsMeasured, churn: own.churn, churnNow: own.churnNow, why: own.why } : {}),
       id: row.id,
       canonicalId: row.canonicalId || null,
