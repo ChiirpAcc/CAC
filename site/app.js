@@ -8277,14 +8277,17 @@ function renderRoundTwoProjection() {
   ];
   buildToggles('proj-scenarios', SCEN.map(s => ({ key: s.key, label: s.label, defaultOn: s.defaultOn,
     hint: s.key === 'none' ? 'Normal churn only.' : s.key === 'account' ? 'The asks in the list below.'
-      : s.key === 'relative' ? 'The slider below; it starts at the best rise on chart 5.' : 'The slider below; it starts at the best rise on chart 6.' })),
+      : s.key === 'relative' ? 'Set by the first slider below.' : 'Set by the second slider below.' })),
     renderRoundTwoProjection);
 
   const riseIn = $('proj-rise');
   const addIn = $('proj-add');
   if (!riseIn.dataset.ready) {
-    riseIn.value = Math.round(LAST_CURVES.rel.best.step * 100);
-    addIn.value = LAST_CURVES.abs.best.step;
+    // Mid-range to start (12 Nov 2026): starting at the best rise on charts 5
+    // and 6 put both sliders at the top of their range, where dragging right
+    // did nothing. The readout under them names the best and what each gives.
+    riseIn.value = 50;
+    addIn.value = 150;
     // Dragging fires many input events; redraw at most once a frame, and show
     // the slider's value straight away so it never looks stuck.
     let queued = false;
@@ -8335,6 +8338,19 @@ function renderRoundTwoProjection() {
   const none = runs[0].p;
   if (!none) return;
   const shown = runs.filter(r => on.has(r.key));
+  // What the two sliders do, said right under them, so moving one shows its
+  // effect at once whichever lines are ticked.
+  const own = runs.find(r => r.key === 'account').p;
+  const relRun = runs.find(r => r.key === 'relative').p, absRun = runs.find(r => r.key === 'absolute').p;
+  const sgn = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
+  const says = (label, p, beyond) => `<strong>${label}</strong>: ${fmt.money(p.arr12)} ARR in 12 months, `
+    + `${sgn(p.arr12 - none.arr12)} against changing nothing and ${sgn(p.arr12 - own.arr12)} against each account its own ask; `
+    + `${fmt.int(Math.round(p.liftLost))} customers lost to the rise.${beyond ? ` <span class="muted">${beyond}</span>` : ''}`;
+  $('proj-slider-readout').innerHTML =
+    says(`${pctRise(rise)} for everyone asked`, relRun, rise > 1 ? 'Past +100%, beyond what round one tested: a guess.' : '')
+    + '<br>' + says(`+${fmt.money(add)} for everyone asked`, absRun, add > 300 ? 'Past +$300, beyond chart 6: a guess.' : '')
+    + `<br><span class="muted">Best single rises on charts 5 and 6: ${pctRise(LAST_CURVES.rel.best.step)} and `
+    + `+${fmt.money(LAST_CURVES.abs.best.step)}.</span>`;
   const start = data.lastMonth;
   const labels = none.mrr.map((_, t) => (t === 0 ? 'Now' : fmt.monthLabel(monthAdd(start, t))));
   multiLineChart($('proj-chart'), {
