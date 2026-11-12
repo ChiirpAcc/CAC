@@ -3623,6 +3623,118 @@ export function sweepLines(pool, { usage, rises, ticked = null, split = false, b
   });
 }
 
+// The two-stage rollout (Josh, 12 Nov 2026: "a smaller 1st stage then a larger
+// 2nd stage where we adjust on the first stage results"; "make a tab called
+// upgrade plan"). Checked before it was built: sending a ladder of three ask
+// sizes in each group taught no more about how leaving climbs with the rise
+// than sending each account its own ask (the asks already span +13% to +100%
+// on the $200 plan and +77% to +567% under $200, because they follow
+// engagement) and lost more customers, so every account gets its own ask,
+// rounded down to $50. What limits learning is how many leave, so stage 1 is
+// drawn at random from every price-and-engagement cell, and the accounts held
+// for stage 2 are the comparison group while stage 1 runs. The $500 to $799
+// accounts were never tested: a pilot of 18 goes with stage 1 and the rest wait
+// on it.
+export const PLAN = { stage1Share: 0.45, pilot500: 18, seed: 20261112, round: 50, draws: 400, readMonths: 2 };
+export const PLAN_GROUPS = { under200: 'Under $200', plan200: '$200 plan', tier262: '$213 to $499', over500: '$500 to $799' };
+export const planEngagement = u => (u == null ? 'unknown' : u < 20 ? 'quiet' : u < 50 ? 'middle' : 'engaged');
+export function upgradePlan(data, { engagement = null, lowBand = 800 } = {}) {
+  const list = upgradeList(data, { lowBand, rule: 'account', engagement });
+  if (!list) return null;
+  const bands = new Set(['users', 'light', 'unbanded']);
+  const gkey = g => (g === 'clean200' || g === 'trades200' ? 'plan200' : g);
+  const rows = list.low.filter(r => r.viable && bands.has(r.band) && r.target > r.mrr)
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  const accOf = r => ({ mrr: r.mrr, group: r.group, replying: r.replying, band: r.band, cleaning: r.cleaning,
+    industryKnown: true, riskShift: r.riskShift });
+  const askOf = r => { const p = Math.floor(r.target / PLAN.round) * PLAN.round; return p > r.mrr ? p : r.target; };
+  const rand = mulberry32(PLAN.seed);
+  const cells = new Map();
+  for (const r of rows) {
+    const key = `${gkey(r.group)}|${planEngagement(r.replying)}`;
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(r);
+  }
+  for (const v of cells.values()) {
+    for (let i = v.length - 1; i > 0; i -= 1) { const j = Math.floor(rand() * (i + 1)); [v[i], v[j]] = [v[j], v[i]]; }
+  }
+  // The pilot's 18 spread over the $500 to $799 cells by size (largest remainder).
+  const c500 = [...cells.entries()].filter(([k]) => k.startsWith('over500|'));
+  const n500 = c500.reduce((t, [, v]) => t + v.length, 0);
+  const quota = new Map(c500.map(([k, v]) => [k, Math.floor(PLAN.pilot500 * v.length / Math.max(1, n500))]));
+  let left = Math.min(PLAN.pilot500, n500) - [...quota.values()].reduce((t, v) => t + v, 0);
+  for (const [k] of [...c500].sort((a, b) => (PLAN.pilot500 * b[1].length / n500 % 1) - (PLAN.pilot500 * a[1].length / n500 % 1))) {
+    if (left <= 0) break; quota.set(k, quota.get(k) + 1); left -= 1;
+  }
+  // Leaving over the read-out window: what the rise adds (the model) plus each
+  // group's measured normal churn over the same months (year on year), not the
+  // model's no-rise level, which is round one's and runs below what these
+  // accounts actually lose in any two months.
+  const base = listBaselineChurn(data, { lowBand, months: 6 });
+  const normalOver = g => 1 - Math.pow(1 - baselineFor(base, g), PLAN.readMonths);
+  const items = [];
+  for (const [key, v] of cells) {
+    const [group, eng] = key.split('|');
+    const n1 = group === 'over500' ? quota.get(key) : Math.round(v.length * PLAN.stage1Share);
+    v.forEach((r, i) => {
+      const a = accOf(r), ask = askOf(r);
+      const c1 = roundOneChurn(a, ask), c0 = roundOneChurn(a, r.mrr);
+      const stage = group === 'over500' ? (i < n1 ? 'pilot' : 'later') : (i < n1 ? 'stage1' : 'stage2');
+      const normal = normalOver(r.group);
+      items.push({ r, acc: a, group, eng, stage, ask, rise: ask / r.mrr - 1, c1, c0, normal,
+        window: Math.min(1, Math.max(0, c1 - c0) + normal),
+        gain: (1 - c1) * ask - (1 - c0) * r.mrr });
+    });
+  }
+  const STAGES = ['stage1', 'pilot', 'stage2', 'later'];
+  const stages = Object.fromEntries(STAGES.map(s => {
+    const v = items.filter(x => x.stage === s);
+    return [s, { n: v.length, mrr: v.reduce((t, x) => t + x.r.mrr, 0), asks: v.reduce((t, x) => t + x.ask, 0),
+      gain: v.reduce((t, x) => t + x.gain, 0), leave: v.reduce((t, x) => t + x.c1, 0),
+      extra: v.reduce((t, x) => t + x.c1 - x.c0, 0), normal: v.reduce((t, x) => t + x.normal, 0),
+      window: v.reduce((t, x) => t + x.window, 0) }];
+  }));
+  // Ranges and the trigger: in each draw of round one's uncertain parts, each
+  // account leaves or stays at random with its drawn chance, so the count is
+  // what you could actually see, not only the model's average.
+  // Two counts of who leaves in the window. "seen": round one's uncertainty and
+  // chance together, the range you could actually see. "chance": the model's
+  // own figures and chance alone, which is what stage 1 tests: a count outside
+  // it means the model's central figures are wrong, so it sets the triggers.
+  const sim = Object.fromEntries(STAGES.map(s => [s, { gain: [], seen: [], chance: [] }]));
+  const coin = mulberry32(PLAN.seed + 1);
+  for (const d of churnDraws(PLAN.draws, PLAN.seed)) {
+    const acc = Object.fromEntries(STAGES.map(s => [s, { gain: 0, seen: 0 }]));
+    for (const x of items) {
+      const c1 = roundOneChurn(x.acc, x.ask, { draw: d }), c0 = roundOneChurn(x.acc, x.r.mrr, { draw: d });
+      const t = acc[x.stage];
+      t.gain += (1 - c1) * x.ask - (1 - c0) * x.r.mrr;
+      if (coin() < Math.min(1, Math.max(0, c1 - c0) + x.normal)) t.seen += 1;
+    }
+    for (const s of STAGES) { sim[s].gain.push(acc[s].gain); sim[s].seen.push(acc[s].seen); }
+  }
+  for (let k = 0; k < 4000; k += 1) {
+    const n = Object.fromEntries(STAGES.map(s => [s, 0]));
+    for (const x of items) if (coin() < x.window) n[x.stage] += 1;
+    for (const s of STAGES) sim[s].chance.push(n[s]);
+  }
+  for (const s of STAGES) {
+    const seen = [...sim[s].seen].sort((a, b) => a - b), chance = [...sim[s].chance].sort((a, b) => a - b);
+    stages[s].gainRange = rangeOf(sim[s].gain);
+    stages[s].seen = { low: quantile(seen, 0.05), high: quantile(seen, 0.95), median: quantile(seen, 0.5) };
+    stages[s].chance = { low: quantile(chance, 0.05), high: quantile(chance, 0.95), median: quantile(chance, 0.5) };
+  }
+  const cellRows = [...cells.keys()].sort().map(key => {
+    const [group, eng] = key.split('|');
+    const v = items.filter(x => x.group === group && x.eng === eng);
+    const s1 = v.filter(x => x.stage === 'stage1' || x.stage === 'pilot');
+    return { group, eng, n: v.length, first: s1.length, second: v.length - s1.length,
+      pays: v.reduce((t, x) => t + x.r.mrr, 0) / v.length, ask: v.reduce((t, x) => t + x.ask, 0) / v.length,
+      leave: v.reduce((t, x) => t + x.c1, 0) / v.length };
+  });
+  return { month: list.month, items, stages, cells: cellRows, normalRate: base.rate };
+}
+
 // Twelve months of the list's revenue under a scenario. Normal churn runs
 // every month at the group's own rate (listBaselineChurn); the extra churn a
 // rise causes (its curve less the curve at no rise) lands over months 1 to 3.

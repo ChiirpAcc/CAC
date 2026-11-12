@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, PLAN, PLAN_GROUPS, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -1148,6 +1148,7 @@ function showView(which) {
   drawView(which);
   $('view-all').hidden = which !== 'all';
   if ($('view-list')) $('view-list').hidden = which !== 'list';
+  if ($('view-plan')) $('view-plan').hidden = which !== 'plan';
   if ($('view-events')) $('view-events').hidden = which !== 'events';
   if ($('view-marketing')) $('view-marketing').hidden = which !== 'marketing';
   if ($('view-event')) $('view-event').hidden = which !== 'event';
@@ -1162,7 +1163,7 @@ function showView(which) {
   if (which !== 'event' && /^#event=/.test(location.hash)) {
     history.replaceState(null, '', which === 'events' ? '#events' : location.pathname + location.search);
   }
-  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'],
+  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'], ['tab-plan', which === 'plan'],
                           ['tab-events', which === 'events' || which === 'event'],
                           ['tab-marketing', which === 'marketing' || which === 'source'],
                           ['tab-sales', which === 'sales'], ['tab-summary', which === 'summary']]) {
@@ -1178,7 +1179,7 @@ function showView(which) {
 // #charts, #upgrade-list, #summary, #events, #marketing, #rp. An event's own
 // page is #event=<name> and a source's is #source=<name>. #sales, the RP
 // tab's old address, still works.
-const TAB_HASH = { all: '#charts', list: '#upgrade-list', summary: '#summary', events: '#events',
+const TAB_HASH = { all: '#charts', list: '#upgrade-list', plan: '#upgrade-plan', summary: '#summary', events: '#events',
   marketing: '#marketing', sales: '#rp' };
 function wireTabs() {
   const go = which => {
@@ -1188,6 +1189,7 @@ function wireTabs() {
   };
   $('tab-all').addEventListener('click', () => go('all'));
   if ($('tab-list')) $('tab-list').addEventListener('click', () => go('list'));
+  if ($('tab-plan')) $('tab-plan').addEventListener('click', () => go('plan'));
   if ($('tab-events')) $('tab-events').addEventListener('click', () => go('events'));
   if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => go('marketing'));
   if ($('tab-sales')) $('tab-sales').addEventListener('click', () => go('sales'));
@@ -7473,7 +7475,7 @@ function loadCampBands() {
   Promise.all([getJson('engagement_bands.json'), getJson('churn_risk_500.json')])
     .then(([j, risk]) => {
       campBandsSettled = true;
-      if (!j || !j.bands) { renderCampaign(); renderUpgradeList(); return; }
+      if (!j || !j.bands) { renderCampaign(); renderUpgradeList(); if (viewsDrawn.has('plan')) renderUpgradePlan(); return; }
       CAMP_BANDS = {
         asOf: j.asOf,
         bandOf: new Map(Object.entries(j.bands)),
@@ -7488,7 +7490,137 @@ function loadCampBands() {
       };
       renderCampaign();
       renderUpgradeList();
+      if (viewsDrawn.has('plan')) renderUpgradePlan();
     });
+}
+
+// The Upgrade plan tab (Josh, 12 Nov 2026): the two-stage rollout, from the
+// same model and list as the Upgrade list.
+let PLAN_LAST = null;
+function renderUpgradePlan() {
+  const box = $('plan-body');
+  if (!box) return;
+  loadCampBands();
+  if (!campBandsSettled) { box.innerHTML = '<p class="muted">Loading usage for each account…</p>'; return; }
+  const p = upgradePlan(data, { engagement: CAMP_BANDS });
+  if (!p) { box.innerHTML = '<p class="empty">The list could not be built from this push.</p>'; return; }
+  PLAN_LAST = p;
+  const S = p.stages;
+  const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
+  const ENG = { quiet: 'Under 20 replying', middle: '20 to 49', engaged: '50 or more', unknown: 'Not known' };
+  const STAGE = { stage1: 'Stage 1', pilot: '$500 to $799 pilot', stage2: 'Stage 2', later: '$500 to $799, after the pilot' };
+  // Above the model's figures plus chance: the model's central figures are wrong.
+  const trigger = s => Math.max(1, Math.ceil(S[s].chance.high) + 1);
+  const floorAt = s => Math.max(0, Math.floor(S[s].chance.low) - 1);
+  const win = `${PLAN.readMonths * 30} days`;
+  const n12 = S.stage1.n + S.stage2.n;
+
+  const stageRow = (s, when) => {
+    const x = S[s];
+    if (!x.n) return '';
+    return `<tr><td><strong>${STAGE[s]}</strong><br><span class="muted">${when}</span></td><td class="n">${fmt.int(x.n)}</td>`
+      + `<td class="n">${fmt.money(x.mrr)}</td><td class="n">${fmt.money(x.asks)}</td>`
+      + `<td class="n">${sm(x.gain)}<br><span class="muted ci">90%: ${sm(x.gainRange.low)} to ${sm(x.gainRange.high)}</span></td>`
+      + `<td class="n">${x.window.toFixed(1)}<br><span class="muted">${x.extra.toFixed(1)} from the rise, ${x.normal.toFixed(1)} normal</span></td>`
+      + `<td class="n">${fmt.int(x.chance.low)} to ${fmt.int(x.chance.high)}<br><span class="muted">${fmt.int(x.seen.low)} to ${fmt.int(x.seen.high)} with round one's doubts</span></td></tr>`;
+  };
+
+  box.innerHTML =
+    `<p class="finding"><strong>Stage 1 asks ${fmt.int(S.stage1.n)} accounts drawn from every price group and level of `
+    + `engagement, and pilots ${fmt.int(S.pilot.n)} of the $500 to $799 accounts. In the ${win} after the notices, expect about `
+    + `${fmt.int(Math.round(S.stage1.window))} of stage 1 to leave; ${fmt.int(trigger('stage1'))} or more means the model is wrong and stage 2 `
+    + `waits for a refit.</strong> `
+    + `Stage 2 asks the other ${fmt.int(S.stage2.n)} at asks refit on round one and stage 1 together. Each account is asked its `
+    + `own price from the model, rounded down to $${PLAN.round}.</p>`
+
+    + '<h3 class="sub-head">The stages</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">Accounts</th>'
+    + '<th class="n">Pay now a month</th><th class="n">Asked a month</th><th class="n">Revenue added a month</th>'
+    + `<th class="n">Expected to leave in ${win}</th><th class="n">Could see leave (90%)</th></tr></thead><tbody>`
+    + stageRow('stage1', 'Notices first; read 60 days later')
+    + stageRow('pilot', 'Alongside stage 1')
+    + stageRow('stage2', 'After the stage 1 read-out, about 10 weeks on')
+    + stageRow('later', 'Only if the pilot holds')
+    + '</tbody></table></div>'
+    + `<p class="note">"Expected to leave" over the ${win} is what the rise adds (the model) plus each group's measured normal `
+    + `churn over the same weeks (accounts here a year or more lose ${fmt.pct(p.normalRate.under200 ?? p.normalRate.all, 1)} a month under $200, `
+    + `${fmt.pct(p.normalRate.plan200 ?? p.normalRate.all, 1)} on the $200 plan, ${fmt.pct(p.normalRate.tier262 ?? p.normalRate.all, 1)} from $213, `
+    + `${fmt.pct(p.normalRate.over500 ?? p.normalRate.all, 1)} from $500). "Could see leave" is the middle 90% of the count you might `
+    + 'actually see: first from chance alone around those figures, which sets the triggers below, then allowing for round one\'s '
+    + 'doubts as well, which is far wider. The revenue range is the middle 90% of the '
+    + `model's ${fmt.int(PLAN.draws)} draws. These are the model's own numbers, and the model is optimistic: 5 of round one's 21 `
+    + 'accounts counted as staying never moved to the new price. Refit on "paying the new price" before sending stage 1.</p>'
+
+    + '<h3 class="sub-head">After stage 1: what decides stage 2</h3>'
+    + '<ol class="plan-rules">'
+    + `<li><strong>Read it ${win} after the notices go out.</strong> Round one's 14 dated cancellations all fell within five weeks of each `
+    + 'other (19 August to 21 September); one leaver has no date. Sixty days covers that and the first bill at the new price.</li>'
+    + `<li><strong>Count as accepted only an account that paid its first bill at the new price in full</strong>, and confirm it on `
+    + 'the second bill before the refit is final. Record everything else as cancelled, negotiated down, downgraded or failed '
+    + 'payment. Round one counted "did not cancel", which is why it reads optimistic.</li>'
+    + `<li><strong>Compare stage 1 as a whole with the model.</strong> It expects ${S.stage1.window.toFixed(1)} of ${fmt.int(S.stage1.n)} to leave in the `
+    + `${win}, and chance alone keeps that to ${fmt.int(S.stage1.chance.high)} at most in 19 of 20 outcomes. ${fmt.int(trigger('stage1'))} or more leaving `
+    + 'means the model is too optimistic: pause, refit and lower the stage 2 asks. '
+    + (floorAt('stage1') > 0 ? `${fmt.int(floorAt('stage1'))} or fewer means it is too cautious, and the refit will raise them. ` : '')
+    + 'Do not judge a single group or engagement level on its own: with one to eight accounts in each, one leaver more or less is chance.</li>'
+    + `<li><strong>Use the stage 2 accounts as the comparison.</strong> They are drawn at random from the same cells and not yet told, so `
+    + `the ones who leave during stage 1 show normal churn in the same weeks (about ${S.stage2.normal.toFixed(1)} of ${fmt.int(S.stage2.n)} `
+    + `in ${win}). If they leave faster than that too, the weeks were bad for everyone, not only for the rise. Nobody has to be held back.</li>`
+    + `<li><strong>The $500 to $799 pilot.</strong> It expects ${S.pilot.window.toFixed(1)} of ${fmt.int(S.pilot.n)} to leave in the ${win}; `
+    + `${fmt.int(trigger('pilot'))} or more stops the rest. Otherwise the other ${fmt.int(S.later.n)} go with stage 2 at refit asks. `
+    + `Even then its revenue range runs from ${sm(S.later.gainRange.low)} to ${sm(S.later.gainRange.high)} a month, because no account above $500 `
+    + 'has been tested.</li>'
+    + '<li><strong>Refit, then set the stage 2 asks.</strong> Round one and stage 1 together, with the outcome as defined above. The '
+    + 'site rebuilds every ask from the refit; stage 2 keeps the same rounding.</li>'
+    + '</ol>'
+
+    + '<h3 class="sub-head">How the stages are drawn</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Price group</th><th>Contacts replying a month</th>'
+    + '<th class="n">Accounts</th><th class="n">First</th><th class="n">Second</th><th class="n">Pays now, average</th>'
+    + '<th class="n">Ask, average</th><th class="n">Expected to leave</th></tr></thead><tbody>'
+    + p.cells.map(c => `<tr><td>${PLAN_GROUPS[c.group]}</td><td>${ENG[c.eng]}</td><td class="n">${fmt.int(c.n)}</td>`
+      + `<td class="n">${fmt.int(c.first)}</td><td class="n">${fmt.int(c.second)}</td><td class="n">${fmt.money(c.pays)}</td>`
+      + `<td class="n">${fmt.money(c.ask)}</td><td class="n">${fmt.pct(c.leave)}</td></tr>`).join('')
+    + '</tbody></table></div>'
+    + `<p class="note">${fmt.pct(PLAN.stage1Share)} of each cell goes first, chosen by a fixed random draw (seed ${PLAN.seed}), so the `
+    + 'same accounts come out every time the page is built from the same list. The $500 to $799 pilot is spread over its cells by size. '
+    + 'Why every account gets its own ask rather than a ladder of three sizes: that was checked, and a ladder taught no more about '
+    + 'how leaving climbs with the rise, because the model\'s asks already range widely within each group (they follow engagement), '
+    + 'and it lost more customers. What limits learning is how many leave, so the draw covers every cell.</p>'
+
+    + '<h3 class="sub-head">Every account in the plan</h3>'
+    + '<div class="chart-control"><button type="button" id="plan-download">Download the plan as CSV, with columns to log outcomes</button>'
+    + '<span class="muted" id="plan-status"></span></div>'
+    + '<div class="table-scroll"><table class="data-table"><thead><tr><th>Stage</th><th>Company</th><th>Stripe ID</th><th>Price group</th>'
+    + '<th class="n">Contacts replying</th><th class="n">Pays now</th><th class="n">Ask</th><th class="n">Rise</th>'
+    + '<th class="n">Chance of leaving</th><th class="n">Revenue added</th></tr></thead><tbody>'
+    + [...p.items].sort((a, b) => ['stage1', 'pilot', 'stage2', 'later'].indexOf(a.stage) - ['stage1', 'pilot', 'stage2', 'later'].indexOf(b.stage)
+      || a.group.localeCompare(b.group) || b.r.replying - a.r.replying)
+      .map(x => `<tr><td>${STAGE[x.stage]}</td><td>${x.r.name || '<span class="muted">no name in the file</span>'}</td>`
+        + `<td class="mono">${x.r.id}</td><td>${PLAN_GROUPS[x.group]}</td>`
+        + `<td class="n">${x.r.replying == null ? '–' : fmt.int(Math.round(x.r.replying))}</td><td class="n">${fmt.money(x.r.mrr)}</td>`
+        + `<td class="n"><strong>${fmt.money(x.ask)}</strong></td><td class="n">${pctRise(x.rise)}</td>`
+        + `<td class="n">${fmt.pct(x.c1)}</td><td class="n">${sm(x.gain)}</td></tr>`).join('')
+    + '</tbody></table></div>'
+    + `<p class="note">${fmt.int(n12)} accounts in the two stages, the same ${fmt.int(n12)} the Upgrade list asks with its default switches. `
+    + 'The ask is the list\'s, rounded down to $' + PLAN.round + ', so it can sit a step below the list\'s figure. Two Stripe '
+    + 'subscriptions of one company are two rows (Testerman\'s Pro Wash has one here; its other was in round one and is not asked).</p>';
+
+  const btn = $('plan-download');
+  if (btn) btn.addEventListener('click', () => {
+    const P = PLAN_LAST;
+    const q = v => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+    const head = ['stage', 'company', 'stripe_id', 'price_group', 'industry', 'contacts_replying_a_month', 'pays_now', 'ask', 'rise',
+      'chance_of_leaving', 'revenue_added_a_month', 'notice_sent', 'effective_date', 'response', 'outcome_day_60',
+      'paid_first_bill_at_new_price', 'paid_second_bill_at_new_price', 'notes'];
+    const lines = [head.join(',')].concat(P.items.map(x => [STAGE[x.stage], x.r.name || '', x.r.id, PLAN_GROUPS[x.group], x.r.industry || '',
+      x.r.replying ?? '', x.r.mrr, x.ask, x.rise.toFixed(3), x.c1.toFixed(3), x.gain.toFixed(2), '', '', '', '', '', '', ''].map(q).join(',')));
+    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `chiirp-upgrade-plan-${P.month}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    $('plan-status').textContent = ` ${fmt.int(P.items.length)} accounts exported.`;
+  });
 }
 const campTrust = () => TRUST_PRESETS.find(p => p.key === CAMP.trust) || TRUST_PRESETS[0];
 const campOptions = () => ({ textsScale: campTrust().textsScale ?? 1, churnScale: campTrust().churnScale ?? 1 });
@@ -8638,6 +8770,7 @@ const VIEW_DRAWS = {
     renderAssumptionDependent();
   },
   list: () => { renderUpgradeList(); renderCampaign(); },
+  plan: () => renderUpgradePlan(),
   events: () => { renderEvents(); renderEventAttribution(); },
   marketing: () => renderMarketing(),
   sales: () => renderRP(),
