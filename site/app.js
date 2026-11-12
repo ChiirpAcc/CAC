@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, TEXT_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianTexts, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -3594,7 +3594,7 @@ function renderUpgradeList() {
 
   const table = (rows, target) => {
     const head = '<thead><tr><th>Company</th><th>Stripe ID</th><th>Industry</th><th>Group</th><th>Usage</th>'
-      + '<th class="n">Texts a month</th><th class="n">Account age</th>'
+      + '<th class="n">Texts a month</th><th class="n">Contacts replying a month</th><th class="n">Account age</th>'
       + '<th class="n">Now</th><th class="n">Settled peak</th>'
       + '<th class="n">Ask for</th><th class="n">Rise</th><th class="n">Leave</th><th>Call</th>'
       + '<th class="n">Months here</th><th>Env</th>'
@@ -3606,6 +3606,7 @@ function renderUpgradeList() {
       + `<td>${GROUP_WORDS[r.group] || '–'}</td>`
       + `<td>${BAND_WORDS[r.band] || '–'}</td>`
       + `<td class="n">${r.textsMeasured ? fmt.int(r.texts) : '–'}</td>`
+      + `<td class="n">${r.replyingMeasured ? fmt.int(Math.round(r.replying)) : '–'}</td>`
       + `<td class="n">${r.ageDays == null ? '–' : (r.ageDays / 365.25).toFixed(1) + ' yrs'}</td>`
       + `<td class="n">${money(r.mrr)}</td>`
       + `<td class="n">${money(r.settledPeak)}</td>`
@@ -3711,12 +3712,12 @@ function renderUpgradeList() {
   // with the switches and with the band file arriving.
   const csv = () => {
     const l = LIST_LAST;
-    const head = ['group', 'company', 'stripe_id', 'industry', 'price_group', 'usage_band', 'texts_a_month', 'account_age_days',
+    const head = ['group', 'company', 'stripe_id', 'industry', 'price_group', 'usage_band', 'texts_a_month', 'contacts_replying_a_month', 'account_age_days',
       'mrr_now', 'settled_peak', 'ask',
       'ask_multiple', 'chance_of_leaving', 'risk_500_model', 'held_before', 'asked', 'note', 'uplift', 'months_here', 'environment',
       'cash_last_month', 'usage_last_month'].concat(l.window);
     const line = (group, r) => [group, r.name || '', r.id, r.industry || '', r.group || '', r.band || '',
-      r.textsMeasured ? r.texts : '', r.ageDays ?? '',
+      r.textsMeasured ? r.texts : '', r.replyingMeasured ? r.replying : '', r.ageDays ?? '',
       r.mrr, r.settledPeak, r.viable ? r.target : '', r.ask === null || !r.viable ? '' : r.ask.toFixed(2),
       r.viable && r.churn != null ? r.churn.toFixed(2) : '',
       r.risk500 != null ? r.risk500 : '',
@@ -7477,6 +7478,7 @@ function loadCampBands() {
         asOf: j.asOf,
         bandOf: new Map(Object.entries(j.bands)),
         ...(j.texts ? { texts: new Map(Object.entries(j.texts)) } : {}),
+        ...(j.replying ? { replying: new Map(Object.entries(j.replying)) } : {}),
         ...(j.cleaning ? { cleaning: new Set(j.cleaning) } : {}),
         ...(j.ageDays ? { ageDays: new Map(Object.entries(j.ageDays)) } : {}),
         ...(j.excluded ? { excluded: new Map(Object.entries(j.excluded)) } : {}),
@@ -7634,27 +7636,27 @@ function renderCampaign() {
     + 'took +150% to +700% and mostly stayed. So the $200 plan is split into cleaning and trades, each with '
     + 'its own curve of churn against the size of the rise; accounts from $213 up share the curve of round '
     + 'one\'s $262+ accounts, mostly trades, which lost about 10% at +40% to +90%. Each curve is shifted '
-    + 'by usage (refit on round one\'s 34 texting accounts, each tenfold more texts cuts the odds of leaving about '
-    + '8 times), and the ask is the '
+    + 'by engagement (refit on round one\'s 34 texting accounts: each tenfold more contacts replying a month cuts the '
+    + 'odds of leaving about 25 times), and the ask is the '
     + 'lowest price, in $25 steps, that captures 97% of the most revenue the account could add. Asks stay '
-    + 'inside what round one tested: +100% on the $200 plan, +90% from $213 up, and $500 for accounts paying '
+    + 'inside what round one tested: +100% on the $200 plan, +90% from $213 up, and at most $500 for accounts paying '
     + '$62 to $199. Dormant accounts are not asked, nor are accounts migrated to Chiirp AI or, in the export, '
     + 'cancelled, unpaid or past due, nor accounts whose Stripe subscription on ' + ENGAGEMENT.asOf + ' is more than '
     + '$50 away from the price here (already raised or changed since October; the list says which). '
     + 'Industry is the export\'s own classification, from the company name and the texts the account sends; '
-    + 'round one only separated cleaning from everything else, so the industries table shows where the asks land, '
-    + 'and every industry other than cleaning shares the trades and $213+ curves. Accounts not in the export are '
+    + 'once contacts replying are counted, industry does not change who leaves, so every industry shares its price '
+    + 'group\'s curve and the industries table shows where the asks land. Accounts not in the export are '
     + 'read from the Stripe company name; on the $200 plan an account with no name is priced as cleaning, the cautious reading' + (c.unnamedAsCleaning ? ` (${fmt.int(c.unnamedAsCleaning)} asked here)` : '') + '. '
-    + (c.usageMeasured ? 'Usage is each account\'s own texts sent a month, averaged over the three months to ' + ENGAGEMENT.asOf
-        + '; accounts not in that export are not adjusted for usage. Account age in the list '
+    + (c.usageMeasured ? 'Engagement is each account\'s own contacts replying a month, averaged over the three months to ' + ENGAGEMENT.asOf
+        + '; accounts not in that export stand at their band\'s median. Account age in the list '
         + 'is from the same export (created in the app, not the subscription start) and does not change the ask. '
-      : 'Usage is each band\'s median from the ' + ENGAGEMENT.asOf + ' export (active users 699 texts a month, light 183), '
+      : 'Engagement is each band\'s median from the ' + ENGAGEMENT.asOf + ' export (active 69 contacts replying a month, light 3), '
         + 'not each account\'s own count, so accounts in the same band and group get the same ask. ')
     + 'The $500 to $799 accounts were not in round one: their asks borrow the $262+ curve, adjusted for their '
     + 'own usage, and are a guess, which is why that group starts unticked. '
     + 'Revenue gained is against changing nothing, with normal churn on both sides; "expected to leave" counts '
     + 'everyone the model expects to go in the round, normal churn included. The curves rest on 36 accounts '
-    + 'and 15 churns; the trades curve on the $200 plan rests on 4. The ranges under the headline and in the tables are '
+    + 'and 15 churns, the engagement fit on the 34 that were texting. The ranges under the headline and in the tables are '
     + 'the middle 90% of 1,000 draws of round one\'s uncertain parts (the coefficients\' standard errors from their p-values, '
     + 'and the smooth or cliff shape), with the asks held where they are: they are what these asks could bring, not '
     + 'different asks. They are wide because round one is small. The $500 to $799 group uses the 500+ model\'s score for '
@@ -7701,40 +7703,40 @@ function renderFindings(c, cr) {
   const risk = CAMP_BANDS && CAMP_BANDS.risk500;
 
   box.innerHTML =
-    `<p class="finding"><strong>The plan an account is on decides most of who leaves, and how much it texts comes next; `
-    + `once texting is counted, industry adds little. The size of the rise matters within a plan, not across plans.</strong> `
+    `<p class="finding"><strong>The plan an account is on decides most of who leaves, and how many of its contacts reply `
+    + `comes next; once that is counted, industry and texts sent add nothing. The size of the rise matters within a plan, `
+    + `not across plans.</strong> `
     + `So each account is asked its own price, set where it earns the most after the customers expected to leave. `
-    + `The asks follow usage rather than industry: at the same usage a cleaner is only slightly more likely to leave `
-    + `than a trades account, so cleaners and trades on the same plan end up asked about the same. Under $200 everyone `
-    + `moves to $500, the one move round one tested, and light users carry most of the risk.</p>`
+    + `Every account, under $200 included, is asked the price that formula picks for it, so the asks follow engagement: `
+    + `accounts whose customers reply are asked more, and quiet accounts less or nothing.</p>`
 
     + '<h4 class="sub-head">What identifies who leaves at a price rise</h4>'
     + '<div class="table-scroll"><table class="data-table findings-table"><thead><tr><th>Signal</th><th>What we found</th>'
     + '<th>How sure</th><th>How the asks use it</th></tr></thead><tbody>'
     + '<tr><td><strong>On the $200–212 legacy plan</strong></td>'
-    + '<td>About 22 times the odds of leaving at the same usage. In September about 75% of the $200 accounts moved to '
+    + '<td>About 50 times the odds of leaving at the same engagement. In September about 75% of the $200 accounts moved to '
     + '$500 left, while accounts paying $62 to $192 moved to the same $500 (+150% to +700%) mostly stayed: $200 had '
-    + 'become what Chiirp costs, and $500 broke it.</td><td>Strong (p = 0.01)</td>'
+    + 'become what Chiirp costs, and $500 broke it.</td><td>Strong (p = 0.004)</td>'
     + '<td>The $200 plan has its own curves and rises stop at +100%.</td></tr>'
-    + '<tr><td><strong>Texts sent</strong></td>'
-    + '<td>Each tenfold more texts sent cuts the odds of leaving about 8 times: an account that relies on Chiirp keeps '
-    + 'it. Refit on 12 Nov on the 34 round-one accounts that were texting; the two that sent 0 and 1 texts a month are '
-    + 'left out, as the list never asks a dormant account, and with them in the effect looked far weaker.</td>'
-    + '<td>Strong, on 34 accounts (p = 0.03)</td>'
-    + '<td>Each account\'s own texts a month moves its curve, held between 60 and 10,000 a month. "Usage counts half as '
-    + 'much" on the card tests a weaker effect.</td></tr>'
+    + '<tr><td><strong>Contacts replying a month</strong></td>'
+    + '<td>Each tenfold more contacts replying a month cuts the odds of leaving about 25 times: an account whose customers '
+    + 'answer through Chiirp keeps it. It beat texts sent on accounts the model had not seen (AUC 0.875 against 0.850, '
+    + 'and in 245 of 300 resamples), and with it in, texts sent add nothing (p = 0.68): texting matters through the '
+    + 'replies it brings. The same measure drives the 500+ model.</td>'
+    + '<td>Strong, on 34 accounts (p = 0.01)</td>'
+    + '<td>Each account\'s own contacts replying a month moves its curve. "Engagement counts half as much" on the card '
+    + 'tests a weaker effect.</td></tr>'
     + '<tr><td><strong>Size of the rise, within a plan</strong></td>'
-    + '<td>Leaving climbs with the rise, for an account sending 535 texts a month: cleaners on $200 from 6% with no rise '
-    + 'to 18% at +50% and 44% at +100%; trades on $200 from 5% to 16% and 41%; $213 and up from 3% to 9% and 28%. '
-    + 'Across plans the size alone predicted nothing (the biggest rises, under $200, lost the fewest).</td>'
+    + '<td>Leaving climbs with the rise, for an account with 46 contacts replying a month (round one\'s median): on the '
+    + '$200 plan from 6% with no rise to 18% at +50% and 44% at +100%; $213 and up from 3% to 9% and 28%. Across plans '
+    + 'the size alone predicted nothing (the biggest rises, under $200, lost the fewest).</td>'
     + '<td>Shape uncertain: midway between round one\'s smooth and cliff readings</td>'
     + '<td>Each group\'s curve sets the chance of leaving at every possible ask.</td></tr>'
     + '<tr><td><strong>Cleaning or wash business</strong></td>'
-    + '<td>On its own about 2.8 times the odds, but cleaners texted less. Once texting is counted, being a cleaner adds '
-    + 'about 15% to the odds (1.15 times).</td>'
-    + '<td>Not significant (p = 0.91)</td>'
-    + '<td>The cleaning curve sits 0.14 above trades on the log-odds scale, on the $200 plan and under $200. '
-    + 'Industry comes from the export\'s classification.</td></tr>'
+    + '<td>On its own about 2.8 times the odds, but cleaners have fewer contacts replying. Once that is counted, being a '
+    + 'cleaner is not significant and does worse on accounts the model had not seen.</td>'
+    + '<td>Not significant (p = 0.35)</td>'
+    + '<td>Left out: cleaners and trades on the same plan share one curve. Its uncertainty stays in the ranges.</td></tr>'
     + '<tr><td><strong>For $500 and up: replies and age</strong></td>'
     + '<td>The 500+ model, fitted on 732 $500+ accounts with no price change: 10% leave in three months normally, 15% if '
     + 'the account is under a year old, 26% if fewer than 20 contacts reply a month, 35% for both.'
@@ -7744,11 +7746,11 @@ function renderFindings(c, cr) {
     + '<td>Each $500 to $799 account starts at its score, and the rise adds what it added for round one\'s $262+ '
     + 'accounts on the log-odds scale.</td></tr>'
     + '<tr><td><strong>Did not help</strong></td>'
-    + '<td>The rise in percent or dollars on its own, and every interaction tried (industry by texts, industry by rise). '
-    + 'From the 12 Nov forecast models: reply rate, the trend in texts and account age added nothing on the texting '
-    + 'accounts, and the squared-rise Model B scored worse on accounts it had not seen (0.78 AUC against 0.83) and bends '
-    + 'so that churn falls at the biggest rises. Logins are not used. Accounts with no texts in three months are '
-    + 'dormant and are not asked.</td>'
+    + '<td>Texts sent once replying is in (p = 0.68), manual texts (p = 0.16), reply rate, the trend in texts, account '
+    + 'age, support tickets, days since last login, failed charges, the rise in percent or dollars on its own, and every '
+    + 'interaction tried. The squared-rise Model B from the 12 Nov forecast models scored worse on accounts it had not '
+    + 'seen and bends so that churn falls at the biggest rises. Accounts with no texts in three months are dormant and '
+    + 'are not asked.</td>'
     + '<td>Tested leave-one-out on the 34 texting accounts</td><td>Left out.</td></tr>'
     + '<tr><td><strong>Job revenue</strong></td>'
     + '<td>The strongest signal found: the rise measured against the account\'s monthly job revenue (Model A, 0.94 AUC '
@@ -7757,12 +7759,13 @@ function renderFindings(c, cr) {
     + '<td>Not used yet: pull job revenue for the accounts being asked, then it can set their asks.</td></tr>'
     + '</tbody></table></div>'
 
+    + formulaHtml()
     + '<h4 class="sub-head">How the asks balance industries</h4>'
     + '<p>For every account the card weighs a higher price against the chance it leaves at that price, and takes the '
     + 'lowest $25 step that earns at least 97% of the most it could add. Giving up that last 3% of revenue buys a '
     + 'noticeably smaller rise and fewer leavers, because each curve is nearly flat at its peak. The asks stay inside '
-    + 'what round one tested. Light users leave more at every size of rise, so their best price sits lower; being a '
-    + 'cleaner moves it only a little'
+    + 'what round one tested. Accounts with few contacts replying leave more at every size of rise, so their best price '
+    + 'sits lower; industry does not move it'
     + (planLine ? `: ${planLine}` : '') + '. The table below is the balance that produces inside each price group, '
     + 'for the groups and bands ticked on the card. Compare within a group: the groups start from such different '
     + 'prices that a rise in percent means little across them.</p>'
@@ -7780,6 +7783,52 @@ function renderFindings(c, cr) {
       + 'with its ask and refit; that is what narrows the range.' : '') + '</p>';
 }
 
+// The formula every ask comes from, written from the model's own constants
+// so the page and the asks cannot disagree (Josh, 12 Nov 2026: "write out the
+// optimal formula based on all the relevant features").
+function formulaHtml() {
+  const L = ROUND_ONE.logistic;
+  const c = ROUND_ONE.curves;
+  const pts = [0, 0.25, 0.5, 0.75, 1];
+  const at = (curve, x) => { const k = curve.findIndex(([px]) => px >= x - 1e-9); const [x0, y0] = curve[Math.max(0, k - 1)], [x1, y1] = curve[k];
+    return x1 === x0 ? y1 : y0 + (y1 - y0) * (x - x0) / (x1 - x0); };
+  const ref = ROUND_ONE.usageRef;
+  const offRef = 1 / (1 + Math.exp(-(L.intercept + L.log10Usage * Math.log10(ref + 1))));
+  return '<h4 class="sub-head">The formula every ask comes from</h4>'
+    + '<p>For an account paying <em>m</em> a month now, with <em>r</em> contacts replying a month, asked a price <em>p</em> '
+    + '(a rise of <em>x</em> = <em>p</em> / <em>m</em> − 1). σ is the logistic function, σ(z) = 1 / (1 + e<sup>−z</sup>), and '
+    + 'logit is its inverse.</p>'
+    + '<div class="formula">'
+    + `<p><strong>Engagement shift</strong> E = −${Math.abs(L.log10Usage).toFixed(3)} × [log<sub>10</sub>(<em>r</em> + 1) − log<sub>10</sub>(${ref} + 1)], `
+    + `with <em>r</em> held at ${ROUND_ONE.usageMax} at most</p>`
+    + `<p><strong>$200 plan, $213 to $499:</strong> P(leave) = σ( logit C<sub>group</sub>(<em>x</em>) + E × min(1, <em>x</em> / ${ROUND_ONE.usageRamp}) ). `
+    + 'Engagement acts on the rise: with no rise every account is at its group\'s normal churn, and the shift is full from '
+    + `+${Math.round(ROUND_ONE.usageRamp * 100)}%, about the smallest rise round one tested.</p>`
+    + `<p><strong>Under $200:</strong> P(leave) = 3% + [ σ( ${L.intercept.toFixed(3)} − ${Math.abs(L.log10Usage).toFixed(3)} × log<sub>10</sub>(<em>r</em> + 1) ) − 3% ] × min(1, <em>x</em> / 1.5)</p>`
+    + '<p><strong>$500 to $799:</strong> P(leave) = σ( logit S + logit C<sub>$213+</sub>(<em>x</em>) − logit C<sub>$213+</sub>(0) ), '
+    + 'S = the account\'s 500+ model score (10%, 15%, 26% or 35% in three months with no rise)</p>'
+    + '<p><strong>Revenue kept</strong> R(<em>p</em>) = <em>p</em> × (1 − P(leave at <em>p</em>))</p>'
+    + `<p><strong>The ask</strong> = the lowest <em>p</em> on a $${ROUND_ONE.step} grid from <em>m</em> up to the tested limit with `
+    + `R(<em>p</em>) − R(<em>m</em>) ≥ ${ROUND_ONE.share} × [ max R − R(<em>m</em>) ], among prices where P(leave) ≤ ${fmt.pct(ROUND_ONE.maxLeave)}; `
+    + `no rise when no price beats R(<em>m</em>) or the ask adds under $${ROUND_ONE.minGain} a month after churn. `
+    + `Limits: +${Math.round(ROUND_ONE.maxUp.clean200 * 100)}% on the $200 plan, +${Math.round(ROUND_ONE.maxUp.tier262 * 100)}% from $213, `
+    + `$${ROUND_ONE.underTarget} under $200 (from $${ROUND_ONE.underMinTested}), +${Math.round(ROUND_ONE.maxUp.over500 * 100)}% from $500.</p>`
+    + '</div>'
+    + '<div class="table-scroll"><table class="data-table calc-table"><thead><tr><th>Curve C, chance of leaving in the round</th>'
+    + pts.map(x => `<th class="n">${x ? '+' + Math.round(x * 100) + '%' : 'No rise'}</th>`).join('') + '</tr></thead><tbody>'
+    + `<tr><td>$200 plan, at ${ref} replying</td>` + pts.map(x => `<td class="n">${fmt.pct(at(c.clean200, x))}</td>`).join('') + '</tr>'
+    + `<tr><td>$213 and up, at ${ref} replying</td>` + pts.map(x => `<td class="n">${fmt.pct(at(c.tier262, x))}</td>`).join('') + '</tr>'
+    + '</tbody></table></div>'
+    + '<p class="note">Where the numbers come from. The engagement and plan effects are one logistic fit on round one\'s 34 '
+    + 'texting accounts (14 left): logit P = ' + `${L.intercept.toFixed(3)} + ${L.plan.toFixed(3)} × [$200 plan] − ${Math.abs(L.log10Usage).toFixed(3)} × `
+    + 'log<sub>10</sub>(contacts replying a month + 1), the $200 plan at p = 0.004 and contacts replying at p = 0.01. Off the plan '
+    + `at ${ref} replying it gives ${fmt.pct(offRef)}, the under-$200 level. The curves C are round one's own, midway between its `
+    + 'smooth and cliff readings, and give the shape against the size of the rise; they agree with the fit where both '
+    + 'exist (the $200 plan at +150%: 75% and 76%). Each feature in the export for every account was tested on accounts '
+    + 'the fit had not seen; only these two earned a place. The $500 to $799 score is the 500+ model (Model C), fitted '
+    + 'on 732 accounts with no price change.</p>';
+}
+
 // The tradeoff curves and the 12-month view under the campaign card (Josh,
 // 11 Nov 2026). They follow the card's switches: the same groups, bands and
 // trust setting, so every figure on the tab answers the same question.
@@ -7790,7 +7839,7 @@ const GROUP_INK = {
 };
 const RESEARCH = {
   clean200: 'Moved to $500 (+150%) in September: about 75% left. EZ Air and Roof Gutter accepted +35% to +40%.',
-  trades200: 'Same plan. Once texting is counted, trades left about as often as cleaners: 2 of the 3 texting trades accounts left at $500.',
+  trades200: 'Same plan and the same curve: once contacts replying are counted, trades left as often as cleaners.',
   tier262: 'Round one\'s $262+ accounts, mostly trades, lost about 10% at +40% to +90%.',
   under200: 'Accounts paying $62 to $192 went to $500 (+150% to +700%) and most stayed. The size of the rise did not predict leaving.',
   over500: 'Not in round one. The 500+ model scores each account 10% to 35% leaving in three months with no rise; the rise adds what it added for round one\'s $262+ accounts.',
@@ -7820,12 +7869,12 @@ function renderTradeoffs(c) {
   // The $500 to $799 median account carries the 500+ model's median score.
   const risks = CAMP_BANDS && CAMP_BANDS.risk500 ? [...CAMP_BANDS.risk500.values()].sort((a, b) => a - b) : [];
   const medRisk = risks.length ? risks[risks.length >> 1] : null;
-  const typ = (g, texts, risk = medRisk) => ({ ...typicalAccount(g, texts, med[g]),
+  const typ = (g, usage, risk = medRisk) => ({ ...typicalAccount(g, usage, med[g]),
     ...(g === 'over500' && risk != null ? { riskShift: riskShiftFor(risk) } : {}) });
   // Charts 1 and 2 show each group's median account: median price and median
-  // texts, so groups that share a curve still differ by how much they use it.
-  const medT = groupMedianTexts(data, { lowBand: CAMP_LOW_BAND, engagement: CAMP_BANDS });
-  const mlabel = g => `${TYPICAL[g].label} (median ${fmt.money(med[g])}, ${fmt.int(medT[g])} texts)`;
+  // contacts replying, so groups that share a curve still differ by engagement.
+  const medT = groupMedianUsage(data, { lowBand: CAMP_LOW_BAND, engagement: CAMP_BANDS });
+  const mlabel = g => `${TYPICAL[g].label} (median ${fmt.money(med[g])}, ${fmt.int(Math.round(medT[g]))} replying)`;
 
   // The optimal ask for each category at four levels of use.
   const opt = optimalAsks(opts, med);
@@ -7835,20 +7884,20 @@ function renderTradeoffs(c) {
     : '<span class="muted">no change</span>');
   const applied = Object.fromEntries(c.byGroup.map(g => [g.key, g]));
   $('trade-optimal').innerHTML = '<thead><tr><th>Category</th><th>What round one found</th>'
-    + TEXT_LEVELS.map(l => `<th>${l.texts === ROUND_ONE.textsRef ? fmt.int(l.texts) + ' texts (round one median)' : fmt.int(l.texts) + ' texts'}</th>`).join('')
+    + USAGE_LEVELS.map(l => `<th>${l.usage === ROUND_ONE.usageRef ? fmt.int(l.usage) + ' replying (round one median)' : fmt.int(l.usage) + ' replying a month'}</th>`).join('')
     + '<th>Applied on the list</th></tr></thead><tbody>'
     + ['clean200', 'trades200', 'tier262', 'under200', 'over500'].map(group => {
       const g = applied[group];
       return `<tr><td><strong>${tlabel(group)}</strong></td><td class="small">${RESEARCH[group]}</td>`
         + (group === 'over500' && medRisk != null
           ? [0.104, 0.148, 0.264, 0.348].map(rk => {
-            const a = typ('over500', ROUND_ONE.textsRef, rk);
+            const a = typ('over500', ROUND_ONE.usageRef, rk);
             const own = roundOneAsk({ ...a, band: 'users' }, opts);
             const g2 = (1 - own.churn) * own.target - (1 - own.churnNow) * a.mrr;
             return `<td><span class="muted">500+ score ${Math.round(rk * 100)}%:</span> `
               + cell({ target: own.target, mrr: a.mrr, rise: own.target / a.mrr - 1, churn: own.churn, gain: g2 }) + '</td>';
           }).join('')
-          : TEXT_LEVELS.map(l => `<td>${cell(opt.find(r => r.group === group && r.texts === l.texts))}</td>`).join(''))
+          : USAGE_LEVELS.map(l => `<td>${cell(opt.find(r => r.group === group && r.usage === l.usage))}</td>`).join(''))
         + `<td>${g && g.asked ? `${fmt.int(g.asked)} asked, typically ${fmt.money(g.typical)}, `
             + `${g.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(g.gain))} a month${g.ticked ? '' : ' <span class="muted">(not ticked)</span>'}`
           : '<span class="muted">none asked</span>'}</td></tr>`;
@@ -7921,26 +7970,26 @@ function renderTradeoffs(c) {
     b.classList.toggle('is-on', b.dataset.key === TRADE.textsGroup);
   }
   const tInk = [INK.negative, INK.secondary, INK.primary, INK.positive];
-  // Texts do not move a $500 to $799 account once it carries a 500+ score
-  // (the score already reflects usage), so that group is drawn by score.
+  // Engagement does not move a $500 to $799 account once it carries a 500+
+  // score (the score already reflects it), so that group is drawn by score.
   keptChart('trade-texts', TRADE.textsGroup === 'over500' && medRisk != null
     ? [[0.104, 'Score 10% (normal)'], [0.148, 'Score 15% (under a year)'], [0.264, 'Score 26% (few replying)'], [0.348, 'Score 35% (both)']]
       .map(([rk, label], i) => ({ label: `500+ model, ${label}`, colour: tInk[i],
-        curve: tradeoffCurve(typ('over500', ROUND_ONE.textsRef, rk), rises, opts) }))
-    : TEXT_LEVELS.map((l, i) => ({
-      label: l.label, colour: tInk[i],
-      curve: tradeoffCurve(typ(TRADE.textsGroup, l.texts), rises, opts),
+        curve: tradeoffCurve(typ('over500', ROUND_ONE.usageRef, rk), rises, opts) }))
+    : USAGE_LEVELS.map((l, i) => ({
+      label: `${fmt.int(l.usage)} contacts replying a month${l.usage === ROUND_ONE.usageRef ? ' (round one median)' : ''}`, colour: tInk[i],
+      curve: tradeoffCurve(typ(TRADE.textsGroup, l.usage), rises, opts),
     })));
 
   // 4: under $200, the one move round one tested, $62-$192 to $500. The size
   // of the rise did not predict leaving, so what matters is what the account
-  // pays now (what it gives up) and its usage and industry (whether it goes).
+  // pays now (what it gives up) and its engagement (whether it goes).
   const underPrices = [62, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 199];
   const underLines = [
-    { label: 'Trades, 535 texts (round one median)', colour: INK.primary, cleaning: false, texts: ROUND_ONE.textsRef },
-    { label: 'Trades, 100 texts', colour: INK.secondary, cleaning: false, texts: 100 },
-    { label: 'Cleaning, 535 texts', colour: INK.negative, cleaning: true, texts: ROUND_ONE.textsRef },
-    { label: 'Cleaning, 100 texts', colour: INK.positive, cleaning: true, texts: 100 },
+    { label: '150 contacts replying a month', colour: INK.positive, usage: 150 },
+    { label: `${ROUND_ONE.usageRef} replying (round one median)`, colour: INK.primary, usage: ROUND_ONE.usageRef },
+    { label: '20 replying', colour: INK.secondary, usage: 20 },
+    { label: '5 replying', colour: INK.negative, usage: 5 },
   ].map(l => ({ ...l, curve: underMoveCurve(underPrices, l, opts) }));
   const underLabels = underPrices.map(p => fmt.money(p));
   const medIdx = underPrices.reduce((bi, p, i) => (Math.abs(p - med.under200) < Math.abs(underPrices[bi] - med.under200) ? i : bi), 0);
@@ -7988,25 +8037,25 @@ function renderTradeoffs(c) {
     + `The best single relative rise (${pctRise(rel.best.step)} for everyone) adds ${fmt.money(rel.best.gain)} and loses `
     + `${fmt.int(Math.round(rel.best.extra))} to the rise; the best single dollar rise (+${fmt.money(abs.best.step)}`
     + `${abs.best === abs.points[abs.points.length - 1] ? ', the most charted, so a larger one could add more' : ''}) adds `
-    + `${fmt.money(abs.best.gain)} and loses ${fmt.int(Math.round(abs.best.extra))}. A single rise overcharges light users `
+    + `${fmt.money(abs.best.gain)} and loses ${fmt.int(Math.round(abs.best.extra))}. A single rise overcharges quiet accounts `
     + `and undercharges heavy senders, which is the whole case for pricing by account.`;
 
   $('trade-note').textContent =
     'The table gives the ask for a typical account in each category, at the group\'s median price on the list (accounts '
-    + 'that could be asked, not dormant or excluded) and at four levels of texts sent, chosen as on the list: the '
+    + 'that could be asked, not dormant or excluded) and at four levels of contacts replying a month, chosen as on the list: the '
     + 'lowest $25 step that captures 97% of the most revenue the account could add, inside what round one tested. Each '
     + 'cell shows the ask, the rise, the chance of leaving in the round and the revenue added a month after churn. Chart 1 is '
     + 'round one\'s pricing curves: the chance the median account in each group leaves in the round at each size of rise, '
     + 'midway between the smooth and cliff readings of round one. Charts 1 and 2 take each group\'s median account on the '
-    + 'list, its median price and median texts sent, both named in the legend; chart 3 and the table hold usage at four fixed '
-    + 'levels instead (535 is round one\'s median). Charts 2 and 3 '
+    + 'list, its median price and median contacts replying, both named in the legend; chart 3 and the table hold engagement at '
+    + 'four fixed levels instead (46 is round one\'s median). Charts 2 and 3 '
     + 'show the revenue an account is expected to bring after the round, (1 + rise) × (1 − churn), against what it brings '
     + 'with no rise, (1 − churn at no rise), since some leave either way: above the No rise line the rise pays for the '
     + 'customers it loses. The $200 plan was tested to +100% ($200 to $400) and the $213+ accounts to '
     + '+90%; past the marked line the curves carry their last slope and are guesses. The $500 to $799 line is dashed: '
     + 'round one had no accounts there, so it borrows the $213+ curve. Under $200 has its own chart, 4, because round one '
     + 'tested one move there, accounts paying $62 to $192 to $500 (+150% to +700%), and how big the rise was did not predict '
-    + 'leaving: whether an account goes depends mostly on its usage, a little on being a cleaning business, and what moving it adds '
+    + 'leaving: whether an account goes depends on its engagement, and what moving it adds '
     + 'depends on what it pays now. Each line is one account moved to $500, revenue after churn against leaving it alone. '
     + 'Charts 5 and 6 ask everyone '
     + 'the card asks the same rise, each account on its own curve: revenue gained a month after churn on the left, '
@@ -8015,26 +8064,28 @@ function renderTradeoffs(c) {
     + 'the $500 to $799 accounts when that group is ticked on the card. The $500 to $799 accounts use the 500+ model: '
     + 'each has a score for its chance of leaving in three months with no rise, 10% normal, 15% under a year old, 26% '
     + 'with fewer than 20 contacts replying a month, 35% both; the $213+ curve is moved on the log-odds scale until it '
-    + 'starts at the account\'s score, so the rise adds what it added for round one\'s $262+ accounts, and texts no longer '
+    + 'starts at the account\'s score, so the rise adds what it added for round one\'s $262+ accounts, and engagement no longer '
     + 'move it, since the score already reflects engagement. The shaded ranges on charts 1 and 2 are the middle 90% of 400 '
     + 'draws of what round one could not pin down, with standard errors from the refit on its 34 texting accounts: the '
-    + '$200-plan effect (1.26), cleaning (1.22), texts (0.97 per tenfold), the off-plan level (0.90) and the curve\'s shape '
+    + '$200-plan effect (1.38), cleaning (1.45, though it is left out), contacts replying (1.245 per tenfold), the off-plan '
+    + 'level (1.12) and the curve\'s shape '
     + 'between the smooth and cliff readings; for $500 to $799 only what the rise adds is drawn.';
   renderTextsSweep();
   renderRoundTwoProjection();
 }
 
-// 3b and 3c: every account the card asks, with its texting set by the slider
-// (Josh, 12 Nov 2026). The slider is on a log scale from 50 to 10,000 texts a
-// month, so it climbs smoothly through the range where the effect is.
-const SWEEP = { texts: ROUND_ONE.textsRef, split: false, pool: null, poolKey: null, best: null, bestKey: null, queued: false };
-const SWEEP_MIN = 50, SWEEP_MAX = 10000;
-const sweepTextsAt = v => SWEEP_MIN * Math.pow(SWEEP_MAX / SWEEP_MIN, v / 1000);
-const sweepSliderAt = t => Math.round(1000 * Math.log(t / SWEEP_MIN) / Math.log(SWEEP_MAX / SWEEP_MIN));
+// 3b and 3c: every account the card asks, with its engagement set by the
+// slider (Josh, 12 Nov 2026). Since the refit that day the model's engagement is
+// contacts replying a month, so the slider is that, on a log scale from 0 to
+// 500 (of replying + 1), climbing smoothly through the range where it matters.
+const SWEEP = { usage: ROUND_ONE.usageRef, split: false, pool: null, poolKey: null, best: null, bestKey: null, queued: false };
+const SWEEP_TOP = Math.log10(ROUND_ONE.usageMax + 1);
+const sweepUsageAt = v => Math.pow(10, SWEEP_TOP * v / 1000) - 1;
+const sweepSliderAt = u => Math.round(1000 * Math.log10(u + 1) / SWEEP_TOP);
 const SWEEP_INK = [INK.primary, INK.secondary, INK.positive, INK.negative, INK.accent, INK.tertiary];
 const SWEEP_MAX_LINES = 6;
-const SWEEP_GRID = Array.from({ length: 41 }, (_, i) => SWEEP_MIN * Math.pow(SWEEP_MAX / SWEEP_MIN, i / 40));
-const roundTexts = t => (t < 100 ? Math.round(t / 5) * 5 : t < 1000 ? Math.round(t / 10) * 10 : Math.round(t / 100) * 100);
+const SWEEP_GRID = Array.from({ length: 41 }, (_, i) => sweepUsageAt(i * 25));
+const roundUsage = u => (u < 100 ? Math.round(u) : Math.round(u / 5) * 5);
 
 function sweepIndustryControls(pool) {
   const box = $('sweep-industries');
@@ -8089,17 +8140,17 @@ function renderTextsSweep() {
 
   const slider = $('sweep-texts');
   if (!slider.dataset.ready) {
-    slider.value = sweepSliderAt(SWEEP.texts);
+    slider.value = sweepSliderAt(SWEEP.usage);
     slider.addEventListener('input', () => {
-      SWEEP.texts = sweepTextsAt(Number(slider.value));
-      $('sweep-texts-out').textContent = `${fmt.int(roundTexts(SWEEP.texts))} texts a month`;
+      SWEEP.usage = sweepUsageAt(Number(slider.value));
+      $('sweep-texts-out').textContent = `${fmt.int(roundUsage(SWEEP.usage))} contacts replying a month`;
       if (SWEEP.queued) return;
       SWEEP.queued = true;
       requestAnimationFrame(() => { SWEEP.queued = false; renderTextsSweep(); });
     });
     slider.dataset.ready = '1';
   }
-  $('sweep-texts-out').textContent = `${fmt.int(roundTexts(SWEEP.texts))} texts a month`;
+  $('sweep-texts-out').textContent = `${fmt.int(roundUsage(SWEEP.usage))} contacts replying a month`;
 
   const mode = $('sweep-mode');
   if (!mode.dataset.ready) {
@@ -8128,7 +8179,7 @@ function renderTextsSweep() {
   const style = (l, i) => (l.key === 'all'
     ? { colour: 'var(--ink)', dashed: SWEEP.split, label: `All ticked (${fmt.int(l.n)})` }
     : { colour: SWEEP_INK[i % SWEEP_INK.length], dashed: false, label: `${l.label} (${fmt.int(l.n)})` });
-  const now = pick(sweepLines(pool, { texts: SWEEP.texts, rises, ticked: on, split: SWEEP.split }));
+  const now = pick(sweepLines(pool, { usage: SWEEP.usage, rises, ticked: on, split: SWEEP.split }));
   if (!now.all) {
     $('sweep-chart').innerHTML = '<p class="empty">Tick at least one industry.</p>';
     $('sweep-best').innerHTML = ''; $('sweep-table').innerHTML = ''; $('sweep-finding').textContent = '';
@@ -8136,13 +8187,13 @@ function renderTextsSweep() {
   }
   const drawn = [now.all, ...now.rest].map((l, i) => ({ ...l, ...style(l, i - 1) }));
 
-  // 3b: revenue kept against the size of the rise at the slider's texting.
+  // 3b: revenue kept against the size of the rise at the slider's engagement.
   multiLineChart($('sweep-chart'), {
     labels, yFormat: v => fmt.pct(v), yTitle: 'Revenue kept, against no rise', xTitle: 'Size of the rise, for every account',
     series: drawn.map(l => ({ label: l.label, colour: l.colour, dashed: l.dashed, values: l.points.map(p => p.kept) })),
     refs: [{ value: 1, label: 'No rise' }],
     xMarks: [{ index: 10, label: 'Tested limit, $200 plan' }],
-    describe: i => `<strong>${labels[i]} for everyone, at ${fmt.int(roundTexts(SWEEP.texts))} texts a month</strong>`
+    describe: i => `<strong>${labels[i]} for everyone, at ${fmt.int(roundUsage(SWEEP.usage))} contacts replying a month</strong>`
       + drawn.map(l => {
         const p = l.points[i];
         return `<span>${l.label}: ${fmt.pct(p.kept)} of the revenue with no rise, ${fmt.pct(p.churn)} leave, `
@@ -8150,25 +8201,26 @@ function renderTextsSweep() {
       }).join(''),
   });
 
-  // 3c: the peak of each line at every level of texting. Cached: it only
+  // 3c: the peak of each line at every level of engagement. Cached: it only
   // changes with the industries, the split and the card's switches.
   const bestKey = JSON.stringify([poolKey, [...on].sort(), SWEEP.split]);
   if (SWEEP.bestKey !== bestKey) {
-    SWEEP.best = SWEEP_GRID.map(t => pick(sweepLines(pool, { texts: t, rises, ticked: on, split: SWEEP.split })));
+    SWEEP.best = SWEEP_GRID.map(u => pick(sweepLines(pool, { usage: u, rises, ticked: on, split: SWEEP.split })));
     SWEEP.bestKey = bestKey;
   }
-  const gridLabels = SWEEP_GRID.map(t => fmt.int(roundTexts(t)));
-  const at = SWEEP_GRID.reduce((bi, t, i) => (Math.abs(Math.log(t / SWEEP.texts)) < Math.abs(Math.log(SWEEP_GRID[bi] / SWEEP.texts)) ? i : bi), 0);
+  const gridLabels = SWEEP_GRID.map(u => fmt.int(roundUsage(u)));
+  const lg1 = u => Math.log10(u + 1);
+  const at = SWEEP_GRID.reduce((bi, u, i) => (Math.abs(lg1(u) - lg1(SWEEP.usage)) < Math.abs(lg1(SWEEP_GRID[bi]) - lg1(SWEEP.usage)) ? i : bi), 0);
   const series = drawn.map(l => ({ ...l, values: SWEEP.best.map(b => {
     const m = l.key === 'all' ? b.all : b.rest.find(x => x.key === l.key);
     return m ? m.best : null;
   }) }));
   multiLineChart($('sweep-best'), {
-    labels: gridLabels, yFormat: v => fmt.pct(v), yTitle: 'Revenue kept at the best single rise', xTitle: 'Texts a month, every account',
+    labels: gridLabels, yFormat: v => fmt.pct(v), yTitle: 'Revenue kept at the best single rise', xTitle: 'Contacts replying a month, every account',
     series: series.map(l => ({ label: l.label, colour: l.colour, dashed: l.dashed, values: l.values.map(b => (b ? b.kept : null)) })),
     refs: [{ value: 1, label: 'No rise' }],
-    xMarks: [{ index: at, label: `Slider: ${fmt.int(roundTexts(SWEEP.texts))}` }],
-    describe: i => `<strong>${gridLabels[i]} texts a month, every account</strong>`
+    xMarks: [{ index: at, label: `Slider: ${fmt.int(roundUsage(SWEEP.usage))}` }],
+    describe: i => `<strong>${gridLabels[i]} contacts replying a month, every account</strong>`
       + series.map(l => {
         const b = l.values[i];
         return b ? `<span>${l.label}: best ${pctRise(b.rise)}, keeps ${fmt.pct(b.kept)}, ${fmt.pct(b.churn)} leave, `
@@ -8177,11 +8229,12 @@ function renderTextsSweep() {
   });
 
   // The table: each drawn line at the slider, and where its best rise moves.
-  const at100 = SWEEP_GRID.findIndex(t => t >= 100 - 1e-9), at2000 = SWEEP_GRID.findIndex(t => t >= 2000 - 1e-9);
+  const near = u => SWEEP_GRID.reduce((bi, g, i) => (Math.abs(lg1(g) - lg1(u)) < Math.abs(lg1(SWEEP_GRID[bi]) - lg1(u)) ? i : bi), 0);
+  const at100 = near(5), at2000 = near(150);
   const bestOf = (l, idx) => { const b = series.find(x => x.key === l.key).values[idx]; return b ? `${pctRise(b.rise)} (${fmt.pct(b.kept)})` : '–'; };
   $('sweep-table').innerHTML = '<thead><tr><th></th><th class="n">Accounts</th><th class="n">Pay now</th>'
-    + `<th class="n">Best rise at ${fmt.int(roundTexts(SWEEP.texts))} texts</th><th class="n">Revenue kept</th><th class="n">Leave</th>`
-    + '<th class="n">Revenue a month</th><th class="n">Best at 100 texts</th><th class="n">Best at 2,000 texts</th></tr></thead><tbody>'
+    + `<th class="n">Best rise at ${fmt.int(roundUsage(SWEEP.usage))} replying</th><th class="n">Revenue kept</th><th class="n">Leave</th>`
+    + `<th class="n">Revenue a month</th><th class="n">Best at ${gridLabels[at100]} replying</th><th class="n">Best at ${gridLabels[at2000]} replying</th></tr></thead><tbody>`
     + drawn.map(l => `<tr><td><span class="swatch" style="background:${l.colour}"></span>${l.label}</td>`
       + `<td class="n">${fmt.int(l.n)}</td><td class="n">${fmt.money(l.mrr)}</td>`
       + `<td class="n">${pctRise(l.best.rise)}</td><td class="n">${fmt.pct(l.best.kept)}</td><td class="n">${fmt.pct(l.best.churn)}</td>`
@@ -8189,7 +8242,7 @@ function renderTextsSweep() {
       + `<td class="n">${bestOf(l, at100)}</td><td class="n">${bestOf(l, at2000)}</td></tr>`).join('') + '</tbody>';
 
   const a = now.all;
-  $('sweep-finding').innerHTML = `<strong>At ${fmt.int(roundTexts(SWEEP.texts))} texts a month for every account, the best single `
+  $('sweep-finding').innerHTML = `<strong>At ${fmt.int(roundUsage(SWEEP.usage))} contacts replying a month for every account, the best single `
     + `rise for the ${fmt.int(a.n)} ticked is ${pctRise(a.best.rise)}</strong>, keeping ${fmt.pct(a.best.kept)} of the revenue `
     + `they bring with no rise (${a.best.gain >= 0 ? '+' : '−'}${fmt.money(Math.abs(a.best.gain))} a month), with `
     + `${fmt.pct(a.best.churn)} leaving in the round.`
@@ -8197,15 +8250,16 @@ function renderTextsSweep() {
       + 'in "All ticked" but not drawn on its own.</span>' : '');
   $('sweep-note').textContent =
     'Every account the card asks (the groups and bands ticked above, not dormant or excluded) at its own price and on its '
-    + 'own group\'s curve, with only its texting changed: the slider sets every account to the same texts a month, on a '
-    + 'log scale from 50 to 10,000, so the line climbs smoothly. Revenue kept is the MRR-weighted average, the sum of '
+    + 'own group\'s curve, with only its engagement changed: the slider sets every account to the same contacts replying '
+    + 'a month, on a log scale from 0 to 500, so the line climbs smoothly. Contacts replying, not texts sent, is the '
+    + 'engagement the model uses: with it counted, texts sent add nothing. Revenue kept is the MRR-weighted average, the sum of '
     + '(1 + rise) × (1 − churn) × price over the sum of (1 − churn with no rise) × price, so a line above 100% means the '
     + 'rise pays for the customers it loses; "leave" is the average chance of leaving in the round, normal churn included. '
-    + 'Industry is the export\'s classification. Industries differ here only through their price group and the cleaning '
-    + 'curve: round one separated cleaning from everything else, not HVAC from plumbing. Under $200 a relative rise is '
+    + 'Industry is the export\'s classification. Industries differ here only through their price groups: once contacts '
+    + 'replying are counted, round one found no difference by industry. Under $200 a relative rise is '
     + 'outside what round one tested (it moved those accounts to $500), and past +100% every line is a guess. Chart 3c '
-    + 'takes the peak of 3b at each level of texting, up to +100%: the best single rise inside what round one tested and what it keeps. The $500 to $799 accounts, '
-    + 'when ticked, carry their 500+ score and do not move with texts.';
+    + 'takes the peak of 3b at each level of engagement, up to +100%: the best single rise inside what round one tested and what it keeps. The $500 to $799 accounts, '
+    + 'when ticked, carry their 500+ score and do not move with the slider.';
 }
 
 let LAST_CAMP = null;

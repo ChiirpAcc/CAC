@@ -792,6 +792,7 @@ figcaption { margin-bottom: .9rem; }
 /* The optimal-ask table: the research text and each ask wrap, so the four
    usage columns stay on screen. */
 #trade-optimal td { white-space: normal; vertical-align: top; min-width: 8.5rem; }
+#trade-optimal th { white-space: normal; vertical-align: bottom; }
 #trade-optimal td.small { min-width: 14rem; max-width: 20rem; }
 /* The write-up's signal table: prose cells wrap. */
 .findings-table td { white-space: normal; vertical-align: top; min-width: 9rem; }
@@ -1437,3 +1438,7 @@ th.sorted { color: var(--ink); }
   color: var(--series-1); text-decoration: underline; cursor: pointer; }
 .link-button:hover { color: var(--ink); }
 #sweep-table .swatch { margin-right: .4rem; vertical-align: baseline; }
+
+/* The write-up's formula block. */
+.formula { border-left: 2px solid var(--rule-strong); padding: .2rem 0 .2rem .9rem; margin: .6rem 0 1rem; }
+.formula p { margin: .35rem 0; }

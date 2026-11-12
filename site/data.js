@@ -2956,52 +2956,71 @@ export const campaignBandOf = (r, bandOf) => (bandOf
 //
 // The curves are the midpoint of a smooth and a cliff scenario fitted to round
 // one (the "Price increase round two" write-up). Asks stay inside what round
-// one tested: +100% on the $200 plan, +90% from $213 up, and $500 under $200
-// for accounts paying $62 or more. Nothing paying $500 or more was in round
-// one, so that group borrows the $262+ curve and is labelled as untested.
+// one tested: +100% on the $200 plan, +90% from $213 up, and no more than $500
+// under $200 for accounts paying $62 or more. Every group is optimized the same
+// way (Josh, 12 Nov 2026: "optimize all"). Nothing paying $500 or more was in
+// round one, so that group borrows the $262+ curve and is labelled untested.
 //
-// Usage (refit 12 Nov 2026 from first_round_price_increase_enriched.csv, Josh:
-// "use the stronger effect"): round one refit on the 34 accounts that were
-// texting, leaving out the two that sent 0 and 1 texts a month, since the list
-// never asks a dormant account. Each 10x more texts sent cuts the odds of
-// leaving about 8x (-2.08 per tenfold, p = 0.03), and once texting is counted
-// cleaning adds almost nothing (+0.14, p = 0.91): cleaners left more because
-// they texted less. The $200 plan stays the strongest signal (+3.1, p = 0.01).
-// So the trades curve on the $200 plan is the cleaning curve less 0.14 on the
-// log-odds scale, and the usage shift is applied per tenfold (log10) in every
-// group. Per-account texts come from the engagement export; an account it does
-// not list stands at its band's median (active 699 a month, light 183),
-// measured from the list's median of 535, and texts are held between 60 (the
-// least any texting account in round one sent) and 10,000 a month.
+// Engagement (refit 12 Nov 2026 from first_round_price_increase_enriched.csv;
+// Josh: "write out the optimal formula based on all the relevant features").
+// Every feature the export carries for every account was tested on round
+// one's 34 texting accounts (the two that sent 0 and 1 texts a month left out,
+// as the list never asks a dormant account), each model scored on accounts it
+// had not seen. Contacts replying a month beat texts sent (leave-one-out AUC
+// 0.875 against 0.850, and in 245 of 300 bootstrap resamples); with it in,
+// texts add nothing (p = 0.68), nor do manual texts (p = 0.16), cleaning
+// (p = 0.35), reply rate, the trend in texts, age, tickets, logins, failed
+// charges or the size of the rise. The fit:
+//   logit P(leave) = 2.554 + 3.982 x [$200 plan] - 3.214 x log10(contacts replying a month + 1)
+// $200 plan p = 0.004, contacts replying p = 0.010. Round one's curves give the
+// shape against the size of the rise for the reference account, round one's
+// median of 46 contacts replying a month (where the fit and the $200 curve
+// agree: 76% and 75% leaving at +150%), and each account moves from there by
+// -3.214 x (log10(its replying + 1) - log10(47)), held at 500 at most. Cleaning
+// is 0, so both $200-plan groups share one curve. It is the same measure the
+// 500+ model uses (fewer than 20 contacts replying). An account the export
+// does not list stands at its band's median (active 69, light 3).
+// Round one measured engagement only among accounts that got a rise, so it
+// acts on the rise: with no rise every account is at its group's normal churn,
+// and the shift builds to its full size by +40% (the smallest rise round one
+// tested off the $200 plan was +38%). Without that, an account with no one
+// replying would be put at 90%+ churn even with no rise, and no rise could
+// make it worse, which pushed its ask to the top of the range (12 Nov 2026).
 export const ROUND_ONE = {
   curves: {
     clean200: [[0, 0.056], [0.2, 0.09], [0.3, 0.113], [0.4, 0.142], [0.5, 0.176], [0.75, 0.29], [1, 0.441], [1.5, 0.75]],
     tier262: [[0, 0.027], [0.2, 0.045], [0.3, 0.057], [0.4, 0.073], [0.5, 0.093], [0.75, 0.168], [1, 0.283]],
   },
   maxUp: { clean200: 1, trades200: 1, tier262: 0.9, over500: 0.9 },
-  logistic: { intercept: 3.549, plan: 3.115, cleaning: 0.144, log10Texts: -2.076 },
-  textsRef: 535,
-  textsMin: 60,
-  textsMax: 10000,
-  bandTexts: { users: 699, light: 183 },
+  logistic: { intercept: 2.554, plan: 3.982, cleaning: 0, log10Usage: -3.214 },
+  usageRef: 46,
+  usageMax: 500,
+  // Engagement acts on the rise: none at no rise, all of it from +40%.
+  usageRamp: 0.4,
+  bandUsage: { users: 69, light: 3 },
   share: 0.97,
   step: 25,
+  // Two guards (12 Nov 2026, from the per-account check): never ask a price at
+  // which the account is more likely to leave than stay, and do not ask for
+  // less than $10 a month after churn.
+  maxLeave: 0.5,
+  minGain: 10,
   underTarget: 500,
   underMinTested: 62,
 };
-// Trades on the $200 plan: the cleaning curve less the cleaning effect.
+// Trades on the $200 plan: the cleaning curve less the cleaning effect (0 since the refit).
 ROUND_ONE.curves.trades200 = ROUND_ONE.curves.clean200.map(([x, p]) =>
   [x, 1 / (1 + Math.exp(-(Math.log(p / (1 - p)) - ROUND_ONE.logistic.cleaning)))]);
 export const CLEANING_RE = /clean|wash|carpet|maid|janitor|pressure|steam|duct|upholster|window|gutter|chem-?dry|kwik dry|rapid dry|mold|restor/i;
 export const PRICE_GROUPS = [
   { key: 'under200', label: 'Under $200',
-    hint: 'Round one moved accounts paying $62 to $192 to $500 and most stayed. Asked $500; below $62 was never tested.' },
+    hint: 'Round one moved accounts paying $62 to $192 to $500 and most stayed. Optimized up to $500, set by contacts replying; below $62 was never tested.' },
   { key: 'clean200', label: '$200 plan, cleaning',
-    hint: 'The group that left in round one: about 75% at $500. Asks up to +100%, set by texts sent.' },
+    hint: 'The group that left in round one: about 75% at $500. Asks up to +100%, set by contacts replying.' },
   { key: 'trades200', label: '$200 plan, trades',
-    hint: 'Same plan; once texting is counted trades left about as often as cleaners (2 of the 3 texting accounts at $500). Asks up to +100%, set by texts sent.' },
+    hint: 'Same plan and the same curve: once contacts replying are counted, being a cleaner does not change who leaves. Asks up to +100%, set by contacts replying.' },
   { key: 'tier262', label: '$213 to $499',
-    hint: 'Round one lost about 10% of these at +40% to +90%. Asks up to +90%.' },
+    hint: 'Round one lost about 10% of these at +40% to +90%. Asks up to +90%, set by contacts replying.' },
   { key: 'over500', label: '$500 to $799', defaultOff: true,
     hint: 'Not in round one. Each account starts at its 500+ model score (10% to 35% leave in 3 months with no rise) and the rise adds what it added for round one\'s $262+ accounts. Off by default; its row below shows what asking would do.' },
 ];
@@ -3019,12 +3038,15 @@ function curveAt(pts, x) {
   const [x0, y0] = pts[pts.length - 2], [x1, y1] = pts[pts.length - 1];
   return Math.min(0.9, y1 + (y1 - y0) * (x - x1) / (x1 - x0));
 }
-// The account as the model sees it: group, band, usage.
+// The account as the model sees it: group, band, usage (contacts replying a
+// month), with texts sent kept for the list.
 export function roundOneProfile(row, engagement) {
   const eng = engagement || {};
   const band = (eng.bandOf && (eng.bandOf.get(row.id) || (row.canonicalId && eng.bandOf.get(row.canonicalId)))) || 'unbanded';
   const own = eng.texts && (eng.texts.get(row.id) ?? (row.canonicalId ? eng.texts.get(row.canonicalId) : undefined));
-  const texts = own ?? ROUND_ONE.bandTexts[band] ?? null;
+  const texts = own ?? null;
+  const ownUse = eng.replying && (eng.replying.get(row.id) ?? (row.canonicalId ? eng.replying.get(row.canonicalId) : undefined));
+  const replying = ownUse ?? ROUND_ONE.bandUsage[band] ?? null;
   // With no company name the industry is unknown. On the $200 plan that is
   // priced as cleaning, the group that left in round one, so an unnamed
   // cleaner is never asked a trades price.
@@ -3044,18 +3066,19 @@ export function roundOneProfile(row, engagement) {
   const group = priceGroup(mrr, cleaning !== false);
   const risk500 = group === 'over500' && eng.risk500
     ? (eng.risk500.get(row.id) ?? (row.canonicalId ? eng.risk500.get(row.canonicalId) : undefined) ?? null) : null;
-  return { mrr, band, texts, textsMeasured: own != null, ageDays, excluded, industry, cleaning: cleaning !== false,
+  return { mrr, band, texts, textsMeasured: own != null, replying, replyingMeasured: ownUse != null, ageDays, excluded, industry, cleaning: cleaning !== false,
     industryKnown: cleaning !== null, group, risk500, riskShift: risk500 != null ? riskShiftFor(risk500) : null };
 }
 // How sure round one is, for the confidence intervals (Josh, 11 Nov 2026;
 // refit 12 Nov). Standard errors are the refit's own, on the 34 texting
-// accounts: the $200 plan 1.26, cleaning 1.22, texts 0.97 per tenfold, and
-// 0.90 for the level off the plan (an account at 535 texts). The shape term is
-// half the gap, on the log-odds scale, between round one's smooth and cliff
-// readings of the cleaning curve (8% / 3% at no rise, 22% / 13% at +50%,
+// accounts: the $200 plan 1.38, contacts replying 1.245 per tenfold, the level
+// off the plan at the reference account 1.12, and cleaning 1.45 (its estimate
+// with replying in, +1.36, is left out but its uncertainty is kept). The shape
+// term is half the gap, on the log-odds scale, between round one's smooth and
+// cliff readings of the cleaning curve (8% / 3% at no rise, 22% / 13% at +50%,
 // 48% / 40% at +100%).
 export const ROUND_ONE_UNCERTAINTY = {
-  se: { plan: 1.26, cleaning: 1.22, texts: 0.97, offPlan: 0.9 },
+  se: { plan: 1.38, cleaning: 1.45, texts: 1.245, offPlan: 1.12 },
   shape: [[0, 0.52], [0.25, 0.385], [0.5, 0.32], [0.75, 0.245], [1, 0.16], [1.5, 0]],
   level: 0.9,
 };
@@ -3127,21 +3150,23 @@ export const rangeOf = (values, level = ROUND_ONE_UNCERTAINTY.level) => {
 
 export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1, draw = null } = {}) {
   const x = price / acc.mrr - 1;
-  const coef = (ROUND_ONE.logistic.log10Texts + (draw ? draw.texts : 0)) * textsScale;
-  // Usage, per tenfold texts from the reference account at 535 a month.
-  const usage = acc.texts != null
-    ? coef * Math.log10(Math.min(Math.max(acc.texts, ROUND_ONE.textsMin), ROUND_ONE.textsMax) / ROUND_ONE.textsRef) : 0;
+  // Engagement: per tenfold contacts replying a month (plus one), from the
+  // reference account at 46. textsScale is the card's "counts half as much".
+  const coef = (ROUND_ONE.logistic.log10Usage + (draw ? draw.texts : 0)) * textsScale;
+  const usage = acc.replying != null
+    ? coef * (Math.log10(Math.min(Math.max(acc.replying, 0), ROUND_ONE.usageMax) + 1) - Math.log10(ROUND_ONE.usageRef + 1)) : 0;
   let p;
   if (acc.group === 'under200') {
     // Round one's fit for accounts off the $200 plan. Every one of them got
     // +150% or more and the size of the rise did not predict leaving, so the
     // fit holds from +150%; a smaller rise ramps up to it from normal churn.
-    // The level is the refit's at 535 texts; usage moves it from there.
+    // The level is the refit's off the plan at the reference account;
+    // contacts replying move it from there.
     const base = 0.03;
     if (x <= 0) p = base;
     else {
       const L = ROUND_ONE.logistic;
-      const z = L.intercept + L.log10Texts * Math.log10(ROUND_ONE.textsRef) + (acc.cleaning ? L.cleaning : 0) + usage
+      const z = L.intercept + L.log10Usage * Math.log10(ROUND_ONE.usageRef + 1) + (acc.cleaning ? L.cleaning : 0) + usage
         + (draw ? draw.off + (acc.cleaning ? draw.cleaning : 0) : 0);
       const fit = Math.max(base, sigmoid(z));
       p = base + (fit - base) * Math.min(1, x / 1.5);
@@ -3159,7 +3184,7 @@ export function roundOneChurn(acc, price, { textsScale = 1, churnScale = 1, draw
       if (acc.group === 'clean200' || acc.group === 'trades200') z += draw.plan;
       if (acc.group === 'clean200') z += draw.cleaning;
     }
-    p = sigmoid(z + usage);
+    p = sigmoid(z + usage * Math.min(1, Math.max(0, x) / ROUND_ONE.usageRamp));
   }
   return Math.min(0.95, p * churnScale);
 }
@@ -3171,23 +3196,30 @@ export function roundOneAsk(acc, opts = {}) {
   if (acc.band === 'dormant') return stay('Dormant: left alone');
   let target;
   let why = '';
-  if (acc.group === 'under200') {
-    if (acc.mrr < ROUND_ONE.underMinTested) return stay('Below what round one tested');
-    target = ROUND_ONE.underTarget;
-    why = 'Round one moved $62 to $192 accounts to $500';
-  } else {
-    const top = acc.mrr * (1 + ROUND_ONE.maxUp[acc.group]);
+  if (acc.group === 'under200' && acc.mrr < ROUND_ONE.underMinTested) return stay('Below what round one tested');
+  {
+    // Every price from now up to the tested limit, in $25 steps: +100% on the
+    // $200 plan, +90% from $213, and $500 under $200 (round one's move).
+    const top = acc.group === 'under200' ? ROUND_ONE.underTarget : acc.mrr * (1 + ROUND_ONE.maxUp[acc.group]);
     const grid = [acc.mrr];
     for (let p = Math.ceil(acc.mrr / ROUND_ONE.step) * ROUND_ONE.step; p <= top + 1e-9; p += ROUND_ONE.step) {
       if (p > acc.mrr) grid.push(p);
     }
     const rev = p => (1 - roundOneChurn(acc, p, opts)) * p;
     const base = rev(acc.mrr);
-    const best = Math.max(...grid.map(rev));
+    const allowed = grid.filter(p => p === acc.mrr || roundOneChurn(acc, p, opts) <= ROUND_ONE.maxLeave);
+    const best = Math.max(...allowed.map(rev));
     target = best > base
-      ? Math.min(...grid.filter(p => rev(p) - base >= ROUND_ONE.share * (best - base)))
+      ? Math.min(...allowed.filter(p => rev(p) - base >= ROUND_ONE.share * (best - base)))
       : acc.mrr;
-    if (target >= grid[grid.length - 1] && target > acc.mrr) why = 'At the top of the tested range';
+    if (target > acc.mrr && rev(target) - base < ROUND_ONE.minGain) {
+      return stay(`Not worth asking: adds under $${ROUND_ONE.minGain} a month after churn`);
+    }
+    const capped = allowed.length < grid.length && target === allowed[allowed.length - 1] && target > acc.mrr;
+    if (target >= grid[grid.length - 1] && target > acc.mrr) why = acc.group === 'under200'
+      ? 'At $500, the most round one tested under $200' : 'At the top of the tested range';
+    if (capped) why = 'Held where leaving stays less likely than staying';
+    if (target === acc.mrr) why = 'No rise pays: the customers it would lose cost more than it adds';
     if (acc.group === 'over500') why = acc.risk500 != null
       ? `500+ model: ${Math.round(acc.risk500 * 100)}% leave in 3 months with no rise` : 'Not in round one or the 500+ model';
     if (acc.group === 'clean200' && acc.industryKnown === false) why = 'No name in Stripe: priced as cleaning';
@@ -3199,8 +3231,8 @@ export function roundOneAsk(acc, opts = {}) {
 export const TRUST_PRESETS = [
   { key: 'fitted', label: 'Round one as fitted', defaultOn: true,
     blurb: 'The group curves and the usage effect as round one measured them.' },
-  { key: 'halfTexts', label: 'Usage counts half as much', textsScale: 0.5,
-    blurb: 'The refit usage effect is strong (p = 0.03) but rests on 34 accounts. Narrows the asks between light and active users.' },
+  { key: 'halfTexts', label: 'Engagement counts half as much', textsScale: 0.5,
+    blurb: 'The contacts-replying effect is strong (p = 0.01) but rests on 34 accounts. Narrows the asks between quiet and engaged accounts.' },
   { key: 'harsher', label: 'Half as many again leave', churnScale: 1.5,
     blurb: 'Every curve 50% higher, in case round one was a kind sample.' },
 ];
@@ -3274,13 +3306,13 @@ export function roundTwo(data, {
       return { ...b, typical: median(b.targets), averageAsk: asks / b.asked, averagePays: b.mrr / b.asked, rise: asks / b.mrr - 1 };
     })
       .sort((x, y) => y.gain - x.gain),
-    usageMeasured: list.low.some(r => r.textsMeasured),
+    usageMeasured: list.low.some(r => r.replyingMeasured),
     byCleaning,
   };
 }
 
 // ---- Tradeoff curves and the 12-month view (Josh, 11 Nov 2026: optimal
-// amounts for each category, tradeoff curves by industry, texts sent,
+// amounts for each category, tradeoff curves by industry, engagement,
 // relative and absolute increase, and 12 months of revenue after churn).
 
 // A typical account in each price group: the group's median price on the
@@ -3307,37 +3339,39 @@ export function groupMedianPrices(data, { lowBand = 800, engagement = null } = {
   }
   return out;
 }
-// The median texts sent a month in each group, among the same accounts, for
-// charts that show each group's median account rather than one usage level.
-export function groupMedianTexts(data, { lowBand = 800, engagement = null } = {}) {
+// The median contacts replying a month in each group, among the same
+// accounts, for charts that show each group's median account.
+export function groupMedianUsage(data, { lowBand = 800, engagement = null } = {}) {
   const list = upgradeList(data, { lowBand, rule: 'account', engagement });
-  const out = Object.fromEntries(Object.keys(TYPICAL).map(k => [k, ROUND_ONE.textsRef]));
+  const out = Object.fromEntries(Object.keys(TYPICAL).map(k => [k, ROUND_ONE.usageRef]));
   if (!list) return out;
   for (const key of Object.keys(TYPICAL)) {
-    const v = list.low.filter(r => r.group === key && r.band !== 'dormant' && !r.excluded && r.mrr > 2 && r.textsMeasured)
-      .map(r => r.texts).sort((a, b) => a - b);
+    const v = list.low.filter(r => r.group === key && r.band !== 'dormant' && !r.excluded && r.mrr > 2 && r.replyingMeasured)
+      .map(r => r.replying).sort((a, b) => a - b);
     if (v.length) out[key] = v.length % 2 ? v[v.length >> 1] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
   }
   return out;
 }
 // Under $200, round one tested one move: to $500 from $62 to $192. What that
-// move does to one account, by what it pays now, at a given usage.
-export function underMoveCurve(prices, { texts = ROUND_ONE.textsRef, cleaning = false } = {}, opts = {}) {
+// move does to one account, by what it pays now, at a given engagement.
+export function underMoveCurve(prices, { usage = ROUND_ONE.usageRef, cleaning = false } = {}, opts = {}) {
   return prices.map(p => {
-    const acc = { mrr: p, group: 'under200', texts, band: 'users', cleaning, industryKnown: true };
+    const acc = { mrr: p, group: 'under200', replying: usage, band: 'users', cleaning, industryKnown: true };
     const target = ROUND_ONE.underTarget;
     const churn = roundOneChurn(acc, target, opts), churnNow = roundOneChurn(acc, p, opts);
     return { price: p, target, churn, churnNow, gain: (1 - churn) * target - (1 - churnNow) * p };
   });
 }
-export const TEXT_LEVELS = [
-  { texts: 100, label: '100 texts a month' },
-  { texts: ROUND_ONE.textsRef, label: `${ROUND_ONE.textsRef} (round one's median)` },
-  { texts: 2000, label: '2,000' },
-  { texts: 10000, label: '10,000' },
+// Four levels of engagement, contacts replying a month: the 500+ model's
+// "few replying" line, round one's median, and a quiet and a busy account.
+export const USAGE_LEVELS = [
+  { usage: 5, label: '5 replying a month' },
+  { usage: 20, label: '20' },
+  { usage: ROUND_ONE.usageRef, label: `${ROUND_ONE.usageRef} (round one's median)` },
+  { usage: 150, label: '150' },
 ];
-export const typicalAccount = (group, texts = ROUND_ONE.textsRef, mrr = TYPICAL[group].mrr) => ({
-  mrr, group, texts, band: 'users', cleaning: group === 'clean200', industryKnown: true,
+export const typicalAccount = (group, usage = ROUND_ONE.usageRef, mrr = TYPICAL[group].mrr) => ({
+  mrr, group, replying: usage, band: 'users', cleaning: group === 'clean200', industryKnown: true,
 });
 
 // Churn and revenue kept for one account across a range of rises. Revenue
@@ -3355,12 +3389,12 @@ export function tradeoffCurve(acc, rises, opts = {}) {
 export function optimalAsks(opts = {}, prices = null) {
   const rows = [];
   for (const group of ['clean200', 'trades200', 'tier262', 'under200', 'over500']) {
-    for (const lvl of TEXT_LEVELS) {
-      const acc = typicalAccount(group, lvl.texts, (prices && prices[group]) || TYPICAL[group].mrr);
+    for (const lvl of USAGE_LEVELS) {
+      const acc = typicalAccount(group, lvl.usage, (prices && prices[group]) || TYPICAL[group].mrr);
       const a = roundOneAsk(acc, opts);
       const keptNow = (1 - a.churnNow) * acc.mrr;
       const keptAsk = (1 - a.churn) * a.target;
-      rows.push({ group, texts: lvl.texts, mrr: acc.mrr, target: a.target, rise: a.target / acc.mrr - 1,
+      rows.push({ group, usage: lvl.usage, mrr: acc.mrr, target: a.target, rise: a.target / acc.mrr - 1,
         added: a.target - acc.mrr, churn: a.churn, churnNow: a.churnNow, gain: keptAsk - keptNow, why: a.why });
     }
   }
@@ -3444,7 +3478,7 @@ export function portfolioCurve(data, { kind = 'relative', steps, ...rest } = {})
   const sp = scenarioPool(data, rest);
   if (!sp) return null;
   const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
-  const profiles = sp.pool.map(r => ({ r, acc: { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band,
+  const profiles = sp.pool.map(r => ({ r, acc: { mrr: r.mrr, group: r.group, replying: r.replying, band: r.band,
     cleaning: r.cleaning, industryKnown: true, riskShift: r.riskShift } }));
   const points = steps.map(s => {
     let gain = 0, lost = 0, extra = 0;
@@ -3463,18 +3497,19 @@ export function portfolioCurve(data, { kind = 'relative', steps, ...rest } = {})
   return { kind, points, best, accounts: profiles.length };
 }
 
-// Every account asked, with its texting set to one level (Josh, 12 Nov 2026:
-// "as number of text messages increase what is the average increase for all
-// customers for rev kept relative to the size of the rise ... toggle the
-// industries to separate"). The pool is chart 5's: everyone the card asks,
-// each on its own group's curve at its own price; only texts change.
+// Every account asked, with its engagement set to one level (Josh, 12 Nov
+// 2026: "as number of text messages increase what is the average increase for
+// all customers for rev kept relative to the size of the rise ... toggle the
+// industries to separate"; the model's engagement is contacts replying a month
+// since the refit that day). The pool is chart 5's: everyone the card asks,
+// each on its own group's curve at its own price; only engagement changes.
 export const SWEEP_UNKNOWN = 'Not in the export';
 export function sweepPool(data, rest = {}) {
   const sp = scenarioPool(data, rest);
   if (!sp) return null;
   const opts = { textsScale: rest.textsScale ?? 1, churnScale: rest.churnScale ?? 1 };
   const accounts = sp.pool.map(r => ({ industry: r.industry || SWEEP_UNKNOWN,
-    acc: { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band, cleaning: r.cleaning, industryKnown: true,
+    acc: { mrr: r.mrr, group: r.group, replying: r.replying, band: r.band, cleaning: r.cleaning, industryKnown: true,
       riskShift: r.riskShift } }));
   const tally = new Map();
   for (const a of accounts) {
@@ -3486,13 +3521,13 @@ export function sweepPool(data, rest = {}) {
 // Revenue kept against no rise, for the ticked industries together and, when
 // split, each on its own: sum of (1 + rise)(1 - churn) x price over sum of
 // (1 - churn at no rise) x price, so a line is the MRR-weighted average.
-export function sweepLines(pool, { texts, rises, ticked = null, split = false, bestUpTo = 1 } = {}) {
+export function sweepLines(pool, { usage, rises, ticked = null, split = false, bestUpTo = 1 } = {}) {
   const lines = new Map();
   const line = (key, label) => lines.get(key) || lines.set(key, { key, label, n: 0, mrr: 0,
     num: rises.map(() => 0), den: 0, lost: rises.map(() => 0) }).get(key);
   for (const { industry, acc } of pool.accounts) {
     if (ticked && !ticked.has(industry)) continue;
-    const a = { ...acc, texts };
+    const a = { ...acc, replying: usage };
     const c0 = roundOneChurn(a, a.mrr, pool.opts);
     const c = rises.map(x => roundOneChurn(a, a.mrr * (1 + x), pool.opts));
     for (const l of split ? [line('all', 'All ticked'), line(industry, industry)] : [line('all', 'All ticked')]) {
@@ -3526,7 +3561,7 @@ function projectCore(sp, { scenario, rise, add, horizon = 12, rate, opts }) {
   const logos = new Array(horizon + 1).fill(0);
   let liftLost = 0;
   for (const r of sp.scope) {
-    const acc = { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band, cleaning: r.cleaning, industryKnown: true,
+    const acc = { mrr: r.mrr, group: r.group, replying: r.replying, band: r.band, cleaning: r.cleaning, industryKnown: true,
       riskShift: r.riskShift };
     let price = r.mrr;
     if (inPool.has(r.id)) {
@@ -3568,7 +3603,7 @@ export function roundTwoRange(data, { lowBand = 800, engagement = null, bands = 
   const list = upgradeList(data, { lowBand, rule: 'account', engagement, textsScale, churnScale });
   if (!list) return null;
   const rows = list.low.filter(r => r.viable && (!bands || bands.has(r.band)));
-  const accs = rows.map(r => ({ r, acc: { mrr: r.mrr, group: r.group, texts: r.texts, band: r.band, cleaning: r.cleaning,
+  const accs = rows.map(r => ({ r, acc: { mrr: r.mrr, group: r.group, replying: r.replying, band: r.band, cleaning: r.cleaning,
     industryKnown: true, riskShift: r.riskShift } }));
   const tot = [], lost = [], byGroup = {}, byIndustry = {};
   for (const d of churnDraws(draws)) {
@@ -3798,7 +3833,7 @@ function buildUpgradeList(data, {
     const target = own ? own.target : rule === 'tiered' ? (cur <= 300 ? 500 : 750) : floor;
     return {
       ...(own ? { group: prof.group, band: prof.band, industry: prof.industry, cleaning: prof.cleaning, risk500: prof.risk500, riskShift: prof.riskShift, texts: prof.texts, ageDays: prof.ageDays, excluded: prof.excluded,
-        textsMeasured: prof.textsMeasured, churn: own.churn, churnNow: own.churnNow, why: own.why } : {}),
+        textsMeasured: prof.textsMeasured, replying: prof.replying, replyingMeasured: prof.replyingMeasured, churn: own.churn, churnNow: own.churnNow, why: own.why } : {}),
       id: row.id,
       canonicalId: row.canonicalId || null,
       name: row.name || null,
