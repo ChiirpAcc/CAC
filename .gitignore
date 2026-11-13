@@ -14,6 +14,9 @@
 # The 500+ churn model's score for each $500-799 account on the Upgrade list
 # (Josh, 11 Nov 2026): Stripe customer ids and a score only.
 !site/churn_risk_500.json
+# The new churn model's scored book (Josh, 13 Nov 2026: "get the upgrade list and
+# models into the site"): S1 accounts it scores, with the inputs Model P needs.
+!site/upgrade_model_p.json
 
 # Re-block the credential filenames even inside data/, because the
 # negation above would otherwise let data/key.json through.

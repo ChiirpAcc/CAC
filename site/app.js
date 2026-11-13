@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, projectPilot, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, projectPilot, modelPAsk, modelPSteps, modelPProject, MODEL_P_STEP, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -1152,6 +1152,7 @@ function showView(which) {
   if ($('view-dlc')) $('view-dlc').hidden = which !== 'dlc';
   if ($('view-credit')) $('view-credit').hidden = which !== 'credit';
   if ($('view-jan1')) $('view-jan1').hidden = which !== 'jan1';
+  if ($('view-mp')) $('view-mp').hidden = which !== 'mp';
   if ($('view-events')) $('view-events').hidden = which !== 'events';
   if ($('view-marketing')) $('view-marketing').hidden = which !== 'marketing';
   if ($('view-event')) $('view-event').hidden = which !== 'event';
@@ -1166,7 +1167,7 @@ function showView(which) {
   if (which !== 'event' && /^#event=/.test(location.hash)) {
     history.replaceState(null, '', which === 'events' ? '#events' : location.pathname + location.search);
   }
-  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'], ['tab-plan', which === 'plan'], ['tab-dlc', which === 'dlc'], ['tab-credit', which === 'credit'], ['tab-jan1', which === 'jan1'],
+  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'], ['tab-plan', which === 'plan'], ['tab-dlc', which === 'dlc'], ['tab-credit', which === 'credit'], ['tab-jan1', which === 'jan1'], ['tab-mp', which === 'mp'],
                           ['tab-events', which === 'events' || which === 'event'],
                           ['tab-marketing', which === 'marketing' || which === 'source'],
                           ['tab-sales', which === 'sales'], ['tab-summary', which === 'summary']]) {
@@ -1182,7 +1183,7 @@ function showView(which) {
 // #charts, #upgrade-list, #summary, #events, #marketing, #rp. An event's own
 // page is #event=<name> and a source's is #source=<name>. #sales, the RP
 // tab's old address, still works.
-const TAB_HASH = { all: '#charts', list: '#upgrade-list', plan: '#upgrade-plan', dlc: '#10dlc', credit: '#credits', jan1: '#jan1-proposal', summary: '#summary', events: '#events',
+const TAB_HASH = { all: '#charts', list: '#upgrade-list', plan: '#upgrade-plan', dlc: '#10dlc', credit: '#credits', jan1: '#jan1-proposal', mp: '#upgrade-lists', summary: '#summary', events: '#events',
   marketing: '#marketing', sales: '#rp' };
 function wireTabs() {
   const go = which => {
@@ -1196,6 +1197,7 @@ function wireTabs() {
   if ($('tab-dlc')) $('tab-dlc').addEventListener('click', () => go('dlc'));
   if ($('tab-credit')) $('tab-credit').addEventListener('click', () => go('credit'));
   if ($('tab-jan1')) $('tab-jan1').addEventListener('click', () => go('jan1'));
+  if ($('tab-mp')) $('tab-mp').addEventListener('click', () => go('mp'));
   if ($('tab-events')) $('tab-events').addEventListener('click', () => go('events'));
   if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => go('marketing'));
   if ($('tab-sales')) $('tab-sales').addEventListener('click', () => go('sales'));
@@ -8050,6 +8052,174 @@ function renderJan1Proposal() {
 const JAN1_UI = { view: 'logos' };
 const J50 = 50;
 
+// The new model's two upgrade lists (Josh, 13 Nov 2026). The scored book is
+// fetched once; both lists and the 12-month view are worked out here from
+// modelPAsk, so the slider moves everything together.
+let MP_DATA = null, MP_ASKED = false;
+const MP_UI = { goal: 'revenue', cap: 0.10, view: 'logos' };
+function loadModelP() {
+  if (MP_ASKED) return;
+  MP_ASKED = true;
+  fetch('upgrade_model_p.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+    .then(j => { MP_DATA = j || { failed: true }; if (viewsDrawn.has('mp')) renderModelPLists(); });
+}
+function renderModelPLists() {
+  const box = $('mp-body');
+  if (!box) return;
+  loadModelP();
+  if (!MP_DATA) { box.innerHTML = '<p class="muted">Loading the scored book…</p>'; return; }
+  if (MP_DATA.failed) { box.innerHTML = '<p class="empty">The scored book (upgrade_model_p.json) could not be read.</p>'; return; }
+  const J = MP_DATA, spec = J.spec;
+  const steps = modelPSteps(spec);
+  const top = steps[steps.length - 1];
+  const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
+  const pc = v => `${Math.round(v * 100)}%`;
+  const listOf = goal => J.accounts.map(a => ({ a, ask: modelPAsk(spec, a, { goal, cap: MP_UI.cap, steps }) })).filter(x => x.ask.asked);
+  const stats = rows => ({
+    n: rows.length, fee: rows.reduce((t, x) => t + x.a.fee, 0), asks: rows.reduce((t, x) => t + x.a.fee + x.ask.d, 0),
+    gain: rows.reduce((t, x) => t + x.ask.gain, 0), leave: rows.reduce((t, x) => t + x.ask.total, 0),
+    driven: rows.reduce((t, x) => t + x.ask.driven, 0), atTop: rows.filter(x => x.ask.d === top).length,
+    untestedFee: rows.filter(x => x.a.fee > 362).length });
+  const rev = listOf('revenue'), low = listOf('lowChurn');
+  const R = stats(rev), L = stats(low);
+  const rows = MP_UI.goal === 'revenue' ? rev : low;
+  const S = MP_UI.goal === 'revenue' ? R : L;
+  const capPct = Math.round(MP_UI.cap * 100);
+  const label = MP_UI.goal === 'revenue' ? 'Highest revenue' : `Lowest churn (at most ${capPct}% leave)`;
+
+  box.innerHTML = `<p class="finding"><strong>Highest revenue: ${fmt.int(R.n)} accounts asked, ${sm(R.gain)} a month expected, about `
+    + `${R.leave.toFixed(0)} leaving within 3 months. Lowest churn (at most ${capPct}% likely to leave): ${fmt.int(L.n)} accounts, `
+    + `${sm(L.gain)} a month, about ${L.leave.toFixed(0)} leaving.</strong> Both come from the new churn model, scored on `
+    + `${checkDay(J.asOf)}, on the Chiirp Stripe account only. ${fmt.int(R.atTop)} of the highest-revenue asks sit at +$${top}, the top `
+    + 'of what the August test covered, so read them as "at least this much is safe by the model", not as tested prices.</p>'
+
+    + '<div class="plan-controls">'
+    + '<fieldset class="preset-group"><legend>Which list</legend><div class="calc-presets" id="mp-goal">'
+    + [['revenue', 'Highest revenue', 'Each account\'s increase that adds the most expected MRR, with the increase adding at most 10 points of churn (the model\'s own rule).'],
+      ['lowChurn', 'Lowest churn', 'Each account\'s best increase that keeps its total chance of leaving at or under the cap; accounts already over it are not asked.']]
+      .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${MP_UI.goal === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
+    + '</div></fieldset>'
+    + `<div class="chart-control"><label for="mp-cap">Lowest churn: most an account may be likely to leave</label>`
+    + `<input type="range" id="mp-cap" min="3" max="25" step="1" value="${capPct}"><output id="mp-cap-out">${capPct}%</output></div>`
+    + '</div>'
+
+    + '<h3 class="sub-head">The two lists side by side</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">Highest revenue</th>'
+    + `<th class="n">Lowest churn (≤ ${capPct}%)</th></tr></thead><tbody>`
+    + [['Accounts asked', fmt.int(R.n), fmt.int(L.n)], ['Platform fees now', fmt.money(R.fee), fmt.money(L.fee)],
+      ['Platform fees asked', fmt.money(R.asks), fmt.money(L.asks)], ['Expected gain a month, after leavers', sm(R.gain), sm(L.gain)],
+      ['Expected to leave within 3 months', R.leave.toFixed(1), L.leave.toFixed(1)],
+      ['… of which the increase causes', R.driven.toFixed(1), L.driven.toFixed(1)],
+      [`Asks at +$${top}, the top of the tested range`, fmt.int(R.atTop), fmt.int(L.atTop)],
+      ['Fee above the $62 to $362 the test covered', fmt.int(R.untestedFee), fmt.int(L.untestedFee)]]
+      .map(([k, a, b]) => `<tr><td>${k}</td><td class="n">${a}</td><td class="n">${b}</td></tr>`).join('')
+    + '</tbody></table></div>'
+
+    + `<h3 class="sub-head">${label}: the next 12 months, with the increase against no increase</h3>`
+    + '<fieldset class="preset-group"><legend>Show</legend><div class="calc-presets" id="mp-view">'
+    + [['logos', 'Customers', 'How many on the list are still paying.'], ['mrr', 'Revenue', 'Platform fee MRR of the list.'],
+      ['total', 'Difference, running total', 'Extra revenue collected from January.']]
+      .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${MP_UI.view === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
+    + '</div></fieldset>'
+    + '<div class="plot" id="mp-chart"></div>'
+    + '<p class="note" id="mp-chart-note"></p>'
+
+    + `<h3 class="sub-head">${label}: ${fmt.int(rows.length)} accounts</h3>`
+    + '<p><button type="button" id="mp-download">Download this list (CSV)</button><span class="muted" id="mp-status"></span></p>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Company</th><th>Stripe ID</th><th>Industry</th>'
+    + '<th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Platform fee now</th>'
+    + '<th class="n">Increase</th><th class="n">New fee</th><th class="n">Rise</th><th class="n">Leave, no increase</th>'
+    + '<th class="n">Leave, with it</th><th class="n">Expected gain</th></tr></thead><tbody>'
+    + [...rows].sort((x, y) => y.ask.gain - x.ask.gain).map(({ a, ask }) => `<tr><td>${a.name || '–'}</td><td class="mono">${a.id}</td>`
+      + `<td>${a.industry || '–'}</td><td class="n">${a.age.toFixed(1)}</td><td class="n">${fmt.int(a.replying)}</td>`
+      + `<td class="n">${fmt.money(a.fee)}</td><td class="n"><strong>+${fmt.money(ask.d)}</strong></td><td class="n">${fmt.money(a.fee + ask.d)}</td>`
+      + `<td class="n">+${pc(ask.d / a.fee)}</td><td class="n">${pc(a.pC)}</td><td class="n">${pc(ask.total)}</td>`
+      + `<td class="n">${sm(ask.gain)}</td></tr>`).join('')
+    + '</tbody></table></div>'
+
+    + '<h3 class="sub-head">How the model works</h3>'
+    + '<ol class="plan-rules">'
+    + '<li><strong>Who is scored.</strong> Accounts on the Chiirp Stripe account that are active, not moved to Chiirp AI, not in the '
+    + 'August test, at least 12 months old, with billing current and 20 or more contacts replying a month, and with a platform fee in Stripe.</li>'
+    + `<li><strong>Baseline (Model C).</strong> The chance of leaving within 3 months with no increase, fitted on 643 $500+ accounts from `
+    + 'contacts replying, reply rate, age, price, failed payments, share of the last year paid and industry '
+    + `(AUC ${spec.C.unseen.map(u => u.AUC.toFixed(2)).join(' / ')} on accounts it had not seen).</li>`
+    + `<li><strong>The notice (Model P).</strong> The chance of leaving once told of a $ increase, fitted on the 36 August test accounts `
+    + 'from the dollar increase, contacts replying, manual texts, the trend in texts sent and a cleaning flag '
+    + `(AUC ${spec.Pfit.unseen.map(u => u.AUC.toFixed(2)).join(' / ')} unseen; the $ increase is forced in, so churn always rises with it). `
+    + 'More replying contacts lower it; more manual texts, falling texts and cleaning raise it.</li>'
+    + '<li><strong>The first bill.</strong> Not modelled yet: refit in early December once the 11 November bills settle.</li>'
+    + `<li><strong>Combine and pick.</strong> Total = the higher of the notice and the baseline. Every +$${MODEL_P_STEP} step up to +$${top} `
+    + 'is tried; expected gain = (fee + increase) × (1 − total) − fee × (1 − baseline). The two lists differ only in the limit.</li>'
+    + '</ol>'
+    + '<h3 class="sub-head">Read with care</h3>'
+    + '<ul class="plan-rules">'
+    + `<li><strong>Most increases are free by the model.</strong> For most accounts the notice model sits under their baseline at every tested `
+    + 'increase, so the higher-of rule gives the increase no churn at all and the highest-revenue list goes to the top. That is the '
+    + 'reason for the lowest-churn list, which caps the total chance of leaving instead.</li>'
+    + `<li><strong>Outside the test.</strong> The August test covered fees of $62 to $362 and increases of $${Math.round(spec.tested[0])} `
+    + `to $${Math.round(spec.tested[1])}; ${fmt.int(R.untestedFee)} of the highest-revenue accounts pay more than $362.</li>`
+    + '<li><strong>Kind sample.</strong> 12 engaged trade accounts took $138 to $378 increases in August and only 2 left, but most of them '
+    + 'were never billed the new price, so the notice model may be too gentle.</li>'
+    + '<li><strong>Gain is a ceiling.</strong> It counts only accounts that leave on the notice, not on the first bill.</li>'
+    + '<li><strong>Not covered.</strong> 83 accounts with $100+ subscriptions have no standard platform product in Stripe and need their '
+    + 'plan checked before they can be scored.</li>'
+    + '</ul>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Every account in the book</th><th class="n">Accounts</th>'
+    + '<th class="n">Platform fees</th></tr></thead><tbody>'
+    + J.summary.map(s => `<tr><td>${s.rule}</td><td class="n">${fmt.int(s.n)}</td><td class="n">${s.fee ? fmt.money(s.fee) : '–'}</td></tr>`).join('')
+    + '</tbody></table></div>'
+    + `<p class="note">From churn_models.py v2 and the rescored export of ${checkDay(J.asOf)} (${J.source}). The highest-revenue list `
+    + 'reproduces that file\'s recommended increase for every account. "Leave" is within 3 months of the notice.</p>';
+
+  // The 12-month view for the chosen list.
+  const H = 12;
+  const f = modelPProject(rows, H);
+  const labels = Array.from({ length: H + 1 }, (_, t) => (t === 0 ? "Dec '26" : fmt.monthLabel(monthAdd('2026-12', t))));
+  const NO = 'No increase', YES = 'With the increase';
+  if (MP_UI.view === 'total') {
+    let c = 0;
+    const cum = f.rise.mrr.map((v, t) => (t ? (c += v - f.none.mrr[t]) : 0));
+    multiLineChart($('mp-chart'), { labels, yFormat: fmt.money, yTitle: 'Extra revenue collected so far',
+      series: [{ label: 'With the increase, less no increase', colour: INK.primary, values: cum }],
+      refs: [{ value: 0, label: 'No increase' }], xMarks: [{ index: H, label: '12 months', highlight: true }],
+      describe: i => `<strong>${labels[i]}</strong><span>${sm(cum[i])} so far</span>` });
+  } else {
+    const isL = MP_UI.view === 'logos';
+    const nv = isL ? f.none.logos : f.none.mrr, rv = isL ? f.rise.logos : f.rise.mrr;
+    const yf = isL ? (v => v.toFixed(1)) : fmt.money;
+    multiLineChart($('mp-chart'), { labels, yMin: 0, yFormat: isL ? fmt.int : fmt.money,
+      yTitle: isL ? 'Accounts on the list still paying' : 'Platform fee MRR of the list',
+      series: [{ label: NO, colour: INK.muted, values: nv, dashed: true }, { label: YES, colour: INK.primary, values: rv }],
+      xMarks: [{ index: H, label: '12 months', highlight: true }],
+      describe: i => `<strong>${labels[i]}</strong><span>${NO}: ${yf(nv[i])}</span><span>${YES}: ${yf(rv[i])}</span>` });
+  }
+  $('mp-chart-note').innerHTML = `Over 12 months the list collects ${fmt.money(f.revenue12.rise)} with the increase against `
+    + `${fmt.money(f.revenue12.none)} without (${sm(f.revenue12.rise - f.revenue12.none)}); ${f.rise.logos[H].toFixed(1)} of `
+    + `${fmt.int(rows.length)} still paying against ${f.none.logos[H].toFixed(1)}. Each account leaves at its baseline every month `
+    + '(its 3-month chance as a monthly rate); the increase\'s extra leaving comes in January, on the notice. No first-bill churn yet.';
+
+  const keep = fn => () => { const y = window.scrollY; fn(); renderModelPLists(); window.scrollTo(0, y); };
+  for (const b of $('mp-goal').querySelectorAll('button')) b.addEventListener('click', keep(() => { MP_UI.goal = b.dataset.k; }));
+  for (const b of $('mp-view').querySelectorAll('button')) b.addEventListener('click', keep(() => { MP_UI.view = b.dataset.k; }));
+  $('mp-cap').addEventListener('change', keep(() => { MP_UI.cap = Number($('mp-cap').value) / 100; }));
+  $('mp-cap').addEventListener('input', () => { $('mp-cap-out').textContent = `${$('mp-cap').value}%`; });
+  $('mp-download').addEventListener('click', () => {
+    const q = v => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+    const head = ['list', 'company', 'stripe_id', 'client_id', 'industry', 'state', 'account_age_years', 'contacts_replying_a_month',
+      'platform_fee_now', 'increase', 'new_platform_fee', 'rise', 'leave_3mo_no_increase', 'leave_3mo_with_increase',
+      'increase_driven', 'expected_gain_a_month'];
+    const lines = [head.join(',')].concat(rows.map(({ a, ask }) => [label, a.name || '', a.id, a.client, a.industry || '', a.state || '',
+      a.age, a.replying, a.fee, ask.d, a.fee + ask.d, (ask.d / a.fee).toFixed(3), a.pC.toFixed(3), ask.total.toFixed(3),
+      ask.driven.toFixed(3), ask.gain.toFixed(2)].map(q).join(',')));
+    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+    const el = document.createElement('a');
+    el.href = url; el.download = `chiirp-upgrade-${MP_UI.goal === 'revenue' ? 'highest-revenue' : `lowest-churn-${capPct}pct`}.csv`;
+    document.body.appendChild(el); el.click(); el.remove(); URL.revokeObjectURL(url);
+    $('mp-status').textContent = ` ${fmt.int(rows.length)} accounts exported.`;
+  });
+}
+
 const campTrust = () => TRUST_PRESETS.find(p => p.key === CAMP.trust) || TRUST_PRESETS[0];
 const campOptions = () => ({ textsScale: campTrust().textsScale ?? 1, churnScale: campTrust().churnScale ?? 1 });
 
@@ -9202,6 +9372,7 @@ const VIEW_DRAWS = {
   dlc: () => renderDlcPlan(),
   credit: () => renderCreditPlan(),
   jan1: () => renderJan1Proposal(),
+  mp: () => renderModelPLists(),
   events: () => { renderEvents(); renderEventAttribution(); },
   marketing: () => renderMarketing(),
   sales: () => renderRP(),

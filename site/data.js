@@ -4012,6 +4012,74 @@ export const JAN1_PROPOSAL = {
   names: { cus_LVcUUcvNOfPBpr: 'The Junk Medics', cus_LsOCrjmicWtR5M: 'Neighborly Plumbing & Services', cus_MJIsJFeUvnU2Fe: 'Horizon' },
 };
 
+// ---- The new churn model and its two upgrade lists (Josh, 13 Nov 2026: "two
+// goals highest revenue increasing upgrade list and lowest churn with price
+// increase list"; "get the upgrade list and models into the site"). From the
+// other chat's churn_models.py v2 (13 Nov 2026), scored book in
+// site/upgrade_model_p.json. Stages per account:
+//   1 Baseline  Model C: 3-month churn with no increase (fit on 643 $500+ accounts); scored in the file as pC.
+//   2 Notice    Model P: churn after being told of a $ increase (fit on the 36 August test accounts):
+//               L1 logistic on log10($ increase), log10(contacts replying + 1), log10(manual texts + 1),
+//               log10((texts second half + 10) / (texts first half + 10)) and a cleaning flag, each
+//               clipped to its training range and z-scored.
+//   3 First bill not modelled yet (0).
+//   4 Combine   total = max(P, C); increase-driven = total - C.
+//   5 Pick      every +$10 step up to the tested top; expected gain = (fee + D)(1 - total) - fee(1 - C).
+// The two lists differ only in step 5's limit:
+//   revenue:   the most gain with increase-driven churn at or under 10 points (the model's own rule;
+//              reproduces its CSV for every account).
+//   lowChurn:  the most gain with TOTAL churn at or under the cap (10% by default), so an account whose
+//              baseline is already over the cap is not asked. Needed because P sits under C for most
+//              accounts, so increase-driven churn is zero for them at any tested increase.
+export function modelPNotice(spec, a, d) {
+  const P = spec.P;
+  const lg = v => Math.log10(Math.max(v, 0) + 1);
+  const x = [Math.log10(d), lg(a.replying), lg(a.manual), Math.log10((a.tB + 10) / (a.tA + 10)), a.cleaning ? 1 : 0];
+  let z = P.intercept;
+  x.forEach((v, i) => { z += P.coef_per_sd[i] * (Math.min(Math.max(v, P.min[i]), P.max[i]) - P.mean[i]) / P.sd[i]; });
+  return 1 / (1 + Math.exp(-z));
+}
+export const MODEL_P_STEP = 10;
+export function modelPSteps(spec) {
+  const top = Math.floor(spec.tested[1] / MODEL_P_STEP) * MODEL_P_STEP;
+  const out = [];
+  for (let d = MODEL_P_STEP; d <= top; d += MODEL_P_STEP) out.push(d);
+  return out;
+}
+export function modelPAsk(spec, a, { goal = 'revenue', cap = 0.10, steps = modelPSteps(spec) } = {}) {
+  let best = null;
+  for (const d of steps) {
+    const pP = modelPNotice(spec, a, d);
+    const total = Math.max(pP, a.pC);
+    const driven = total - a.pC;
+    const ok = goal === 'revenue' ? driven <= 0.10 + 1e-9 : total <= cap + 1e-9;
+    if (!ok) continue;
+    const gain = (a.fee + d) * (1 - total) - a.fee * (1 - a.pC);
+    if (!best || gain > best.gain) best = { d, pP, total, driven, gain };
+  }
+  return best && best.gain > 0 ? { ...best, asked: true } : { d: 0, asked: false, total: a.pC, driven: 0, gain: 0 };
+}
+// Twelve months of a list both ways. With no increase each account leaves at
+// its baseline: Model C's 3-month churn as a monthly rate. With the increase,
+// the extra the notice causes (total - baseline) leaves in month 1, then the
+// same baseline every month. Month 0 is today.
+export function modelPProject(rows, horizon = 12) {
+  const none = { mrr: new Array(horizon + 1).fill(0), logos: new Array(horizon + 1).fill(0) };
+  const rise = { mrr: new Array(horizon + 1).fill(0), logos: new Array(horizon + 1).fill(0) };
+  for (const { a, ask } of rows) {
+    const m = 1 - Math.pow(1 - a.pC, 1 / 3);
+    const extra = Math.max(0, ask.total - a.pC);
+    for (let t = 0; t <= horizon; t += 1) {
+      const keep = Math.pow(1 - m, t);
+      none.mrr[t] += a.fee * keep; none.logos[t] += keep;
+      const keepR = t === 0 ? 1 : keep * (1 - extra);
+      rise.mrr[t] += (t === 0 ? a.fee : a.fee + ask.d) * keepR; rise.logos[t] += keepR;
+    }
+  }
+  const sum12 = x => x.mrr.slice(1).reduce((s, v) => s + v, 0);
+  return { none, rise, revenue12: { none: sum12(none), rise: sum12(rise) } };
+}
+
 // Twelve months of the list's revenue under a scenario. Normal churn runs
 // every month at the group's own rate (listBaselineChurn); the extra churn a
 // rise causes (its curve less the curve at no rise) lands over months 1 to 3.
