@@ -3692,25 +3692,6 @@ function allocateSpread(cells, n) {
   }
   return q;
 }
-// Extra MRR a stage brings each month for `horizon` months against asking
-// nothing (Josh, 13 Nov 2026: "a revenue graph like the next 12 months under
-// each scenario"). Per account, the way projectCore does it: normal churn every
-// month at the account's own group rate (recovered from its read-out window),
-// and the extra leaving the rise causes (c1 - c0) landing evenly over months
-// 1 to 3. Index 0 is now (nothing yet).
-export function planStagePath(items, { horizon = 12 } = {}) {
-  const readMonths = (Date.parse(PLAN.dates.readout1) - Date.parse(PLAN.dates.notice1)) / 86400000 / 30.44;
-  const out = new Array(horizon + 1).fill(0);
-  for (const x of items) {
-    const n = 1 - Math.pow(1 - x.normal, 1 / readMonths);
-    const extra = Math.max(0, x.c1 - x.c0);
-    for (let t = 1; t <= horizon; t += 1) {
-      const kept = Math.pow(1 - n, t);
-      out[t] += x.ask * kept * (1 - extra * Math.min(t, 3) / 3) - x.r.mrr * kept;
-    }
-  }
-  return out;
-}
 export function upgradePlan(data, { engagement = null, lowBand = 800, stage2Size = PLAN.stage2Size, stage1Size = PLAN.stage1Size } = {}) {
   const list = upgradeList(data, { lowBand, rule: 'account', engagement });
   if (!list) return null;
@@ -4052,7 +4033,8 @@ function projectCore(sp, { scenario, rise, add, horizon = 12, rate, opts }) {
       riskShift: r.riskShift };
     let price = r.mrr;
     if (inPool.has(r.id)) {
-      if (scenario === 'account' && r.viable) price = r.target;
+      if (scenario === 'asks' && sp.asks && sp.asks.has(r.id)) price = sp.asks.get(r.id);
+      else if (scenario === 'account' && r.viable) price = r.target;
       else if (scenario === 'relative') price = r.mrr * (1 + rise);
       else if (scenario === 'absolute') price = r.mrr + add;
     }
@@ -4175,6 +4157,51 @@ export function projectRange(data, { scenarios, horizon = 12, baseMonths = 6, ba
     arr12: rangeOf(a.arr12), averageMrr: rangeOf(a.averageMrr), revenue12: rangeOf(a.revenue12),
     dArr12: rangeOf(a.dArr12), dAverage: rangeOf(a.dAverage), dRevenue12: rangeOf(a.dRevenue12), liftLost: rangeOf(a.lost),
   }]));
+}
+
+// The platform pilot's next 12 months (Josh, 13 Nov 2026: "just make this for
+// the platform increase ... to forecast churn with price increase relative to
+// if no increase happened"). The Upgrade list's own engine (projectCore, with
+// listBaselineChurn and the same 400 draws as projectRange), run on the plan's
+// stage 1 accounts only, at the plan's asks (rounded down to $50), against the
+// same accounts at today's price. Tracks customers as well as MRR.
+export function projectPilot(data, items, { horizon = 12, baseMonths = 6, baseMethod = 'year', draws = 400, lowBand = 800 } = {}) {
+  if (!items || !items.length) return null;
+  const rows = items.map(x => x.r);
+  const sp = { scope: rows, pool: rows, asks: new Map(items.map(x => [x.r.id, x.ask])) };
+  const base = listBaselineChurn(data, { lowBand, months: baseMonths, method: baseMethod });
+  const opts = { textsScale: 1, churnScale: 1 };
+  const none = projectCore(sp, { scenario: 'none', horizon, rate: base.rate, opts });
+  const rise = projectCore(sp, { scenario: 'asks', horizon, rate: base.rate, opts });
+  const keys = ['noneMrr', 'riseMrr', 'noneLogos', 'riseLogos', 'dMrr', 'dCum'];
+  const acc = Object.fromEntries(keys.map(k => [k, Array.from({ length: horizon + 1 }, () => [])]));
+  const rev = { none: [], rise: [], d: [] };
+  for (const d of churnDraws(draws)) {
+    const rand = mulberry32(d.seed);
+    const rate = { ...base.rate };
+    for (const [b, t] of Object.entries(base.tally)) {
+      const q = betaFrom(rand, t.gone + 1, t.atRisk - t.gone + 1);
+      rate[b] = base.method === 'year' ? 1 - Math.pow(1 - q, 1 / 12) : q;
+    }
+    const o = { ...opts, draw: d };
+    const n = projectCore(sp, { scenario: 'none', horizon, rate, opts: o });
+    const r = projectCore(sp, { scenario: 'asks', horizon, rate, opts: o });
+    let cum = 0;
+    for (let t = 0; t <= horizon; t += 1) {
+      const dv = r.mrr[t] - n.mrr[t];
+      if (t > 0) cum += dv;
+      acc.noneMrr[t].push(n.mrr[t]); acc.riseMrr[t].push(r.mrr[t]);
+      acc.noneLogos[t].push(n.logos[t]); acc.riseLogos[t].push(r.logos[t]);
+      acc.dMrr[t].push(dv); acc.dCum[t].push(cum);
+    }
+    rev.none.push(n.revenue12); rev.rise.push(r.revenue12); rev.d.push(r.revenue12 - n.revenue12);
+  }
+  const ranges = Object.fromEntries(keys.map(k => [k, acc[k].map(v => rangeOf(v))]));
+  let cum = 0;
+  const dMrr = rise.mrr.map((v, t) => v - none.mrr[t]);
+  const dCum = dMrr.map((v, t) => (t > 0 ? (cum += v) : 0));
+  return { none, rise, dMrr, dCum, ranges, revenue12: { none: rangeOf(rev.none), rise: rangeOf(rev.rise), d: rangeOf(rev.d) },
+    baseline: base, n: rows.length, asks: items.reduce((t, x) => t + x.ask, 0) };
 }
 
 export function campaign(data, {

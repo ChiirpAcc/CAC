@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, planStagePath, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, projectPilot, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -7909,16 +7909,6 @@ function renderJan1Proposal() {
     + `assume no fewer credits bought; with 10% fewer the credit rise adds ${fmt.money(credit10)}. The pilot's figure is after the `
     + 'customers the model expects to leave.</p>'
 
-    + '<h3 class="sub-head">The next 12 months under each scenario</h3>'
-    + '<p>Revenue added against changing nothing, from January 2027. 10DLC is flat; credits drift down '
-    + `${Math.abs(CREDIT_PLAN.trend * 100).toFixed(1)}% a month as credit buying has; each pilot account keeps its group's normal churn `
-    + 'every month and the extra leaving its rise causes lands over months 1 to 3, as on the Upgrade list.</p>'
-    + '<fieldset class="preset-group"><legend>Show</legend><div class="calc-presets" id="jan1-mode">'
-    + [['month', 'Each month', 'The extra MRR in that month.'], ['total', 'Running total', 'Extra revenue collected from January to that month.']]
-      .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${JAN1_UI.mode === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
-    + '</div></fieldset>'
-    + '<div class="plot" id="jan1-chart"></div>'
-    + '<div class="table-scroll"><table class="data-table plan-table" id="jan1-12"></table></div>'
     + '<h3 class="sub-head">The platform pilot: the Upgrade plan\'s stage 1</h3>'
     + `<p>Each account is asked its own price from the <a href="#upgrade-list">Upgrade list</a>: round one's results for its price group, `
     + `moved by how many of its contacts reply, rounded down to $${PLAN.round}. Not a flat percentage. Together they pay `
@@ -7954,6 +7944,20 @@ function renderJan1Proposal() {
     + 'read-out: what the rise adds by the model plus the group\'s normal churn over the same weeks. The full method, the read-out '
     + 'trigger and stage 2 are on the <a href="#upgrade-plan">Upgrade plan</a> tab.</p>'
 
+    + '<h3 class="sub-head">The pilot\'s next 12 months: with the increase against no increase</h3>'
+    + '<p>The same 20 accounts two ways: kept at today\'s price, and moved to their asks from January. Both lose customers at their '
+    + 'price group\'s normal monthly churn (the Upgrade list\'s baseline: accounts a year on, last 6 start months); with the increase, '
+    + 'the extra leaving the model gives each ask lands over months 1 to 3. The Upgrade list\'s own 12-month engine, run on these 20 '
+    + 'only. Shaded: 90% range (round one\'s doubts and normal churn redrawn).</p>'
+    + '<fieldset class="preset-group"><legend>Show</legend><div class="calc-presets" id="jan1-view">'
+    + [['logos', 'Customers', 'How many of the 20 are still paying.'], ['mrr', 'Revenue', 'MRR of the 20, both ways.'],
+      ['month', 'Difference each month', 'MRR with the increase less without it.'], ['total', 'Difference, running total', 'Extra revenue collected from January.']]
+      .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${JAN1_UI.view === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
+    + '</div></fieldset>'
+    + '<div class="plot" id="jan1-chart"></div>'
+    + '<div class="table-scroll"><table class="data-table plan-table" id="jan1-12"></table></div>'
+    + '<p class="note" id="jan1-12-note"></p>'
+
     + '<h3 class="sub-head">Why these three, not a platform rise only</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">This proposal</th>'
     + `<th class="n">Platform rise only: stage 1 of ${J50} accounts</th></tr></thead><tbody>`
@@ -7980,44 +7984,70 @@ function renderJan1Proposal() {
     + '</ol>'
     + `<p class="note">Prepared ${checkDay(J.asOf)}. The decision and who signed it off are recorded in the checklist at the top.</p>`;
 
-  // The 12-month chart: each scenario's extra revenue month by month.
+  // The pilot's 12 months, with the increase against without (projectPilot).
   const H = 12;
-  const pilotPath = planStagePath(pilotItems, { horizon: H });
-  const p50Path = p50 ? planStagePath(p50.items.filter(x => x.stage === 'stage1'), { horizon: H }) : null;
-  const drift = t => Math.pow(1 + CREDIT_PLAN.trend, t - 1);
-  const lowShare = S1.gain ? S1.gainRange.low / S1.gain : 0;
-  const scen = [
-    { key: 'this', label: 'This proposal: 10DLC + credits + 20-account pilot', colour: INK.primary,
-      v: t => (t ? dlc + credit * drift(t) + pilotPath[t] : 0) },
-    { key: 'down', label: 'This proposal, downside (10% fewer credits, pilot at its low end)', colour: INK.tertiary, dashed: true,
-      v: t => (t ? dlc + credit10 * drift(t) + pilotPath[t] * lowShare : 0) },
-    { key: 'dlccr', label: '10DLC + credits only, no pilot', colour: INK.secondary,
-      v: t => (t ? dlc + credit * drift(t) : 0) },
-    ...(p50Path ? [{ key: 'b50', label: `Platform rise only: stage 1 of ${J50}`, colour: INK.negative, v: t => p50Path[t] }] : []),
-  ].map(sc => {
-    const month = Array.from({ length: H + 1 }, (_, t) => sc.v(t));
-    let c = 0;
-    return { ...sc, month, total: month.map(v => (c += v)) };
-  });
+  const f = projectPilot(data, pilotItems, { horizon: H });
+  if (!f) return;
+  const R = f.ranges;
   const labels = Array.from({ length: H + 1 }, (_, t) => (t === 0 ? "Dec '26" : fmt.monthLabel(monthAdd('2026-12', t))));
-  const tot = JAN1_UI.mode === 'total';
-  multiLineChart($('jan1-chart'), {
-    labels, yFormat: fmt.money, yTitle: tot ? 'Extra revenue collected so far' : 'Extra MRR that month',
-    series: scen.map(sc => ({ label: sc.label, colour: sc.colour, values: tot ? sc.total : sc.month, dashed: !!sc.dashed })),
-    refs: [{ value: 0, label: 'Changing nothing' }],
-    xMarks: [{ index: H, label: '12 months', highlight: true }],
-    describe: i => `<strong>${labels[i]}</strong>` + scen.map(sc =>
-      `<span>${sc.label}: ${sm(tot ? sc.total[i] : sc.month[i])}${tot ? ' so far' : ' that month'}</span>`).join(''),
-  });
-  $('jan1-12').innerHTML = '<thead><tr><th>Scenario</th><th class="n">January</th><th class="n">December 2027</th>'
-    + '<th class="n">12 months, collected</th></tr></thead><tbody>'
-    + scen.map(sc => `<tr><td>${sc.label}</td><td class="n">${sm(sc.month[1])}</td><td class="n">${sm(sc.month[H])}</td>`
-      + `<td class="n"><strong>${sm(sc.total[H])}</strong></td></tr>`).join('') + '</tbody>';
-  for (const b of $('jan1-mode').querySelectorAll('button')) {
-    b.addEventListener('click', () => { JAN1_UI.mode = b.dataset.k; renderJan1Proposal(); });
+  const view = JAN1_UI.view;
+  const trig = Math.max(1, Math.ceil(S1.chance.high) + 1);
+  const marks = [{ index: 1, label: `Read-out ${new Date(PLAN.dates.readout1 + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}` },
+    { index: H, label: '12 months', highlight: true }];
+  const NO = 'No increase', YES = 'With the increase';
+  const one = v => v.toFixed(1);
+  if (view === 'logos' || view === 'mrr') {
+    const isL = view === 'logos';
+    const nv = isL ? f.none.logos : f.none.mrr, rv = isL ? f.rise.logos : f.rise.mrr;
+    const nr = isL ? R.noneLogos : R.noneMrr, rr = isL ? R.riseLogos : R.riseMrr;
+    const yf = isL ? (v => one(v)) : fmt.money;
+    multiLineChart($('jan1-chart'), {
+      labels, yFormat: isL ? fmt.int : fmt.money, yMin: 0, yTitle: isL ? 'Pilot customers still paying' : 'MRR of the 20 pilot accounts',
+      series: [{ label: NO, colour: INK.muted, values: nv, dashed: true }, { label: YES, colour: INK.primary, values: rv }],
+      bands: [{ label: NO, colour: INK.muted, low: nr.map(v => v.low), high: nr.map(v => v.high) },
+        { label: YES, colour: INK.primary, low: rr.map(v => v.low), high: rr.map(v => v.high) }],
+      legendItems: [{ label: NO, colour: INK.muted }, { label: YES, colour: INK.primary },
+        { label: 'Shaded: 90% range', colour: INK.muted }],
+      xMarks: marks,
+      describe: i => `<strong>${labels[i]}</strong><span>${NO}: ${yf(nv[i])}${i ? ` (90%: ${yf(nr[i].low)} to ${yf(nr[i].high)})` : ''}</span>`
+        + `<span>${YES}: ${yf(rv[i])}${i ? ` (90%: ${yf(rr[i].low)} to ${yf(rr[i].high)})` : ''}</span>`,
+    });
+  } else {
+    const tot = view === 'total';
+    const dv = tot ? f.dCum : f.dMrr, dr = tot ? R.dCum : R.dMrr;
+    multiLineChart($('jan1-chart'), {
+      labels, yFormat: fmt.money, yTitle: tot ? 'Extra revenue collected so far' : 'Extra MRR that month',
+      series: [{ label: 'With the increase, less no increase', colour: INK.primary, values: dv }],
+      bands: [{ label: 'With the increase, less no increase', colour: INK.primary, low: dr.map(v => v.low), high: dr.map(v => v.high) }],
+      legendItems: [{ label: 'With the increase, less no increase', colour: INK.primary }, { label: 'Shaded: 90% range, paired draws', colour: INK.muted }],
+      refs: [{ value: 0, label: 'No increase' }],
+      xMarks: marks,
+      describe: i => `<strong>${labels[i]}</strong><span>${sm(dv[i])}${tot ? ' so far' : ' that month'}`
+        + `${i ? ` (90%: ${sm(dr[i].low)} to ${sm(dr[i].high)})` : ''}</span>`,
+    });
+  }
+  const row = (label, m, lr, rv12) => `<tr><td>${label}</td><td class="n">${one(m.logos[1])}</td><td class="n">${one(m.logos[3])}</td>`
+    + `<td class="n">${one(m.logos[H])}<br><span class="muted ci">90%: ${one(lr[H].low)} to ${one(lr[H].high)}</span></td>`
+    + `<td class="n">${fmt.money(m.mrr[1])}</td><td class="n">${fmt.money(m.mrr[H])}</td>`
+    + `<td class="n"><strong>${fmt.money(m.revenue12)}</strong><br><span class="muted ci">90%: ${fmt.money(rv12.low)} to ${fmt.money(rv12.high)}</span></td></tr>`;
+  $('jan1-12').innerHTML = '<thead><tr><th></th><th class="n">Customers, Jan (read-out)</th><th class="n">Customers, Mar</th>'
+    + '<th class="n">Customers, Dec 2027</th><th class="n">MRR, Jan</th><th class="n">MRR, Dec 2027</th><th class="n">12 months collected</th></tr></thead><tbody>'
+    + row(NO, f.none, R.noneLogos, f.revenue12.none) + row(YES, f.rise, R.riseLogos, f.revenue12.rise)
+    + `<tr class="plan-total"><td><strong>Difference</strong></td><td class="n">${one(f.rise.logos[1] - f.none.logos[1])}</td>`
+    + `<td class="n">${one(f.rise.logos[3] - f.none.logos[3])}</td><td class="n">${one(f.rise.logos[H] - f.none.logos[H])}</td>`
+    + `<td class="n">${sm(f.dMrr[1])}</td><td class="n">${sm(f.dMrr[H])}</td>`
+    + `<td class="n"><strong>${sm(f.dCum[H])}</strong><br><span class="muted ci">90%: ${sm(f.revenue12.d.low)} to ${sm(f.revenue12.d.high)}</span></td></tr>`
+    + '</tbody>';
+  $('jan1-12-note').innerHTML = `At the read-out on 26 January, ${trig} or more of the 20 gone means the model is wrong (the Upgrade plan's trigger). `
+    + `The increase costs about ${one(f.rise.liftLost)} customers beyond normal churn, all by March; by the `
+    + `read-out the plan expects ${S1.window.toFixed(1)} gone in all (the plan counts the increase's whole effect by then, this view spreads it `
+    + `to March). Normal churn here is ${fmt.pct(f.baseline.rate.all, 1)} a month across the list, so even with no increase about `
+    + `${one(f.none.logos[0] - f.none.logos[H])} of the 20 would be gone in 12 months. Month 1 is January 2027, the first bill at the new price.`;
+  for (const b of $('jan1-view').querySelectorAll('button')) {
+    b.addEventListener('click', () => { const y = window.scrollY; JAN1_UI.view = b.dataset.k; renderJan1Proposal(); window.scrollTo(0, y); });
   }
 }
-const JAN1_UI = { mode: 'month' };
+const JAN1_UI = { view: 'logos' };
 const J50 = 50;
 
 const campTrust = () => TRUST_PRESETS.find(p => p.key === CAMP.trust) || TRUST_PRESETS[0];
