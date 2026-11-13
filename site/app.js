@@ -7876,6 +7876,7 @@ function renderJan1Proposal() {
   const feeLo = Math.min(...J.pilot.map(c => c.fee)), feeHi = Math.max(...J.pilot.map(c => c.fee));
   const moLo = Math.min(...J.pilot.map(c => c.months)), moHi = Math.max(...J.pilot.map(c => c.months));
   const example = 1000;
+  const usageLabel = u => (u === 'Low' ? `under ${J.usageCuts[0]}` : u === 'Medium' ? `${J.usageCuts[0]} to ${J.usageCuts[1] - 1}` : `${J.usageCuts[1]}+`);
 
   box.innerHTML = checklistHtml('jan1', 'Checklist: 1 January proposal')
     + `<p class="finding"><strong>Three changes from ${checkDay(J.effective)} add about ${fmt.money(total)} a month `
@@ -7917,21 +7918,34 @@ function renderJan1Proposal() {
     + `fees) is worth about ${fmt.money(rollout)} a month. The notice is informational: it gives the new fee and the date and asks for nothing.</p>`
 
     + `<h3 class="sub-head">The ${J.pilot.length} pilot customers</h3>`
-    + `<p>${industries} industries, ${states} states and provinces, both Stripe accounts, fees from ${fmt.money(feeLo)} to `
-    + `${fmt.money(feeHi)} a month and ${moLo} to ${moHi} months as customers. None buys credits, so nobody gets both a credit rise and a `
-    + 'platform rise, and none is on the <a href="#upgrade-plan">Upgrade plan</a>, so nobody gets two platform rises.</p>'
+    + `<p>Spread over the three things that matter most: <strong>price</strong> (four in each of ${J.bands.length} platform fee bands), `
+    + `<strong>usage</strong> (in every band one each of low, medium and high contacts replying a month) and <strong>industry</strong> `
+    + `(${industries} industries), across ${states} states, ${moLo} to ${moHi} months as customers. All are on the Chiirp Stripe account; `
+    + 'nobody on Chiirp AI is raised. None buys credits, so nobody gets both a credit rise and a platform rise, and none is on the '
+    + '<a href="#upgrade-plan">Upgrade plan</a>, so nobody gets two platform rises.</p>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Platform fee band</th>'
+    + J.bands.map(b => `<th class="n">${b}</th>`).join('') + '<th class="n">All</th></tr></thead><tbody>'
+    + ['Low', 'Medium', 'High'].map(u => `<tr><td>${u} usage (${usageLabel(u)} replying a month)</td>`
+      + J.bands.map(b => `<td class="n">${J.pilot.filter(c => c.band === b && c.usage === u).length}</td>`).join('')
+      + `<td class="n">${J.pilot.filter(c => c.usage === u).length}</td></tr>`).join('')
+    + '</tbody></table></div>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>#</th><th>Company</th><th>Industry</th><th>State</th>'
-    + '<th>Stripe</th><th>Stripe ID</th><th class="n">Months</th><th class="n">Pays now</th><th class="n">From 1 Jan</th>'
+    + '<th>Stripe ID</th><th class="n">Months</th><th class="n">Contacts replying a month</th><th>Usage</th>'
+    + '<th class="n">Whole bill now</th><th class="n">Platform fee now</th><th class="n">Platform fee from 1 Jan</th>'
     + '<th class="n">Rise a month</th></tr></thead><tbody>'
     + [...J.pilot].sort((a, b) => a.fee - b.fee).map((c, i) => `<tr><td>${i + 1}</td><td>${c.name}</td><td>${c.industry}</td>`
-      + `<td>${c.state}</td><td>${c.account}</td><td class="mono">${c.id}</td><td class="n">${c.months}</td>`
-      + `<td class="n">${fmt.money(c.fee)}</td><td class="n">${fmt.money(c.fee * (1 + J.rise))}</td>`
-      + `<td class="n">+${fmt.money(c.fee * J.rise)}</td></tr>`).join('')
-    + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td colspan="5"></td><td class="n"><strong>${fmt.money(fees)}</strong></td>`
+      + `<td>${c.state}</td><td class="mono">${c.id}</td><td class="n">${c.months}</td><td class="n">${fmt.int(c.replying)}</td>`
+      + `<td>${c.usage}</td><td class="n">${fmt.money(c.bill)}</td><td class="n">${fmt.money(c.fee)}</td>`
+      + `<td class="n">${fmt.money(c.fee * (1 + J.rise))}</td><td class="n">+${fmt.money(c.fee * J.rise)}</td></tr>`).join('')
+    + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td colspan="6"></td>`
+    + `<td class="n"><strong>${fmt.money(J.pilot.reduce((t, c) => t + c.bill, 0))}</strong></td><td class="n"><strong>${fmt.money(fees)}</strong></td>`
     + `<td class="n"><strong>${fmt.money(fees * (1 + J.rise))}</strong></td><td class="n"><strong>+${fmt.money(pilot)}</strong></td></tr>`
     + '</tbody></table></div>'
-    + '<p class="note">Drawn by fee band and time as a customer from 568 eligible: an active platform subscription, at least 6 months, no '
-    + 'credit purchases, not on a credit-model tier, test and internal accounts left out. Read from Stripe S1 and S2 on '
+    + '<p class="note">The rise applies to the platform fee only. The whole bill adds 10DLC and any add-ons, which change separately '
+    + `(10DLC goes to $${DLC_PLAN.feeNew}). Chosen from ${J.eligible} eligible customers: on the Chiirp Stripe account only, active, at least `
+    + '6 months, not in round one, not on the Upgrade plan, no credit purchases, a platform fee of $250 or more, the last 3 months paid '
+    + 'exactly the subscription with no failed charges or refunds, and the whole bill no more than $100 above the platform fee. Usage and '
+    + 'industry come from the 12 November engagement export; platform fees from Stripe on '
     + `${checkDay(J.asOf)}.</p>`
 
     + '<h3 class="sub-head">Why these three, not a platform rise only</h3>'

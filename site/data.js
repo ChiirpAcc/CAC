@@ -3917,7 +3917,7 @@ export const PLAN_CHECKLISTS = {
   ],
   jan1: [
     { id: 'j1-options', step: 'Compare: 10DLC + credits + a 20-customer platform pilot, against a platform rise only piloted on 50', owner: 'Josh', done: '2026-11-13' },
-    { id: 'j1-pilot', step: 'Pick the 20 pilot customers: spread over fee, tenure, industry, state and both Stripe accounts; no credit buyers', owner: 'Josh', done: '2026-11-13' },
+    { id: 'j1-pilot', step: 'Pick the 20 pilot customers: spread over platform fee, usage and industry; Chiirp Stripe account only (nobody on Chiirp AI); no credit buyers or Upgrade plan accounts', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-notice', step: 'Write the pilot notice (informational: new fee and date, nothing for the customer to do)', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot', owner: 'CEO', due: '2026-11-20', needsSignoff: true },
     { id: 'j1-contracts', step: 'Check the standard agreement allows a price change on 30 days\' notice; leave off custom contracts and price locks', due: '2026-11-20' },
@@ -3957,41 +3957,48 @@ export const CREDIT_PLAN = {
 // The 1 January 2027 proposal for the CEO (Josh, 13 Nov 2026): 10DLC to $15
 // and the credit tiers on 1 Jan, plus a 20-customer platform fee pilot
 // instead of a platform rise for everyone. 10DLC and credit figures are read
-// from DLC_PLAN and CREDIT_PLAN, never retyped. The pilot: 20 customers drawn
-// by fee band and tenure from 568 eligible (active platform subscription only,
-// no credit buyers, no credit-model tier names, 6+ months, test and internal
-// accounts out), from Stripe S1 and S2 platform lines on 13 Nov 2026. Each
-// customer's own platform fee rises by `rise`; the notice is informational.
-// Nobody on the Upgrade plan (any stage) is in the pilot, so no customer gets
-// two platform rises.
-// The alternative it was weighed against: a platform rise only, piloted on 50
-// customers at the average platform fee.
+// from DLC_PLAN and CREDIT_PLAN, never retyped. Each pilot customer's own
+// platform fee rises by `rise`; the notice is informational.
+// The pilot (rebuilt 13 Nov on Josh's rules: "diversifying by usage and
+// industry and current monthly sub price"; "no one in s2 should be
+// upgraded"): 150 eligible from the 12 Nov engagement export joined to Stripe S1
+// platform lines of 13 Nov. Eligible = S1 only (nobody on Chiirp AI or moved
+// there), active, 6+ months, not round one, not on the Upgrade plan, no credit
+// purchases, platform fee $250+, last 3 months paid exactly the subscription
+// with no failed charges or refunds, and the bill no more than $100 above the
+// platform line. Four per price band; in each band one each of Low / Medium /
+// High usage (terciles of contacts replying a month: under 19, 19 to 82,
+// 83+), then a new industry and state wherever one exists.
+// `fee` is the platform line the rise applies to; `bill` is the whole monthly
+// subscription (10DLC and add-ons included).
 export const JAN1_PROPOSAL = {
   asOf: '2026-11-13', decideBy: '2026-11-20', noticesBy: '2026-12-01', noticesTarget: '2026-11-23', effective: '2027-01-01',
   rise: 0.15, riseAlt: 0.20,
   platform: { customers: 880, mrr: 722719, avgFee: 821 },
   optionB: { pilot: 50 },
+  eligible: 150, usageCuts: [19, 83],
+  bands: ['$250-599', '$600-799', '$800-999', '$1,000-1,499', '$1,500+'],
   pilot: [
-    { name: 'Stay Sharp Oklahoma', industry: 'Sharpening', state: 'OK', account: 'S1', id: 'cus_SmYWahwbEWOJvC', months: 15, fee: 350 },
-    { name: 'AAA Movers Inc - Minneapolis', industry: 'Moving', state: 'MN', account: 'S1', id: 'cus_RnrVIXO69gEczV', months: 21, fee: 425 },
-    { name: 'Time To Shine Power Washing', industry: 'Power washing', state: 'MA', account: 'S1', id: 'cus_LFQnvaRi3NJ34b', months: 56, fee: 500 },
-    { name: 'Americas Home Pros', industry: 'Home services', state: 'AZ', account: 'S1', id: 'cus_U27dtULOi0yG9O', months: 9, fee: 600 },
-    { name: 'Udderly Gutters', industry: 'Gutters', state: 'NH', account: 'S1', id: 'cus_PRQcOZwENqEBHj', months: 34, fee: 650 },
-    { name: 'ProSeal Asphalt Maintenance Inc.', industry: 'Asphalt paving', state: 'PA', account: 'S1', id: 'cus_Rn7Fy7mqtLHmPM', months: 21, fee: 650 },
-    { name: 'Lascko Plumbing and Mechanical', industry: 'Plumbing', state: 'MI', account: 'S1', id: 'cus_TSCAjaDaS8UqYR', months: 12, fee: 699 },
-    { name: 'Precision Garage Door Service of Oklahoma City', industry: 'Garage doors', state: 'OK', account: 'S1', id: 'cus_TuEL9B7nCsAcH2', months: 9, fee: 700 },
-    { name: 'Legacy Garage Doors', industry: 'Garage doors', state: 'ID', account: 'S1', id: 'cus_OkJEvhlQUi8dLw', months: 37, fee: 722.5 },
-    { name: 'Corbin Electrical Services, Inc.', industry: 'Electrical', state: 'NJ', account: 'S1', id: 'cus_Smu9TUhWtGE47s', months: 15, fee: 750 },
-    { name: 'Arlinghaus Plumbing Heating and Air', industry: 'Plumbing/HVAC', state: 'KY', account: 'S1', id: 'cus_MpD0isAsfQLwB4', months: 48, fee: 750 },
-    { name: 'Pass Electric', industry: 'Electrical', state: 'AB', account: 'S1', id: 'cus_SOGAxQJYanQ4Z6', months: 18, fee: 850 },
-    { name: 'Bert Black', industry: 'HVAC', state: 'AR', account: 'S1', id: 'cus_R1ujsRZ1eUhwvo', months: 25, fee: 850 },
-    { name: 'Plumbing Today', industry: 'Plumbing', state: 'NE', account: 'S1', id: 'cus_UNXpqgzdC7UiKe', months: 7, fee: 1000 },
-    { name: 'Buena Vista 98', industry: 'Shutters (Rockwood)', state: 'TX', account: 'S1', id: 'cus_Sju3tGrcCFbqGz', months: 16, fee: 1000 },
-    { name: 'Southern Trust Home Services', industry: 'Home services', state: 'VA', account: 'S1', id: 'cus_RCoJJCo9TxdvCo', months: 24, fee: 1000 },
-    { name: 'Electric Doctor', industry: 'Electrical', state: 'IA', account: 'S1', id: 'cus_TztWZmw25WXUuQ', months: 9, fee: 1250 },
-    { name: 'Kyzar Air Conditioning', industry: 'HVAC', state: 'FL', account: 'S2', id: 'cus_ULwfpqaL2H9cTg', months: 7, fee: 1500 },
-    { name: 'All Klear Plumbing, Heating, Air & Electric', industry: 'Plumbing/HVAC', state: 'MO', account: 'S1', id: 'cus_Qhjoeon5wZIQjK', months: 27, fee: 1577.5 },
-    { name: 'Service Star Inc', industry: 'HVAC/Plumbing', state: 'TX', account: 'S1', id: 'cus_NbUtDZSbWl2Fpy', months: 44, fee: 3700 },
+    { name: 'Quality Heating, Cooling, Plumbing & Electric', industry: 'Multi-trade (HVAC/Plumbing/Electric)', state: 'OK', id: 'cus_N94hgbEfvR7XZm', months: 46, fee: 500, bill: 512, replying: 15, usage: 'Low', band: '$250-599' },
+    { name: 'Utility Plumbing Services', industry: 'Plumbing', state: 'CA', id: 'cus_U8tuNDqnJhjILg', months: 8, fee: 500, bill: 552, replying: 34, usage: 'Medium', band: '$250-599' },
+    { name: 'LocalPro Carpet Cleaning', industry: 'Carpet & Upholstery Cleaning', state: 'AL', id: 'cus_U5rC44hgFpPVsR', months: 8, fee: 500, bill: 500, replying: 87, usage: 'High', band: '$250-599' },
+    { name: "Dang It's Hot Cooling", industry: 'HVAC', state: 'FL', id: 'cus_PMDHellWj1XfG0', months: 34, fee: 500, bill: 562, replying: 10, usage: 'Low', band: '$250-599' },
+    { name: 'West Michigan Generator LLC', industry: 'Electrical', state: 'MI', id: 'cus_TXMz0fHS5JL8EG', months: 11, fee: 650, bill: 700, replying: 26, usage: 'Medium', band: '$600-799' },
+    { name: 'Garage Floor Geeks', industry: 'Garage Door', state: 'MN', id: 'cus_TOqO4NvswHv6NA', months: 12, fee: 699, bill: 761, replying: 188, usage: 'High', band: '$600-799' },
+    { name: 'Apple Door of Chesapeake, Inc. ', industry: 'Remodeling & Construction', state: 'VA', id: 'cus_Nxd5Yh4h7iCM12', months: 42, fee: 722.5, bill: 784.5, replying: 4, usage: 'Low', band: '$600-799' },
+    { name: 'Aspen Pressure Washing', industry: 'Window & Exterior Cleaning', state: 'CO', id: 'cus_UZ5yVZQaepV1nD', months: 6, fee: 750, bill: 762, replying: 0, usage: 'Low', band: '$600-799' },
+    { name: 'Affordable Lawn Sprinklers', industry: 'Landscaping & Lawn', state: 'VA', id: 'cus_SZ9U5mVIdRrnc5', months: 17, fee: 850, bill: 862, replying: 135, usage: 'High', band: '$800-999' },
+    { name: 'Call the Whale', industry: 'Unclassified / non-trade', state: 'VT', id: 'cus_SgArNxSwXzm5OK', months: 16, fee: 850, bill: 850, replying: 58, usage: 'Medium', band: '$800-999' },
+    { name: 'Van Delden Wastewater Systems', industry: 'Septic & Drain', state: 'TX', id: 'cus_QjvTEdLfdMvtXz', months: 26, fee: 895, bill: 957, replying: 53, usage: 'Medium', band: '$800-999' },
+    { name: 'KTM Exteriors & Recycling', industry: 'Roofing & Gutters', state: 'NH', id: 'cus_R2MCID4TcYZ12q', months: 25, fee: 988, bill: 1000, replying: 9, usage: 'Low', band: '$800-999' },
+    { name: 'Triple Threat Termite Inc', industry: 'Pest Control', state: 'CA', id: 'cus_UIcJYlqUavPXNl', months: 7, fee: 1000, bill: 1000, replying: 1, usage: 'Low', band: '$1,000-1,499' },
+    { name: 'Certified Clean Care', industry: 'House & Commercial Cleaning', state: 'GA', id: 'cus_RqWhVmOfCOOsrI', months: 20, fee: 1100, bill: 1162, replying: 449, usage: 'High', band: '$1,000-1,499' },
+    { name: 'Viviano Home Services', industry: 'Home Services (unspecified trade)', state: 'IL', id: 'cus_U4jOWMOcZoOuKL', months: 8, fee: 1250, bill: 1250, replying: 50, usage: 'Medium', band: '$1,000-1,499' },
+    { name: 'Serv-All Water Conditioning', industry: 'Water Treatment', state: 'NV', id: 'cus_RsMxZShpbxyGTw', months: 20, fee: 1290, bill: 1290, replying: 101, usage: 'High', band: '$1,000-1,499' },
+    { name: 'Ostrom Electrical Plumbing Heating and Air', industry: 'Multi-trade (HVAC/Plumbing/Electric)', state: 'VA', id: 'cus_RDcL1paVIUIFZE', months: 24, fee: 1500, bill: 1562, replying: 47, usage: 'Medium', band: '$1,500+' },
+    { name: 'Iron Mountain Plumbing Heating Air', industry: 'Multi-trade (HVAC/Plumbing/Electric)', state: 'UT', id: 'cus_N6oqij2li5sOpm', months: 47, fee: 1500, bill: 1512, replying: 88, usage: 'High', band: '$1,500+' },
+    { name: 'Dash Heating & Cooling', industry: 'HVAC', state: 'AR', id: 'cus_QRYgbjv4O7lk6p', months: 28, fee: 2250, bill: 2250, replying: 326, usage: 'High', band: '$1,500+' },
+    { name: 'GEM Plumbing & Heating', industry: 'Multi-trade (HVAC/Plumbing/Electric)', state: 'RI', id: 'cus_QJl8Lrt4XDKEZA', months: 29, fee: 2500, bill: 2512, replying: 2, usage: 'Low', band: '$1,500+' },
   ],
 };
 
