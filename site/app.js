@@ -7823,7 +7823,7 @@ function renderCreditPlan() {
   const T = C.total;
   const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
   box.innerHTML = checklistHtml('credit', 'Checklist: credit increase')
-    + `<p class="finding"><strong>A tiered increase adds ${fmt.money(T.added)} a month (${fmt.money(T.perYear)} a year) if no one buys `
+    + `<p class="finding"><strong>From 1 January 2027, announced by in-platform notice once Product signs off, a tiered increase adds ${fmt.money(T.added)} a month (${fmt.money(T.perYear)} a year) if no one buys `
     + `fewer credits: the biggest buyers +25%, the next 25 +50%, everyone else +100%.</strong> Credit income is concentrated: the top 25 `
     + `companies bring ${fmt.pct(C.topShare.income)} of it, so they get the smallest rise and pay ${fmt.pct(C.topShare.ofIncrease)} of the `
     + `increase. With 10% fewer credits bought it adds ${fmt.money(C.stress[1].added)} a month; it breaks even at `
@@ -7868,8 +7868,9 @@ function renderCreditPlan() {
 
     + '<h3 class="sub-head">Still open</h3>'
     + '<ol class="plan-rules">' + C.open.map(o => `<li>${o}</li>`).join('') + '</ol>'
-    + '<p class="note">Timing: the proposal set credit notices for 12 November with the start date to be decided. The 10DLC change '
-    + `starts 1 January. Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
+    + '<p class="note">Timing: the new credit prices start 1 January 2027, the same day as $15 10DLC across the board. They are '
+    + 'special pricing, so Product signs off and builds them, and customers are told by in-platform notice; no notice has gone out '
+    + `for either yet. Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
     + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database. The tier list by company `
     + 'stays in the sheet.</p>';
   wireChecklist(box);
