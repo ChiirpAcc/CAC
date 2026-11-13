@@ -3692,6 +3692,25 @@ function allocateSpread(cells, n) {
   }
   return q;
 }
+// Extra MRR a stage brings each month for `horizon` months against asking
+// nothing (Josh, 13 Nov 2026: "a revenue graph like the next 12 months under
+// each scenario"). Per account, the way projectCore does it: normal churn every
+// month at the account's own group rate (recovered from its read-out window),
+// and the extra leaving the rise causes (c1 - c0) landing evenly over months
+// 1 to 3. Index 0 is now (nothing yet).
+export function planStagePath(items, { horizon = 12 } = {}) {
+  const readMonths = (Date.parse(PLAN.dates.readout1) - Date.parse(PLAN.dates.notice1)) / 86400000 / 30.44;
+  const out = new Array(horizon + 1).fill(0);
+  for (const x of items) {
+    const n = 1 - Math.pow(1 - x.normal, 1 / readMonths);
+    const extra = Math.max(0, x.c1 - x.c0);
+    for (let t = 1; t <= horizon; t += 1) {
+      const kept = Math.pow(1 - n, t);
+      out[t] += x.ask * kept * (1 - extra * Math.min(t, 3) / 3) - x.r.mrr * kept;
+    }
+  }
+  return out;
+}
 export function upgradePlan(data, { engagement = null, lowBand = 800, stage2Size = PLAN.stage2Size, stage1Size = PLAN.stage1Size } = {}) {
   const list = upgradeList(data, { lowBand, rule: 'account', engagement });
   if (!list) return null;
