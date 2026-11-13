@@ -1454,3 +1454,10 @@ th.sorted { color: var(--ink); }
 /* Upgrade plan: the two switches side by side, and the stage totals. */
 .plan-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .8rem; margin: .8rem 0; }
 .plan-table tr.plan-total td { border-top: 1px solid var(--rule-strong); }
+
+/* Plan checklists: done rows fade, the box column stays narrow. */
+.check-table td:first-child { width: 2rem; min-width: 2rem; }
+.check-table td:nth-child(2) { min-width: 16rem; }
+.check-table tr.is-done td:nth-child(2) { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--rule-strong); }
+.check-table input[type=checkbox] { width: 1.05rem; height: 1.05rem; }
+.plan-checklist { margin-bottom: 1.2rem; }

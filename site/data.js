@@ -3760,6 +3760,147 @@ export function upgradePlan(data, { engagement = null, lowBand = 800, pilot = PL
     under500: under.reduce((t, [, v]) => t + v.length, 0), over500: over.reduce((t, [, v]) => t + v.length, 0) };
 }
 
+// ---- The 10DLC and credit price proposals (Josh, 12 Nov 2026: "make a tab
+// about the 10 dlc and one about the credit charge increase"). Snapshots of
+// the two Drive sheets behind the 6 Nov proposal to Ryan, Taylor and Alicia:
+// "10DLC and Credit Price Increase Proposal (Nov 2026)" (Summary, 10DLC
+// Collections, Kevin Handoff tabs, read 12 Nov 2026) and "Credit Price
+// Increase Model" (Dashboard, Verification, Audit, Volume loss tabs). Totals
+// and tier figures only: the sheets hold the per-account detail.
+export const DLC_PLAN = {
+  asOf: '2026-11-12',
+  feeNow: 12, feeNew: 15, newFrom: '2027-01-01', tcrMonthly: 10, tcrBrand: 4.5,
+  year: { paidTcr: 142301.50, collected: 106873.84, monthly: 94538.84, oneTime: 12335 },
+  perMonth: { tcr: 11858, collectedAll: 8906, collectedMonthly: 7878 },
+  coverage: [
+    { when: 'Today', all: 0.75, monthly: 0.66 },
+    { when: 'After billing the unbilled campaigns and cancelling unused ones', all: 1.08, monthly: 0.99 },
+    { when: 'After $15 from 1 Jan 2027', all: 1.30, monthly: 1.21 },
+  ],
+  salesTax: 0.07, // TCR adds sales tax from 1 Jan 2027 (opted in); 7% is an assumption.
+  haircut: 0.10,
+  steps: [
+    { step: 'Turn on the 10DLC charge in Chiirp', campaigns: 125, billable: 114, perMonth: 1231, owner: 'Kevin (bulk update)',
+      status: 'Done 12 Nov, in Stripe instead (see below)' },
+    { step: 'Add the 10DLC line item in Stripe', campaigns: 184, billable: 176, perMonth: 1901, owner: 'Kevin and account managers',
+      status: 'Done 12 Nov (see below)' },
+    { step: 'Switch the toggle on (already billed in Stripe)', campaigns: 14, billable: 14, perMonth: 0, owner: 'Kevin', status: 'To do (Kevin)' },
+    { step: 'Cancel unused campaigns with TCR (cost saved)', campaigns: 76, billable: 76, perMonth: 760, owner: 'To assign',
+      status: '28 by early Dec, 48 by early Feb' },
+    { step: 'Raise $12 to $15 on every billed campaign from 1 Jan', campaigns: 901, billable: 901, perMonth: 2433, owner: 'Leadership',
+      status: 'From 1 Jan; needs sign-off' },
+  ],
+  totalPerMonth: 6325,
+  buckets: { total: 1015, billed: 613, unbilled: 290, cancel: 76, review: 36 },
+  notPaying: { total: 54, chase: 11, collectOrCut: 7, trialing: 3, cancelCandidates: 33 },
+  october: { campaigns: 570, paid: 6668.23, expected: 613 * 12, gap: 687.77, unpaidLines: 39, unpaid: 466, freeCampaigns: 14, givenAway: 173.48, notInvoiced: 4 },
+  cancelTiming: { within30: 28, oneToThree: 48 },
+  review: { done: 154, of: 492, kevin: 4, cancelToSubmit: 83, cancelSubmitted: 0 },
+  handoff: { campaigns: 277, clients: 274 },
+  // 12 Nov 2026: turning on the Chiirp toggle does not change Stripe billing
+  // (tested on one account), so the $12 line went onto all 274 subscriptions
+  // through the Stripe API instead, starting at each next renewal (by 12 Dec).
+  billing: { on: '2026-11-12', campaigns: 277, customers: 274, perMonth: 277 * 12, by: '2026-12-12',
+    signedOff: { by: 'Taylor Roberts', on: '2026-11-12' }, reviewed: { by: 'Zeus Acosta and Alicia Schmaling', on: '2026-11-11' } },
+  stillTexting: { campaigns: 31, ifBilled: 335 },
+  noRaise: 'One customer group (7 accounts sharing 2 TCR campaigns) is excluded from every 10DLC change by agreement.',
+  timeline: [
+    ['Wed 11 Nov 2026', 'Zeus and Alicia finish the campaign review (due date; see progress above)'],
+    ['After their approval', 'Kevin starts billing the unbilled campaigns: the handoff list has 277 campaigns for 274 clients'],
+    ['Fri 13 Nov 2026', 'Email customers that 10DLC goes from $12 to $15 a month on 1 January'],
+    ['Early Dec 2026', 'Cancel with TCR the 28 unused campaigns whose terms end within 30 days'],
+    ['Fri 1 Jan 2027', '$15 a month starts on every billed campaign; TCR starts adding sales tax'],
+    ['Early Feb 2027', 'The other 48 unused campaigns are out of their TCR terms; all 76 saved'],
+  ],
+};
+// Checklists for the plan pages (Josh, 12 Nov 2026: "make a checklist of the
+// plan pages so we can check off parts of the plan ... include who signed off
+// on each step"). A step with `done` is recorded here as done, for everyone;
+// the rest can be ticked in each person's browser. `signoff` names who
+// approved a step and when; `needsSignoff` marks a step that still needs one.
+// Recorded sign-offs: Zeus Acosta and Alicia Schmaling reviewed and okayed the
+// 10DLC campaigns on 11 Nov 2026 (Josh); Taylor Roberts approved billing the
+// 277 unbilled campaigns on 12 Nov 2026 at 3:33 pm (Slack DM, "You're good to
+// go"), and the $12 line went onto all 274 subscriptions that day.
+export const PLAN_CHECKLISTS = {
+  plan: [
+    { id: 'plan-refit', step: 'Refit the model counting only "paid the new price" as accepted', owner: 'Josh', due: '2026-11-30' },
+    { id: 'plan-list', step: 'Confirm the 50 stage 1 accounts (40 under $500, 10 in the $500 to $799 pilot)', owner: 'Josh', due: '2026-11-30' },
+    { id: 'plan-testerman', step: "Decide Testerman's Pro Wash's second subscription", owner: 'Josh', due: '2026-11-30' },
+    { id: 'plan-notice-text', step: 'Write the price-change notice', due: '2026-11-30' },
+    { id: 'plan-approve1', step: 'Sign-off on the stage 1 accounts, asks and notice', owner: 'Leadership', due: '2026-11-30', needsSignoff: true },
+    { id: 'plan-stripe1', step: 'Schedule each stage 1 price in Stripe from the first bill on or after 1 Jan (no part-month charges)', due: '2026-11-30' },
+    { id: 'plan-notices1', step: 'Send stage 1 notices (30 days; 2 Dec is the last day)', due: '2026-12-01' },
+    { id: 'plan-start1', step: 'Stage 1 prices take effect', due: '2027-01-01' },
+    { id: 'plan-log', step: 'Log every reply, cancellation, negotiation and failed payment in the plan CSV', due: '2027-01-25' },
+    { id: 'plan-readout1', step: 'Stage 1 read-out against the trigger', due: '2027-01-26' },
+    { id: 'plan-refit2', step: 'Refit on round one and stage 1; set the stage 2 size and asks', owner: 'Josh', due: '2027-01-28' },
+    { id: 'plan-approve2', step: 'Sign-off on stage 2', owner: 'Leadership', due: '2027-01-28', needsSignoff: true },
+    { id: 'plan-notices2', step: 'Send stage 2 notices (30 Jan is the last day)', due: '2027-01-29' },
+    { id: 'plan-second', step: "Confirm stage 1's second bills at the new price", due: '2027-02-28' },
+    { id: 'plan-start2', step: 'Stage 2 prices take effect', due: '2027-03-01' },
+    { id: 'plan-readout2', step: 'Stage 2 read-out', due: '2027-03-26' },
+  ],
+  dlc: [
+    { id: 'dlc-goettl', step: 'Exclude Goettl (7 accounts sharing 2 campaigns) from every 10DLC change', owner: 'Josh', done: '2026-11-06' },
+    { id: 'dlc-review', step: 'Review every campaign and set the exclusions', owner: 'Zeus Acosta and Alicia Schmaling',
+      signoff: { by: 'Zeus Acosta and Alicia Schmaling', on: '2026-11-11' }, done: '2026-11-11' },
+    { id: 'dlc-list', step: "List the campaigns that should pay $12 but don't: 277 campaigns, 274 customers (live subscription, paid before, Zeus's exclusions applied)",
+      owner: 'Josh', done: '2026-11-12' },
+    { id: 'dlc-signoff', step: 'Sign-off to bill them $12 a month', signoff: { by: 'Taylor Roberts', on: '2026-11-12' }, done: '2026-11-12' },
+    { id: 'dlc-bulk', step: 'Add the $12 10DLC line to all 274 Stripe subscriptions (no part-month charge; each starts at its next renewal)',
+      owner: 'Josh', signoff: { by: 'Taylor Roberts', on: '2026-11-12' }, done: '2026-11-12', note: 'First charge invoiced the same day' },
+    { id: 'dlc-renewals', step: 'Every one of the 274 renewed with the $12 line; follow up failed payments', due: '2026-12-12' },
+    { id: 'dlc-email', step: 'Email customers that 10DLC goes from $12 to $15 a month on 1 January', due: '2026-11-13' },
+    { id: 'dlc-kevin', step: "Kevin's list: 4 campaigns not billed that should be", owner: 'Kevin' },
+    { id: 'dlc-stop', step: 'Stop billing the 1 Stripe 10DLC line with no campaign', owner: 'Kevin' },
+    { id: 'dlc-texting', step: 'Decide on the 31 campaigns still texting with no live subscription: bill or cut off', owner: 'Account managers' },
+    { id: 'dlc-nonpay', step: 'Chase the 11 non-paying balances; collect or cut off the other 7', owner: 'Account managers' },
+    { id: 'dlc-cancel1', step: 'Cancel with TCR the 28 unused campaigns whose terms end within 30 days', due: '2026-12-01' },
+    { id: 'dlc-approve15', step: 'Sign-off on $15 from 1 January', owner: 'Leadership', due: '2026-11-30', needsSignoff: true },
+    { id: 'dlc-raise', step: 'Schedule $15 in Stripe from 1 January on every billed campaign (the 2 Goettl campaigns stay at $12)', due: '2026-12-31' },
+    { id: 'dlc-start15', step: '$15 starts; TCR starts adding sales tax', due: '2027-01-01' },
+    { id: 'dlc-cancel2', step: 'Cancel the other 48 unused campaigns as their terms end', due: '2027-02-01' },
+  ],
+  credit: [
+    { id: 'cr-proposal', step: 'Send the proposal to Ryan Fenn, Taylor Roberts and Alicia Schmaling', owner: 'Josh', done: '2026-11-06' },
+    { id: 'cr-tenpct', step: 'Correct the 6 Nov follow-up: $17,472 assumes no lost volume ($11,108 with 10% less)', owner: 'Josh' },
+    { id: 'cr-hold', step: 'Decide: hold the 19 accounts already on newer pricing (recommended) or raise them too', owner: 'Leadership', needsSignoff: true },
+    { id: 'cr-contracts', step: 'Check signed agreements for a fixed credit price among the top-tier customers' },
+    { id: 'cr-recharge', step: 'Confirm with engineering that auto-recharge firing several times within seconds is intended', owner: 'Engineering' },
+    { id: 'cr-approve', step: 'Sign-off on the tiers and the start date', owner: 'Leadership', needsSignoff: true },
+    { id: 'cr-notices', step: 'Send the credit price notices (the proposal planned 12 Nov)', due: '2026-11-12' },
+    { id: 'cr-prices', step: 'Set each tier\'s new credit prices in Stripe and the app' },
+    { id: 'cr-start', step: 'New credit prices take effect (date to be set)' },
+    { id: 'cr-rerank', step: 'Re-rank the tiers on trailing 3-month spend every quarter' },
+  ],
+};
+export const CREDIT_PLAN = {
+  asOf: '2026-11-05',
+  base: 46167, window: 'Aug to Oct 2026, net of refunds, credit notes, balance-paid invoices and lost disputes',
+  tiers: [
+    { tier: 'Top 1 to 25', rise: 0.25, companies: 25, now: 30360, after: 36625, added: 6265 },
+    { tier: 'Ranks 26 to 50', rise: 0.50, companies: 25, now: 6767, after: 10033, added: 3267 },
+    { tier: '51 and up (incl. the 10 S2 buyers)', rise: 1.00, companies: 108, now: 9040, after: 16981, added: 7940 },
+  ],
+  total: { companies: 158, now: 46167, after: 63639, added: 17472, perYear: 209666, next12: 196807, blended: 0.378 },
+  held: { accounts: 19, perMonth: 6632, ifRaised: 20014, ifRaisedYear: 240163 },
+  topShare: { income: 0.66, ofIncrease: 0.359 },
+  flat50: 23083,
+  concentration: { buyers: 179, paying: 1036, top10: 0.391, top20: 0.531, heavy: 38, heavyShare: 0.46, topStable: 13 },
+  stress: [
+    { lost: 0, added: 17472 }, { lost: 0.10, added: 11108 }, { lost: 0.20, added: 4744 }, { lost: 0.30, added: -1620 },
+  ],
+  breakEven: 0.275, topCompaniesErase: 5, loseOnlyTop1: 12056,
+  trend: -0.010,
+  open: [
+    'Leadership: confirm holding the 19 accounts already on newer pricing (2 to 7 times the legacy rate) rather than raising them too (+$2,542 a month more if raised).',
+    'Contracts: confirm no top-tier customer has a signed agreement that fixes its credit price. All sales are one-time packs, so Stripe holds no contract price to check.',
+    'Product: auto-recharge fires several times within seconds for heavy senders (about $10,000 a month of invoices come within 60 seconds of another). Each delivered its own credits, so the income is real, but confirm with engineering it is intended.',
+    'Tiers move: only 13 of this quarter\'s top 25 were in last quarter\'s, and last quarter\'s biggest buyer bought nothing this quarter. Re-rank every quarter on trailing 3-month spend.',
+  ],
+};
+
 // Twelve months of the list's revenue under a scenario. Normal churn runs
 // every month at the group's own rate (listBaselineChurn); the extra churn a
 // rise causes (its curve less the curve at no rise) lands over months 1 to 3.

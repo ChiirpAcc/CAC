@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, PLAN, PLAN_GROUPS, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -1149,6 +1149,8 @@ function showView(which) {
   $('view-all').hidden = which !== 'all';
   if ($('view-list')) $('view-list').hidden = which !== 'list';
   if ($('view-plan')) $('view-plan').hidden = which !== 'plan';
+  if ($('view-dlc')) $('view-dlc').hidden = which !== 'dlc';
+  if ($('view-credit')) $('view-credit').hidden = which !== 'credit';
   if ($('view-events')) $('view-events').hidden = which !== 'events';
   if ($('view-marketing')) $('view-marketing').hidden = which !== 'marketing';
   if ($('view-event')) $('view-event').hidden = which !== 'event';
@@ -1163,7 +1165,7 @@ function showView(which) {
   if (which !== 'event' && /^#event=/.test(location.hash)) {
     history.replaceState(null, '', which === 'events' ? '#events' : location.pathname + location.search);
   }
-  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'], ['tab-plan', which === 'plan'],
+  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'], ['tab-plan', which === 'plan'], ['tab-dlc', which === 'dlc'], ['tab-credit', which === 'credit'],
                           ['tab-events', which === 'events' || which === 'event'],
                           ['tab-marketing', which === 'marketing' || which === 'source'],
                           ['tab-sales', which === 'sales'], ['tab-summary', which === 'summary']]) {
@@ -1179,7 +1181,7 @@ function showView(which) {
 // #charts, #upgrade-list, #summary, #events, #marketing, #rp. An event's own
 // page is #event=<name> and a source's is #source=<name>. #sales, the RP
 // tab's old address, still works.
-const TAB_HASH = { all: '#charts', list: '#upgrade-list', plan: '#upgrade-plan', summary: '#summary', events: '#events',
+const TAB_HASH = { all: '#charts', list: '#upgrade-list', plan: '#upgrade-plan', dlc: '#10dlc', credit: '#credits', summary: '#summary', events: '#events',
   marketing: '#marketing', sales: '#rp' };
 function wireTabs() {
   const go = which => {
@@ -1190,6 +1192,8 @@ function wireTabs() {
   $('tab-all').addEventListener('click', () => go('all'));
   if ($('tab-list')) $('tab-list').addEventListener('click', () => go('list'));
   if ($('tab-plan')) $('tab-plan').addEventListener('click', () => go('plan'));
+  if ($('tab-dlc')) $('tab-dlc').addEventListener('click', () => go('dlc'));
+  if ($('tab-credit')) $('tab-credit').addEventListener('click', () => go('credit'));
   if ($('tab-events')) $('tab-events').addEventListener('click', () => go('events'));
   if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => go('marketing'));
   if ($('tab-sales')) $('tab-sales').addEventListener('click', () => go('sales'));
@@ -7535,8 +7539,8 @@ function renderUpgradePlan() {
     + opts.map(([v, t, s]) => `<button type="button" data-v="${v}" class="${v === cur ? 'is-on' : ''}"><strong>${t}</strong><span>${s}</span></button>`).join('')
     + '</div></fieldset>';
 
-  box.innerHTML =
-    `<p class="finding"><strong>Stage 1 is ${fmt.int(S.stage1.n)} accounts from ${day(D.effective1)}, told by ${day(D.notice1)}: `
+  box.innerHTML = checklistHtml('plan', 'Checklist: the upgrade plan')
+    + `<p class="finding"><strong>Stage 1 is ${fmt.int(S.stage1.n)} accounts from ${day(D.effective1)}, told by ${day(D.notice1)}: `
     + `${fmt.int(S.s1.n)} drawn from every price group and level of engagement under $500`
     + (S.p1.n ? `, and ${fmt.int(S.p1.n)} of the $500 to $799 accounts, which no rise has tested` : '')
     + `. Expect about ${fmt.int(Math.round(S.stage1.window))} of the ${fmt.int(S.stage1.n)} to leave by the read-out on ${day(D.readout1)}; `
@@ -7651,6 +7655,7 @@ function renderUpgradePlan() {
     + `rounded down to $${PLAN.round}. Two Stripe subscriptions of one company are two rows (Testerman's Pro Wash has one here; its other `
     + 'was in round one and is not asked).</p>';
 
+  wireChecklist(box);
   for (const [id, key] of [['plan-pilot', 'pilot'], ['plan-s2', 'stage2']]) {
     for (const b of $(id).querySelectorAll('button')) {
       b.addEventListener('click', () => { PLAN_UI[key] = Number(b.dataset.v); renderUpgradePlan(); });
@@ -7673,6 +7678,201 @@ function renderUpgradePlan() {
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     $('plan-status').textContent = ` ${fmt.int(P.items.length)} accounts exported.`;
   });
+}
+
+// Checklists at the top of the plan pages (Josh, 12 Nov 2026). Steps recorded
+// as done in PLAN_CHECKLISTS show for everyone; the rest can be ticked, and a
+// tick is kept in this browser only (the site has no server to share it).
+const CHECK_KEY = id => `cac-check-${id}`;
+const readTick = id => { try { return localStorage.getItem(CHECK_KEY(id)); } catch (e) { return null; } };
+const writeTick = (id, v) => { try { if (v) localStorage.setItem(CHECK_KEY(id), v); else localStorage.removeItem(CHECK_KEY(id)); } catch (e) { /* storage off */ } };
+const checkDay = iso => (iso ? new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US',
+  { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '');
+function checklistHtml(key, title) {
+  const items = PLAN_CHECKLISTS[key] || [];
+  const done = items.filter(i => i.done || readTick(i.id)).length;
+  return `<figure class="card wide plan-checklist" data-checklist="${key}">`
+    + `<figcaption><h3>${title}</h3><p class="muted" data-check-progress>${done} of ${items.length} done</p></figcaption>`
+    + '<div class="table-scroll"><table class="data-table plan-table check-table"><thead><tr><th></th><th>Step</th><th>Owner</th>'
+    + '<th>Due</th><th>Signed off</th><th>Done</th></tr></thead><tbody>'
+    + items.map(i => {
+      const tick = readTick(i.id);
+      const sign = i.signoff ? `${i.signoff.by}<br><span class="muted">${checkDay(i.signoff.on)}</span>`
+        : i.needsSignoff ? '<span class="tag risk">Not yet</span>' : '';
+      const doneCell = i.done ? `${checkDay(i.done)}${i.note ? `<br><span class="muted">${i.note}</span>` : ''}`
+        : tick ? `${checkDay(tick)}<br><span class="muted">ticked in this browser</span>` : '';
+      return `<tr class="${i.done || tick ? 'is-done' : ''}"><td><input type="checkbox" data-check="${i.id}" aria-label="Done: ${i.step.replace(/"/g, '&quot;')}"`
+        + `${i.done || tick ? ' checked' : ''}${i.done ? ' disabled' : ''}></td>`
+        + `<td>${i.step}</td><td>${i.owner || ''}</td><td>${i.due ? checkDay(i.due) : ''}</td><td>${sign}</td>`
+        + `<td data-check-done>${doneCell}</td></tr>`;
+    }).join('')
+    + '</tbody></table></div>'
+    + '<p class="note">Steps with a recorded date are done for everyone. Ticking any other step saves it in this browser only; '
+    + 'to mark a step done for everyone, record it in the plan (PLAN_CHECKLISTS in data.js).</p></figure>';
+}
+function wireChecklist(box) {
+  for (const fig of box.querySelectorAll('[data-checklist]')) {
+    const items = PLAN_CHECKLISTS[fig.dataset.checklist] || [];
+    for (const input of fig.querySelectorAll('input[data-check]')) {
+      input.addEventListener('change', () => {
+        const d = new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        writeTick(input.dataset.check, input.checked ? today : null);
+        const row = input.closest('tr');
+        row.classList.toggle('is-done', input.checked);
+        row.querySelector('[data-check-done]').innerHTML = input.checked
+          ? `${checkDay(today)}<br><span class="muted">ticked in this browser</span>` : '';
+        fig.querySelector('[data-check-progress]').textContent =
+          `${items.filter(i => i.done || readTick(i.id)).length} of ${items.length} done`;
+      });
+    }
+  }
+}
+
+// The 10DLC tab (Josh, 12 Nov 2026): the billing fix and the $12 to $15
+// increase, from the proposal sheet (DLC_PLAN in data.js).
+function renderDlcPlan() {
+  const box = $('dlc-body');
+  if (!box) return;
+  const P = DLC_PLAN;
+  const x = v => `${v.toFixed(2)}×`;
+  const short = P.year.paidTcr - P.year.collected;
+  const taxed = c => c / (1 + P.salesTax);
+  const BL = P.billing;
+  box.innerHTML = checklistHtml('dlc', 'Checklist: 10DLC')
+    + `<p class="finding"><strong>Billing has started: on ${checkDay(BL.on)} the $${P.feeNow} 10DLC line went onto the `
+    + `${fmt.int(BL.customers)} subscriptions that should have been paying (${fmt.int(BL.campaigns)} campaigns), signed off by `
+    + `${BL.signedOff.by} after ${BL.reviewed.by} reviewed and okayed the campaigns on ${checkDay(BL.reviewed.on)}.</strong> `
+    + `Each starts at the customer's next renewal, all by ${checkDay(BL.by)}, adding ${fmt.money(BL.perMonth)} a month at full price `
+    + `(the plan below counts it after a ${fmt.pct(P.haircut)} haircut).</p>`
+    + `<p class="finding"><strong>Over the last 12 months Chiirp paid TCR ${fmt.money(P.year.paidTcr)} for 10DLC and collected `
+    + `${fmt.money(P.year.collected)}: a ${fmt.money(short)} loss, with fees covering ${x(P.coverage[0].all)} of the cost.</strong> `
+    + `Billing the campaigns nobody is charged for, cancelling unused ones and raising the fee from $${P.feeNow} to $${P.feeNew} on `
+    + `1 January adds about ${fmt.money(P.totalPerMonth)} a month and takes coverage to ${x(P.coverage[2].all)}, or about `
+    + `${x(taxed(P.coverage[2].monthly))} on monthly fees alone once TCR adds sales tax.</p>`
+
+    + '<h3 class="sub-head">Where the money goes today</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">Last 12 months</th>'
+    + '<th class="n">A month</th></tr></thead><tbody>'
+    + `<tr><td>Paid to TCR ($${P.tcrMonthly} per campaign a month, in 3-month terms; $${P.tcrBrand.toFixed(2)} per brand)</td>`
+    + `<td class="n">${fmt.money(P.year.paidTcr)}</td><td class="n">${fmt.money(P.perMonth.tcr)}</td></tr>`
+    + `<tr><td>Collected: monthly campaign fees ($${P.feeNow})</td><td class="n">${fmt.money(P.year.monthly)}</td>`
+    + `<td class="n">${fmt.money(P.perMonth.collectedMonthly)}</td></tr>`
+    + `<tr><td>Collected: one-time registration and submittal fees</td><td class="n">${fmt.money(P.year.oneTime)}</td>`
+    + `<td class="n">${fmt.money(P.perMonth.collectedAll - P.perMonth.collectedMonthly)}</td></tr>`
+    + `<tr class="plan-total"><td><strong>Shortfall</strong></td><td class="n"><strong>−${fmt.money(short)}</strong></td>`
+    + `<td class="n"><strong>−${fmt.money(P.perMonth.tcr - P.perMonth.collectedAll)}</strong></td></tr>`
+    + '</tbody></table></div>'
+    + `<p class="note">One-time fees have all but stopped since August 2026 ($20 in September, $0 in October) and stay as they are, so `
+    + 'the honest coverage is on monthly fees alone.</p>'
+
+    + '<h3 class="sub-head">The campaigns</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Bucket</th><th class="n">Campaigns</th><th>What happens</th></tr></thead><tbody>'
+    + `<tr><td>Billed today</td><td class="n">${fmt.int(P.buckets.billed)}</td><td>Raised to $${P.feeNew} on 1 January. `
+    + `${fmt.int(P.notPaying.total)} of them are not paying (${P.notPaying.chase} to chase, ${P.notPaying.collectOrCut} to collect or cut off, `
+    + `${P.notPaying.trialing} trialing, ${P.notPaying.cancelCandidates} cancel candidates).</td></tr>`
+    + `<tr><td>Active with TCR, not billed</td><td class="n">${fmt.int(P.buckets.unbilled)}</td><td>Start billing $${P.feeNow} now: `
+    + `steps 1 to 3 below.</td></tr>`
+    + `<tr><td>Unused</td><td class="n">${fmt.int(P.buckets.cancel)}</td><td>Cancel with TCR: ${P.cancelTiming.within30} have terms ending within `
+    + `30 days, ${P.cancelTiming.oneToThree} have 1 to 3 months left. A cancelled campaign costs until its current term ends.</td></tr>`
+    + `<tr><td>Under review or internal</td><td class="n">${fmt.int(P.buckets.review)}</td><td>${P.stillTexting.campaigns} are still `
+    + `texting with no live subscription: bill them or cut them off (+${fmt.money(P.stillTexting.ifBilled)} a month if all billed, not in the total).</td></tr>`
+    + `<tr class="plan-total"><td><strong>Active with TCR</strong></td><td class="n"><strong>${fmt.int(P.buckets.total)}</strong></td><td></td></tr>`
+    + '</tbody></table></div>'
+
+    + '<h3 class="sub-head">The steps and what each adds</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Step</th><th class="n">Campaigns</th>'
+    + '<th class="n">A month</th><th>Owner</th><th>Status</th></tr></thead><tbody>'
+    + P.steps.map((s, i) => `<tr><td>${i + 1}. ${s.step}</td><td class="n">${fmt.int(s.billable)}</td>`
+      + `<td class="n">${s.perMonth ? '+' + fmt.money(s.perMonth) : '–'}</td><td>${s.owner}</td><td>${s.status || ''}</td></tr>`).join('')
+    + `<tr class="plan-total"><td><strong>Total</strong></td><td></td><td class="n"><strong>+${fmt.money(P.totalPerMonth)}</strong></td>`
+    + `<td class="muted" colspan="2">${fmt.money(P.totalPerMonth * 12)} a year</td></tr>`
+    + '</tbody></table></div>'
+    + `<p class="note">Steps 1 and 2 were done as one: turning on the Chiirp toggle does not change Stripe billing (tested on one `
+    + `account), so on ${checkDay(BL.on)} the $${P.feeNow} line went straight onto the ${fmt.int(BL.customers)} Stripe subscriptions, `
+    + `${fmt.int(BL.campaigns)} campaigns (customers with two campaigns are charged twice). New revenue is counted after a ${fmt.pct(P.haircut)} haircut for campaigns that won't turn into revenue; `
+    + `that haircut already covers the ${P.notPaying.total} non-payers, so they are not deducted again. ${P.noRaise}</p>`
+
+    + '<h3 class="sub-head">How much of TCR\'s cost the fees cover</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">All fees</th>'
+    + '<th class="n">Monthly fees only</th><th class="n">Monthly fees, after TCR sales tax</th></tr></thead><tbody>'
+    + P.coverage.map((c, i) => `<tr><td>${c.when}</td><td class="n">${x(c.all)}</td><td class="n">${x(c.monthly)}</td>`
+      + `<td class="n">${i === 2 ? x(taxed(c.monthly)) : '–'}</td></tr>`).join('')
+    + '</tbody></table></div>'
+    + `<p class="note">TCR adds sales tax from 1 January 2027 (Chiirp opted in; it can't be avoided). The rate used, `
+    + `${fmt.pct(P.salesTax)}, is an assumption.</p>`
+
+    + '<h3 class="sub-head">October, as a check on billing</h3>'
+    + `<p>${fmt.int(P.october.campaigns)} campaigns were on paid invoices for ${fmt.money(P.october.paid)}, against `
+    + `${fmt.money(P.october.expected)} if all ${P.buckets.billed} billed campaigns paid $${P.feeNow}: a gap of ${fmt.money(P.october.gap)}. `
+    + `${P.october.unpaidLines} lines (${fmt.money(P.october.unpaid)}) went unpaid, about ${P.october.notInvoiced} campaigns were not `
+    + `invoiced, and ${P.october.freeCampaigns} campaigns were charged nothing (${fmt.money(P.october.givenAway)} given away in discounts).</p>`
+
+    + `<p class="note">The timeline and who signed off are in the checklist at the top. From the "10DLC and Credit Price Increase Proposal (Nov 2026)" sheet in Drive, read ${P.asOf}: TCR invoices and `
+    + 'Stripe (S1 and S2), October 2025 to September 2026, and the TCR campaign export of 3 November 2026. The per-campaign lists '
+    + 'and the review stay in the sheet.</p>';
+  wireChecklist(box);
+}
+
+// The credit tab (Josh, 12 Nov 2026): the tiered credit price increase, from
+// the Credit Price Increase Model (CREDIT_PLAN in data.js).
+function renderCreditPlan() {
+  const box = $('credit-body');
+  if (!box) return;
+  const C = CREDIT_PLAN;
+  const T = C.total;
+  const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
+  box.innerHTML = checklistHtml('credit', 'Checklist: credit increase')
+    + `<p class="finding"><strong>A tiered increase adds ${fmt.money(T.added)} a month (${fmt.money(T.perYear)} a year) if no one buys `
+    + `fewer credits: the biggest buyers +25%, the next 25 +50%, everyone else +100%.</strong> Credit income is concentrated: the top 25 `
+    + `companies bring ${fmt.pct(C.topShare.income)} of it, so they get the smallest rise and pay ${fmt.pct(C.topShare.ofIncrease)} of the `
+    + `increase. With 10% fewer credits bought it adds ${fmt.money(C.stress[1].added)} a month; it breaks even at `
+    + `${fmt.pct(C.breakEven, 1)} lost.</p>`
+
+    + '<h3 class="sub-head">The tiers</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Companies ranked by credit spend</th>'
+    + '<th class="n">Rise</th><th class="n">Companies</th><th class="n">Credits a month now</th><th class="n">After</th>'
+    + '<th class="n">Added a month</th></tr></thead><tbody>'
+    + C.tiers.map(t => `<tr><td>${t.tier}</td><td class="n">+${Math.round(t.rise * 100)}%</td><td class="n">${fmt.int(t.companies)}</td>`
+      + `<td class="n">${fmt.money(t.now)}</td><td class="n">${fmt.money(t.after)}</td><td class="n">+${fmt.money(t.added)}</td></tr>`).join('')
+    + `<tr class="plan-total"><td><strong>Total</strong></td><td class="n">+${(T.blended * 100).toFixed(1)}%</td><td class="n">${fmt.int(T.companies)}</td>`
+    + `<td class="n">${fmt.money(T.now)}</td><td class="n">${fmt.money(T.after)}</td><td class="n"><strong>+${fmt.money(T.added)}</strong></td></tr>`
+    + '</tbody></table></div>'
+    + `<p class="note">${C.window}. Sub-accounts of one company are grouped so each company gets one price. The ${C.held.accounts} accounts `
+    + `already on newer credit pricing (${fmt.money(C.held.perMonth)} a month, paying 2 to 7 times the legacy rate) stay where they are; `
+    + `raising them too would make it ${fmt.money(C.held.ifRaised)} a month. A flat +50% for everyone would add ${fmt.money(C.flat50)}, `
+    + 'but loads the rise onto the few buyers whose loss would wipe it out. Over the next 12 months, with credit buying drifting down '
+    + `${Math.abs(C.trend * 100).toFixed(1)}% a month as it has, the tiers add ${fmt.money(T.next12)}.</p>`
+
+    + '<h3 class="sub-head">If customers buy fewer credits</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Credit volume lost after the rise</th>'
+    + '<th class="n">Added a month</th><th class="n">A year</th></tr></thead><tbody>'
+    + C.stress.map(s => `<tr><td>${s.lost ? fmt.pct(s.lost) : 'None (the headline)'}</td><td class="n">${sm(s.added)}</td>`
+      + `<td class="n">${sm(s.lost ? s.added * 12 : T.perYear)}</td></tr>`).join('')
+    + `<tr><td>Break-even</td><td class="n" colspan="2">${fmt.pct(C.breakEven, 1)} of volume lost</td></tr>`
+    + '</tbody></table></div>'
+    + `<p class="note">The 6 November message to the group says both that the credit figures "assume no lost volume" and, in a `
+    + `follow-up, that a 10% reduction is "built into all of these numbers". The model's ${fmt.money(T.added)} is the no-loss figure; with `
+    + `10% less volume it is ${fmt.money(C.stress[1].added)}. Losing the ${C.topCompaniesErase} biggest buying companies would erase the `
+    + `gain; losing only the biggest still leaves ${sm(C.loseOnlyTop1)} a month.</p>`
+
+    + '<h3 class="sub-head">How concentrated credit buying is</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><tbody>'
+    + `<tr><td>Paying accounts that buy credits</td><td class="n">${fmt.int(C.concentration.buyers)} of ${fmt.int(C.concentration.paying)}</td></tr>`
+    + `<tr><td>Share of credit income from the top 10 buyers</td><td class="n">${fmt.pct(C.concentration.top10, 1)}</td></tr>`
+    + `<tr><td>From the top 20</td><td class="n">${fmt.pct(C.concentration.top20, 1)}</td></tr>`
+    + `<tr><td>Buyers whose bill is mostly credits (the most price-sensitive)</td><td class="n">${C.concentration.heavy} accounts, `
+    + `${fmt.pct(C.concentration.heavyShare)} of credit income</td></tr>`
+    + `<tr><td>This quarter's top 25 who were also last quarter's</td><td class="n">${C.concentration.topStable} of 25</td></tr>`
+    + '</tbody></table></div>'
+
+    + '<h3 class="sub-head">Still open</h3>'
+    + '<ol class="plan-rules">' + C.open.map(o => `<li>${o}</li>`).join('') + '</ol>'
+    + '<p class="note">Timing: the proposal set credit notices for 12 November with the start date to be decided. The 10DLC change '
+    + `starts 1 January. Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
+    + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database. The tier list by company `
+    + 'stays in the sheet.</p>';
+  wireChecklist(box);
 }
 
 const campTrust = () => TRUST_PRESETS.find(p => p.key === CAMP.trust) || TRUST_PRESETS[0];
@@ -8824,6 +9024,8 @@ const VIEW_DRAWS = {
   },
   list: () => { renderUpgradeList(); renderCampaign(); },
   plan: () => renderUpgradePlan(),
+  dlc: () => renderDlcPlan(),
+  credit: () => renderCreditPlan(),
   events: () => { renderEvents(); renderEventAttribution(); },
   marketing: () => renderMarketing(),
   sales: () => renderRP(),

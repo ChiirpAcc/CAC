@@ -41,6 +41,8 @@
     <button id="tab-all" role="tab" aria-selected="true" aria-controls="view-all">Every chart</button>
     <button id="tab-list" role="tab" aria-selected="false" aria-controls="view-list">Upgrade list</button>
     <button id="tab-plan" role="tab" aria-selected="false" aria-controls="view-plan">Upgrade plan</button>
+    <button id="tab-dlc" role="tab" aria-selected="false" aria-controls="view-dlc">10DLC</button>
+    <button id="tab-credit" role="tab" aria-selected="false" aria-controls="view-credit">Credit increase</button>
     <button id="tab-summary" role="tab" aria-selected="false" aria-controls="view-summary">Events summary</button>
     <button id="tab-events" role="tab" aria-selected="false" aria-controls="view-events">Events</button>
     <button id="tab-marketing" role="tab" aria-selected="false" aria-controls="view-marketing">Marketing</button>
@@ -1228,6 +1230,24 @@
         as the Upgrade list and moves with it.</p>
     </header>
     <div id="plan-body"><p class="muted">Loading usage for each account…</p></div>
+  </section>
+
+  <section id="view-dlc" class="wrap" hidden>
+    <header class="story-head">
+      <h2>10DLC: billing what TCR charges us for</h2>
+      <p>What Chiirp pays TCR for text-message campaign registration against what it collects, and the plan to close the gap:
+        bill the campaigns nobody is charged for, cancel unused ones, and raise the monthly fee from $12 to $15 on 1 January 2027.</p>
+    </header>
+    <div id="dlc-body"></div>
+  </section>
+
+  <section id="view-credit" class="wrap" hidden>
+    <header class="story-head">
+      <h2>Credit increase: a tiered rise in credit prices</h2>
+      <p>Who buys credits, how concentrated it is, and the proposed rise by customer rank, with what it adds if customers buy
+        fewer credits.</p>
+    </header>
+    <div id="credit-body"></div>
   </section>
 
   <section id="view-sales" class="wrap" hidden>
