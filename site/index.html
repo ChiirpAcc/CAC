@@ -94,16 +94,28 @@
 
 <div id="dashboard" hidden>
 
-  <nav class="wrap tabs" role="tablist" aria-label="Views">
-    <button id="tab-all" role="tab" aria-selected="true" aria-controls="view-all">Every chart</button>
-    <button id="tab-list" role="tab" aria-selected="false" aria-controls="view-list">Upgrade list</button>
-    <button id="tab-plan" role="tab" aria-selected="false" aria-controls="view-plan">Upgrade plan</button>
-    <button id="tab-dlc" role="tab" aria-selected="false" aria-controls="view-dlc">10DLC</button>
-    <button id="tab-credit" role="tab" aria-selected="false" aria-controls="view-credit">Credit increase</button>
-    <button id="tab-summary" role="tab" aria-selected="false" aria-controls="view-summary">Events summary</button>
-    <button id="tab-events" role="tab" aria-selected="false" aria-controls="view-events">Events</button>
-    <button id="tab-marketing" role="tab" aria-selected="false" aria-controls="view-marketing">Marketing</button>
-    <button id="tab-sales" role="tab" aria-selected="false" aria-controls="view-sales">RP</button>
+  <!-- Tabs in three sections (Josh, 12 Nov 2026: "segment the sections into
+       price increase products, reports, and partnerships with events and rp and
+       marketing"). The buttons keep their ids, so the tab code is unchanged. -->
+  <nav class="wrap tabs" aria-label="Views">
+    <div class="tab-group" role="tablist" aria-labelledby="tabs-reports">
+      <span class="tab-group-label" id="tabs-reports">Reports</span>
+      <button id="tab-all" role="tab" aria-selected="true" aria-controls="view-all">Every chart</button>
+    </div>
+    <div class="tab-group" role="tablist" aria-labelledby="tabs-price">
+      <span class="tab-group-label" id="tabs-price">Price increases</span>
+      <button id="tab-list" role="tab" aria-selected="false" aria-controls="view-list">Upgrade list</button>
+      <button id="tab-plan" role="tab" aria-selected="false" aria-controls="view-plan">Upgrade plan</button>
+      <button id="tab-dlc" role="tab" aria-selected="false" aria-controls="view-dlc">10DLC</button>
+      <button id="tab-credit" role="tab" aria-selected="false" aria-controls="view-credit">Credit increase</button>
+    </div>
+    <div class="tab-group" role="tablist" aria-labelledby="tabs-partners">
+      <span class="tab-group-label" id="tabs-partners">Partnerships</span>
+      <button id="tab-summary" role="tab" aria-selected="false" aria-controls="view-summary">Events summary</button>
+      <button id="tab-events" role="tab" aria-selected="false" aria-controls="view-events">Events</button>
+      <button id="tab-marketing" role="tab" aria-selected="false" aria-controls="view-marketing">Marketing</button>
+      <button id="tab-sales" role="tab" aria-selected="false" aria-controls="view-sales">RP</button>
+    </div>
   </nav>
 
   <div id="view-all">

@@ -553,8 +553,21 @@ figcaption { margin-bottom: .9rem; }
    per step, full width, with the argument in front of each chart instead of
    underneath it. */
 .tabs {
-  display: flex; flex-wrap: wrap; gap: 4px; padding-block: 18px 0;
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 22px; padding-block: 14px 0;
   border-bottom: 1px solid var(--rule);
+}
+/* Three sections: a small label over each group of tabs, a rule between them. */
+.tab-group { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 4px; position: relative; padding-top: 18px; }
+.tab-group + .tab-group { padding-left: 22px; border-left: 1px solid var(--rule); }
+.tab-group-label {
+  position: absolute; top: 0; left: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--ink-soft); white-space: nowrap;
+}
+.tab-group + .tab-group .tab-group-label { left: 22px; }
+@media (max-width: 640px) {
+  .tabs { gap: 4px 0; }
+  .tab-group, .tab-group + .tab-group { width: 100%; padding-left: 0; border-left: 0; }
+  .tab-group + .tab-group .tab-group-label { left: 0; }
 }
 @media (max-width: 480px) {
   .tabs button { padding: 8px 9px; font-size: 0.88rem; }
