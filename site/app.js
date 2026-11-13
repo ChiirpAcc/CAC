@@ -7655,7 +7655,6 @@ function renderUpgradePlan() {
     + `rounded down to $${PLAN.round}. Two Stripe subscriptions of one company are two rows (Testerman's Pro Wash has one here; its other `
     + 'was in round one and is not asked).</p>';
 
-  wireChecklist(box);
   for (const [id, key] of [['plan-pilot', 'pilot'], ['plan-s2', 'stage2']]) {
     for (const b of $(id).querySelectorAll('button')) {
       b.addEventListener('click', () => { PLAN_UI[key] = Number(b.dataset.v); renderUpgradePlan(); });
@@ -7680,53 +7679,30 @@ function renderUpgradePlan() {
   });
 }
 
-// Checklists at the top of the plan pages (Josh, 12 Nov 2026). Steps recorded
-// as done in PLAN_CHECKLISTS show for everyone; the rest can be ticked, and a
-// tick is kept in this browser only (the site has no server to share it).
-const CHECK_KEY = id => `cac-check-${id}`;
-const readTick = id => { try { return localStorage.getItem(CHECK_KEY(id)); } catch (e) { return null; } };
-const writeTick = (id, v) => { try { if (v) localStorage.setItem(CHECK_KEY(id), v); else localStorage.removeItem(CHECK_KEY(id)); } catch (e) { /* storage off */ } };
+// Checklists at the top of the plan pages (Josh, 12 Nov 2026). Read only
+// ("make it a hard coded check box not toggleable by a web viewer"): a box is
+// ticked only when the step is recorded as done in PLAN_CHECKLISTS in data.js,
+// and nobody can change it from the page.
 const checkDay = iso => (iso ? new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US',
   { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '');
 function checklistHtml(key, title) {
   const items = PLAN_CHECKLISTS[key] || [];
-  const done = items.filter(i => i.done || readTick(i.id)).length;
+  const done = items.filter(i => i.done).length;
   return `<figure class="card wide plan-checklist" data-checklist="${key}">`
-    + `<figcaption><h3>${title}</h3><p class="muted" data-check-progress>${done} of ${items.length} done</p></figcaption>`
+    + `<figcaption><h3>${title}</h3><p class="muted">${done} of ${items.length} done</p></figcaption>`
     + '<div class="table-scroll"><table class="data-table plan-table check-table"><thead><tr><th></th><th>Step</th><th>Owner</th>'
     + '<th>Due</th><th>Signed off</th><th>Done</th></tr></thead><tbody>'
     + items.map(i => {
-      const tick = readTick(i.id);
       const sign = i.signoff ? `${i.signoff.by}<br><span class="muted">${checkDay(i.signoff.on)}</span>`
         : i.needsSignoff ? '<span class="tag risk">Not yet</span>' : '';
-      const doneCell = i.done ? `${checkDay(i.done)}${i.note ? `<br><span class="muted">${i.note}</span>` : ''}`
-        : tick ? `${checkDay(tick)}<br><span class="muted">ticked in this browser</span>` : '';
-      return `<tr class="${i.done || tick ? 'is-done' : ''}"><td><input type="checkbox" data-check="${i.id}" aria-label="Done: ${i.step.replace(/"/g, '&quot;')}"`
-        + `${i.done || tick ? ' checked' : ''}${i.done ? ' disabled' : ''}></td>`
-        + `<td>${i.step}</td><td>${i.owner || ''}</td><td>${i.due ? checkDay(i.due) : ''}</td><td>${sign}</td>`
-        + `<td data-check-done>${doneCell}</td></tr>`;
+      const doneCell = i.done ? `${checkDay(i.done)}${i.note ? `<br><span class="muted">${i.note}</span>` : ''}` : '';
+      return `<tr class="${i.done ? 'is-done' : ''}">`
+        + `<td><span class="check-box${i.done ? ' is-on' : ''}" role="img" aria-label="${i.done ? 'Done' : 'Not done'}">${i.done ? '✓' : ''}</span></td>`
+        + `<td>${i.step}</td><td>${i.owner || ''}</td><td>${i.due ? checkDay(i.due) : ''}</td><td>${sign}</td><td>${doneCell}</td></tr>`;
     }).join('')
     + '</tbody></table></div>'
-    + '<p class="note">Steps with a recorded date are done for everyone. Ticking any other step saves it in this browser only; '
-    + 'to mark a step done for everyone, record it in the plan (PLAN_CHECKLISTS in data.js).</p></figure>';
-}
-function wireChecklist(box) {
-  for (const fig of box.querySelectorAll('[data-checklist]')) {
-    const items = PLAN_CHECKLISTS[fig.dataset.checklist] || [];
-    for (const input of fig.querySelectorAll('input[data-check]')) {
-      input.addEventListener('change', () => {
-        const d = new Date();
-        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        writeTick(input.dataset.check, input.checked ? today : null);
-        const row = input.closest('tr');
-        row.classList.toggle('is-done', input.checked);
-        row.querySelector('[data-check-done]').innerHTML = input.checked
-          ? `${checkDay(today)}<br><span class="muted">ticked in this browser</span>` : '';
-        fig.querySelector('[data-check-progress]').textContent =
-          `${items.filter(i => i.done || readTick(i.id)).length} of ${items.length} done`;
-      });
-    }
-  }
+    + '<p class="note">A step is ticked when it is recorded as done in the plan, with its date. The boxes cannot be changed from this '
+    + 'page; tell Josh when a step is done and it is recorded for everyone.</p></figure>';
 }
 
 // The 10DLC tab (Josh, 12 Nov 2026): the billing fix and the $12 to $15
@@ -7811,7 +7787,6 @@ function renderDlcPlan() {
     + `<p class="note">The timeline and who signed off are in the checklist at the top. From the "10DLC and Credit Price Increase Proposal (Nov 2026)" sheet in Drive, read ${P.asOf}: TCR invoices and `
     + 'Stripe (S1 and S2), October 2025 to September 2026, and the TCR campaign export of 3 November 2026. The per-campaign lists '
     + 'and the review stay in the sheet.</p>';
-  wireChecklist(box);
 }
 
 // The credit tab (Josh, 12 Nov 2026): the tiered credit price increase, from
@@ -7873,7 +7848,6 @@ function renderCreditPlan() {
     + `for either yet. Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
     + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database. The tier list by company `
     + 'stays in the sheet.</p>';
-  wireChecklist(box);
 }
 
 const campTrust = () => TRUST_PRESETS.find(p => p.key === CAMP.trust) || TRUST_PRESETS[0];
