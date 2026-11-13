@@ -3915,6 +3915,18 @@ export const PLAN_CHECKLISTS = {
     { id: 'cr-recharge', step: 'Confirm that auto-recharge firing several times within seconds is intended', owner: 'Product (Kevin and Taylor)' },
     { id: 'cr-future', step: 'Consider future credit increases, re-ranking the tiers on trailing 3-month spend' },
   ],
+  jan1: [
+    { id: 'j1-options', step: 'Compare: 10DLC + credits + a 20-customer platform pilot, against a platform rise only piloted on 50', owner: 'Josh', done: '2026-11-13' },
+    { id: 'j1-pilot', step: 'Pick the 20 pilot customers: spread over fee, tenure, industry, state and both Stripe accounts; no credit buyers', owner: 'Josh', done: '2026-11-13' },
+    { id: 'j1-notice', step: 'Write the pilot notice (informational: new fee and date, nothing for the customer to do)', owner: 'Josh', done: '2026-11-13' },
+    { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot', owner: 'CEO', due: '2026-11-20', needsSignoff: true },
+    { id: 'j1-contracts', step: 'Check the standard agreement allows a price change on 30 days\' notice; leave off custom contracts and price locks', due: '2026-11-20' },
+    { id: 'j1-send', step: 'Send the notices: 10DLC by email, credits by in-Chiirp message, the pilot by email to the 20 (2 Dec is the last day)', due: '2026-11-23' },
+    { id: 'j1-faq', step: 'FAQ for the support team on the three changes', due: '2026-11-23' },
+    { id: 'j1-stripe', step: 'Schedule the 20 pilot fees in Stripe from the first bill on or after 1 Jan', owner: 'Product (Kevin and Taylor)', due: '2026-12-31' },
+    { id: 'j1-start', step: 'All three take effect', due: '2027-01-01' },
+    { id: 'j1-readout', step: 'Pilot read-out: cancellations, downgrades and tickets from the 20; decide on a wider platform rise', owner: 'Josh', due: '2027-04-01' },
+  ],
 };
 export const CREDIT_PLAN = {
   asOf: '2026-11-05',
@@ -3939,6 +3951,47 @@ export const CREDIT_PLAN = {
     'Contracts: confirm no top-tier customer has a signed agreement that fixes its credit price. All sales are one-time packs, so Stripe holds no contract price to check.',
     'Product: auto-recharge fires several times within seconds for heavy senders (about $10,000 a month of invoices come within 60 seconds of another). Each delivered its own credits, so the income is real, but confirm with engineering it is intended.',
     'Tiers move: only 13 of this quarter\'s top 25 were in last quarter\'s, and last quarter\'s biggest buyer bought nothing this quarter. Re-rank every quarter on trailing 3-month spend.',
+  ],
+};
+
+// The 1 January 2027 proposal for the CEO (Josh, 13 Nov 2026): 10DLC to $15
+// and the credit tiers on 1 Jan, plus a 20-customer platform fee pilot
+// instead of a platform rise for everyone. 10DLC and credit figures are read
+// from DLC_PLAN and CREDIT_PLAN, never retyped. The pilot: 20 customers drawn
+// by fee band and tenure from 568 eligible (active platform subscription only,
+// no credit buyers, no credit-model tier names, 6+ months, test and internal
+// accounts out), from Stripe S1 and S2 platform lines on 13 Nov 2026. Each
+// customer's own platform fee rises by `rise`; the notice is informational.
+// Nobody on the Upgrade plan (any stage) is in the pilot, so no customer gets
+// two platform rises.
+// The alternative it was weighed against: a platform rise only, piloted on 50
+// customers at the average platform fee.
+export const JAN1_PROPOSAL = {
+  asOf: '2026-11-13', decideBy: '2026-11-20', noticesBy: '2026-12-01', noticesTarget: '2026-11-23', effective: '2027-01-01',
+  rise: 0.15, riseAlt: 0.20,
+  platform: { customers: 880, mrr: 722719, avgFee: 821 },
+  optionB: { pilot: 50 },
+  pilot: [
+    { name: 'Stay Sharp Oklahoma', industry: 'Sharpening', state: 'OK', account: 'S1', id: 'cus_SmYWahwbEWOJvC', months: 15, fee: 350 },
+    { name: 'AAA Movers Inc - Minneapolis', industry: 'Moving', state: 'MN', account: 'S1', id: 'cus_RnrVIXO69gEczV', months: 21, fee: 425 },
+    { name: 'Time To Shine Power Washing', industry: 'Power washing', state: 'MA', account: 'S1', id: 'cus_LFQnvaRi3NJ34b', months: 56, fee: 500 },
+    { name: 'Americas Home Pros', industry: 'Home services', state: 'AZ', account: 'S1', id: 'cus_U27dtULOi0yG9O', months: 9, fee: 600 },
+    { name: 'Udderly Gutters', industry: 'Gutters', state: 'NH', account: 'S1', id: 'cus_PRQcOZwENqEBHj', months: 34, fee: 650 },
+    { name: 'ProSeal Asphalt Maintenance Inc.', industry: 'Asphalt paving', state: 'PA', account: 'S1', id: 'cus_Rn7Fy7mqtLHmPM', months: 21, fee: 650 },
+    { name: 'Lascko Plumbing and Mechanical', industry: 'Plumbing', state: 'MI', account: 'S1', id: 'cus_TSCAjaDaS8UqYR', months: 12, fee: 699 },
+    { name: 'Precision Garage Door Service of Oklahoma City', industry: 'Garage doors', state: 'OK', account: 'S1', id: 'cus_TuEL9B7nCsAcH2', months: 9, fee: 700 },
+    { name: 'Legacy Garage Doors', industry: 'Garage doors', state: 'ID', account: 'S1', id: 'cus_OkJEvhlQUi8dLw', months: 37, fee: 722.5 },
+    { name: 'Corbin Electrical Services, Inc.', industry: 'Electrical', state: 'NJ', account: 'S1', id: 'cus_Smu9TUhWtGE47s', months: 15, fee: 750 },
+    { name: 'Arlinghaus Plumbing Heating and Air', industry: 'Plumbing/HVAC', state: 'KY', account: 'S1', id: 'cus_MpD0isAsfQLwB4', months: 48, fee: 750 },
+    { name: 'Pass Electric', industry: 'Electrical', state: 'AB', account: 'S1', id: 'cus_SOGAxQJYanQ4Z6', months: 18, fee: 850 },
+    { name: 'Bert Black', industry: 'HVAC', state: 'AR', account: 'S1', id: 'cus_R1ujsRZ1eUhwvo', months: 25, fee: 850 },
+    { name: 'Plumbing Today', industry: 'Plumbing', state: 'NE', account: 'S1', id: 'cus_UNXpqgzdC7UiKe', months: 7, fee: 1000 },
+    { name: 'Buena Vista 98', industry: 'Shutters (Rockwood)', state: 'TX', account: 'S1', id: 'cus_Sju3tGrcCFbqGz', months: 16, fee: 1000 },
+    { name: 'Southern Trust Home Services', industry: 'Home services', state: 'VA', account: 'S1', id: 'cus_RCoJJCo9TxdvCo', months: 24, fee: 1000 },
+    { name: 'Electric Doctor', industry: 'Electrical', state: 'IA', account: 'S1', id: 'cus_TztWZmw25WXUuQ', months: 9, fee: 1250 },
+    { name: 'Kyzar Air Conditioning', industry: 'HVAC', state: 'FL', account: 'S2', id: 'cus_ULwfpqaL2H9cTg', months: 7, fee: 1500 },
+    { name: 'All Klear Plumbing, Heating, Air & Electric', industry: 'Plumbing/HVAC', state: 'MO', account: 'S1', id: 'cus_Qhjoeon5wZIQjK', months: 27, fee: 1577.5 },
+    { name: 'Service Star Inc', industry: 'HVAC/Plumbing', state: 'TX', account: 'S1', id: 'cus_NbUtDZSbWl2Fpy', months: 44, fee: 3700 },
   ],
 };
 

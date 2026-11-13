@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -1151,6 +1151,7 @@ function showView(which) {
   if ($('view-plan')) $('view-plan').hidden = which !== 'plan';
   if ($('view-dlc')) $('view-dlc').hidden = which !== 'dlc';
   if ($('view-credit')) $('view-credit').hidden = which !== 'credit';
+  if ($('view-jan1')) $('view-jan1').hidden = which !== 'jan1';
   if ($('view-events')) $('view-events').hidden = which !== 'events';
   if ($('view-marketing')) $('view-marketing').hidden = which !== 'marketing';
   if ($('view-event')) $('view-event').hidden = which !== 'event';
@@ -1165,7 +1166,7 @@ function showView(which) {
   if (which !== 'event' && /^#event=/.test(location.hash)) {
     history.replaceState(null, '', which === 'events' ? '#events' : location.pathname + location.search);
   }
-  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'], ['tab-plan', which === 'plan'], ['tab-dlc', which === 'dlc'], ['tab-credit', which === 'credit'],
+  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'], ['tab-plan', which === 'plan'], ['tab-dlc', which === 'dlc'], ['tab-credit', which === 'credit'], ['tab-jan1', which === 'jan1'],
                           ['tab-events', which === 'events' || which === 'event'],
                           ['tab-marketing', which === 'marketing' || which === 'source'],
                           ['tab-sales', which === 'sales'], ['tab-summary', which === 'summary']]) {
@@ -1181,7 +1182,7 @@ function showView(which) {
 // #charts, #upgrade-list, #summary, #events, #marketing, #rp. An event's own
 // page is #event=<name> and a source's is #source=<name>. #sales, the RP
 // tab's old address, still works.
-const TAB_HASH = { all: '#charts', list: '#upgrade-list', plan: '#upgrade-plan', dlc: '#10dlc', credit: '#credits', summary: '#summary', events: '#events',
+const TAB_HASH = { all: '#charts', list: '#upgrade-list', plan: '#upgrade-plan', dlc: '#10dlc', credit: '#credits', jan1: '#jan1-proposal', summary: '#summary', events: '#events',
   marketing: '#marketing', sales: '#rp' };
 function wireTabs() {
   const go = which => {
@@ -1194,6 +1195,7 @@ function wireTabs() {
   if ($('tab-plan')) $('tab-plan').addEventListener('click', () => go('plan'));
   if ($('tab-dlc')) $('tab-dlc').addEventListener('click', () => go('dlc'));
   if ($('tab-credit')) $('tab-credit').addEventListener('click', () => go('credit'));
+  if ($('tab-jan1')) $('tab-jan1').addEventListener('click', () => go('jan1'));
   if ($('tab-events')) $('tab-events').addEventListener('click', () => go('events'));
   if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => go('marketing'));
   if ($('tab-sales')) $('tab-sales').addEventListener('click', () => go('sales'));
@@ -7848,6 +7850,116 @@ function renderCreditPlan() {
     + 'stays in the sheet.</p>';
 }
 
+// The 1 January proposal tab (Josh, 13 Nov 2026: "a page on the economics
+// site" for the CEO to approve all three). 10DLC and credits are read from
+// their own tabs' constants; the pilot is computed from its customer list.
+function renderJan1Proposal() {
+  const box = $('jan1-body');
+  if (!box) return;
+  const J = JAN1_PROPOSAL;
+  const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
+  const dlcStep = DLC_PLAN.steps.find(s => /\$15/.test(s.step));
+  const dlc = dlcStep.perMonth;
+  const credit = CREDIT_PLAN.total.added;
+  const credit10 = CREDIT_PLAN.stress.find(s => s.lost === 0.10).added;
+  const fees = J.pilot.reduce((t, c) => t + c.fee, 0);
+  // A cancelling customer loses their whole fee; the rest pay the rise.
+  const pilotAt = (rise, cancel) => fees * (1 - cancel) * rise - fees * cancel;
+  const pilot = pilotAt(J.rise, 0);
+  const total = dlc + credit + pilot;
+  const downside = dlc + credit10 + pilotAt(J.rise, 0.10);
+  const optionB = J.optionB.pilot * J.platform.avgFee * J.rise;
+  const rollout = J.platform.mrr * J.rise;
+  const pc = v => `${Math.round(v * 100)}%`;
+  const industries = new Set(J.pilot.map(c => c.industry)).size;
+  const states = new Set(J.pilot.map(c => c.state)).size;
+  const feeLo = Math.min(...J.pilot.map(c => c.fee)), feeHi = Math.max(...J.pilot.map(c => c.fee));
+  const moLo = Math.min(...J.pilot.map(c => c.months)), moHi = Math.max(...J.pilot.map(c => c.months));
+  const example = 1000;
+
+  box.innerHTML = checklistHtml('jan1', 'Checklist: 1 January proposal')
+    + `<p class="finding"><strong>Three changes from ${checkDay(J.effective)} add about ${fmt.money(total)} a month `
+    + `(${fmt.money(total * 12)} a year): 10DLC from $${DLC_PLAN.feeNow} to $${DLC_PLAN.feeNew}, the tiered credit rise, and a `
+    + `${pc(J.rise)} platform fee rise for ${J.pilot.length} pilot customers.</strong> If customers buy 10% fewer credits and 10% of the `
+    + `pilot cancels, it still adds ${fmt.money(downside)} a month. Customers need 30 days' notice, so the decision is needed by `
+    + `${checkDay(J.decideBy)} and notices go out by ${checkDay(J.noticesTarget)} (${checkDay(J.noticesBy)} at the latest).</p>`
+
+    + '<h3 class="sub-head">The ask</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>#</th><th>Change</th><th>Who it reaches</th>'
+    + '<th class="n">Added a month</th></tr></thead><tbody>'
+    + `<tr><td>1</td><td>10DLC: $${DLC_PLAN.feeNow} → $${DLC_PLAN.feeNew} per campaign a month (<a href="#10dlc">10DLC tab</a>)</td>`
+    + `<td>Every billed campaign, about ${fmt.int(dlcStep.billable)}, including the ${fmt.int(DLC_PLAN.billing.campaigns)} added to billing on `
+    + `${checkDay(DLC_PLAN.billing.on)}. ${DLC_PLAN.noRaise}</td><td class="n">+${fmt.money(dlc)}</td></tr>`
+    + `<tr><td>2</td><td>Credits: $100 per 10,000 → $125 for the top 25 buyers, $150 for ranks 26 to 50, $200 for everyone else `
+    + `(<a href="#credits">Credit increase tab</a>)</td><td>Every customer, including those who don't buy credits today. The figure is `
+    + `the ${fmt.int(CREDIT_PLAN.total.companies)} companies buying now; the ${CREDIT_PLAN.held.accounts} on newer pricing stay put.</td>`
+    + `<td class="n">+${fmt.money(credit)}</td></tr>`
+    + `<tr><td>3</td><td>Platform fee pilot: each customer's own monthly platform fee rises ${pc(J.rise)}</td>`
+    + `<td>The ${J.pilot.length} customers listed below</td><td class="n">+${fmt.money(pilot)}</td></tr>`
+    + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td class="muted">${fmt.money(total * 12)} a year</td>`
+    + `<td class="n"><strong>+${fmt.money(total)}</strong></td></tr>`
+    + '</tbody></table></div>'
+    + `<p class="note">10DLC is counted after a ${fmt.pct(DLC_PLAN.haircut)} haircut for campaigns that won't turn into revenue. Credits `
+    + `assume no fewer credits bought; with 10% fewer the credit rise adds ${fmt.money(credit10)}. Credit buys before 1 January keep today's price.</p>`
+
+    + `<h3 class="sub-head">What "${pc(J.rise)}" means in the pilot</h3>`
+    + `<p>It is a rise on each customer's own platform subscription, not a flat amount: a customer paying ${fmt.money(example)} a month `
+    + `pays ${fmt.money(example * (1 + J.rise))}, one paying ${fmt.money(feeLo)} pays ${fmt.money(feeLo * (1 + J.rise))}. Only the platform `
+    + `line changes; 10DLC and credits are billed separately. Together the ${J.pilot.length} pay ${fmt.money(fees)} a month and would pay `
+    + `${fmt.money(fees * (1 + J.rise))}.</p>`
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Pilot customers who cancel</th>'
+    + `<th class="n">At +${pc(J.rise)}</th><th class="n">At +${pc(J.riseAlt)}</th></tr></thead><tbody>`
+    + [0, 0.05, 0.10].map(k => `<tr><td>${k ? `${pc(k)} (${Math.round(k * J.pilot.length)} of ${J.pilot.length})` : 'None'}</td>`
+      + `<td class="n">${sm(pilotAt(J.rise, k))}</td><td class="n">${sm(pilotAt(J.riseAlt, k))}</td></tr>`).join('')
+    + '</tbody></table></div>'
+    + `<p class="note">A customer who cancels loses their whole fee, so 10% leaving at +${pc(J.rise)} nearly cancels the gain. If the pilot `
+    + `holds, the same rise across all ${fmt.int(J.platform.customers)} paying customers (${fmt.money(J.platform.mrr)} a month in platform `
+    + `fees) is worth about ${fmt.money(rollout)} a month. The notice is informational: it gives the new fee and the date and asks for nothing.</p>`
+
+    + `<h3 class="sub-head">The ${J.pilot.length} pilot customers</h3>`
+    + `<p>${industries} industries, ${states} states and provinces, both Stripe accounts, fees from ${fmt.money(feeLo)} to `
+    + `${fmt.money(feeHi)} a month and ${moLo} to ${moHi} months as customers. None buys credits, so nobody gets both a credit rise and a `
+    + 'platform rise, and none is on the <a href="#upgrade-plan">Upgrade plan</a>, so nobody gets two platform rises.</p>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>#</th><th>Company</th><th>Industry</th><th>State</th>'
+    + '<th>Stripe</th><th>Stripe ID</th><th class="n">Months</th><th class="n">Pays now</th><th class="n">From 1 Jan</th>'
+    + '<th class="n">Rise a month</th></tr></thead><tbody>'
+    + [...J.pilot].sort((a, b) => a.fee - b.fee).map((c, i) => `<tr><td>${i + 1}</td><td>${c.name}</td><td>${c.industry}</td>`
+      + `<td>${c.state}</td><td>${c.account}</td><td class="mono">${c.id}</td><td class="n">${c.months}</td>`
+      + `<td class="n">${fmt.money(c.fee)}</td><td class="n">${fmt.money(c.fee * (1 + J.rise))}</td>`
+      + `<td class="n">+${fmt.money(c.fee * J.rise)}</td></tr>`).join('')
+    + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td colspan="5"></td><td class="n"><strong>${fmt.money(fees)}</strong></td>`
+    + `<td class="n"><strong>${fmt.money(fees * (1 + J.rise))}</strong></td><td class="n"><strong>+${fmt.money(pilot)}</strong></td></tr>`
+    + '</tbody></table></div>'
+    + '<p class="note">Drawn by fee band and time as a customer from 568 eligible: an active platform subscription, at least 6 months, no '
+    + 'credit purchases, not on a credit-model tier, test and internal accounts left out. Read from Stripe S1 and S2 on '
+    + `${checkDay(J.asOf)}.</p>`
+
+    + '<h3 class="sub-head">Why these three, not a platform rise only</h3>'
+    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">This proposal</th>'
+    + `<th class="n">Platform rise only, ${J.optionB.pilot}-customer pilot</th></tr></thead><tbody>`
+    + `<tr><td>Added a month</td><td class="n"><strong>+${fmt.money(total)}</strong></td><td class="n">+${fmt.money(optionB)}</td></tr>`
+    + `<tr><td>A year</td><td class="n">+${fmt.money(total * 12)}</td><td class="n">+${fmt.money(optionB * 12)}</td></tr>`
+    + `<tr><td>10DLC after TCR adds sales tax</td><td class="n">Covers its cost</td><td class="n">About break-even at $${DLC_PLAN.feeNow}</td></tr>`
+    + '</tbody></table></div>'
+    + '<ul class="plan-rules">'
+    + `<li>About ${(total / optionB).toFixed(1)} times the revenue. Most of it is credits, which a platform-only plan leaves out.</li>`
+    + '<li>TCR\'s cost rises on 1 January either way; without the 10DLC rise it is break-even at best.</li>'
+    + `<li>The pilot keeps the risk small: ${J.pilot.length} customers tell us whether a platform rise sticks before it reaches the rest.</li>`
+    + `<li>The platform-only figure is ${J.optionB.pilot} customers at the average platform fee of ${fmt.money(J.platform.avgFee)}, with no one leaving.</li>`
+    + '</ul>'
+
+    + '<h3 class="sub-head">Once approved</h3>'
+    + '<ol class="plan-rules">'
+    + '<li>Notices: 10DLC by email to each Stripe billing email; credits by an in-Chiirp message with each customer\'s price; the pilot by '
+    + 'email to the 20, each with their own new fee.</li>'
+    + '<li>The support team gets an FAQ for the questions that come in.</li>'
+    + '<li>Product (Kevin and Taylor) sets the new prices in Stripe and Chiirp to start 1 January.</li>'
+    + '<li>Before anything is sent: confirm the standard agreement allows a change on 30 days\' notice, and leave off anyone on a custom '
+    + 'contract or price lock.</li>'
+    + '</ol>'
+    + `<p class="note">Prepared ${checkDay(J.asOf)}. The decision and who signed it off are recorded in the checklist at the top.</p>`;
+}
+
 const campTrust = () => TRUST_PRESETS.find(p => p.key === CAMP.trust) || TRUST_PRESETS[0];
 const campOptions = () => ({ textsScale: campTrust().textsScale ?? 1, churnScale: campTrust().churnScale ?? 1 });
 
@@ -8999,6 +9111,7 @@ const VIEW_DRAWS = {
   plan: () => renderUpgradePlan(),
   dlc: () => renderDlcPlan(),
   credit: () => renderCreditPlan(),
+  jan1: () => renderJan1Proposal(),
   events: () => { renderEvents(); renderEventAttribution(); },
   marketing: () => renderMarketing(),
   sales: () => renderRP(),
