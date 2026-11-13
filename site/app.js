@@ -7502,13 +7502,13 @@ function loadCampBands() {
 // model and list as the Upgrade list. Stage 1 is 50 accounts from 1 Jan, the
 // most important; stage 2 is 50 or more from 1 Mar, sized on what stage 1 shows.
 let PLAN_LAST = null;
-const PLAN_UI = { pilot: PLAN.pilot500, stage2: PLAN.stage2Size };
+const PLAN_UI = { stage2: PLAN.stage2Size };
 function renderUpgradePlan() {
   const box = $('plan-body');
   if (!box) return;
   loadCampBands();
   if (!campBandsSettled) { box.innerHTML = '<p class="muted">Loading usage for each account…</p>'; return; }
-  const p = upgradePlan(data, { engagement: CAMP_BANDS, pilot: PLAN_UI.pilot, stage2Size: PLAN_UI.stage2 });
+  const p = upgradePlan(data, { engagement: CAMP_BANDS, stage2Size: PLAN_UI.stage2 });
   if (!p) { box.innerHTML = '<p class="empty">The list could not be built from this push.</p>'; return; }
   PLAN_LAST = p;
   const S = p.stages;
@@ -7541,18 +7541,14 @@ function renderUpgradePlan() {
 
   box.innerHTML = checklistHtml('plan', 'Checklist: the upgrade plan')
     + `<p class="finding"><strong>Stage 1 is ${fmt.int(S.stage1.n)} accounts from ${day(D.effective1)}, told by ${day(D.notice1)}: `
-    + `${fmt.int(S.s1.n)} drawn from every price group and level of engagement under $500`
-    + (S.p1.n ? `, and ${fmt.int(S.p1.n)} of the $500 to $799 accounts, which no rise has tested` : '')
-    + `. Expect about ${fmt.int(Math.round(S.stage1.window))} of the ${fmt.int(S.stage1.n)} to leave by the read-out on ${day(D.readout1)}; `
+    + PLAN.stage1Groups.map(g => `${fmt.int(p.share.get(g))} ${g === 'under200' ? 'under $200' : g === 'plan200' ? 'on the $200 plan'
+      : g === 'tier262' ? 'from $213 to $499' : 'from $500 to $799 (no rise has tested these)'}`).join(', ')
+    + `, each spread over every level of engagement. Expect about ${fmt.int(Math.round(S.stage1.window))} of the ${fmt.int(S.stage1.n)} to leave by the read-out on ${day(D.readout1)}; `
     + `${fmt.int(trigger('stage1'))} or more means the model is wrong.</strong> Stage 2, from ${day(D.effective2)}, is `
     + `${fmt.int(S.stage2.n)} accounts and can grow if stage 1 goes well. Each account is asked its own price from the model, `
     + `rounded down to $${PLAN.round}.</p>`
 
     + '<div class="plan-controls">'
-    + presets('plan-pilot', 'Stage 1: how many of the 50 are $500 to $799', [
-      [0, 'None', 'All 50 under $500; $500 to $799 waits, untested.'],
-      [10, '10', '40 under $500 and a pilot of 10 above $500. The default.'],
-      [15, '15', '35 under $500 and 15 above, a firmer read on the untested group.']], PLAN_UI.pilot)
     + presets('plan-s2', 'Stage 2 size, decided on 26 Jan', [
       [50, '50', 'The rest under $500, filled with $500 to $799 if the pilot held.'],
       [75, '75', 'If stage 1 lost fewer than expected.'],
@@ -7631,8 +7627,9 @@ function renderUpgradePlan() {
       + `<td class="n">${fmt.int(c.first)}</td><td class="n">${fmt.int(c.second)}</td><td class="n">${fmt.int(c.later)}</td>`
       + `<td class="n">${fmt.money(c.pays)}</td><td class="n">${fmt.money(c.ask)}</td><td class="n">${fmt.pct(c.leave)}</td></tr>`).join('')
     + '</tbody></table></div>'
-    + `<p class="note">The ${fmt.int(S.s1.n)} under $500 are spread over the cells in proportion to their size, and the pilot over the `
-    + `$500 to $799 cells the same way, so every kind of account is in the first 50. Within a cell the accounts are chosen by a fixed `
+    + `<p class="note">The first 50 are split evenly over the four price groups (${PLAN.stage1Groups.map(g => fmt.int(p.share.get(g))).join(', ')}), `
+    + 'and each group\'s share is spread over its engagement levels in proportion to their size, so every kind of account is in the '
+    + 'first 50. Within a cell the accounts are chosen by a fixed '
     + `random draw (seed ${PLAN.seed}): the same accounts come out every time the page is built from the same list. Each account gets its `
     + 'own ask rather than a ladder of three sizes: that was checked, and a ladder taught no more about how leaving climbs with the '
     + 'rise (the asks already range widely within each group, since they follow engagement) and lost more customers.</p>'
@@ -7655,7 +7652,7 @@ function renderUpgradePlan() {
     + `rounded down to $${PLAN.round}. Two Stripe subscriptions of one company are two rows (Testerman's Pro Wash has one here; its other `
     + 'was in round one and is not asked).</p>';
 
-  for (const [id, key] of [['plan-pilot', 'pilot'], ['plan-s2', 'stage2']]) {
+  for (const [id, key] of [['plan-s2', 'stage2']]) {
     for (const b of $(id).querySelectorAll('button')) {
       b.addEventListener('click', () => { PLAN_UI[key] = Number(b.dataset.v); renderUpgradePlan(); });
     }
@@ -7695,7 +7692,7 @@ function checklistHtml(key, title) {
     + items.map(i => {
       const sign = i.signoff ? `${i.signoff.by}<br><span class="muted">${checkDay(i.signoff.on)}</span>`
         : i.needsSignoff ? '<span class="tag risk">Not yet</span>' : '';
-      const doneCell = i.done ? `${checkDay(i.done)}${i.note ? `<br><span class="muted">${i.note}</span>` : ''}` : '';
+      const doneCell = i.done ? `${i.doneLabel || checkDay(i.done)}${i.note ? `<br><span class="muted">${i.note}</span>` : ''}` : '';
       return `<tr class="${i.done ? 'is-done' : ''}">`
         + `<td><span class="check-box${i.done ? ' is-on' : ''}" role="img" aria-label="${i.done ? 'Done' : 'Not done'}">${i.done ? '✓' : ''}</span></td>`
         + `<td>${i.step}</td><td>${i.owner || ''}</td><td>${i.due ? checkDay(i.due) : ''}</td><td>${sign}</td><td>${doneCell}</td></tr>`;
@@ -7798,7 +7795,7 @@ function renderCreditPlan() {
   const T = C.total;
   const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
   box.innerHTML = checklistHtml('credit', 'Checklist: credit increase')
-    + `<p class="finding"><strong>From 1 January 2027, announced by in-platform notice once Product signs off, a tiered increase adds ${fmt.money(T.added)} a month (${fmt.money(T.perYear)} a year) if no one buys `
+    + `<p class="finding"><strong>From 1 January 2027, told to customers by an in-Chiirp message once Taylor Roberts and Kevin sign off, a tiered increase adds ${fmt.money(T.added)} a month (${fmt.money(T.perYear)} a year) if no one buys `
     + `fewer credits: the biggest buyers +25%, the next 25 +50%, everyone else +100%.</strong> Credit income is concentrated: the top 25 `
     + `companies bring ${fmt.pct(C.topShare.income)} of it, so they get the smallest rise and pay ${fmt.pct(C.topShare.ofIncrease)} of the `
     + `increase. With 10% fewer credits bought it adds ${fmt.money(C.stress[1].added)} a month; it breaks even at `
@@ -7844,8 +7841,9 @@ function renderCreditPlan() {
     + '<h3 class="sub-head">Still open</h3>'
     + '<ol class="plan-rules">' + C.open.map(o => `<li>${o}</li>`).join('') + '</ol>'
     + '<p class="note">Timing: the new credit prices start 1 January 2027, the same day as $15 10DLC across the board. They are '
-    + 'special pricing, so Product signs off and builds them, and customers are told by in-platform notice; no notice has gone out '
-    + `for either yet. Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
+    + 'special pricing, so Taylor Roberts and Kevin sign off and set each customer\'s price, and customers are told by an in-Chiirp '
+    + 'message (10DLC\'s $15 goes by email). No notice has gone out for either yet. From then on credits are $2 per 100, double the '
+    + `legacy $1 per 100. Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
     + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database. The tier list by company `
     + 'stays in the sheet.</p>';
 }

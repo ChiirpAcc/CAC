@@ -3637,7 +3637,11 @@ export function sweepLines(pool, { usage, rises, ticked = null, split = false, b
 export const PLAN = {
   // Josh, 12 Nov 2026: "each stage will be 50 accounts ... jan 1 is the first one then mar 1 and that may be
   // higher than 50 depending on how jan 1 turns out. so that first 50 will be the most important."
-  stage1Size: 50, pilot500: 10, stage2Size: 50, seed: 20261112, round: 50, draws: 400,
+  stage1Size: 50, stage2Size: 50, seed: 20261112, round: 50, draws: 400,
+  // Stage 1 is split evenly over the four price groups (Josh, 12 Nov 2026: "just
+  // make it even and diversified"): 13, 13, 12, 12 in this order, each spread
+  // over its engagement levels in proportion to their size.
+  stage1Groups: ['under200', 'plan200', 'tier262', 'over500'],
   // 30 days' notice before each start. Stage 1 starts 1 Jan, so notices go by 2 Dec (1 Dec leaves a day).
   // Stage 2 starts 1 Mar, so its notices go by 30 Jan (29 Jan, a Friday, leaves a day), and the stage 1
   // read-out has to come first: 26 Jan, 56 days after the notices, when most stage 1 accounts have had their
@@ -3666,7 +3670,7 @@ function allocate(cells, n) {
   }
   return q;
 }
-export function upgradePlan(data, { engagement = null, lowBand = 800, pilot = PLAN.pilot500, stage2Size = PLAN.stage2Size } = {}) {
+export function upgradePlan(data, { engagement = null, lowBand = 800, stage2Size = PLAN.stage2Size } = {}) {
   const list = upgradeList(data, { lowBand, rule: 'account', engagement });
   if (!list) return null;
   const bands = new Set(['users', 'light', 'unbanded']);
@@ -3688,9 +3692,20 @@ export function upgradePlan(data, { engagement = null, lowBand = 800, pilot = PL
   }
   const under = [...cells.entries()].filter(([k]) => !k.startsWith('over500|'));
   const over = [...cells.entries()].filter(([k]) => k.startsWith('over500|'));
-  const pilotN = Math.min(pilot, over.reduce((t, [, v]) => t + v.length, 0));
-  const q1 = allocate(under, PLAN.stage1Size - pilotN);
-  const qp = allocate(over, pilotN);
+  // Even over the price groups, then in proportion over each group's cells.
+  const G = PLAN.stage1Groups;
+  const groupSize = g => [...cells.entries()].filter(([k]) => k.startsWith(g + '|')).reduce((t, [, v]) => t + v.length, 0);
+  const share = new Map(G.map((g, i) => [g, Math.floor(PLAN.stage1Size / G.length) + (i < PLAN.stage1Size % G.length ? 1 : 0)]));
+  // A group too small for its share passes the rest on to the others.
+  let spare = 0;
+  for (const g of G) { const take = Math.min(share.get(g), groupSize(g)); spare += share.get(g) - take; share.set(g, take); }
+  for (const g of G) { const room = groupSize(g) - share.get(g); const add = Math.min(room, spare); share.set(g, share.get(g) + add); spare -= add; }
+  const q1 = new Map(), qp = new Map();
+  for (const g of G) {
+    const gc = [...cells.entries()].filter(([k]) => k.startsWith(g + '|'));
+    for (const [k, v] of allocate(gc, share.get(g))) (g === 'over500' ? qp : q1).set(k, v);
+  }
+  const pilotN = [...qp.values()].reduce((t, v) => t + v, 0);
   const seg = new Map();
   for (const [k, v] of under) v.forEach((r, i) => seg.set(r, i < q1.get(k) ? 's1' : 's2'));
   // Stage 2 takes every remaining account under $500, then, only if there was a
@@ -3756,7 +3771,7 @@ export function upgradePlan(data, { engagement = null, lowBand = 800, pilot = PL
       pays: v.reduce((t, x) => t + x.r.mrr, 0) / v.length, ask: v.reduce((t, x) => t + x.ask, 0) / v.length,
       leave: v.reduce((t, x) => t + x.window, 0) / v.length };
   });
-  return { month: list.month, items, stages: stats, cells: cellRows, normalRate: base.rate, pilot: pilotN, stage2Size,
+  return { month: list.month, items, stages: stats, cells: cellRows, normalRate: base.rate, pilot: pilotN, stage2Size, share,
     under500: under.reduce((t, [, v]) => t + v.length, 0), over500: over.reduce((t, [, v]) => t + v.length, 0) };
 }
 
@@ -3821,11 +3836,27 @@ export const DLC_PLAN = {
 // Recorded sign-offs: Zeus Acosta and Alicia Schmaling reviewed and okayed the
 // 10DLC campaigns on 11 Nov 2026 (Josh); Taylor Roberts approved billing the
 // 277 unbilled campaigns on 12 Nov 2026 at 3:33 pm (Slack DM, "You're good to
-// go"), and the $12 line went onto all 274 subscriptions that day.
+// go"), and the $12 line went onto all 274 subscriptions that day. Owners
+// (Josh, 12 Nov 2026): credits are Taylor Roberts and Kevin, told to customers
+// by an in-Chiirp message, then $2 per 100 credits going forward; 10DLC's $15
+// is Taylor's sign-off, told by email, and Product (Kevin and Taylor) sets new
+// Stripe subscriptions to $15 from 1 Jan.
 export const PLAN_CHECKLISTS = {
   plan: [
+    // Done before this plan (Josh, 12 Nov 2026: "include the main check boxes
+    // for what was already done including the past august upgrade analysis").
+    { id: 'plan-r1', step: 'Round one, the August price test: 36 accounts moved to a $500 base ($512 on the $200 plan)',
+      done: '2026-08-01', doneLabel: 'Aug 2026', note: 'New prices from September' },
+    { id: 'plan-list0', step: 'Upgrade list built: every account under $800 and 12 months or older, with the price to ask', owner: 'Josh', done: '2026-09-21' },
+    { id: 'plan-r1-results', step: 'Round one results analysed: 15 of 36 left; the $200 plan decided most of it', owner: 'Josh', done: '2026-11-11' },
+    { id: 'plan-asks', step: "Round two asks set: each account priced on round one's curves; already-raised and migrated accounts excluded",
+      owner: 'Josh', done: '2026-11-11' },
+    { id: 'plan-model', step: 'Churn model refit with the forecast models: contacts replying, every group optimized, the 500+ model as no-rise churn',
+      owner: 'Josh', done: '2026-11-12' },
+    { id: 'plan-check', step: 'All 347 accounts checked one by one; round-one accounts kept out of round two', owner: 'Josh', done: '2026-11-12' },
+    { id: 'plan-rollout', step: 'Rollout set: 50 accounts from 1 Jan, 50 or more from 1 Mar', owner: 'Josh', done: '2026-11-12' },
     { id: 'plan-refit', step: 'Refit the model counting only "paid the new price" as accepted', owner: 'Josh', due: '2026-11-30' },
-    { id: 'plan-list', step: 'Confirm the 50 stage 1 accounts (40 under $500, 10 in the $500 to $799 pilot)', owner: 'Josh', due: '2026-11-30' },
+    { id: 'plan-list', step: 'Confirm the 50 stage 1 accounts: 12 or 13 from each price group, spread over engagement', owner: 'Josh', due: '2026-11-30' },
     { id: 'plan-testerman', step: "Decide Testerman's Pro Wash's second subscription", owner: 'Josh', due: '2026-11-30' },
     { id: 'plan-notice-text', step: 'Write the price-change notice', due: '2026-11-30' },
     { id: 'plan-approve1', step: 'Sign-off on the stage 1 accounts, asks and notice', owner: 'Leadership', due: '2026-11-30', needsSignoff: true },
@@ -3851,31 +3882,38 @@ export const PLAN_CHECKLISTS = {
     { id: 'dlc-bulk', step: 'Add the $12 10DLC line to all 274 Stripe subscriptions (no part-month charge; each starts at its next renewal)',
       owner: 'Josh', signoff: { by: 'Taylor Roberts', on: '2026-11-12' }, done: '2026-11-12', note: 'First charge invoiced the same day' },
     { id: 'dlc-renewals', step: 'Every one of the 274 renewed with the $12 line; follow up failed payments', due: '2026-12-12' },
-    { id: 'dlc-email', step: 'Notify customers that 10DLC goes from $12 to $15 a month on 1 January (not sent yet; 30 days\' notice, 2 Dec at the latest)', due: '2026-12-01' },
+    { id: 'dlc-email', step: 'Email customers that 10DLC goes from $12 to $15 a month on 1 January (not sent yet; 30 days\' notice, 2 Dec at the latest)',
+      due: '2026-12-01' },
     { id: 'dlc-kevin', step: "Kevin's list: 4 campaigns not billed that should be", owner: 'Kevin' },
     { id: 'dlc-stop', step: 'Stop billing the 1 Stripe 10DLC line with no campaign', owner: 'Kevin' },
     { id: 'dlc-texting', step: 'Decide on the 31 campaigns still texting with no live subscription: bill or cut off', owner: 'Account managers' },
     { id: 'dlc-nonpay', step: 'Chase the 11 non-paying balances; collect or cut off the other 7', owner: 'Account managers' },
     { id: 'dlc-cancel1', step: 'Cancel with TCR the 28 unused campaigns whose terms end within 30 days', due: '2026-12-01' },
-    { id: 'dlc-approve15', step: 'Sign-off on $15 from 1 January', owner: 'Leadership', due: '2026-11-30', needsSignoff: true },
-    { id: 'dlc-raise', step: 'Schedule $15 in Stripe from 1 January on every billed campaign (the 2 Goettl campaigns stay at $12)', due: '2026-12-31' },
+    { id: 'dlc-approve15', step: 'Sign-off on $15 from 1 January', owner: 'Taylor Roberts', due: '2026-11-25', needsSignoff: true },
+    { id: 'dlc-raise', step: 'Move every billed campaign to $15 in Stripe from 1 January (the 2 Goettl campaigns stay at $12)',
+      owner: 'Product (Kevin and Taylor)', due: '2026-12-31' },
+    { id: 'dlc-new15', step: 'Make every new Stripe subscription created from 1 January use the $15 10DLC price', owner: 'Product (Kevin and Taylor)',
+      due: '2027-01-01' },
     { id: 'dlc-start15', step: '$15 starts; TCR starts adding sales tax', due: '2027-01-01' },
     { id: 'dlc-cancel2', step: 'Cancel the other 48 unused campaigns as their terms end', due: '2027-02-01' },
   ],
   credit: [
     { id: 'cr-proposal', step: 'Send the proposal to Ryan Fenn, Taylor Roberts and Alicia Schmaling', owner: 'Josh', done: '2026-11-06' },
     { id: 'cr-tenpct', step: 'Correct the 6 Nov follow-up: $17,472 assumes no lost volume ($11,108 with 10% less)', owner: 'Josh' },
-    { id: 'cr-hold', step: 'Decide: hold the 19 accounts already on newer pricing (recommended) or raise them too', owner: 'Leadership', needsSignoff: true },
-    { id: 'cr-contracts', step: 'Check signed agreements for a fixed credit price among the top-tier customers' },
-    { id: 'cr-recharge', step: 'Confirm with engineering that auto-recharge firing several times within seconds is intended', owner: 'Engineering' },
-    { id: 'cr-approve', step: 'Sign-off on the tiers', owner: 'Leadership', needsSignoff: true },
-    { id: 'cr-product', step: 'Product sign-off: the tiers are special pricing, so Product approves them and does the work', owner: 'Product',
-      due: '2026-11-25', needsSignoff: true },
-    { id: 'cr-prices', step: 'Build each tier\'s credit prices in the platform and Stripe, to start 1 January', owner: 'Product', due: '2026-11-30' },
-    { id: 'cr-notices', step: 'In-platform notice of the new credit prices to every affected customer (not sent yet; 30 days\' notice, 2 Dec at the latest)',
-      owner: 'Product', due: '2026-12-01' },
+    { id: 'cr-hold', step: 'Decide: hold the 19 accounts already on newer pricing (recommended) or raise them too',
+      owner: 'Taylor Roberts and Kevin', due: '2026-11-25', needsSignoff: true },
+    { id: 'cr-contracts', step: 'Check signed agreements for a fixed credit price among the top-tier customers', owner: 'Taylor Roberts and Kevin',
+      due: '2026-11-25' },
+    { id: 'cr-approve', step: 'Sign-off on the tiers (special pricing)', owner: 'Taylor Roberts and Kevin', due: '2026-11-25', needsSignoff: true },
+    { id: 'cr-prices', step: 'Set each customer\'s new credit price in Chiirp and Stripe, to start 1 January', owner: 'Taylor Roberts and Kevin',
+      due: '2026-11-30' },
+    { id: 'cr-notices', step: 'In-Chiirp message to every affected customer about their new credit price (not sent yet; 30 days\' notice, 2 Dec at the latest)',
+      owner: 'Taylor Roberts and Kevin', due: '2026-12-01' },
     { id: 'cr-start', step: 'New credit prices take effect', due: '2027-01-01' },
-    { id: 'cr-rerank', step: 'Re-rank the tiers on trailing 3-month spend every quarter' },
+    { id: 'cr-standard', step: 'Charge $2 per 100 credits (2 cents a credit, double the legacy $1 per 100) going forward', owner: 'Product (Kevin and Taylor)',
+      due: '2027-01-01' },
+    { id: 'cr-recharge', step: 'Confirm that auto-recharge firing several times within seconds is intended', owner: 'Product (Kevin and Taylor)' },
+    { id: 'cr-future', step: 'Consider future credit increases, re-ranking the tiers on trailing 3-month spend' },
   ],
 };
 export const CREDIT_PLAN = {
