@@ -3637,10 +3637,15 @@ export function sweepLines(pool, { usage, rises, ticked = null, split = false, b
 export const PLAN = {
   // Josh, 12 Nov 2026: "each stage will be 50 accounts ... jan 1 is the first one then mar 1 and that may be
   // higher than 50 depending on how jan 1 turns out. so that first 50 will be the most important."
-  stage1Size: 50, stage2Size: 50, seed: 20261112, round: 50, draws: 400,
+  // Josh, 13 Nov 2026: stage 1 is the 20-customer platform pilot that goes with
+  // the 1 Jan 10DLC and credit rises ("use the upgrade plan and rebuild the
+  // upgrade list with diversity"), not 50.
+  stage1Size: 20, stage2Size: 50, seed: 20261112, round: 50, draws: 400,
   // Stage 1 is split evenly over the four price groups (Josh, 12 Nov 2026: "just
-  // make it even and diversified"): 13, 13, 12, 12 in this order, each spread
-  // over its engagement levels in proportion to their size.
+  // make it even and diversified"): 5 each, every engagement level in a group
+  // getting at least one before the rest go in proportion to size, and inside
+  // each cell an industry not yet in stage 1 is taken first (Josh, 13 Nov:
+  // "diversifying by usage and industry and current monthly sub price").
   stage1Groups: ['under200', 'plan200', 'tier262', 'over500'],
   // 30 days' notice before each start. Stage 1 starts 1 Jan, so notices go by 2 Dec (1 Dec leaves a day).
   // Stage 2 starts 1 Mar, so its notices go by 30 Jan (29 Jan, a Friday, leaves a day), and the stage 1
@@ -3653,6 +3658,11 @@ export const PLAN = {
   },
   noticeDays: 30,
 };
+// Stripe S1 customers who bought credits (Stripe Sigma, Aug to Oct 2026; read 13
+// Nov 2026). They get the 1 Jan credit rise, so stage 1 leaves them out and
+// nobody gets a credit rise and a platform rise on the same day; later stages may
+// still ask them.
+export const CREDIT_BUYER_IDS = new Set('cus_G5YQmgOBamnCw3 cus_HtX1tDMVivvyAL cus_HxLCI8QOfIZcg0 cus_JbVw3py6dk1aFP cus_L7ypcPUB1VyJ71 cus_LChTjIICuhgcpk cus_LMtwZzVr5GPKMG cus_LQL9R1wfZ0ZpUH cus_LTGYIz5lg1u1xa cus_LV9w0UYlDyepBe cus_LcJtc11I4swtSJ cus_LhtonRVpb13ic4 cus_LlAmoVDKrA2BoS cus_Llh2NQP7kiGAlf cus_Ln7tyOkeCmmX2N cus_LpfSKitXWOtm4d cus_LrhtFR55jynlJu cus_Lt8mBrxaxoYrgo cus_LxK9cjqXzwLeSx cus_MJmJYPbgmiy2ZW cus_MlTtxkLd5Mb9Qo cus_MlnuTI8rbjQ0xZ cus_Mq3WCRQdPph4NF cus_N0v5H3VlwuVxik cus_N1fqriChDQSinO cus_NIthfnqrKfMsHV cus_NMbsvhuaqJa7UN cus_NRofWeS4UDioq8 cus_NSdRSaoiloGLJH cus_Ng1IGqn3S6t07u cus_NhZxm7p0s5i5o4 cus_NjSt2JvKX7qqZF cus_Njkmo8ZW2q3qoJ cus_NttVDnFUqkJvmL cus_Nu40WC8e6VoD1B cus_O0fus47oZoC6FW cus_O25PaNAzWFVS19 cus_O5vFRjldV1uPxW cus_O74WJnii9caySi cus_O8X3d6YgnNW8eB cus_O9aU4mahXPTuRs cus_OHWrkZX9fjVg8Q cus_OK77HhTKaifxgo cus_ONSjmyzj3OZRe3 cus_OPh4VvMcHeioZg cus_OQ53No0SsGwn0U cus_OS0se8HeNRebiy cus_OTYiIPiLMy4Bgc cus_OUZ5bWCWNcRe1K cus_OXGpEe667GQ8xe cus_OawUwgvQkuFdIf cus_Odw1qProfYCA43 cus_OjC8RzwGng85tg cus_OnMz2g8dkvKb4a cus_OvcIdgXcisyhUI cus_P04KuvlP5JIW0y cus_P5K3A2tj5kwtRy cus_P6Tm1AO6RbEnRJ cus_PEEjwKh600ecsI cus_PIodfuCCA1xsTW cus_PLnOXqCACfTsbF cus_PO2eoNXVr0QZkU cus_POnJoVOfc47OSC cus_POoGVfPQhNu8Kx cus_PQKVGP4bZmj6jb cus_PRk262UfSeUKof cus_PU56GMnsdGhobn cus_PUTiksAf0cAsv2 cus_Pgpbcy2LlnzJ4H cus_PicFJ07b7w6TY5 cus_Pie7CvTuzxQ3AD cus_Pj1xWPCAxj6tAJ cus_PjmF1QBa4QB9ws cus_Pjp7PrKcCLl7PA cus_Pk6zE4xbuCNUSC cus_Pk71NwppRvtm5b cus_PlHd70QXnTj769 cus_PobytUTgj3Yz44 cus_Pp1RycoTNLrfoe cus_PpTY20bYQZrp6S cus_PqYeIO4SJL7P4a cus_PrxQik4MYzJVkE cus_PwUdRmATSjeDa6 cus_Pyjqng4t7cv7XS cus_Pyo6pujiyjw4me cus_Q2BIxWdN0r4CLW cus_Q44mdDWg79fmXM cus_Q6Feonseo507JK cus_Q9HSjmlEgNP2ri cus_QCDRlebC7yEYtN cus_QCxMPlQbhhU11L cus_QN8w6WAxtaUWpV cus_QNXksQ56uiUjWg cus_QUYTDAVlD0E83t cus_QUYyaibLB2ny8T cus_QZ8JF46bqrwGMd cus_QcsjtfNG14NnkH cus_QeNFrOo6JOZ07X cus_Qhk6UmkReHgA8v cus_QpZXm9tlfy3LNr cus_Qt0VSVEVcshFOc cus_Qwi4E2zNbhaOar cus_R2Moha7wHLzPXC cus_R2fAUdwGGISOkv cus_R5MIuHNIxHdhTI cus_R8jYktb4vz4Ktc cus_RCPP46eH4PA92v cus_RFQTd6vFgWUQ9C cus_RFUGrXTIHGraF3 cus_RPtEvJgH0jQHWx cus_RY98Oa7bqkrig9 cus_Ra3FjmIs3T8TCB cus_RceIlXRB9foaNK cus_Rd7Co2WCxdZEZy cus_RfJCGx87DKJK5h cus_RiLsr8VVuBCgBR cus_Rj3lGBG763eUGG cus_RlMcxMBsxZFwHK cus_RnaTcemTo7JmqR cus_RnbDXRMw6D1V7x cus_RnbDxVHfDKhjmm cus_RnbELlQ60O5RnA cus_RnbEXmE7AngOWT cus_RnbFILXeuPY51d cus_RsN4WxJuCoWduG cus_RwTSwc1kGpVTDC cus_Rz7kkpsHlOmeqA cus_S0eO0NtV2dMiId cus_S11clxsakopJnh cus_SAhEXT6HbSxAh4 cus_SE5iLoS39S1yc8 cus_SGnJt7K9Skvpyp cus_SM08VgOQBdrD4B cus_SOD4dftcCFwOfh cus_SQSt6r5YlVjYK8 cus_SRGfRsg5VThvQU cus_SWAUNwGfuFralE cus_SWAUVBgzX3KTPA cus_SWAVZPfrUI3mp4 cus_SWAVn7iM7dsz8B cus_SXB30j3qdhmxBs cus_SXDroGlz9PIbn2 cus_SayvybXl79igMy cus_SbLkH2S4zCIhjW cus_Sdbj7u5AfnZ2AY cus_Sjuc9m7kM2vEKi cus_SmuSdAuvEEyaIe cus_Sn66QE5pRGsFhI cus_Sromx0XgjP2346 cus_SzdKX3304fReV7 cus_SzjAJSmvnPIgHN cus_T1uhkx8gnX5qXh cus_T3pDUhCS2ZMw78 cus_T7UWZOyr6bXJCW cus_TCmha78GYtJnJi cus_TKegN7ddOuZZgC cus_TOqK3uW3Ql3gHC cus_TPDqkSF5txap1J cus_TPyEXQF1SSSelh cus_TQHutqxGWfNTcI cus_TSI32O34gLo3l8 cus_TmTmGUGCdO8XwQ cus_TsQkAZyccNRaPP cus_TsR4hl1WRX75u8 cus_TuGIbCBVn7mJne cus_TxclSd9rv2EssW cus_U0FQkuJfUNpMey cus_U4kz3oLLPtp5gG cus_U5D64iewu2SzMn cus_U89qSPhmkWgdzm cus_UA4aEtdtH4JYGp cus_UJP2QYv6ri6Mfr cus_UNp2ivpfqnfLUZ cus_UeMUohw3L2M7nf cus_Ugw41gDTdDHpdY cus_UqffEEYRWxj5kQ cus_UsxNLhiGl86GsC cus_UxnRnVhNh03UqS'.split(' '));
 export const PLAN_GROUPS = { under200: 'Under $200', plan200: '$200 plan', tier262: '$213 to $499', over500: '$500 to $799' };
 export const planEngagement = u => (u == null ? 'unknown' : u < 20 ? 'quiet' : u < 50 ? 'middle' : 'engaged');
 // Split n over cells in proportion to their size (largest remainder), never more than a cell holds.
@@ -3670,12 +3680,26 @@ function allocate(cells, n) {
   }
   return q;
 }
-export function upgradePlan(data, { engagement = null, lowBand = 800, stage2Size = PLAN.stage2Size } = {}) {
+// Every non-empty cell gets one before the rest go in proportion to size.
+function allocateSpread(cells, n) {
+  const order = [...cells].filter(([, v]) => v.length).sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1));
+  const q = new Map(cells.map(([k]) => [k, 0]));
+  let left = n;
+  for (const [k] of order) { if (left > 0) { q.set(k, 1); left -= 1; } }
+  if (left > 0) {
+    const rest = allocate(order.map(([k, v]) => [k, v.slice(1)]), left);
+    for (const [k, v] of rest) q.set(k, q.get(k) + v);
+  }
+  return q;
+}
+export function upgradePlan(data, { engagement = null, lowBand = 800, stage2Size = PLAN.stage2Size, stage1Size = PLAN.stage1Size } = {}) {
   const list = upgradeList(data, { lowBand, rule: 'account', engagement });
   if (!list) return null;
   const bands = new Set(['users', 'light', 'unbanded']);
   const gkey = g => (g === 'clean200' || g === 'trades200' ? 'plan200' : g);
-  const rows = list.low.filter(r => r.viable && bands.has(r.band) && r.target > r.mrr)
+  // Nobody billed on Chiirp AI (S2) is raised (Josh, 13 Nov 2026: "no one in s2
+  // should be upgraded").
+  const rows = list.low.filter(r => r.viable && bands.has(r.band) && r.target > r.mrr && !/S2/.test(r.source || ''))
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const accOf = r => ({ mrr: r.mrr, group: r.group, replying: r.replying, band: r.band, cleaning: r.cleaning,
     industryKnown: true, riskShift: r.riskShift });
@@ -3695,7 +3719,7 @@ export function upgradePlan(data, { engagement = null, lowBand = 800, stage2Size
   // Even over the price groups, then in proportion over each group's cells.
   const G = PLAN.stage1Groups;
   const groupSize = g => [...cells.entries()].filter(([k]) => k.startsWith(g + '|')).reduce((t, [, v]) => t + v.length, 0);
-  const share = new Map(G.map((g, i) => [g, Math.floor(PLAN.stage1Size / G.length) + (i < PLAN.stage1Size % G.length ? 1 : 0)]));
+  const share = new Map(G.map((g, i) => [g, Math.floor(stage1Size / G.length) + (i < stage1Size % G.length ? 1 : 0)]));
   // A group too small for its share passes the rest on to the others.
   let spare = 0;
   for (const g of G) { const take = Math.min(share.get(g), groupSize(g)); spare += share.get(g) - take; share.set(g, take); }
@@ -3703,7 +3727,28 @@ export function upgradePlan(data, { engagement = null, lowBand = 800, stage2Size
   const q1 = new Map(), qp = new Map();
   for (const g of G) {
     const gc = [...cells.entries()].filter(([k]) => k.startsWith(g + '|'));
-    for (const [k, v] of allocate(gc, share.get(g))) (g === 'over500' ? qp : q1).set(k, v);
+    for (const [k, v] of allocateSpread(gc, share.get(g))) (g === 'over500' ? qp : q1).set(k, v);
+  }
+  // Inside each cell, move the picks to the front: in the shuffled order, an
+  // industry stage 1 has fewest of goes first (unknown industry last).
+  const seenInd = new Map();
+  for (const g of G) {
+    for (const [k, v] of [...cells.entries()].filter(([key]) => key.startsWith(g + '|')).sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+      const want = (g === 'over500' ? qp : q1).get(k) || 0;
+      const chosen = [];
+      const rest = [...v];
+      for (let n = 0; n < want && rest.some(r => !CREDIT_BUYER_IDS.has(r.id)); n += 1) {
+        // Credit buyers never go in stage 1; a named account goes before an unnamed one.
+        const score = r => (CREDIT_BUYER_IDS.has(r.id) ? 1e6 : (r.industry ? (seenInd.get(r.industry) || 0) : 99) + (r.name ? 0 : 0.5));
+        let best = 0;
+        for (let i = 1; i < rest.length; i += 1) if (score(rest[i]) < score(rest[best])) best = i;
+        const [r] = rest.splice(best, 1);
+        chosen.push(r);
+        if (r.industry) seenInd.set(r.industry, (seenInd.get(r.industry) || 0) + 1);
+      }
+      v.splice(0, v.length, ...chosen, ...rest);
+      (g === 'over500' ? qp : q1).set(k, chosen.length);
+    }
   }
   const pilotN = [...qp.values()].reduce((t, v) => t + v, 0);
   const seg = new Map();
@@ -3855,8 +3900,9 @@ export const PLAN_CHECKLISTS = {
       owner: 'Josh', done: '2026-11-12' },
     { id: 'plan-check', step: 'All 347 accounts checked one by one; round-one accounts kept out of round two', owner: 'Josh', done: '2026-11-12' },
     { id: 'plan-rollout', step: 'Rollout set: 50 accounts from 1 Jan, 50 or more from 1 Mar', owner: 'Josh', done: '2026-11-12' },
+    { id: 'plan-twenty', step: 'Stage 1 cut to 20, the platform pilot beside the 1 Jan 10DLC and credit rises: 5 per price group, every engagement level, spread over industry; nobody on Chiirp AI, no credit buyers', owner: 'Josh', done: '2026-11-13' },
     { id: 'plan-refit', step: 'Refit the model counting only "paid the new price" as accepted', owner: 'Josh', due: '2026-11-30' },
-    { id: 'plan-list', step: 'Confirm the 50 stage 1 accounts: 12 or 13 from each price group, spread over engagement', owner: 'Josh', due: '2026-11-30' },
+    { id: 'plan-list', step: 'Confirm the 20 stage 1 accounts: 5 from each price group, spread over engagement and industry', owner: 'Josh', due: '2026-11-30' },
     { id: 'plan-testerman', step: "Decide Testerman's Pro Wash's second subscription", owner: 'Josh', due: '2026-11-30' },
     { id: 'plan-notice-text', step: 'Write the price-change notice', due: '2026-11-30' },
     { id: 'plan-approve1', step: 'Sign-off on the stage 1 accounts, asks and notice', owner: 'Leadership', due: '2026-11-30', needsSignoff: true },
@@ -3917,13 +3963,13 @@ export const PLAN_CHECKLISTS = {
   ],
   jan1: [
     { id: 'j1-options', step: 'Compare: 10DLC + credits + a 20-customer platform pilot, against a platform rise only piloted on 50', owner: 'Josh', done: '2026-11-13' },
-    { id: 'j1-pilot', step: 'Pick the 20 pilot customers: spread over platform fee, usage and industry; Chiirp Stripe account only (nobody on Chiirp AI); no credit buyers or Upgrade plan accounts', owner: 'Josh', done: '2026-11-13' },
-    { id: 'j1-notice', step: 'Write the pilot notice (informational: new fee and date, nothing for the customer to do)', owner: 'Josh', done: '2026-11-13' },
+    { id: 'j1-pilot', step: 'Pilot = the Upgrade plan stage 1, cut to 20: spread over price group, usage and industry; Chiirp Stripe account only (nobody on Chiirp AI); no credit buyers', owner: 'Josh', done: '2026-11-13' },
+    { id: 'j1-notice', step: 'Write the pilot notice (informational: the new price and date, nothing for the customer to do)', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot', owner: 'CEO', due: '2026-11-20', needsSignoff: true },
     { id: 'j1-contracts', step: 'Check the standard agreement allows a price change on 30 days\' notice; leave off custom contracts and price locks', due: '2026-11-20' },
     { id: 'j1-send', step: 'Send the notices: 10DLC by email, credits by in-Chiirp message, the pilot by email to the 20 (2 Dec is the last day)', due: '2026-11-23' },
     { id: 'j1-faq', step: 'FAQ for the support team on the three changes', due: '2026-11-23' },
-    { id: 'j1-stripe', step: 'Schedule the 20 pilot fees in Stripe from the first bill on or after 1 Jan', owner: 'Product (Kevin and Taylor)', due: '2026-12-31' },
+    { id: 'j1-stripe', step: 'Schedule the 20 pilot prices in Stripe from the first bill on or after 1 Jan', owner: 'Product (Kevin and Taylor)', due: '2026-12-31' },
     { id: 'j1-start', step: 'All three take effect', due: '2027-01-01' },
     { id: 'j1-readout', step: 'Pilot read-out: cancellations, downgrades and tickets from the 20; decide on a wider platform rise', owner: 'Josh', due: '2027-04-01' },
   ],
@@ -3955,51 +4001,15 @@ export const CREDIT_PLAN = {
 };
 
 // The 1 January 2027 proposal for the CEO (Josh, 13 Nov 2026): 10DLC to $15
-// and the credit tiers on 1 Jan, plus a 20-customer platform fee pilot
-// instead of a platform rise for everyone. 10DLC and credit figures are read
-// from DLC_PLAN and CREDIT_PLAN, never retyped. Each pilot customer's own
-// platform fee rises by `rise`; the notice is informational.
-// The pilot (rebuilt 13 Nov on Josh's rules: "diversifying by usage and
-// industry and current monthly sub price"; "no one in s2 should be
-// upgraded"): 150 eligible from the 12 Nov engagement export joined to Stripe S1
-// platform lines of 13 Nov. Eligible = S1 only (nobody on Chiirp AI or moved
-// there), active, 6+ months, not round one, not on the Upgrade plan, no credit
-// purchases, platform fee $250+, last 3 months paid exactly the subscription
-// with no failed charges or refunds, and the bill no more than $100 above the
-// platform line. Four per price band; in each band one each of Low / Medium /
-// High usage (terciles of contacts replying a month: under 19, 19 to 82,
-// 83+), then a new industry and state wherever one exists.
-// `fee` is the platform line the rise applies to; `bill` is the whole monthly
-// subscription (10DLC and add-ons included).
+// and the credit tiers on 1 Jan, plus a platform pilot instead of a platform
+// rise for everyone. Every figure on the tab is read from DLC_PLAN,
+// CREDIT_PLAN and upgradePlan's stage 1 (the pilot: "use the upgrade plan and
+// rebuild the upgrade list with diversity"), never retyped; this holds only
+// the dates.
 export const JAN1_PROPOSAL = {
   asOf: '2026-11-13', decideBy: '2026-11-20', noticesBy: '2026-12-01', noticesTarget: '2026-11-23', effective: '2027-01-01',
-  rise: 0.15, riseAlt: 0.20,
-  platform: { customers: 880, mrr: 722719, avgFee: 821 },
-  optionB: { pilot: 50 },
-  eligible: 150, usageCuts: [19, 83],
-  bands: ['$250-599', '$600-799', '$800-999', '$1,000-1,499', '$1,500+'],
-  pilot: [
-    { name: 'Quality Heating, Cooling, Plumbing & Electric', industry: 'Multi-trade (HVAC/Plumbing/Electric)', state: 'OK', id: 'cus_N94hgbEfvR7XZm', months: 46, fee: 500, bill: 512, replying: 15, usage: 'Low', band: '$250-599' },
-    { name: 'Utility Plumbing Services', industry: 'Plumbing', state: 'CA', id: 'cus_U8tuNDqnJhjILg', months: 8, fee: 500, bill: 552, replying: 34, usage: 'Medium', band: '$250-599' },
-    { name: 'LocalPro Carpet Cleaning', industry: 'Carpet & Upholstery Cleaning', state: 'AL', id: 'cus_U5rC44hgFpPVsR', months: 8, fee: 500, bill: 500, replying: 87, usage: 'High', band: '$250-599' },
-    { name: "Dang It's Hot Cooling", industry: 'HVAC', state: 'FL', id: 'cus_PMDHellWj1XfG0', months: 34, fee: 500, bill: 562, replying: 10, usage: 'Low', band: '$250-599' },
-    { name: 'West Michigan Generator LLC', industry: 'Electrical', state: 'MI', id: 'cus_TXMz0fHS5JL8EG', months: 11, fee: 650, bill: 700, replying: 26, usage: 'Medium', band: '$600-799' },
-    { name: 'Garage Floor Geeks', industry: 'Garage Door', state: 'MN', id: 'cus_TOqO4NvswHv6NA', months: 12, fee: 699, bill: 761, replying: 188, usage: 'High', band: '$600-799' },
-    { name: 'Apple Door of Chesapeake, Inc. ', industry: 'Remodeling & Construction', state: 'VA', id: 'cus_Nxd5Yh4h7iCM12', months: 42, fee: 722.5, bill: 784.5, replying: 4, usage: 'Low', band: '$600-799' },
-    { name: 'Aspen Pressure Washing', industry: 'Window & Exterior Cleaning', state: 'CO', id: 'cus_UZ5yVZQaepV1nD', months: 6, fee: 750, bill: 762, replying: 0, usage: 'Low', band: '$600-799' },
-    { name: 'Affordable Lawn Sprinklers', industry: 'Landscaping & Lawn', state: 'VA', id: 'cus_SZ9U5mVIdRrnc5', months: 17, fee: 850, bill: 862, replying: 135, usage: 'High', band: '$800-999' },
-    { name: 'Call the Whale', industry: 'Unclassified / non-trade', state: 'VT', id: 'cus_SgArNxSwXzm5OK', months: 16, fee: 850, bill: 850, replying: 58, usage: 'Medium', band: '$800-999' },
-    { name: 'Van Delden Wastewater Systems', industry: 'Septic & Drain', state: 'TX', id: 'cus_QjvTEdLfdMvtXz', months: 26, fee: 895, bill: 957, replying: 53, usage: 'Medium', band: '$800-999' },
-    { name: 'KTM Exteriors & Recycling', industry: 'Roofing & Gutters', state: 'NH', id: 'cus_R2MCID4TcYZ12q', months: 25, fee: 988, bill: 1000, replying: 9, usage: 'Low', band: '$800-999' },
-    { name: 'Triple Threat Termite Inc', industry: 'Pest Control', state: 'CA', id: 'cus_UIcJYlqUavPXNl', months: 7, fee: 1000, bill: 1000, replying: 1, usage: 'Low', band: '$1,000-1,499' },
-    { name: 'Certified Clean Care', industry: 'House & Commercial Cleaning', state: 'GA', id: 'cus_RqWhVmOfCOOsrI', months: 20, fee: 1100, bill: 1162, replying: 449, usage: 'High', band: '$1,000-1,499' },
-    { name: 'Viviano Home Services', industry: 'Home Services (unspecified trade)', state: 'IL', id: 'cus_U4jOWMOcZoOuKL', months: 8, fee: 1250, bill: 1250, replying: 50, usage: 'Medium', band: '$1,000-1,499' },
-    { name: 'Serv-All Water Conditioning', industry: 'Water Treatment', state: 'NV', id: 'cus_RsMxZShpbxyGTw', months: 20, fee: 1290, bill: 1290, replying: 101, usage: 'High', band: '$1,000-1,499' },
-    { name: 'Ostrom Electrical Plumbing Heating and Air', industry: 'Multi-trade (HVAC/Plumbing/Electric)', state: 'VA', id: 'cus_RDcL1paVIUIFZE', months: 24, fee: 1500, bill: 1562, replying: 47, usage: 'Medium', band: '$1,500+' },
-    { name: 'Iron Mountain Plumbing Heating Air', industry: 'Multi-trade (HVAC/Plumbing/Electric)', state: 'UT', id: 'cus_N6oqij2li5sOpm', months: 47, fee: 1500, bill: 1512, replying: 88, usage: 'High', band: '$1,500+' },
-    { name: 'Dash Heating & Cooling', industry: 'HVAC', state: 'AR', id: 'cus_QRYgbjv4O7lk6p', months: 28, fee: 2250, bill: 2250, replying: 326, usage: 'High', band: '$1,500+' },
-    { name: 'GEM Plumbing & Heating', industry: 'Multi-trade (HVAC/Plumbing/Electric)', state: 'RI', id: 'cus_QJl8Lrt4XDKEZA', months: 29, fee: 2500, bill: 2512, replying: 2, usage: 'Low', band: '$1,500+' },
-  ],
+  // Stage 1 accounts the push carries no name for, named from Stripe (13 Nov 2026).
+  names: { cus_LVcUUcvNOfPBpr: 'The Junk Medics', cus_LsOCrjmicWtR5M: 'Neighborly Plumbing & Services', cus_MJIsJFeUvnU2Fe: 'Horizon' },
 };
 
 // Twelve months of the list's revenue under a scenario. Normal churn runs
