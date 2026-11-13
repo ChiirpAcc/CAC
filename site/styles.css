@@ -1450,3 +1450,7 @@ th.sorted { color: var(--ink); }
 .plan-table td:first-child { min-width: 11rem; }
 .plan-accounts td:nth-child(1), .plan-accounts td:nth-child(2), .plan-accounts td:nth-child(4) { white-space: normal; }
 .plan-accounts td:nth-child(2) { min-width: 9rem; }
+
+/* Upgrade plan: the two switches side by side, and the stage totals. */
+.plan-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .8rem; margin: .8rem 0; }
+.plan-table tr.plan-total td { border-top: 1px solid var(--rule-strong); }

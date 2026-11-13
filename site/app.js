@@ -7494,128 +7494,144 @@ function loadCampBands() {
     });
 }
 
-// The Upgrade plan tab (Josh, 12 Nov 2026): the two-stage rollout, from the
-// same model and list as the Upgrade list.
+// The Upgrade plan tab (Josh, 12 Nov 2026): the staged rollout, from the same
+// model and list as the Upgrade list. Stage 1 is 50 accounts from 1 Jan, the
+// most important; stage 2 is 50 or more from 1 Mar, sized on what stage 1 shows.
 let PLAN_LAST = null;
+const PLAN_UI = { pilot: PLAN.pilot500, stage2: PLAN.stage2Size };
 function renderUpgradePlan() {
   const box = $('plan-body');
   if (!box) return;
   loadCampBands();
   if (!campBandsSettled) { box.innerHTML = '<p class="muted">Loading usage for each account…</p>'; return; }
-  const p = upgradePlan(data, { engagement: CAMP_BANDS });
+  const p = upgradePlan(data, { engagement: CAMP_BANDS, pilot: PLAN_UI.pilot, stage2Size: PLAN_UI.stage2 });
   if (!p) { box.innerHTML = '<p class="empty">The list could not be built from this push.</p>'; return; }
   PLAN_LAST = p;
   const S = p.stages;
+  const D = PLAN.dates;
   const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
   const ENG = { quiet: 'Under 20 replying', middle: '20 to 49', engaged: '50 or more', unknown: 'Not known' };
-  const STAGE = { stage1: 'Stage 1', pilot: '$500 to $799 pilot', stage2: 'Stage 2', later: '$500 to $799, after the pilot' };
-  // Above the model's figures plus chance: the model's central figures are wrong.
-  const trigger = s => Math.max(1, Math.ceil(S[s].chance.high) + 1);
-  const floorAt = s => Math.max(0, Math.floor(S[s].chance.low) - 1);
-  const win = `${PLAN.readMonths * 30} days`;
-  const n12 = S.stage1.n + S.stage2.n;
-  const D = PLAN.dates;
+  const SEG = { s1: 'Stage 1', p1: 'Stage 1, $500 to $799 pilot', s2: 'Stage 2', x2: 'Stage 2, $500 to $799', later: 'Later stages' };
   const day = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US',
     { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-  const up = s => S[s].n - S[s].window;
+  const days = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+  const trigger = k => Math.max(1, Math.ceil(S[k].chance.high) + 1);
+  const floorAt = k => Math.max(0, Math.floor(S[k].chance.low) - 1);
+  const winDays = days(D.notice1, D.readout1);
 
-  const stageRow = (s, when) => {
-    const x = S[s];
+  const row = (k, label, when, strong = false) => {
+    const x = S[k];
     if (!x.n) return '';
-    return `<tr><td><strong>${STAGE[s]}</strong><br><span class="muted">${when}</span></td><td class="n">${fmt.int(x.n)}</td>`
+    const cls = strong ? ' class="plan-total"' : '';
+    return `<tr${cls}><td>${strong ? `<strong>${label}</strong>` : label}${when ? `<br><span class="muted">${when}</span>` : ''}</td>`
+      + `<td class="n">${strong ? `<strong>${fmt.int(x.n)}</strong>` : fmt.int(x.n)}</td>`
       + `<td class="n">${fmt.money(x.mrr)}</td><td class="n">${fmt.money(x.asks)}</td>`
       + `<td class="n">${sm(x.gain)}<br><span class="muted ci">90%: ${sm(x.gainRange.low)} to ${sm(x.gainRange.high)}</span></td>`
       + `<td class="n">${x.window.toFixed(1)}<br><span class="muted">${x.extra.toFixed(1)} from the rise, ${x.normal.toFixed(1)} normal</span></td>`
       + `<td class="n">${fmt.int(x.chance.low)} to ${fmt.int(x.chance.high)}<br><span class="muted">${fmt.int(x.seen.low)} to ${fmt.int(x.seen.high)} with round one's doubts</span></td>`
-      + `<td class="n"><strong>${fmt.int(Math.round(x.n - x.window))}</strong><br><span class="muted">of ${fmt.int(x.n)} told</span></td></tr>`;
+      + `<td class="n"><strong>${fmt.int(Math.round(x.n - x.window))}</strong><br><span class="muted">of ${fmt.int(x.n)}</span></td></tr>`;
   };
+  const presets = (id, label, opts, cur) => `<fieldset class="preset-group"><legend>${label}</legend><div class="calc-presets" id="${id}">`
+    + opts.map(([v, t, s]) => `<button type="button" data-v="${v}" class="${v === cur ? 'is-on' : ''}"><strong>${t}</strong><span>${s}</span></button>`).join('')
+    + '</div></fieldset>';
 
   box.innerHTML =
-    `<p class="finding"><strong>Stage 1 asks ${fmt.int(S.stage1.n)} accounts drawn from every price group and level of `
-    + `engagement, and pilots ${fmt.int(S.pilot.n)} of the $500 to $799 accounts. In the ${win} after the notices, expect about `
-    + `${fmt.int(Math.round(S.stage1.window))} of stage 1 to leave; ${fmt.int(trigger('stage1'))} or more means the model is wrong and stage 2 `
-    + `waits for a refit.</strong> `
-    + `Stage 2 asks the other ${fmt.int(S.stage2.n)} at asks refit on round one and stage 1 together. Each account is asked its `
-    + `own price from the model, rounded down to $${PLAN.round}.</p>`
+    `<p class="finding"><strong>Stage 1 is ${fmt.int(S.stage1.n)} accounts from ${day(D.effective1)}, told by ${day(D.notice1)}: `
+    + `${fmt.int(S.s1.n)} drawn from every price group and level of engagement under $500`
+    + (S.p1.n ? `, and ${fmt.int(S.p1.n)} of the $500 to $799 accounts, which no rise has tested` : '')
+    + `. Expect about ${fmt.int(Math.round(S.stage1.window))} of the ${fmt.int(S.stage1.n)} to leave by the read-out on ${day(D.readout1)}; `
+    + `${fmt.int(trigger('stage1'))} or more means the model is wrong.</strong> Stage 2, from ${day(D.effective2)}, is `
+    + `${fmt.int(S.stage2.n)} accounts and can grow if stage 1 goes well. Each account is asked its own price from the model, `
+    + `rounded down to $${PLAN.round}.</p>`
+
+    + '<div class="plan-controls">'
+    + presets('plan-pilot', 'Stage 1: how many of the 50 are $500 to $799', [
+      [0, 'None', 'All 50 under $500; $500 to $799 waits, untested.'],
+      [10, '10', '40 under $500 and a pilot of 10 above $500. The default.'],
+      [15, '15', '35 under $500 and 15 above, a firmer read on the untested group.']], PLAN_UI.pilot)
+    + presets('plan-s2', 'Stage 2 size, decided on 26 Jan', [
+      [50, '50', 'The rest under $500, filled with $500 to $799 if the pilot held.'],
+      [75, '75', 'If stage 1 lost fewer than expected.'],
+      [100, '100', 'If stage 1 and the pilot both came in well under the model.'],
+      [150, '150', 'Most of $500 to $799 at once: only on a clear stage 1.']], PLAN_UI.stage2)
+    + '</div>'
 
     + '<h3 class="sub-head">The stages</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">Accounts</th>'
     + '<th class="n">Pay now a month</th><th class="n">Asked a month</th><th class="n">Revenue added a month</th>'
-    + `<th class="n">Expected to leave in ${win}</th><th class="n">Could see leave (90%)</th><th class="n">Upgraded, expected</th></tr></thead><tbody>`
-    + stageRow('stage1', `Told by ${day(D.notice1)}; new price from ${day(D.effective1)}`)
-    + stageRow('pilot', `With stage 1: told by ${day(D.notice1)}; from ${day(D.effective1)}`)
-    + stageRow('stage2', `Told ${day(D.notice2)}; new price from ${day(D.effective2)}`)
-    + stageRow('later', `With stage 2, only if the pilot holds`)
+    + `<th class="n">Expected to leave in ${winDays} days</th><th class="n">Could see leave (90%)</th><th class="n">Upgraded, expected</th></tr></thead><tbody>`
+    + row('stage1', 'Stage 1', `Told by ${day(D.notice1)}; new price from ${day(D.effective1)}`, true)
+    + row('s1', '&nbsp;&nbsp;Under $500', '')
+    + row('p1', '&nbsp;&nbsp;$500 to $799 pilot', '')
+    + row('stage2', 'Stage 2', `Told by ${day(D.notice2)}; new price from ${day(D.effective2)}`, true)
+    + row('s2', '&nbsp;&nbsp;Under $500', '')
+    + row('x2', '&nbsp;&nbsp;$500 to $799', 'Only if the pilot held')
+    + row('later', 'Later stages, $500 to $799', `From ${day(D.effective3)} at the earliest, two months apart`, true)
     + '</tbody></table></div>'
-    + `<p class="note">"Expected to leave" over the ${win} is what the rise adds (the model) plus each group's measured normal `
-    + `churn over the same weeks (accounts here a year or more lose ${fmt.pct(p.normalRate.under200 ?? p.normalRate.all, 1)} a month under $200, `
+    + `<p class="note">"Expected to leave" over the ${winDays} days to the read-out is what the rise adds (the model) plus each group's `
+    + `measured normal churn over two months (accounts here a year or more lose ${fmt.pct(p.normalRate.under200 ?? p.normalRate.all, 1)} a month under $200, `
     + `${fmt.pct(p.normalRate.plan200 ?? p.normalRate.all, 1)} on the $200 plan, ${fmt.pct(p.normalRate.tier262 ?? p.normalRate.all, 1)} from $213, `
-    + `${fmt.pct(p.normalRate.over500 ?? p.normalRate.all, 1)} from $500). "Could see leave" is the middle 90% of the count you might `
-    + 'actually see: first from chance alone around those figures, which sets the triggers below, then allowing for round one\'s '
-    + 'doubts as well, which is far wider. The revenue range is the middle 90% of the '
-    + `model's ${fmt.int(PLAN.draws)} draws. These are the model's own numbers, and the model is optimistic: 5 of round one's 21 `
-    + 'accounts counted as staying never moved to the new price. Refit on "paying the new price" before sending stage 1.</p>'
+    + `${fmt.pct(p.normalRate.over500 ?? p.normalRate.all, 1)} from $500). "Could see leave" is the middle 90% of the count you might actually see: `
+    + 'from chance alone around those figures, which sets the triggers, then with round one\'s doubts as well, which is far wider. '
+    + 'These are the model\'s numbers and the model is optimistic: 5 of round one\'s 21 accounts counted as staying never moved to the '
+    + 'new price. Refit on "paying the new price" before the stage 1 list is final.</p>'
 
     + '<h3 class="sub-head">Timeline</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table plan-timeline"><thead><tr><th>Date</th><th>What happens</th></tr></thead><tbody>'
-    + [[`Now to ${day('2026-11-30')}`, 'Refit the model on "paying the new price" (round one counted five accounts as staying that never paid it), '
-        + 'confirm the stage 1 list, decide Testerman\'s second subscription, write the notice, and schedule each price change in Stripe '
-        + 'to start with the first bill on or after 1 January, so nobody is charged a part-month.'],
-      [`${day(D.notice1)}`, `<strong>Stage 1 notices: ${fmt.int(S.stage1.n)} accounts, plus ${fmt.int(S.pilot.n)} in the $500 to $799 pilot.</strong> `
-        + `${PLAN.noticeDays}-day notice; ${day(D.notice1Latest)} is the last day that still gives ${PLAN.noticeDays} days before 1 January.`],
-      [`${day(D.effective1)}`, 'Stage 1 and pilot prices take effect. Each account pays the new price from its first bill on or after this date, '
-        + 'so the first bills at the new price fall across January.'],
-      [`January`, 'Log every reply, cancellation, request to negotiate and failed payment as it comes in, in the CSV below.'],
-      [`${day(D.readout1)}`, `<strong>Read-out.</strong> About ${win} after the notices; every stage 1 account has had one bill at the new price, `
-        + `with a few days for failed payments to retry. Stage 1: ${fmt.int(trigger('stage1'))} or more of ${fmt.int(S.stage1.n)} gone pauses stage 2. `
-        + `Pilot: ${fmt.int(trigger('pilot'))} or more of ${fmt.int(S.pilot.n)} gone stops the rest of $500 to $799.`],
-      [`February, to ${day(D.refit)}`, 'Second bills at the new price confirm who really accepted. Refit on round one and stage 1 together; '
-        + 'the site rebuilds the stage 2 asks.'],
-      [`${day(D.notice2)}`, `<strong>Stage 2 notices: ${fmt.int(S.stage2.n)} accounts</strong>, plus the other ${fmt.int(S.later.n)} $500 to $799 `
-        + 'accounts if the pilot held.'],
-      [`${day(D.effective2)}`, 'Stage 2 prices take effect, again from each account\'s first bill on or after this date.'],
-      [`${day(D.readout2)}`, 'Stage 2 read-out, the same way.']]
+    + [[`Now to ${day('2026-11-30')}`, 'Refit the model on "paying the new price", confirm the stage 1 list (the 50 matter most: '
+        + 'everything after rests on them), decide Testerman\'s second subscription, write the notice, and schedule each price change '
+        + 'in Stripe from the first bill on or after 1 January, so nobody is charged a part-month.'],
+      [day(D.notice1), `<strong>Stage 1 notices: ${fmt.int(S.stage1.n)} accounts.</strong> ${day(D.notice1Latest)} is the last day `
+        + `that still gives ${PLAN.noticeDays} days before ${day(D.effective1)}.`],
+      [day(D.effective1), 'Stage 1 prices take effect; each account pays the new price from its first bill on or after this date.'],
+      ['January', 'Log every reply, cancellation, request to negotiate and failed payment in the plan CSV as it happens.'],
+      [day(D.readout1), `<strong>Read-out, ${winDays} days after the notices.</strong> Most stage 1 accounts have had a bill at the new `
+        + `price. Stage 1: ${fmt.int(trigger('stage1'))} or more of ${fmt.int(S.stage1.n)} gone means the model is too optimistic: refit, `
+        + 'lower the stage 2 asks and keep stage 2 at 50. '
+        + (floorAt('stage1') > 0 ? `${fmt.int(floorAt('stage1'))} or fewer means it is too cautious: stage 2 can grow to 75 or 100. ` : '')
+        + (S.p1.n ? `Pilot: ${fmt.int(trigger('p1'))} or more of ${fmt.int(S.p1.n)} gone keeps $500 to $799 out of stage 2.` : '')],
+      [`${day('2027-01-27')} to ${day('2027-01-28')}`, 'Refit on round one and stage 1 together; set the stage 2 size and asks.'],
+      [day(D.notice2), `<strong>Stage 2 notices: ${fmt.int(S.stage2.n)} accounts</strong> at the size chosen. ${day(D.notice2Latest)} is `
+        + `the last day for ${PLAN.noticeDays} days before ${day(D.effective2)}.`],
+      ['February', 'Stage 1\'s second bills confirm who really accepted (the check that would have caught round one\'s five). The '
+        + 'refit is redone on them before any later stage.'],
+      [day(D.effective2), 'Stage 2 prices take effect.'],
+      [day(D.readout2), 'Stage 2 read-out, the same way.'],
+      [`${day(D.notice3)} for ${day(D.effective3)}`, 'The earliest later stage, if any accounts remain.']]
       .map(([d, w]) => `<tr><td><strong>${d}</strong></td><td>${w}</td></tr>`).join('')
     + '</tbody></table></div>'
-    + `<p class="note">Faster, if needed: stage 2 notices on ${day('2027-02-12')} for ${day('2027-03-15')}, refit on the first bills only. `
-    + 'That gives up the second-bill check, which is the step that would have caught round one\'s five accounts that never paid.</p>'
+    + `<p class="note">The tight step is ${day(D.readout1)} to ${day(D.notice2)}: three days to read stage 1, refit and set stage 2. `
+    + 'Accounts billed late in January will not have paid a new bill by the read-out; their cancellations, which in round one all '
+    + 'came within five weeks, mostly will have.</p>'
 
-    + '<h3 class="sub-head">After stage 1: what decides stage 2</h3>'
+    + '<h3 class="sub-head">At the read-out: what decides stage 2</h3>'
     + '<ol class="plan-rules">'
-    + `<li><strong>Read it ${win} after the notices go out.</strong> Round one's 14 dated cancellations all fell within five weeks of each `
-    + 'other (19 August to 21 September); one leaver has no date. Sixty days covers that and the first bill at the new price.</li>'
-    + `<li><strong>Count as accepted only an account that paid its first bill at the new price in full</strong>, and confirm it on `
-    + 'the second bill before the refit is final. Record everything else as cancelled, negotiated down, downgraded or failed '
-    + 'payment. Round one counted "did not cancel", which is why it reads optimistic.</li>'
-    + `<li><strong>Compare stage 1 as a whole with the model.</strong> It expects ${S.stage1.window.toFixed(1)} of ${fmt.int(S.stage1.n)} to leave in the `
-    + `${win}, and chance alone keeps that to ${fmt.int(S.stage1.chance.high)} at most in 19 of 20 outcomes. ${fmt.int(trigger('stage1'))} or more leaving `
-    + 'means the model is too optimistic: pause, refit and lower the stage 2 asks. '
-    + (floorAt('stage1') > 0 ? `${fmt.int(floorAt('stage1'))} or fewer means it is too cautious, and the refit will raise them. ` : '')
-    + 'Do not judge a single group or engagement level on its own: with one to eight accounts in each, one leaver more or less is chance.</li>'
-    + `<li><strong>Use the stage 2 accounts as the comparison.</strong> They are drawn at random from the same cells and not yet told, so `
-    + `the ones who leave during stage 1 show normal churn in the same weeks (about ${S.stage2.normal.toFixed(1)} of ${fmt.int(S.stage2.n)} `
-    + `in ${win}). If they leave faster than that too, the weeks were bad for everyone, not only for the rise. Nobody has to be held back.</li>`
-    + `<li><strong>The $500 to $799 pilot.</strong> It expects ${S.pilot.window.toFixed(1)} of ${fmt.int(S.pilot.n)} to leave in the ${win}; `
-    + `${fmt.int(trigger('pilot'))} or more stops the rest. Otherwise the other ${fmt.int(S.later.n)} go with stage 2 at refit asks. `
-    + `Even then its revenue range runs from ${sm(S.later.gainRange.low)} to ${sm(S.later.gainRange.high)} a month, because no account above $500 `
-    + 'has been tested.</li>'
-    + '<li><strong>Refit, then set the stage 2 asks.</strong> Round one and stage 1 together, with the outcome as defined above. The '
-    + 'site rebuilds every ask from the refit; stage 2 keeps the same rounding.</li>'
+    + '<li><strong>Count as accepted only an account that paid its first bill at the new price in full</strong>, and confirm it on the '
+    + 'second. Record everything else as cancelled, negotiated down, downgraded or failed payment. Round one counted "did not '
+    + 'cancel", which is why it reads optimistic.</li>'
+    + `<li><strong>Judge stage 1 as a whole.</strong> It expects ${S.stage1.window.toFixed(1)} of ${fmt.int(S.stage1.n)} to leave, and chance `
+    + `alone keeps that to ${fmt.int(S.stage1.chance.high)} at most in 19 of 20 outcomes. Do not judge one group or engagement level on `
+    + 'its own: with one to nine accounts in each, one leaver more or less is chance.</li>'
+    + `<li><strong>Use the stage 2 accounts as the comparison.</strong> Drawn from the same cells and not yet told, so those who leave `
+    + `during stage 1 show normal churn in the same weeks (about ${S.stage2.normal.toFixed(1)} of ${fmt.int(S.stage2.n)}). If they leave `
+    + 'faster than that too, the weeks were bad for everyone, not only for the rise.</li>'
+    + '<li><strong>Size stage 2 on the result</strong>: 50 if stage 1 lands around the model, 75 or 100 if it comes in at or below the '
+    + 'low end, and 50 at lower asks if it reaches the trigger.</li>'
     + '</ol>'
 
-    + '<h3 class="sub-head">How the stages are drawn</h3>'
+    + '<h3 class="sub-head">How stage 1 is drawn</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Price group</th><th>Contacts replying a month</th>'
-    + '<th class="n">Accounts</th><th class="n">First</th><th class="n">Second</th><th class="n">Pays now, average</th>'
+    + '<th class="n">Accounts</th><th class="n">Stage 1</th><th class="n">Stage 2</th><th class="n">Later</th><th class="n">Pays now, average</th>'
     + '<th class="n">Ask, average</th><th class="n">Expected to leave</th></tr></thead><tbody>'
     + p.cells.map(c => `<tr><td>${PLAN_GROUPS[c.group]}</td><td>${ENG[c.eng]}</td><td class="n">${fmt.int(c.n)}</td>`
-      + `<td class="n">${fmt.int(c.first)}</td><td class="n">${fmt.int(c.second)}</td><td class="n">${fmt.money(c.pays)}</td>`
-      + `<td class="n">${fmt.money(c.ask)}</td><td class="n">${fmt.pct(c.leave)}</td></tr>`).join('')
+      + `<td class="n">${fmt.int(c.first)}</td><td class="n">${fmt.int(c.second)}</td><td class="n">${fmt.int(c.later)}</td>`
+      + `<td class="n">${fmt.money(c.pays)}</td><td class="n">${fmt.money(c.ask)}</td><td class="n">${fmt.pct(c.leave)}</td></tr>`).join('')
     + '</tbody></table></div>'
-    + `<p class="note">${fmt.pct(PLAN.stage1Share)} of each cell goes first, chosen by a fixed random draw (seed ${PLAN.seed}), so the `
-    + 'same accounts come out every time the page is built from the same list. The $500 to $799 pilot is spread over its cells by size. '
-    + 'Why every account gets its own ask rather than a ladder of three sizes: that was checked, and a ladder taught no more about '
-    + 'how leaving climbs with the rise, because the model\'s asks already range widely within each group (they follow engagement), '
-    + 'and it lost more customers. What limits learning is how many leave, so the draw covers every cell.</p>'
+    + `<p class="note">The ${fmt.int(S.s1.n)} under $500 are spread over the cells in proportion to their size, and the pilot over the `
+    + `$500 to $799 cells the same way, so every kind of account is in the first 50. Within a cell the accounts are chosen by a fixed `
+    + `random draw (seed ${PLAN.seed}): the same accounts come out every time the page is built from the same list. Each account gets its `
+    + 'own ask rather than a ladder of three sizes: that was checked, and a ladder taught no more about how leaving climbs with the '
+    + 'rise (the asks already range widely within each group, since they follow engagement) and lost more customers.</p>'
 
     + '<h3 class="sub-head">Every account in the plan</h3>'
     + '<div class="chart-control"><button type="button" id="plan-download">Download the plan as CSV, with columns to log outcomes</button>'
@@ -7623,29 +7639,33 @@ function renderUpgradePlan() {
     + '<div class="table-scroll"><table class="data-table plan-accounts"><thead><tr><th>Stage</th><th>Company</th><th>Stripe ID</th><th>Price group</th>'
     + '<th class="n">Contacts replying</th><th class="n">Pays now</th><th class="n">Ask</th><th class="n">Rise</th>'
     + '<th class="n">Chance of leaving</th><th class="n">Revenue added</th></tr></thead><tbody>'
-    + [...p.items].sort((a, b) => ['stage1', 'pilot', 'stage2', 'later'].indexOf(a.stage) - ['stage1', 'pilot', 'stage2', 'later'].indexOf(b.stage)
-      || a.group.localeCompare(b.group) || b.r.replying - a.r.replying)
-      .map(x => `<tr><td>${STAGE[x.stage]}</td><td>${x.r.name || '<span class="muted">no name in the file</span>'}</td>`
+    + [...p.items].sort((a, b) => ['s1', 'p1', 's2', 'x2', 'later'].indexOf(a.seg) - ['s1', 'p1', 's2', 'x2', 'later'].indexOf(b.seg)
+      || a.group.localeCompare(b.group) || (b.r.replying ?? 0) - (a.r.replying ?? 0))
+      .map(x => `<tr><td>${SEG[x.seg]}</td><td>${x.r.name || '<span class="muted">no name in the file</span>'}</td>`
         + `<td class="mono">${x.r.id}</td><td>${PLAN_GROUPS[x.group]}</td>`
         + `<td class="n">${x.r.replying == null ? '–' : fmt.int(Math.round(x.r.replying))}</td><td class="n">${fmt.money(x.r.mrr)}</td>`
         + `<td class="n"><strong>${fmt.money(x.ask)}</strong></td><td class="n">${pctRise(x.rise)}</td>`
         + `<td class="n">${fmt.pct(x.c1)}</td><td class="n">${sm(x.gain)}</td></tr>`).join('')
     + '</tbody></table></div>'
-    + `<p class="note">${fmt.int(n12)} accounts in the two stages, the same ${fmt.int(n12)} the Upgrade list asks with its default switches. `
-    + 'The ask is the list\'s, rounded down to $' + PLAN.round + ', so it can sit a step below the list\'s figure. Two Stripe '
-    + 'subscriptions of one company are two rows (Testerman\'s Pro Wash has one here; its other was in round one and is not asked).</p>';
+    + `<p class="note">${fmt.int(p.under500)} accounts under $500 and ${fmt.int(p.over500)} from $500 to $799. The ask is the Upgrade list's, `
+    + `rounded down to $${PLAN.round}. Two Stripe subscriptions of one company are two rows (Testerman's Pro Wash has one here; its other `
+    + 'was in round one and is not asked).</p>';
 
+  for (const [id, key] of [['plan-pilot', 'pilot'], ['plan-s2', 'stage2']]) {
+    for (const b of $(id).querySelectorAll('button')) {
+      b.addEventListener('click', () => { PLAN_UI[key] = Number(b.dataset.v); renderUpgradePlan(); });
+    }
+  }
   const btn = $('plan-download');
   if (btn) btn.addEventListener('click', () => {
     const P = PLAN_LAST;
     const q = v => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
     const head = ['stage', 'company', 'stripe_id', 'price_group', 'industry', 'contacts_replying_a_month', 'pays_now', 'ask', 'rise',
-      'chance_of_leaving', 'revenue_added_a_month', 'notice_by', 'new_price_from', 'notice_sent', 'response', 'outcome_day_60',
+      'chance_of_leaving', 'revenue_added_a_month', 'notice_by', 'new_price_from', 'notice_sent', 'response', 'outcome_at_read_out',
       'paid_first_bill_at_new_price', 'paid_second_bill_at_new_price', 'notes'];
-    const lines = [head.join(',')].concat(P.items.map(x => [STAGE[x.stage], x.r.name || '', x.r.id, PLAN_GROUPS[x.group], x.r.industry || '',
-      x.r.replying ?? '', x.r.mrr, x.ask, x.rise.toFixed(3), x.c1.toFixed(3), x.gain.toFixed(2),
-      x.stage === 'stage1' || x.stage === 'pilot' ? PLAN.dates.notice1 : PLAN.dates.notice2,
-      x.stage === 'stage1' || x.stage === 'pilot' ? PLAN.dates.effective1 : PLAN.dates.effective2,
+    const when = x => (x.stage === 'stage1' ? [D.notice1, D.effective1] : x.stage === 'stage2' ? [D.notice2, D.effective2] : [D.notice3, D.effective3]);
+    const lines = [head.join(',')].concat(P.items.map(x => [SEG[x.seg], x.r.name || '', x.r.id, PLAN_GROUPS[x.group], x.r.industry || '',
+      x.r.replying ?? '', x.r.mrr, x.ask, x.rise.toFixed(3), x.c1.toFixed(3), x.gain.toFixed(2), ...when(x),
       '', '', '', '', '', ''].map(q).join(',')));
     const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
@@ -7654,6 +7674,7 @@ function renderUpgradePlan() {
     $('plan-status').textContent = ` ${fmt.int(P.items.length)} accounts exported.`;
   });
 }
+
 const campTrust = () => TRUST_PRESETS.find(p => p.key === CAMP.trust) || TRUST_PRESETS[0];
 const campOptions = () => ({ textsScale: campTrust().textsScale ?? 1, churnScale: campTrust().churnScale ?? 1 });
 

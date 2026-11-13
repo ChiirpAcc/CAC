@@ -3633,24 +3633,40 @@ export function sweepLines(pool, { usage, rises, ticked = null, split = false, b
 // rounded down to $50. What limits learning is how many leave, so stage 1 is
 // drawn at random from every price-and-engagement cell, and the accounts held
 // for stage 2 are the comparison group while stage 1 runs. The $500 to $799
-// accounts were never tested: a pilot of 18 goes with stage 1 and the rest wait
-// on it.
-export const PLAN = { stage1Share: 0.45, pilot500: 18, seed: 20261112, round: 50, draws: 400, readMonths: 2,
-  // The timeline (Josh, 12 Nov 2026: "notify each customer 30 days in advance
-  // ... the first upgrade can start on Jan 1 2027, this is the exploratory one").
-  // Stage 1 and the pilot take effect on 1 Jan, so notices go by 2 Dec at the
-  // latest; 1 Dec leaves a day. The read-out is once every stage 1 account has
-  // had a bill at the new price (their first falls between 1 and 31 Jan) and a
-  // few days of failed-payment retries. Stage 2 waits for the second bills in
-  // February, so the refit rests on paying twice, then gives 30 days again.
+// accounts were never tested: a pilot goes with stage 1 and the rest wait on it.
+export const PLAN = {
+  // Josh, 12 Nov 2026: "each stage will be 50 accounts ... jan 1 is the first one then mar 1 and that may be
+  // higher than 50 depending on how jan 1 turns out. so that first 50 will be the most important."
+  stage1Size: 50, pilot500: 10, stage2Size: 50, seed: 20261112, round: 50, draws: 400,
+  // 30 days' notice before each start. Stage 1 starts 1 Jan, so notices go by 2 Dec (1 Dec leaves a day).
+  // Stage 2 starts 1 Mar, so its notices go by 30 Jan (29 Jan, a Friday, leaves a day), and the stage 1
+  // read-out has to come first: 26 Jan, 56 days after the notices, when most stage 1 accounts have had their
+  // first bill at the new price. The second bills (February) confirm it before any third stage.
   dates: {
-    notice1: '2026-12-01', notice1Latest: '2026-12-02', effective1: '2027-01-01', readout1: '2027-02-05',
-    refit: '2027-02-26', notice2: '2027-03-01', effective2: '2027-04-01', readout2: '2027-05-07',
+    notice1: '2026-12-01', notice1Latest: '2026-12-02', effective1: '2027-01-01', readout1: '2027-01-26',
+    notice2: '2027-01-29', notice2Latest: '2027-01-30', effective2: '2027-03-01', readout2: '2027-03-26',
+    notice3: '2027-04-01', effective3: '2027-05-01',
   },
-  noticeDays: 30 };
+  noticeDays: 30,
+};
 export const PLAN_GROUPS = { under200: 'Under $200', plan200: '$200 plan', tier262: '$213 to $499', over500: '$500 to $799' };
 export const planEngagement = u => (u == null ? 'unknown' : u < 20 ? 'quiet' : u < 50 ? 'middle' : 'engaged');
-export function upgradePlan(data, { engagement = null, lowBand = 800 } = {}) {
+// Split n over cells in proportion to their size (largest remainder), never more than a cell holds.
+function allocate(cells, n) {
+  const total = cells.reduce((t, [, v]) => t + v.length, 0);
+  if (!total || n <= 0) return new Map(cells.map(([k]) => [k, 0]));
+  const want = Math.min(n, total);
+  const q = new Map(cells.map(([k, v]) => [k, Math.min(v.length, Math.floor(want * v.length / total))]));
+  let left = want - [...q.values()].reduce((t, v) => t + v, 0);
+  const order = [...cells].sort((a, b) => (want * b[1].length / total % 1) - (want * a[1].length / total % 1));
+  while (left > 0) {
+    let moved = false;
+    for (const [k, v] of order) { if (left > 0 && q.get(k) < v.length) { q.set(k, q.get(k) + 1); left -= 1; moved = true; } }
+    if (!moved) break;
+  }
+  return q;
+}
+export function upgradePlan(data, { engagement = null, lowBand = 800, pilot = PLAN.pilot500, stage2Size = PLAN.stage2Size } = {}) {
   const list = upgradeList(data, { lowBand, rule: 'account', engagement });
   if (!list) return null;
   const bands = new Set(['users', 'light', 'unbanded']);
@@ -3670,81 +3686,78 @@ export function upgradePlan(data, { engagement = null, lowBand = 800 } = {}) {
   for (const v of cells.values()) {
     for (let i = v.length - 1; i > 0; i -= 1) { const j = Math.floor(rand() * (i + 1)); [v[i], v[j]] = [v[j], v[i]]; }
   }
-  // The pilot's 18 spread over the $500 to $799 cells by size (largest remainder).
-  const c500 = [...cells.entries()].filter(([k]) => k.startsWith('over500|'));
-  const n500 = c500.reduce((t, [, v]) => t + v.length, 0);
-  const quota = new Map(c500.map(([k, v]) => [k, Math.floor(PLAN.pilot500 * v.length / Math.max(1, n500))]));
-  let left = Math.min(PLAN.pilot500, n500) - [...quota.values()].reduce((t, v) => t + v, 0);
-  for (const [k] of [...c500].sort((a, b) => (PLAN.pilot500 * b[1].length / n500 % 1) - (PLAN.pilot500 * a[1].length / n500 % 1))) {
-    if (left <= 0) break; quota.set(k, quota.get(k) + 1); left -= 1;
-  }
+  const under = [...cells.entries()].filter(([k]) => !k.startsWith('over500|'));
+  const over = [...cells.entries()].filter(([k]) => k.startsWith('over500|'));
+  const pilotN = Math.min(pilot, over.reduce((t, [, v]) => t + v.length, 0));
+  const q1 = allocate(under, PLAN.stage1Size - pilotN);
+  const qp = allocate(over, pilotN);
+  const seg = new Map();
+  for (const [k, v] of under) v.forEach((r, i) => seg.set(r, i < q1.get(k) ? 's1' : 's2'));
+  // Stage 2 takes every remaining account under $500, then, only if there was a
+  // pilot, fills to its size with $500 to $799 accounts in a random order.
+  const s2count = [...seg.values()].filter(s => s === 's2').length;
+  let fill = pilotN > 0 ? Math.max(0, stage2Size - s2count) : 0;
+  const restOver = [];
+  for (const [k, v] of over) v.forEach((r, i) => { if (i < qp.get(k)) seg.set(r, 'p1'); else restOver.push(r); });
+  for (let i = restOver.length - 1; i > 0; i -= 1) { const j = Math.floor(rand() * (i + 1)); [restOver[i], restOver[j]] = [restOver[j], restOver[i]]; }
+  for (const r of restOver) { seg.set(r, fill > 0 ? 'x2' : 'later'); if (fill > 0) fill -= 1; }
+
   // Leaving over the read-out window: what the rise adds (the model) plus each
-  // group's measured normal churn over the same months (year on year), not the
-  // model's no-rise level, which is round one's and runs below what these
-  // accounts actually lose in any two months.
+  // group's measured normal churn over the same months (year on year).
   const base = listBaselineChurn(data, { lowBand, months: 6 });
-  const normalOver = g => 1 - Math.pow(1 - baselineFor(base, g), PLAN.readMonths);
-  const items = [];
-  for (const [key, v] of cells) {
-    const [group, eng] = key.split('|');
-    const n1 = group === 'over500' ? quota.get(key) : Math.round(v.length * PLAN.stage1Share);
-    v.forEach((r, i) => {
-      const a = accOf(r), ask = askOf(r);
-      const c1 = roundOneChurn(a, ask), c0 = roundOneChurn(a, r.mrr);
-      const stage = group === 'over500' ? (i < n1 ? 'pilot' : 'later') : (i < n1 ? 'stage1' : 'stage2');
-      const normal = normalOver(r.group);
-      items.push({ r, acc: a, group, eng, stage, ask, rise: ask / r.mrr - 1, c1, c0, normal,
-        window: Math.min(1, Math.max(0, c1 - c0) + normal),
-        gain: (1 - c1) * ask - (1 - c0) * r.mrr });
-    });
-  }
-  const STAGES = ['stage1', 'pilot', 'stage2', 'later'];
-  const stages = Object.fromEntries(STAGES.map(s => {
-    const v = items.filter(x => x.stage === s);
-    return [s, { n: v.length, mrr: v.reduce((t, x) => t + x.r.mrr, 0), asks: v.reduce((t, x) => t + x.ask, 0),
-      gain: v.reduce((t, x) => t + x.gain, 0), leave: v.reduce((t, x) => t + x.c1, 0),
-      extra: v.reduce((t, x) => t + x.c1 - x.c0, 0), normal: v.reduce((t, x) => t + x.normal, 0),
-      window: v.reduce((t, x) => t + x.window, 0) }];
+  const readMonths = (Date.parse(PLAN.dates.readout1) - Date.parse(PLAN.dates.notice1)) / 86400000 / 30.44;
+  const normalOver = g => 1 - Math.pow(1 - baselineFor(base, g), readMonths);
+  const items = rows.map(r => {
+    const a = accOf(r), ask = askOf(r);
+    const c1 = roundOneChurn(a, ask), c0 = roundOneChurn(a, r.mrr), normal = normalOver(r.group);
+    const s = seg.get(r);
+    return { r, acc: a, group: gkey(r.group), eng: planEngagement(r.replying), seg: s,
+      stage: s === 's1' || s === 'p1' ? 'stage1' : s === 's2' || s === 'x2' ? 'stage2' : 'later',
+      ask, rise: ask / r.mrr - 1, c1, c0, normal, window: Math.min(1, Math.max(0, c1 - c0) + normal),
+      gain: (1 - c1) * ask - (1 - c0) * r.mrr };
+  });
+  const KEYS = ['s1', 'p1', 'stage1', 's2', 'x2', 'stage2', 'later'];
+  const keysOf = x => [x.seg, x.stage].filter((k, i, a) => a.indexOf(k) === i);
+  const stats = Object.fromEntries(KEYS.map(k => {
+    const v = items.filter(x => keysOf(x).includes(k));
+    return [k, { n: v.length, mrr: v.reduce((t, x) => t + x.r.mrr, 0), asks: v.reduce((t, x) => t + x.ask, 0),
+      gain: v.reduce((t, x) => t + x.gain, 0), extra: v.reduce((t, x) => t + x.c1 - x.c0, 0),
+      normal: v.reduce((t, x) => t + x.normal, 0), window: v.reduce((t, x) => t + x.window, 0) }];
   }));
-  // Ranges and the trigger: in each draw of round one's uncertain parts, each
-  // account leaves or stays at random with its drawn chance, so the count is
-  // what you could actually see, not only the model's average.
-  // Two counts of who leaves in the window. "seen": round one's uncertainty and
-  // chance together, the range you could actually see. "chance": the model's
-  // own figures and chance alone, which is what stage 1 tests: a count outside
-  // it means the model's central figures are wrong, so it sets the triggers.
-  const sim = Object.fromEntries(STAGES.map(s => [s, { gain: [], seen: [], chance: [] }]));
+  // "seen": round one's doubts and chance together. "chance": the model's own
+  // figures and chance alone, which is what stage 1 tests, so it sets the triggers.
+  const sim = Object.fromEntries(KEYS.map(k => [k, { gain: [], seen: [], chance: [] }]));
   const coin = mulberry32(PLAN.seed + 1);
   for (const d of churnDraws(PLAN.draws, PLAN.seed)) {
-    const acc = Object.fromEntries(STAGES.map(s => [s, { gain: 0, seen: 0 }]));
+    const t = Object.fromEntries(KEYS.map(k => [k, { gain: 0, seen: 0 }]));
     for (const x of items) {
       const c1 = roundOneChurn(x.acc, x.ask, { draw: d }), c0 = roundOneChurn(x.acc, x.r.mrr, { draw: d });
-      const t = acc[x.stage];
-      t.gain += (1 - c1) * x.ask - (1 - c0) * x.r.mrr;
-      if (coin() < Math.min(1, Math.max(0, c1 - c0) + x.normal)) t.seen += 1;
+      const g = (1 - c1) * x.ask - (1 - c0) * x.r.mrr, gone = coin() < Math.min(1, Math.max(0, c1 - c0) + x.normal);
+      for (const k of keysOf(x)) { t[k].gain += g; if (gone) t[k].seen += 1; }
     }
-    for (const s of STAGES) { sim[s].gain.push(acc[s].gain); sim[s].seen.push(acc[s].seen); }
+    for (const k of KEYS) { sim[k].gain.push(t[k].gain); sim[k].seen.push(t[k].seen); }
   }
-  for (let k = 0; k < 4000; k += 1) {
-    const n = Object.fromEntries(STAGES.map(s => [s, 0]));
-    for (const x of items) if (coin() < x.window) n[x.stage] += 1;
-    for (const s of STAGES) sim[s].chance.push(n[s]);
+  for (let i = 0; i < 4000; i += 1) {
+    const n = Object.fromEntries(KEYS.map(k => [k, 0]));
+    for (const x of items) if (coin() < x.window) for (const k of keysOf(x)) n[k] += 1;
+    for (const k of KEYS) sim[k].chance.push(n[k]);
   }
-  for (const s of STAGES) {
-    const seen = [...sim[s].seen].sort((a, b) => a - b), chance = [...sim[s].chance].sort((a, b) => a - b);
-    stages[s].gainRange = rangeOf(sim[s].gain);
-    stages[s].seen = { low: quantile(seen, 0.05), high: quantile(seen, 0.95), median: quantile(seen, 0.5) };
-    stages[s].chance = { low: quantile(chance, 0.05), high: quantile(chance, 0.95), median: quantile(chance, 0.5) };
+  for (const k of KEYS) {
+    const seen = [...sim[k].seen].sort((a, b) => a - b), chance = [...sim[k].chance].sort((a, b) => a - b);
+    stats[k].gainRange = rangeOf(sim[k].gain);
+    stats[k].seen = { low: quantile(seen, 0.05), high: quantile(seen, 0.95) };
+    stats[k].chance = { low: quantile(chance, 0.05), high: quantile(chance, 0.95), median: quantile(chance, 0.5) };
   }
   const cellRows = [...cells.keys()].sort().map(key => {
     const [group, eng] = key.split('|');
     const v = items.filter(x => x.group === group && x.eng === eng);
-    const s1 = v.filter(x => x.stage === 'stage1' || x.stage === 'pilot');
-    return { group, eng, n: v.length, first: s1.length, second: v.length - s1.length,
+    return { group, eng, n: v.length, first: v.filter(x => x.stage === 'stage1').length,
+      second: v.filter(x => x.stage === 'stage2').length, later: v.filter(x => x.stage === 'later').length,
       pays: v.reduce((t, x) => t + x.r.mrr, 0) / v.length, ask: v.reduce((t, x) => t + x.ask, 0) / v.length,
-      leave: v.reduce((t, x) => t + x.c1, 0) / v.length };
+      leave: v.reduce((t, x) => t + x.window, 0) / v.length };
   });
-  return { month: list.month, items, stages, cells: cellRows, normalRate: base.rate };
+  return { month: list.month, items, stages: stats, cells: cellRows, normalRate: base.rate, pilot: pilotN, stage2Size,
+    under500: under.reduce((t, [, v]) => t + v.length, 0), over500: over.reduce((t, [, v]) => t + v.length, 0) };
 }
 
 // Twelve months of the list's revenue under a scenario. Normal churn runs
