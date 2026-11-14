@@ -7934,7 +7934,7 @@ function renderJan1Proposal() {
     + `${BATCHES.map(b => T.filter(x => x.batch === b).length).join(' and ')}.</p>`
     + `<p>${T.length} accounts on the Chiirp Stripe account: ${GROUPS.map(g => `${T.filter(x => x.group === g).length} ${g.toLowerCase()}`).join(', ')}, `
     + `in ${industries} industries, ${BANDS.map(([l, f]) => `${T.filter(f).length} priced ${l.toLowerCase()}`).join(' and ')}. Together they `
-    + `are at ${fmt.money(price)} a month today and paid ${fmt.money(paid12)} over the last 12 months (${T.filter(x => !x.paid).map(x => x.name).join(', ') || 'none'} not in the payment file). The model forecasts about `
+    + `are at ${fmt.money(price)} a month today and paid ${fmt.money(paid12)} over the last 12 months${T.some(x => !x.paid) ? ` (${T.filter(x => !x.paid).map(x => x.name).join(', ')} not in the payment file)` : ''}. The model forecasts about `
     + `${leave.toFixed(1)} of the ${T.length} leaving on the notice, against ${leave0.toFixed(1)} with no increase, so the increases add `
     + `${sm(pilot)} a month after leavers (${sm(added)} if all stay).</p>`
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Industry group</th>'
