@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, projectPilot, modelPAsk, modelPSteps, modelPProject, MODEL_P_STEP, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PRICE_TEST_W1, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, projectPilot, modelPAsk, modelPSteps, modelPProject, MODEL_P_STEP, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PRICE_TEST_P1, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -7848,7 +7848,7 @@ function renderCreditPlan() {
     + '<ol class="plan-rules">' + C.open.map(o => `<li>${o}</li>`).join('') + '</ol>'
     + '<p class="note">Timing: the new credit prices start 1 January 2027, the same day as $15 10DLC across the board. They are '
     + 'special pricing, so Taylor Roberts and Kevin sign off and set each customer\'s price, and customers are told by an in-Chiirp '
-    + 'message (10DLC\'s $15 goes by email). No notice has gone out for either yet. From then on credits are $2 per 100, double the '
+    + 'message, and so is 10DLC\'s $15. No notice has gone out for either yet. From then on credits are $2 per 100, double the '
     + `legacy $1 per 100. Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
     + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database. The tier list by company `
     + 'stays in the sheet.</p>';
@@ -7866,37 +7866,40 @@ function renderJan1Proposal() {
   if (!campBandsSettled) { box.innerHTML = '<p class="muted">Loading usage for each account…</p>'; return; }
   const p50 = upgradePlan(data, { engagement: CAMP_BANDS, stage1Size: J50 });
   const J = JAN1_PROPOSAL;
-  const T = PRICE_TEST_W1;
+  const T = PRICE_TEST_P1;
   const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
   const pc = v => `${Math.round(v * 100)}%`;
   const dlcStep = DLC_PLAN.steps.find(s => /\$15/.test(s.step));
   const dlc = dlcStep.perMonth;
   const credit = CREDIT_PLAN.total.added;
   const credit10 = CREDIT_PLAN.stress.find(s => s.lost === 0.10).added;
-  // Each pilot account's expected gain on its total spend, after the leaving
-  // the model forecasts (Model L on the notice), against no increase.
-  const gainOf = x => (x.spend + x.d) * (1 - x.fc) - x.spend * (1 - x.base);
+  // Each pilot account's expected gain on its current price, after the leaving
+  // the model forecasts on the notice, against no increase.
+  const gainOf = x => (x.price + x.d) * (1 - x.fc) - x.price * (1 - x.base);
   const sum = fn => T.reduce((t, x) => t + fn(x), 0);
-  const spend = sum(x => x.spend), added = sum(x => x.d), pilot = sum(gainOf);
-  const leave = sum(x => x.fc), leave0 = sum(x => x.base);
+  const price = sum(x => x.price), added = sum(x => x.d), pilot = sum(gainOf);
+  const leave = sum(x => x.fc), leave0 = sum(x => x.base), paid12 = sum(x => x.paid12);
   const total = dlc + credit + pilot;
   const downside = dlc + credit10 + pilot;
   const optionB = p50 ? p50.stages.stage1.gain : null;
-  const ARMS = ['+10%', '+30%', '+60%'];
+  const ARMS = ['+10%', '+30%', '+60%', '+100%'];
   const GROUPS = ['Core trades', 'Specialty trades', 'Cleaning'];
-  const BANDS = ['<$500', '$500-799'];
-  const BATCHES = [...new Set(T.map(x => x.batch))].sort();
-  const armTotal = T.reduce((t, x) => t + x.dArm, 0);
-  const capN = k => T.filter(x => x.cap === k).length;
+  const BANDS = [['Under $500', x => x.price < 500], ['$500 or more', x => x.price >= 500]];
+  const MONTHS = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
   const industries = new Set(T.map(x => x.industry)).size;
   const creditN = T.filter(x => x.credit).length;
-  const overTested = T.filter(x => x.d > 438).length;
-  const holds = T.filter(x => /^Hold/.test(x.rec)).length;
+  const missed = x => x.paid.filter(v => v === 0).length;
+  const lastTwoZero = T.filter(x => x.paid[10] === 0 && x.paid[11] === 0);
+  const gaps = T.filter(x => missed(x) > 0);
+  const spark = paid => paid.map((v, i) => `<span title="${MONTHS[i]}: ${fmt.money(v)}" class="${v === 0 ? 'tag risk' : ''}">${v === 0 ? '0' : '●'}</span>`).join('');
+  const watch = x => [x.credit ? 'buys credits: credit price held to 1 Feb' : '',
+    x.paid[10] === 0 && x.paid[11] === 0 ? 'paid nothing in Sep and Oct' : missed(x) ? `${missed(x)} month${missed(x) > 1 ? 's' : ''} with no payment` : '',
+    x.fc - x.base > 0.2 ? 'cleaner: big forecast jump' : ''].filter(Boolean).join('; ');
 
   box.innerHTML = checklistHtml('jan1', 'Checklist: 1 January proposal')
     + `<p class="finding"><strong>Three changes from ${checkDay(J.effective)} add about ${fmt.money(total)} a month `
     + `(${fmt.money(total * 12)} a year): 10DLC from $${DLC_PLAN.feeNow} to $${DLC_PLAN.feeNew}, the tiered credit rise, and a `
-    + `${T.length}-account phase 1 priced test of the platform fee.</strong> If customers buy 10% fewer credits it still adds ${fmt.money(downside)} `
+    + `${T.length}-account phase 1 priced test of the platform price.</strong> If customers buy 10% fewer credits it still adds ${fmt.money(downside)} `
     + `a month. Customers need 30 days' notice, so the decision is needed by ${checkDay(J.decideBy)} and notices go out by `
     + `${checkDay(J.noticesTarget)} (${checkDay(J.noticesBy)} at the latest).</p>`
 
@@ -7910,8 +7913,8 @@ function renderJan1Proposal() {
     + `(<a href="#credits">Credit increase tab</a>)</td><td>Every customer, including those who don't buy credits today. The figure is `
     + `the ${fmt.int(CREDIT_PLAN.total.companies)} companies buying now; the ${CREDIT_PLAN.held.accounts} on newer pricing stay put.</td>`
     + `<td class="n">+${fmt.money(credit)}</td></tr>`
-    + `<tr><td>3</td><td>Platform pilot, phase 1: a priced test, each account +10%, +30% or +60% of its total spend, capped (<a href="#upgrade-lists">new model</a>)</td>`
-    + `<td>The ${T.length} accounts listed below, spending ${fmt.money(spend)} a month today</td>`
+    + `<tr><td>3</td><td>Platform pilot, phase 1: each account's price up 10%, 30%, 60% or 100% (<a href="#upgrade-lists">new model</a>)</td>`
+    + `<td>The ${T.length} accounts listed below, at ${fmt.money(price)} a month today</td>`
     + `<td class="n">${sm(pilot)}<br><span class="muted ci">${sm(added)} if all stay</span></td></tr>`
     + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td class="muted">${fmt.money(total * 12)} a year</td>`
     + `<td class="n"><strong>+${fmt.money(total)}</strong></td></tr>`
@@ -7921,63 +7924,62 @@ function renderJan1Proposal() {
     + 'customers the new model expects to leave on the notice; its job is to measure, not to earn.</p>'
 
     + `<h3 class="sub-head">The platform pilot, phase 1: ${T.length} accounts</h3>`
-    + '<p>The final phase 1 list from the churn-model chat (13 Nov), built to measure what the August test could not: how leaving '
-    + 'changes with the <em>size</em> of an increase. Every August account moved to the same $500, so size was fixed by the starting price; '
-    + `here the accounts are split evenly into three arms, <strong>+10%, +30% and +60% of total monthly spend</strong>, then capped: `
-    + `${capN('30% cap')} held at 30% of spend, ${capN('small account: +100% minimum')} small accounts raised to a +100% minimum, and `
-    + `${capN('10% cleaning cap')} cleaners held at 10%. The increases run from +$${Math.min(...T.map(x => x.d))} to `
-    + `+$${Math.max(...T.map(x => x.d))} a month, all inside the range the August test reached (the arms before the caps would have added `
-    + `${fmt.money(armTotal)}).</p>`
-    + `<p>${T.length} accounts on the Chiirp Stripe account, a year or more old, billing current, 20+ contacts replying a month: `
-    + `${GROUPS.map(g => `${T.filter(x => x.group === g).length} ${g.toLowerCase()}`).join(', ')}, in ${industries} industries, `
-    + `${BANDS.map(b => `${T.filter(x => x.band === b).length} spending ${b === '<$500' ? 'under $500' : '$500 to $799'}`).join(' and ')}, `
-    + `in ${BATCHES.length} notice batches of ${BATCHES.map(b => T.filter(x => x.batch === b).length).join(' and ')}. `
-    + `${holds} are accounts the model says to hold, on purpose: their price sensitivity is what is least known. The model forecasts `
-    + `about ${leave.toFixed(1)} of the ${T.length} leaving on the notice, against ${leave0.toFixed(1)} with no increase.</p>`
+    + '<p>The final phase 1 list (13 November), built to measure what the August test could not: how leaving changes with the '
+    + '<em>size</em> of an increase. Every August account moved to the same $500, so size was fixed by the starting price; here each '
+    + `account's current price goes up by <strong>10%, 30%, 60% or 100%</strong> (${ARMS.map(a => `${T.filter(x => x.arm === a).length} at ${a}`).join(', ')}; `
+    + `the +100% are the smallest accounts), from +$${Math.min(...T.map(x => x.d))} to +$${Math.max(...T.map(x => x.d))} a month.</p>`
+    + `<p>${T.length} accounts on the Chiirp Stripe account: ${GROUPS.map(g => `${T.filter(x => x.group === g).length} ${g.toLowerCase()}`).join(', ')}, `
+    + `in ${industries} industries, ${BANDS.map(([l, f]) => `${T.filter(f).length} priced ${l.toLowerCase()}`).join(' and ')}. Together they `
+    + `are at ${fmt.money(price)} a month today and paid ${fmt.money(paid12)} over the last 12 months. The model forecasts about `
+    + `${leave.toFixed(1)} of the ${T.length} leaving on the notice, against ${leave0.toFixed(1)} with no increase, so the increases add `
+    + `${sm(pilot)} a month after leavers (${sm(added)} if all stay).</p>`
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Industry group</th>'
-    + BANDS.map(b => `<th class="n">${b.replace('-', ' to ')}</th>`).join('') + ARMS.map(a => `<th class="n">Arm ${a}</th>`).join('') + BATCHES.map(b => `<th class="n">${b}</th>`).join('') + '<th class="n">All</th></tr></thead><tbody>'
-    + GROUPS.map(g => `<tr><td>${g}</td>` + BANDS.map(b => `<td class="n">${T.filter(x => x.group === g && x.band === b).length}</td>`).join('')
+    + BANDS.map(([l]) => `<th class="n">${l}</th>`).join('') + ARMS.map(a => `<th class="n">${a}</th>`).join('') + '<th class="n">All</th></tr></thead><tbody>'
+    + GROUPS.map(g => `<tr><td>${g}</td>` + BANDS.map(([, f]) => `<td class="n">${T.filter(x => x.group === g && f(x)).length}</td>`).join('')
       + ARMS.map(a => `<td class="n">${T.filter(x => x.group === g && x.arm === a).length}</td>`).join('')
-      + BATCHES.map(b => `<td class="n">${T.filter(x => x.group === g && x.batch === b).length}</td>`).join('')
       + `<td class="n">${T.filter(x => x.group === g).length}</td></tr>`).join('')
+    + `<tr class="plan-total"><td><strong>All</strong></td>` + BANDS.map(([, f]) => `<td class="n">${T.filter(f).length}</td>`).join('')
+    + ARMS.map(a => `<td class="n">${T.filter(x => x.arm === a).length}</td>`).join('') + `<td class="n">${T.length}</td></tr>`
     + '</tbody></table></div>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>#</th><th>Company</th><th>Stripe ID</th><th>Industry</th>'
-    + '<th>Spend band</th><th>Batch</th><th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Platform fee now</th>'
-    + '<th class="n">Total spend now</th><th class="n">Test arm</th><th>Cap</th><th class="n">Increase</th><th class="n">Rise on spend</th><th class="n">New platform fee</th>'
-    + '<th class="n">Leave, no increase</th><th class="n">Leave, with it</th><th class="n">Expected gain</th><th>Watch</th></tr></thead><tbody>'
-    + [...T].sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group) || BANDS.indexOf(a.band) - BANDS.indexOf(b.band))
-      .map((x, i) => `<tr><td>${i + 1}</td><td>${x.name}</td><td class="mono">${x.id}</td><td>${x.industry}</td><td>${x.band}</td><td>${x.batch}</td>`
-        + `<td class="n">${x.age.toFixed(1)}</td><td class="n">${fmt.int(x.replying)}</td><td class="n">${fmt.money(x.fee)}</td>`
-        + `<td class="n">${fmt.money(x.spend)}</td><td class="n">${x.arm}</td><td>${x.cap === 'none' ? '–' : x.cap}</td>`
-        + `<td class="n"><strong>+${fmt.money(x.d)}</strong></td><td class="n">+${pc(x.d / x.spend)}</td>`
-        + `<td class="n">${fmt.money(x.fee + x.d)}</td><td class="n">${pc(x.base)}</td><td class="n">${pc(x.fc)}</td>`
-        + `<td class="n">${sm(gainOf(x))}</td><td class="muted">${[x.credit ? 'buys credits: credit price held to 1 Feb' : '', x.note ? 'above the tested $438' : '',
-          /^Hold/.test(x.rec) ? 'model says hold' : ''].filter(Boolean).join('; ')}</td></tr>`).join('')
-    + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td colspan="7"></td><td class="n"><strong>${fmt.money(spend)}</strong></td>`
-    + `<td></td><td></td><td class="n"><strong>+${fmt.money(added)}</strong></td><td class="n">+${pc(added / spend)}</td><td></td><td class="n">${leave0.toFixed(1)}</td>`
-    + `<td class="n">${leave.toFixed(1)}</td><td class="n"><strong>${sm(pilot)}</strong></td><td></td></tr>`
+    + '<th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Price now</th><th class="n">New price</th>'
+    + '<th class="n">Increase</th><th class="n">%</th><th class="n">Leave, no increase</th><th class="n">Leave, with it</th>'
+    + '<th class="n">Expected gain</th><th>Paid, Nov 2025 to Oct 2026</th><th class="n">Paid, 12 months</th><th>Watch</th></tr></thead><tbody>'
+    + [...T].sort((a, b) => ARMS.indexOf(a.arm) - ARMS.indexOf(b.arm) || a.price - b.price)
+      .map((x, i) => `<tr><td>${i + 1}</td><td>${x.name}</td><td class="mono">${x.id}</td><td>${x.industry}</td>`
+        + `<td class="n">${x.age.toFixed(1)}</td><td class="n">${fmt.int(x.replying)}</td><td class="n">${fmt.money(x.price)}</td>`
+        + `<td class="n"><strong>${fmt.money(x.newPrice)}</strong></td><td class="n">+${fmt.money(x.d)}</td><td class="n">+${Math.round(x.pct)}%</td>`
+        + `<td class="n">${pc(x.base)}</td><td class="n">${pc(x.fc)}</td><td class="n">${sm(gainOf(x))}</td>`
+        + `<td class="mono">${spark(x.paid)}</td><td class="n">${fmt.money(x.paid12)}</td><td class="muted">${watch(x)}</td></tr>`).join('')
+    + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td colspan="4"></td><td class="n"><strong>${fmt.money(price)}</strong></td>`
+    + `<td class="n"><strong>${fmt.money(price + added)}</strong></td><td class="n">+${fmt.money(added)}</td><td class="n">+${pc(added / price)}</td>`
+    + `<td class="n">${leave0.toFixed(1)}</td><td class="n">${leave.toFixed(1)}</td><td class="n"><strong>${sm(pilot)}</strong></td>`
+    + `<td></td><td class="n">${fmt.money(paid12)}</td><td></td></tr>`
     + '</tbody></table></div>'
     + '<p class="note">"Leave" is the chance of cancelling within 3 months: with no increase from the baseline model, and with the increase '
-    + 'from the notice model (Model L) on top of it. Neither covers cancelling at the first higher bill, which this test measures for the '
-    + 'first time. The increase is a share of total spend added to the platform fee, so on accounts with large add-ons the platform fee '
-    + 'itself rises by more than the share shown.</p>'
+    + 'from the notice model on top of it. Neither covers cancelling at the first higher bill, which this test measures for the first time. '
+    + '"Paid" is what each account paid in each month from November 2025 to October 2026 (● paid, 0 nothing that month; hover a mark '
+    + 'for the amount).</p>'
     + '<h3 class="sub-head">Before the notices go out</h3>'
     + '<ul class="plan-rules">'
+    + (lastTwoZero.length ? `<li><strong>${lastTwoZero.map(x => x.name).join(', ')} paid nothing in September or October.</strong> `
+      + 'Check they are still active and paying before they get a notice; an account already lapsing would read as a cancellation the test did not cause.</li>' : '')
+    + (gaps.length ? `<li><strong>${gaps.length} accounts have months with no payment</strong> in the last 12 (${gaps.map(x => `${x.name} ${missed(x)}`).join(', ')}). `
+      + 'Read their results with that in mind.</li>' : '')
     + `<li><strong>${creditN} of the ${T.length} buy credits</strong> (${T.filter(x => x.credit).map(x => x.name).join(', ')}). Decided `
     + '13 November: their credit price stays as it is until the 1 February read-out, so each gets one increase at a time and the test '
     + 'measures the platform increase alone. They move to their new credit price after the read-out.</li>'
-    + (overTested ? `<li><strong>${overTested} increases are above the $438 the August test reached</strong>, so their forecast is extrapolated.</li>` : '')
     + '<li><strong>Set each Stripe subscription schedule the day the notice goes out.</strong> In August only 2 of 21 stayers were ever '
     + 'billed the new price, which is why first-bill churn is still unknown.</li>'
     + '<li><strong>Same notice wording and timing for all.</strong> Do not change anyone\'s increase; if an account negotiates, give what '
     + 'is needed and log it in the test sheet.</li>'
     + '<li><strong>Check with the account owners</strong> that their accounts can be included.</li>'
-    + `<li><strong>Timing:</strong> notices in ${BATCHES.length} batches by 1 December, first new bill 1 January, results read 1 February.</li>`
+    + '<li><strong>Timing:</strong> notices by 1 December, first new bill 1 January, results read 1 February.</li>'
     + '</ul>'
 
     + '<h3 class="sub-head">The pilot\'s next 12 months: with the increase against no increase</h3>'
     + '<fieldset class="preset-group"><legend>Show</legend><div class="calc-presets" id="jan1-view">'
-    + [['logos', 'Customers', `How many of the ${T.length} are still paying.`], ['mrr', 'Revenue', `Total monthly spend of the ${T.length}.`],
+    + [['logos', 'Customers', `How many of the ${T.length} are still paying.`], ['mrr', 'Revenue', `Monthly price of the ${T.length}.`],
       ['total', 'Difference, running total', 'Extra revenue collected from January.']]
       .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${JAN1_UI.view === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
     + '</div></fieldset>'
@@ -8001,7 +8003,7 @@ function renderJan1Proposal() {
 
     + '<h3 class="sub-head">Once approved</h3>'
     + '<ol class="plan-rules">'
-    + '<li>Notices: 10DLC by email to each Stripe billing email; credits by an in-Chiirp message with each customer\'s price; the pilot by '
+    + '<li>Notices: 10DLC and credits by an in-Chiirp message (credits with each customer\'s price); the platform pilot by '
     + `email to the ${T.length}, each with their own new price, and its Stripe schedule set the same day.</li>`
     + '<li>The support team gets an FAQ for the questions that come in.</li>'
     + '<li>Product (Kevin and Taylor) sets the new prices in Stripe and Chiirp to start 1 January.</li>'
@@ -8012,7 +8014,7 @@ function renderJan1Proposal() {
 
   // The pilot's 12 months both ways: the new model's projection (modelPProject).
   const H = 12;
-  const f = modelPProject(T.map(x => ({ a: { spend: x.spend, pC: x.base }, ask: { d: x.d, total: x.fc } })), H);
+  const f = modelPProject(T.map(x => ({ a: { spend: x.price, pC: x.base }, ask: { d: x.d, total: x.fc } })), H);
   const labels = Array.from({ length: H + 1 }, (_, t) => (t === 0 ? "Dec '26" : fmt.monthLabel(monthAdd('2026-12', t))));
   const NO = 'No increase', YES = 'With the increase';
   const one = v => v.toFixed(1);
@@ -8029,7 +8031,7 @@ function renderJan1Proposal() {
     const nv = isL ? f.none.logos : f.none.mrr, rv = isL ? f.rise.logos : f.rise.mrr;
     const yf = isL ? one : fmt.money;
     multiLineChart($('jan1-chart'), { labels, yMin: 0, yFormat: isL ? fmt.int : fmt.money,
-      yTitle: isL ? 'Pilot accounts still paying' : `Total monthly spend of the ${T.length}`,
+      yTitle: isL ? 'Pilot accounts still paying' : `Monthly price of the ${T.length}`,
       series: [{ label: NO, colour: INK.muted, values: nv, dashed: true }, { label: YES, colour: INK.primary, values: rv }],
       xMarks: marks,
       describe: i => `<strong>${labels[i]}</strong><span>${NO}: ${yf(nv[i])}</span><span>${YES}: ${yf(rv[i])}</span>` });
@@ -8037,7 +8039,7 @@ function renderJan1Proposal() {
   const row = (label, m, r12) => `<tr><td>${label}</td><td class="n">${one(m.logos[1])}</td><td class="n">${one(m.logos[H])}</td>`
     + `<td class="n">${fmt.money(m.mrr[1])}</td><td class="n">${fmt.money(m.mrr[H])}</td><td class="n"><strong>${fmt.money(r12)}</strong></td></tr>`;
   $('jan1-12').innerHTML = '<thead><tr><th></th><th class="n">Accounts, Jan</th><th class="n">Accounts, Dec 2027</th>'
-    + '<th class="n">Spend, Jan</th><th class="n">Spend, Dec 2027</th><th class="n">12 months collected</th></tr></thead><tbody>'
+    + '<th class="n">Price, Jan</th><th class="n">Price, Dec 2027</th><th class="n">12 months collected</th></tr></thead><tbody>'
     + row(NO, f.none, f.revenue12.none) + row(YES, f.rise, f.revenue12.rise)
     + `<tr class="plan-total"><td><strong>Difference</strong></td><td class="n">${one(f.rise.logos[1] - f.none.logos[1])}</td>`
     + `<td class="n">${one(f.rise.logos[H] - f.none.logos[H])}</td><td class="n">${sm(f.rise.mrr[1] - f.none.mrr[1])}</td>`
