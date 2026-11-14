@@ -3955,7 +3955,9 @@ export const PLAN_CHECKLISTS = {
       due: '2026-11-30' },
     { id: 'cr-notices', step: 'In-Chiirp message to every affected customer about their new credit price (not sent yet; 30 days\' notice, 2 Dec at the latest)',
       owner: 'Taylor Roberts and Kevin', due: '2026-12-01' },
+    { id: 'cr-pilot', step: 'Keep the 10 platform-pilot accounts that buy credits on their current credit price until the pilot read-out (Josh, 13 Nov)', owner: 'Taylor Roberts and Kevin', due: '2027-01-01' },
     { id: 'cr-start', step: 'New credit prices take effect', due: '2027-01-01' },
+    { id: 'cr-pilot-end', step: 'Move the 10 platform-pilot accounts to their new credit price after the read-out', owner: 'Taylor Roberts and Kevin', due: '2027-02-01' },
     { id: 'cr-standard', step: 'Charge $2 per 100 credits (2 cents a credit, double the legacy $1 per 100) going forward', owner: 'Product (Kevin and Taylor)',
       due: '2027-01-01' },
     { id: 'cr-recharge', step: 'Confirm that auto-recharge firing several times within seconds is intended', owner: 'Product (Kevin and Taylor)' },
@@ -3964,7 +3966,7 @@ export const PLAN_CHECKLISTS = {
   jan1: [
     { id: 'j1-options', step: 'Compare: 10DLC + credits + a 20-customer platform pilot, against a platform rise only piloted on 50', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-pilot', step: 'Pilot = the phase 1 priced test: 60 accounts across industry groups and spend bands, arms of +10%, +30% and +60% of total spend, capped; Chiirp Stripe account only', owner: 'Josh', done: '2026-11-13' },
-    { id: 'j1-credit', step: 'Decide for the 10 pilot accounts that buy credits: hold their credit price for the test, or take them out', owner: 'Josh', due: '2026-11-20' },
+    { id: 'j1-credit', step: 'The 10 pilot accounts that buy credits: hold their credit price until the 1 Feb read-out, so each gets one increase at a time', owner: 'Josh', signoff: { by: 'Josh', on: '2026-11-13' }, done: '2026-11-13' },
     { id: 'j1-owners', step: 'Check with account owners that their accounts can be in the test', due: '2026-11-20' },
     { id: 'j1-notice', step: 'Write the pilot notice (informational, the same wording and timing for all 60)', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot', owner: 'CEO', due: '2026-11-20', needsSignoff: true },

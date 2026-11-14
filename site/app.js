@@ -7951,7 +7951,7 @@ function renderJan1Proposal() {
         + `<td class="n">${fmt.money(x.spend)}</td><td class="n">${x.arm}</td><td>${x.cap === 'none' ? '–' : x.cap}</td>`
         + `<td class="n"><strong>+${fmt.money(x.d)}</strong></td><td class="n">+${pc(x.d / x.spend)}</td>`
         + `<td class="n">${fmt.money(x.fee + x.d)}</td><td class="n">${pc(x.base)}</td><td class="n">${pc(x.fc)}</td>`
-        + `<td class="n">${sm(gainOf(x))}</td><td class="muted">${[x.credit ? 'buys credits' : '', x.note ? 'above the tested $438' : '',
+        + `<td class="n">${sm(gainOf(x))}</td><td class="muted">${[x.credit ? 'buys credits: credit price held to 1 Feb' : '', x.note ? 'above the tested $438' : '',
           /^Hold/.test(x.rec) ? 'model says hold' : ''].filter(Boolean).join('; ')}</td></tr>`).join('')
     + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td colspan="7"></td><td class="n"><strong>${fmt.money(spend)}</strong></td>`
     + `<td></td><td></td><td class="n"><strong>+${fmt.money(added)}</strong></td><td class="n">+${pc(added / spend)}</td><td></td><td class="n">${leave0.toFixed(1)}</td>`
@@ -7963,9 +7963,9 @@ function renderJan1Proposal() {
     + 'itself rises by more than the share shown.</p>'
     + '<h3 class="sub-head">Before the notices go out</h3>'
     + '<ul class="plan-rules">'
-    + `<li><strong>${creditN} of the ${T.length} buy credits</strong> (${T.filter(x => x.credit).map(x => x.name).join(', ')}), so they would `
-    + 'get the credit rise and this rise on the same day. Decide whether to hold their credit price for the test or take them out; '
-    + 'either way, read their results apart.</li>'
+    + `<li><strong>${creditN} of the ${T.length} buy credits</strong> (${T.filter(x => x.credit).map(x => x.name).join(', ')}). Decided `
+    + '13 November: their credit price stays as it is until the 1 February read-out, so each gets one increase at a time and the test '
+    + 'measures the platform increase alone. They move to their new credit price after the read-out.</li>'
     + (overTested ? `<li><strong>${overTested} increases are above the $438 the August test reached</strong>, so their forecast is extrapolated.</li>` : '')
     + '<li><strong>Set each Stripe subscription schedule the day the notice goes out.</strong> In August only 2 of 21 stayers were ever '
     + 'billed the new price, which is why first-bill churn is still unknown.</li>'
