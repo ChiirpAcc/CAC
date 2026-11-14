@@ -8076,10 +8076,10 @@ function renderModelPLists() {
   const pc = v => `${Math.round(v * 100)}%`;
   const listOf = goal => J.accounts.map(a => ({ a, ask: modelPAsk(spec, a, { goal, cap: MP_UI.cap, steps }) })).filter(x => x.ask.asked);
   const stats = rows => ({
-    n: rows.length, fee: rows.reduce((t, x) => t + x.a.fee, 0), asks: rows.reduce((t, x) => t + x.a.fee + x.ask.d, 0),
+    n: rows.length, fee: rows.reduce((t, x) => t + x.a.spend, 0), asks: rows.reduce((t, x) => t + x.a.spend + x.ask.d, 0),
     gain: rows.reduce((t, x) => t + x.ask.gain, 0), leave: rows.reduce((t, x) => t + x.ask.total, 0),
     driven: rows.reduce((t, x) => t + x.ask.driven, 0), atTop: rows.filter(x => x.ask.d === top).length,
-    untestedFee: rows.filter(x => x.a.fee > 362).length });
+    untestedFee: rows.filter(x => x.a.fee > 362).length, under500: rows.filter(x => x.a.fee < 500).length });
   const rev = listOf('revenue'), low = listOf('lowChurn');
   const R = stats(rev), L = stats(low);
   const rows = MP_UI.goal === 'revenue' ? rev : low;
@@ -8091,11 +8091,11 @@ function renderModelPLists() {
     + `${R.leave.toFixed(0)} leaving within 3 months. Lowest churn (at most ${capPct}% likely to leave): ${fmt.int(L.n)} accounts, `
     + `${sm(L.gain)} a month, about ${L.leave.toFixed(0)} leaving.</strong> Both come from the new churn model, scored on `
     + `${checkDay(J.asOf)}, on the Chiirp Stripe account only. ${fmt.int(R.atTop)} of the highest-revenue asks sit at +$${top}, the top `
-    + 'of what the August test covered, so read them as "at least this much is safe by the model", not as tested prices.</p>'
+    + 'of what the August test covered: the test showed that getting an increase mattered and its size barely did, so the search runs to the top.</p>'
 
     + '<div class="plan-controls">'
     + '<fieldset class="preset-group"><legend>Which list</legend><div class="calc-presets" id="mp-goal">'
-    + [['revenue', 'Highest revenue', 'Each account\'s increase that adds the most expected MRR, with the increase adding at most 10 points of churn (the model\'s own rule).'],
+    + [['revenue', 'Highest revenue', 'Each account\'s increase that adds the most expected revenue on its total spend, with the increase adding at most 10 points of churn (the model\'s own rule).'],
       ['lowChurn', 'Lowest churn', 'Each account\'s best increase that keeps its total chance of leaving at or under the cap; accounts already over it are not asked.']]
       .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${MP_UI.goal === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
     + '</div></fieldset>'
@@ -8106,18 +8106,19 @@ function renderModelPLists() {
     + '<h3 class="sub-head">The two lists side by side</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">Highest revenue</th>'
     + `<th class="n">Lowest churn (≤ ${capPct}%)</th></tr></thead><tbody>`
-    + [['Accounts asked', fmt.int(R.n), fmt.int(L.n)], ['Platform fees now', fmt.money(R.fee), fmt.money(L.fee)],
-      ['Platform fees asked', fmt.money(R.asks), fmt.money(L.asks)], ['Expected gain a month, after leavers', sm(R.gain), sm(L.gain)],
+    + [['Accounts asked', fmt.int(R.n), fmt.int(L.n)], ['Total spend now', fmt.money(R.fee), fmt.money(L.fee)],
+      ['Total spend after the increase', fmt.money(R.asks), fmt.money(L.asks)], ['Expected gain a month, after leavers', sm(R.gain), sm(L.gain)],
       ['Expected to leave within 3 months', R.leave.toFixed(1), L.leave.toFixed(1)],
       ['… of which the increase causes', R.driven.toFixed(1), L.driven.toFixed(1)],
       [`Asks at +$${top}, the top of the tested range`, fmt.int(R.atTop), fmt.int(L.atTop)],
-      ['Fee above the $62 to $362 the test covered', fmt.int(R.untestedFee), fmt.int(L.untestedFee)]]
+      ['Fee above the $62 to $362 the test covered', fmt.int(R.untestedFee), fmt.int(L.untestedFee)],
+      ['Fee under $500: baseline extrapolated', fmt.int(R.under500), fmt.int(L.under500)]]
       .map(([k, a, b]) => `<tr><td>${k}</td><td class="n">${a}</td><td class="n">${b}</td></tr>`).join('')
     + '</tbody></table></div>'
 
     + `<h3 class="sub-head">${label}: the next 12 months, with the increase against no increase</h3>`
     + '<fieldset class="preset-group"><legend>Show</legend><div class="calc-presets" id="mp-view">'
-    + [['logos', 'Customers', 'How many on the list are still paying.'], ['mrr', 'Revenue', 'Platform fee MRR of the list.'],
+    + [['logos', 'Customers', 'How many on the list are still paying.'], ['mrr', 'Revenue', 'Total monthly spend of the list.'],
       ['total', 'Difference, running total', 'Extra revenue collected from January.']]
       .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${MP_UI.view === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
     + '</div></fieldset>'
@@ -8125,15 +8126,15 @@ function renderModelPLists() {
     + '<p class="note" id="mp-chart-note"></p>'
 
     + `<h3 class="sub-head">${label}: ${fmt.int(rows.length)} accounts</h3>`
-    + '<p><button type="button" id="mp-download">Download this list (CSV)</button><span class="muted" id="mp-status"></span></p>'
+    + '<p><button type="button" class="calc-download" id="mp-download">Download this list (CSV)</button><span class="muted" id="mp-status"></span></p>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Company</th><th>Stripe ID</th><th>Industry</th>'
     + '<th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Platform fee now</th>'
-    + '<th class="n">Increase</th><th class="n">New fee</th><th class="n">Rise</th><th class="n">Leave, no increase</th>'
+    + '<th class="n">Total spend now</th><th class="n">Increase</th><th class="n">New platform fee</th><th class="n">Rise on spend</th><th class="n">Leave, no increase</th>'
     + '<th class="n">Leave, with it</th><th class="n">Expected gain</th></tr></thead><tbody>'
     + [...rows].sort((x, y) => y.ask.gain - x.ask.gain).map(({ a, ask }) => `<tr><td>${a.name || '–'}</td><td class="mono">${a.id}</td>`
       + `<td>${a.industry || '–'}</td><td class="n">${a.age.toFixed(1)}</td><td class="n">${fmt.int(a.replying)}</td>`
-      + `<td class="n">${fmt.money(a.fee)}</td><td class="n"><strong>+${fmt.money(ask.d)}</strong></td><td class="n">${fmt.money(a.fee + ask.d)}</td>`
-      + `<td class="n">+${pc(ask.d / a.fee)}</td><td class="n">${pc(a.pC)}</td><td class="n">${pc(ask.total)}</td>`
+      + `<td class="n">${fmt.money(a.fee)}</td><td class="n">${fmt.money(a.spend)}</td><td class="n"><strong>+${fmt.money(ask.d)}</strong></td><td class="n">${fmt.money(a.fee + ask.d)}</td>`
+      + `<td class="n">+${pc(ask.d / a.spend)}</td><td class="n">${pc(a.pC)}</td><td class="n">${pc(ask.total)}</td>`
       + `<td class="n">${sm(ask.gain)}</td></tr>`).join('')
     + '</tbody></table></div>'
 
@@ -8144,23 +8145,25 @@ function renderModelPLists() {
     + `<li><strong>Baseline (Model C).</strong> The chance of leaving within 3 months with no increase, fitted on 643 $500+ accounts from `
     + 'contacts replying, reply rate, age, price, failed payments, share of the last year paid and industry '
     + `(AUC ${spec.C.unseen.map(u => u.AUC.toFixed(2)).join(' / ')} on accounts it had not seen).</li>`
-    + `<li><strong>The notice (Model P).</strong> The chance of leaving once told of a $ increase, fitted on the 36 August test accounts `
-    + 'from the dollar increase, contacts replying, manual texts, the trend in texts sent and a cleaning flag '
-    + `(AUC ${spec.Pfit.unseen.map(u => u.AUC.toFixed(2)).join(' / ')} unseen; the $ increase is forced in, so churn always rises with it). `
-    + 'More replying contacts lower it; more manual texts, falling texts and cleaning raise it.</li>'
+    + `<li><strong>The notice (Model L).</strong> What the increase adds on top of each account's own baseline, fitted on the 36 August `
+    + `test accounts: any increase raises the odds of leaving about ${Math.exp(spec.L.b0_any_increase).toFixed(1)}×, the size of the `
+    + `increase barely matters (+${spec.L.b1_per_log10_usd.toFixed(2)} on the log-odds per tenfold), and a cleaner's odds are about `
+    + `${Math.exp(spec.L.b2_cleaning).toFixed(1)}× more on top (AUC ${spec.L.unseen_loo.AUC.toFixed(2)} on accounts it had not seen, `
+    + `against ${spec.L.baseline_C_on_test.AUC.toFixed(2)} for the baseline alone). An increase can never come out free.</li>`
     + '<li><strong>The first bill.</strong> Not modelled yet: refit in early December once the 11 November bills settle.</li>'
-    + `<li><strong>Combine and pick.</strong> Total = the higher of the notice and the baseline. Every +$${MODEL_P_STEP} step up to +$${top} `
-    + 'is tried; expected gain = (fee + increase) × (1 − total) − fee × (1 − baseline). The two lists differ only in the limit.</li>'
+    + `<li><strong>Combine and pick.</strong> Every +$${MODEL_P_STEP} step up to +$${top} is tried; expected gain is on total spend `
+    + '(fee, add-ons and overage): (spend + increase) × (1 − chance of leaving) − spend × (1 − baseline), so losing a heavy payer '
+    + 'counts in full. The two lists differ only in the limit.</li>'
     + '</ol>'
     + '<h3 class="sub-head">Read with care</h3>'
     + '<ul class="plan-rules">'
-    + `<li><strong>Most increases are free by the model.</strong> For most accounts the notice model sits under their baseline at every tested `
-    + 'increase, so the higher-of rule gives the increase no churn at all and the highest-revenue list goes to the top. That is the '
-    + 'reason for the lowest-churn list, which caps the total chance of leaving instead.</li>'
-    + `<li><strong>Outside the test.</strong> The August test covered fees of $62 to $362 and increases of $${Math.round(spec.tested[0])} `
-    + `to $${Math.round(spec.tested[1])}; ${fmt.int(R.untestedFee)} of the highest-revenue accounts pay more than $362.</li>`
-    + '<li><strong>Kind sample.</strong> 12 engaged trade accounts took $138 to $378 increases in August and only 2 left, but most of them '
-    + 'were never billed the new price, so the notice model may be too gentle.</li>'
+    + `<li><strong>Size barely matters, so asks run to the top.</strong> ${fmt.int(R.atTop)} of ${fmt.int(R.n)} highest-revenue asks are `
+    + `+$${top}. That is notice-stage evidence from 36 accounts, most of which were never billed the new price: run the list as a priced test.</li>`
+    + '<li><strong>Cleaners are held.</strong> Their extra churn takes them over the 10-point limit at any increase.</li>'
+    + `<li><strong>The 10-point limit is a policy.</strong> ${fmt.int((J.summary.find(x => /^Hold/.test(x.rule)) || {}).n || 0)} accounts are held; most `
+    + 'would still add revenue at the top but cross the limit (cleaners, and trades whose baseline is already 16% or more).</li>'
+    + `<li><strong>Outside what was fitted.</strong> ${fmt.int(R.under500)} highest-revenue accounts pay under $500, below anything the `
+    + `baseline model was fitted on; ${fmt.int(R.untestedFee)} pay more than the $362 the August test reached.</li>`
     + '<li><strong>Gain is a ceiling.</strong> It counts only accounts that leave on the notice, not on the first bill.</li>'
     + '<li><strong>Not covered.</strong> 83 accounts with $100+ subscriptions have no standard platform product in Stripe and need their '
     + 'plan checked before they can be scored.</li>'
@@ -8189,7 +8192,7 @@ function renderModelPLists() {
     const nv = isL ? f.none.logos : f.none.mrr, rv = isL ? f.rise.logos : f.rise.mrr;
     const yf = isL ? (v => v.toFixed(1)) : fmt.money;
     multiLineChart($('mp-chart'), { labels, yMin: 0, yFormat: isL ? fmt.int : fmt.money,
-      yTitle: isL ? 'Accounts on the list still paying' : 'Platform fee MRR of the list',
+      yTitle: isL ? 'Accounts on the list still paying' : 'Total monthly spend of the list',
       series: [{ label: NO, colour: INK.muted, values: nv, dashed: true }, { label: YES, colour: INK.primary, values: rv }],
       xMarks: [{ index: H, label: '12 months', highlight: true }],
       describe: i => `<strong>${labels[i]}</strong><span>${NO}: ${yf(nv[i])}</span><span>${YES}: ${yf(rv[i])}</span>` });
@@ -8207,10 +8210,10 @@ function renderModelPLists() {
   $('mp-download').addEventListener('click', () => {
     const q = v => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
     const head = ['list', 'company', 'stripe_id', 'client_id', 'industry', 'state', 'account_age_years', 'contacts_replying_a_month',
-      'platform_fee_now', 'increase', 'new_platform_fee', 'rise', 'leave_3mo_no_increase', 'leave_3mo_with_increase',
+      'platform_fee_now', 'total_spend_now', 'increase', 'new_platform_fee', 'rise_on_spend', 'leave_3mo_no_increase', 'leave_3mo_with_increase',
       'increase_driven', 'expected_gain_a_month'];
     const lines = [head.join(',')].concat(rows.map(({ a, ask }) => [label, a.name || '', a.id, a.client, a.industry || '', a.state || '',
-      a.age, a.replying, a.fee, ask.d, a.fee + ask.d, (ask.d / a.fee).toFixed(3), a.pC.toFixed(3), ask.total.toFixed(3),
+      a.age, a.replying, a.fee, a.spend, ask.d, a.fee + ask.d, (ask.d / a.spend).toFixed(3), a.pC.toFixed(3), ask.total.toFixed(3),
       ask.driven.toFixed(3), ask.gain.toFixed(2)].map(q).join(',')));
     const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
     const el = document.createElement('a');
