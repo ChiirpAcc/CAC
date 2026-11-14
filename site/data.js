@@ -3964,7 +3964,7 @@ export const PLAN_CHECKLISTS = {
     { id: 'cr-future', step: 'Consider future credit increases, re-ranking the tiers on trailing 3-month spend' },
   ],
   jan1: [
-    { id: 'j1-options', step: 'Compare: 10DLC + credits + a 20-customer platform pilot, against a platform rise only piloted on 50', owner: 'Josh', done: '2026-11-13' },
+    { id: 'j1-options', step: 'Compare: 10DLC + credits + a platform pilot, against a platform rise only', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-pilot', step: 'Pilot = the final phase 1 list: 60 accounts, each price up 10%, 30%, 60% or 100%; Chiirp Stripe account only', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-credit', step: 'The pilot accounts that buy credits: hold their credit price until the 1 Feb read-out, so each gets one increase at a time', owner: 'Josh', signoff: { by: 'Josh', on: '2026-11-13' }, done: '2026-11-13' },
     { id: 'j1-owners', step: 'Check with Zeus that the pilot accounts can be in the test', owner: 'Zeus Acosta', due: '2026-11-20' },
@@ -4013,7 +4013,7 @@ export const CREDIT_PLAN = {
 // rebuild the upgrade list with diversity"), never retyped; this holds only
 // the dates.
 export const JAN1_PROPOSAL = {
-  asOf: '2026-11-13', decideBy: '2026-11-20', noticesBy: '2026-12-01', noticesTarget: '2026-11-23', effective: '2027-01-01',
+  asOf: '2026-11-13', decideBy: '2026-11-16', noticesBy: '2026-12-01', noticesTarget: '2026-11-23', effective: '2027-01-01',
   // Stage 1 accounts the push carries no name for, named from Stripe (13 Nov 2026).
   names: { cus_LVcUUcvNOfPBpr: 'The Junk Medics', cus_LsOCrjmicWtR5M: 'Neighborly Plumbing & Services', cus_MJIsJFeUvnU2Fe: 'Horizon' },
 };

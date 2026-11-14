@@ -7904,7 +7904,7 @@ function renderJan1Proposal() {
     + `${checkDay(J.noticesTarget)} (${checkDay(J.noticesBy)} at the latest).</p>`
 
     + '<h3 class="sub-head">The ask</h3>'
-    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>#</th><th>Change</th><th>Who it reaches</th>'
+    + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>Change</th><th>Who it reaches</th>'
     + '<th class="n">Added a month</th></tr></thead><tbody>'
     + `<tr><td>1</td><td>10DLC: $${DLC_PLAN.feeNow} → $${DLC_PLAN.feeNew} per campaign a month (<a href="#10dlc">10DLC tab</a>)</td>`
     + `<td>Every billed campaign, about ${fmt.int(dlcStep.billable)}, including the ${fmt.int(DLC_PLAN.billing.campaigns)} added to billing on `
@@ -7941,16 +7941,16 @@ function renderJan1Proposal() {
     + `<tr class="plan-total"><td><strong>All</strong></td>` + BANDS.map(([, f]) => `<td class="n">${T.filter(f).length}</td>`).join('')
     + ARMS.map(a => `<td class="n">${T.filter(x => x.arm === a).length}</td>`).join('') + `<td class="n">${T.length}</td></tr>`
     + '</tbody></table></div>'
-    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>#</th><th>Company</th><th>Stripe ID</th><th>Industry</th>'
+    + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>Company</th><th>Stripe ID</th><th>Industry</th>'
     + '<th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Price now</th><th class="n">New price</th>'
     + '<th class="n">Increase</th><th class="n">%</th><th class="n">Leave, no increase</th><th class="n">Leave, with it</th>'
-    + '<th class="n">Expected gain</th><th>Paid, Nov 2025 to Oct 2026</th><th class="n">Paid, 12 months</th><th>Watch</th></tr></thead><tbody>'
+    + '<th class="n">Expected gain</th><th class="pilot-spark">Paid, Nov 2025 to Oct 2026</th><th class="n">Paid, 12 months</th><th class="pilot-watch">Watch</th></tr></thead><tbody>'
     + [...T].sort((a, b) => ARMS.indexOf(a.arm) - ARMS.indexOf(b.arm) || a.price - b.price)
       .map((x, i) => `<tr><td>${i + 1}</td><td>${x.name}</td><td class="mono">${x.id}</td><td>${x.industry}</td>`
         + `<td class="n">${x.age.toFixed(1)}</td><td class="n">${fmt.int(x.replying)}</td><td class="n">${fmt.money(x.price)}</td>`
         + `<td class="n"><strong>${fmt.money(x.newPrice)}</strong></td><td class="n">+${fmt.money(x.d)}</td><td class="n">+${Math.round(x.pct)}%</td>`
         + `<td class="n">${pc(x.base)}</td><td class="n">${pc(x.fc)}</td><td class="n">${sm(gainOf(x))}</td>`
-        + `<td class="mono">${spark(x.paid)}</td><td class="n">${fmt.money(x.paid12)}</td><td class="muted">${watch(x)}</td></tr>`).join('')
+        + `<td class="pilot-spark">${spark(x.paid)}</td><td class="n">${fmt.money(x.paid12)}</td><td class="muted pilot-watch">${watch(x)}</td></tr>`).join('')
     + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td colspan="4"></td><td class="n"><strong>${fmt.money(price)}</strong></td>`
     + `<td class="n"><strong>${fmt.money(price + added)}</strong></td><td class="n">+${fmt.money(added)}</td><td class="n">+${pc(added / price)}</td>`
     + `<td class="n">${leave0.toFixed(1)}</td><td class="n">${leave.toFixed(1)}</td><td class="n"><strong>${sm(pilot)}</strong></td>`
@@ -7973,7 +7973,7 @@ function renderJan1Proposal() {
     + 'billed the new price, which is why first-bill churn is still unknown.</li>'
     + '<li><strong>Same notice wording and timing for all.</strong> Do not change anyone\'s increase; if an account negotiates, give what '
     + 'is needed and log it in the test sheet.</li>'
-    + '<li><strong>Check with the account owners</strong> that their accounts can be included.</li>'
+    + '<li><strong>Check with Zeus</strong> that the pilot accounts can be included.</li>'
     + '<li><strong>Timing:</strong> notices by 1 December, first new bill 1 January, results read 1 February.</li>'
     + '</ul>'
 
@@ -8005,10 +8005,10 @@ function renderJan1Proposal() {
     + '<ol class="plan-rules">'
     + '<li>Notices: 10DLC and credits by an in-Chiirp message (credits with each customer\'s price); the platform pilot by '
     + `email to the ${T.length}, each with their own new price, and its Stripe schedule set the same day.</li>`
-    + '<li>The support team gets an FAQ for the questions that come in.</li>'
-    + '<li>Product (Kevin and Taylor) sets the new prices in Stripe and Chiirp to start 1 January.</li>'
-    + '<li>Before anything is sent: confirm the standard agreement allows a change on 30 days\' notice, and leave off anyone on a custom '
-    + 'contract or price lock.</li>'
+    + '<li>Zeus owns the FAQ for the questions that come in.</li>'
+    + '<li>Josh or Product (Kevin and Taylor) sets the new prices in Stripe and Chiirp to start 1 January.</li>'
+    + '<li>The standard agreement allows a price change with notice (checked 13 November); leave off anyone on a custom contract or '
+    + 'price lock.</li>'
     + '</ol>'
     + `<p class="note">Prepared ${checkDay(J.asOf)}. The decision and who signed it off are recorded in the checklist at the top.</p>`;
 
@@ -8030,9 +8030,9 @@ function renderJan1Proposal() {
     const isL = JAN1_UI.view === 'logos';
     const nv = isL ? f.none.logos : f.none.mrr, rv = isL ? f.rise.logos : f.rise.mrr;
     const yf = isL ? one : fmt.money;
-    multiLineChart($('jan1-chart'), { labels, yMin: 0, yFormat: isL ? fmt.int : fmt.money,
+    multiLineChart($('jan1-chart'), { labels, yMin: 0, ...(isL ? { yMax: T.length } : {}), yFormat: isL ? fmt.int : fmt.money,
       yTitle: isL ? 'Pilot accounts still paying' : `Monthly price of the ${T.length}`,
-      series: [{ label: NO, colour: INK.muted, values: nv, dashed: true }, { label: YES, colour: INK.primary, values: rv }],
+      series: [{ label: NO, colour: INK.secondary, values: nv, dashed: true }, { label: YES, colour: INK.primary, values: rv }],
       xMarks: marks,
       describe: i => `<strong>${labels[i]}</strong><span>${NO}: ${yf(nv[i])}</span><span>${YES}: ${yf(rv[i])}</span>` });
   }

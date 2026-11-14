@@ -1467,6 +1467,11 @@ th.sorted { color: var(--ink); }
 /* Upgrade plan: the two switches side by side, and the stage totals. */
 .plan-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .8rem; margin: .8rem 0; }
 .plan-table tr.plan-total td { border-top: 1px solid var(--rule-strong); }
+/* Jan 1 proposal: a narrow # column, the payment strip on one line, room for the notes. */
+.num-first td:first-child, .num-first th:first-child { width: 2rem; min-width: 2rem; }
+.num-first td:nth-child(2) { min-width: 10rem; }
+.pilot-spark { white-space: nowrap; letter-spacing: 0.05em; }
+.pilot-watch { min-width: 16rem; }
 
 /* Plan checklists: done rows fade, the box column stays narrow. */
 .check-table td:first-child { width: 2rem; min-width: 2rem; }
