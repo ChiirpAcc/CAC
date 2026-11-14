@@ -1470,7 +1470,7 @@ th.sorted { color: var(--ink); }
 /* Jan 1 proposal: a narrow # column, the payment strip on one line, room for the notes. */
 .num-first td:first-child, .num-first th:first-child { width: 2rem; min-width: 2rem; }
 .num-first td:nth-child(2) { min-width: 10rem; }
-.pilot-spark { white-space: nowrap; letter-spacing: 0.05em; }
+.plan-table .pilot-spark { white-space: nowrap; letter-spacing: 0.05em; }
 .pilot-watch { min-width: 16rem; }
 
 /* Plan checklists: done rows fade, the box column stays narrow. */
