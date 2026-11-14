@@ -7688,11 +7688,24 @@ function renderUpgradePlan() {
 // and nobody can change it from the page.
 const checkDay = iso => (iso ? new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US',
   { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '');
-function checklistHtml(key, title) {
+// A checklist can be a dropdown (Josh, 13 Nov 2026: "make the checklist a
+// dropdown"): closed by default, the summary line says how many are done and
+// what is next, and it stays open or closed when the page redraws.
+const CHECK_OPEN = {};
+document.addEventListener('toggle', e => {
+  const d = e.target;
+  if (d && d.matches && d.matches('details[data-check]')) CHECK_OPEN[d.dataset.check] = d.open;
+}, true);
+function checklistHtml(key, title, { dropdown = false } = {}) {
   const items = PLAN_CHECKLISTS[key] || [];
   const done = items.filter(i => i.done).length;
+  const next = items.find(i => !i.done);
+  const head = dropdown
+    ? `<details class="check-fold" data-check="${key}"${CHECK_OPEN[key] ? ' open' : ''}><summary><strong>${title}</strong>`
+      + ` <span class="muted">${done} of ${items.length} done${next ? ` · next: ${next.step.split(/[:;(]/)[0].trim()}${next.due ? `, due ${checkDay(next.due)}` : ''}` : ''}</span></summary>`
+    : `<figcaption><h3>${title}</h3><p class="muted">${done} of ${items.length} done</p></figcaption>`;
   return `<figure class="card wide plan-checklist" data-checklist="${key}">`
-    + `<figcaption><h3>${title}</h3><p class="muted">${done} of ${items.length} done</p></figcaption>`
+    + head
     + '<div class="table-scroll"><table class="data-table plan-table check-table"><thead><tr><th></th><th>Step</th><th>Owner</th>'
     + '<th>Due</th><th>Signed off</th><th>Done</th></tr></thead><tbody>'
     + items.map(i => {
@@ -7705,7 +7718,7 @@ function checklistHtml(key, title) {
     }).join('')
     + '</tbody></table></div>'
     + '<p class="note">A step is ticked when it is recorded as done in the plan, with its date. The boxes cannot be changed from this '
-    + 'page; tell Josh when a step is done and it is recorded for everyone.</p></figure>';
+    + 'page; tell Josh when a step is done and it is recorded for everyone.</p>' + (dropdown ? '</details>' : '') + '</figure>';
 }
 
 // The 10DLC tab (Josh, 12 Nov 2026): the billing fix and the $12 to $15
@@ -7897,7 +7910,7 @@ function renderJan1Proposal() {
     x.paid && x.paid[10] === 0 && x.paid[11] === 0 ? 'paid nothing in Sep and Oct' : missed(x) ? `${missed(x)} month${missed(x) > 1 ? 's' : ''} with no payment` : '',
     x.fc - x.base > 0.2 ? 'cleaner: big forecast jump' : '', x.flags || ''].filter(Boolean).join('; ');
 
-  box.innerHTML = checklistHtml('jan1', 'Checklist: 1 January proposal')
+  box.innerHTML = checklistHtml('jan1', 'Checklist: 1 January proposal', { dropdown: true })
     + `<p class="finding"><strong>Three changes from ${checkDay(J.effective)} add about ${fmt.money(total)} a month `
     + `(${fmt.money(total * 12)} a year): 10DLC from $${DLC_PLAN.feeNow} to $${DLC_PLAN.feeNew}, the tiered credit rise, and a `
     + `${T.length}-account phase 1 priced test of the platform price.</strong> If customers buy 10% fewer credits it still adds ${fmt.money(downside)} `
