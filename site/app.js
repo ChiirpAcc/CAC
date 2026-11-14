@@ -7889,7 +7889,6 @@ function renderJan1Proposal() {
   const industries = new Set(T.map(x => x.industry)).size;
   const creditN = T.filter(x => x.credit).length;
   const missed = x => x.paid.filter(v => v === 0).length;
-  const lastTwoZero = T.filter(x => x.paid[10] === 0 && x.paid[11] === 0);
   const gaps = T.filter(x => missed(x) > 0);
   const spark = paid => paid.map((v, i) => `<span title="${MONTHS[i]}: ${fmt.money(v)}" class="${v === 0 ? 'tag risk' : ''}">${v === 0 ? '0' : '●'}</span>`).join('');
   const watch = x => [x.credit ? 'buys credits: credit price held to 1 Feb' : '',
@@ -7962,8 +7961,6 @@ function renderJan1Proposal() {
     + 'for the amount).</p>'
     + '<h3 class="sub-head">Before the notices go out</h3>'
     + '<ul class="plan-rules">'
-    + (lastTwoZero.length ? `<li><strong>${lastTwoZero.map(x => x.name).join(', ')} paid nothing in September or October.</strong> `
-      + 'Check they are still active and paying before they get a notice; an account already lapsing would read as a cancellation the test did not cause.</li>' : '')
     + (gaps.length ? `<li><strong>${gaps.length} accounts have months with no payment</strong> in the last 12 (${gaps.map(x => `${x.name} ${missed(x)}`).join(', ')}). `
       + 'Read their results with that in mind.</li>' : '')
     + `<li><strong>${creditN} of the ${T.length} buy credits</strong> (${T.filter(x => x.credit).map(x => x.name).join(', ')}). Decided `

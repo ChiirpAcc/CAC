@@ -3968,7 +3968,6 @@ export const PLAN_CHECKLISTS = {
     { id: 'j1-pilot', step: 'Pilot = the final phase 1 list: 60 accounts, each price up 10%, 30%, 60% or 100%; Chiirp Stripe account only', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-credit', step: 'The pilot accounts that buy credits: hold their credit price until the 1 Feb read-out, so each gets one increase at a time', owner: 'Josh', signoff: { by: 'Josh', on: '2026-11-13' }, done: '2026-11-13' },
     { id: 'j1-owners', step: 'Check with Zeus that the pilot accounts can be in the test', owner: 'Zeus Acosta', due: '2026-11-20' },
-    { id: 'j1-lapsed', step: 'Check Guardian Plumbing and Heating is still active: it paid nothing in September or October', due: '2026-11-20' },
     { id: 'j1-notice', step: 'Write the pilot notice (informational, the same wording and timing for all 60)', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot', owner: 'CEO', due: '2026-11-16', needsSignoff: true },
     { id: 'j1-contracts', step: 'Check the standard agreement allows a price change on 30 days\' notice; leave off custom contracts and price locks', owner: 'Josh', done: '2026-11-13', note: 'It does, with notice' },
