@@ -7905,7 +7905,6 @@ function renderJan1Proposal() {
   const optionB = p50 ? p50.stages.stage1.gain : null;
   const ARMS = ['+20%', '+30%', '+60%'];
   const CAPS = ['30% cap', '20% cleaning cap', 'small account: +100% minimum'];
-  const BATCHES = [...new Set(T.map(x => x.batch))].sort();
   const GROUPS = ['Core trades', 'Specialty trades', 'Cleaning'];
   const BANDS = [['Under $500', x => x.price < 500], ['$500 or more', x => x.price >= 500]];
   const MONTHS = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
@@ -7922,8 +7921,8 @@ function renderJan1Proposal() {
     + `<p class="finding"><strong>Three changes from ${checkDay(J.effective)} add ${fmt.money(downside)} to ${fmt.money(total)} a month `
     + `(${fmt.money(downside * 12)} to ${fmt.money(total * 12)} a year): 10DLC from $${DLC_PLAN.feeNow} to $${DLC_PLAN.feeNew}, the tiered credit rise, and a `
     + `${T.length}-account phase 1 priced test of the platform price.</strong> The lower figure is if customers buy 10% fewer credits, `
-    + `the higher if credit buying holds. Customers need 30 days' notice, so the decision is needed by ${checkDay(J.decideBy)} and notices go out by `
-    + `${checkDay(J.noticesTarget)} (${checkDay(J.noticesBy)} at the latest).</p>`
+    + `the higher if credit buying holds. Customers need 30 days' notice, so the decision is needed by ${checkDay(J.decideBy)} and every notice goes out at once on `
+    + `${checkDay(J.noticesBy)}.</p>`
 
     + '<h3 class="sub-head">The ask</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>Change</th><th>Who it reaches</th>'
@@ -7953,8 +7952,7 @@ function renderJan1Proposal() {
     + `accounts are split into three arms, <strong>+20%, +30% and +60% of the platform price</strong> (${ARMS.map(a => T.filter(x => x.arm === a).length).join(', ')}), `
     + `then capped: ${T.filter(x => x.cap === '30% cap').length} held at +30%, ${T.filter(x => x.cap === '20% cleaning cap').length} cleaners held at +20%, `
     + `and ${T.filter(x => x.cap === 'small account: +100% minimum').length} small accounts raised to a +100% minimum. The increases run from `
-    + `+$${Math.min(...T.map(x => x.d))} to +$${Math.max(...T.map(x => x.d))} a month, in ${BATCHES.length} notice batches of `
-    + `${BATCHES.map(b => T.filter(x => x.batch === b).length).join(' and ')}.</p>`
+    + `+$${Math.min(...T.map(x => x.d))} to +$${Math.max(...T.map(x => x.d))} a month. All ${T.length} are told at once on ${checkDay(J.noticesBy)}.</p>`
     + `<p>${T.length} accounts on the Chiirp Stripe account: ${GROUPS.map(g => `${T.filter(x => x.group === g).length} ${g.toLowerCase()}`).join(', ')}, `
     + `in ${industries} industries, ${BANDS.map(([l, f]) => `${T.filter(f).length} priced ${l.toLowerCase()}`).join(' and ')}. Together they `
     + `are billed ${fmt.money(bill)} a month today (${fmt.money(price)} of it platform fees) and paid ${fmt.money(paid12)} over the last 12 months${T.some(x => !x.paid) ? ` (${T.filter(x => !x.paid).map(x => x.name).join(', ')} not in the payment file)` : ''}. The model forecasts about `
@@ -7962,28 +7960,27 @@ function renderJan1Proposal() {
     + `${sm(pilot)} a month after leavers (${sm(added)} if all stay).</p>`
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Industry group</th>'
     + BANDS.map(([l]) => `<th class="n">${l}</th>`).join('') + ARMS.map(a => `<th class="n">Arm ${a}</th>`).join('') + '<th class="n">Capped</th>'
-    + BATCHES.map(b => `<th class="n">${b}</th>`).join('') + '<th class="n">All</th></tr></thead><tbody>'
+    + '<th class="n">All</th></tr></thead><tbody>'
     + GROUPS.map(g => `<tr><td>${g}</td>` + BANDS.map(([, f]) => `<td class="n">${T.filter(x => x.group === g && f(x)).length}</td>`).join('')
       + ARMS.map(a => `<td class="n">${T.filter(x => x.group === g && x.arm === a).length}</td>`).join('')
       + `<td class="n">${T.filter(x => x.group === g && x.cap !== 'none').length}</td>`
-      + BATCHES.map(b => `<td class="n">${T.filter(x => x.group === g && x.batch === b).length}</td>`).join('')
       + `<td class="n">${T.filter(x => x.group === g).length}</td></tr>`).join('')
     + `<tr class="plan-total"><td><strong>All</strong></td>` + BANDS.map(([, f]) => `<td class="n">${T.filter(f).length}</td>`).join('')
     + ARMS.map(a => `<td class="n">${T.filter(x => x.arm === a).length}</td>`).join('') + `<td class="n">${T.filter(x => x.cap !== 'none').length}</td>`
-    + BATCHES.map(b => `<td class="n">${T.filter(x => x.batch === b).length}</td>`).join('') + `<td class="n">${T.length}</td></tr>`
+    + `<td class="n">${T.length}</td></tr>`
     + '</tbody></table></div>'
     + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>Company</th><th>Stripe ID</th><th>Industry</th>'
-    + '<th>Batch</th><th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Price now</th><th class="n">Arm</th><th>Cap</th><th class="n">New price</th>'
+    + '<th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Price now</th><th class="n">Arm</th><th>Cap</th><th class="n">New price</th>'
     + '<th class="n">Increase</th><th class="n">%</th><th class="n">Leave, no increase</th><th class="n">Leave, with it</th>'
     + '<th class="n">Expected gain</th><th class="pilot-spark">Paid, Nov 2025 to Oct 2026</th><th class="n">Paid, 12 months</th><th class="pilot-watch">Watch</th></tr></thead><tbody>'
     + [...T].sort((a, b) => ARMS.indexOf(a.arm) - ARMS.indexOf(b.arm) || a.price - b.price)
-      .map((x, i) => `<tr><td>${i + 1}</td><td>${x.name}</td><td class="mono">${x.id}</td><td>${x.industry}</td><td>${x.batch}</td>`
+      .map((x, i) => `<tr><td>${i + 1}</td><td>${x.name}</td><td class="mono">${x.id}</td><td>${x.industry}</td>`
         + `<td class="n">${x.age.toFixed(1)}</td><td class="n">${fmt.int(x.replying)}</td><td class="n">${fmt.money(x.price)}</td>`
         + `<td class="n">${x.arm}</td><td>${x.cap === 'none' ? '–' : x.cap}</td>`
         + `<td class="n"><strong>${fmt.money(x.newPrice)}</strong></td><td class="n">+${fmt.money(x.d)}</td><td class="n">+${Math.round(x.pct)}%</td>`
         + `<td class="n">${pc(x.base)}</td><td class="n">${pc(x.fc)}</td><td class="n">${sm(gainOf(x))}</td>`
         + `<td class="pilot-spark">${spark(x.paid)}</td><td class="n">${x.paid12 == null ? '–' : fmt.money(x.paid12)}</td><td class="muted pilot-watch">${watch(x)}</td></tr>`).join('')
-    + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td colspan="5"></td><td class="n"><strong>${fmt.money(price)}</strong></td><td></td><td></td>`
+    + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td colspan="4"></td><td class="n"><strong>${fmt.money(price)}</strong></td><td></td><td></td>`
     + `<td class="n"><strong>${fmt.money(price + added)}</strong></td><td class="n">+${fmt.money(added)}</td><td class="n">+${pc(added / price)}</td>`
     + `<td class="n">${leave0.toFixed(1)}</td><td class="n">${leave.toFixed(1)}</td><td class="n"><strong>${sm(pilot)}</strong></td>`
     + `<td></td><td class="n">${fmt.money(paid12)}</td><td></td></tr>`

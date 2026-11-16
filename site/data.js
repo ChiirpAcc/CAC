@@ -3972,13 +3972,14 @@ export const PLAN_CHECKLISTS = {
   ],
   jan1: [
     { id: 'j1-options', step: 'Compare: 10DLC + credits + a platform pilot, against a platform rise only', owner: 'Josh', done: '2026-11-13' },
-    { id: 'j1-pilot', step: 'Pilot = the final phase 1 list: 60 accounts in two batches, arms of +20%, +30% and +60% of the price, capped; Chiirp Stripe account only', owner: 'Josh', done: '2026-11-13' },
+    { id: 'j1-pilot', step: 'Pilot = the final phase 1 list: 60 accounts, all told at once on 1 Dec (no batches), arms of +20%, +30% and +60% of the price, capped; Chiirp Stripe account only', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-credit', step: 'The pilot accounts that buy credits: hold their credit price until the 1 Feb read-out, so each gets one increase at a time', owner: 'Josh', signoff: { by: 'Josh', on: '2026-11-13' }, done: '2026-11-13' },
     { id: 'j1-owners', step: 'Check with Zeus that the pilot accounts can be in the test', owner: 'Zeus Acosta', due: '2026-11-20' },
     { id: 'j1-notice', step: 'Write the pilot notice (informational, the same wording and timing for all 60)', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot', owner: 'CEO', due: '2026-11-16', needsSignoff: true },
     { id: 'j1-contracts', step: 'Check the standard agreement allows a price change on 30 days\' notice; leave off custom contracts and price locks', owner: 'Josh', done: '2026-11-13', note: 'It does, with notice' },
-    { id: 'j1-send', step: 'Send the notices: 10DLC and credits by in-Chiirp message, the platform pilot\'s increase by email to the 60 (1 Dec at the latest; 2 Dec is the last day that still gives 30 days)', due: '2026-11-23' },
+    // Josh, 16 Nov 2026: "no batches. just all at once on dec 1".
+    { id: 'j1-send', step: 'Send all the notices at once on 1 Dec: 10DLC and credits by in-Chiirp message, the platform pilot\'s increase by email to all 60 (2 Dec is the last day that still gives 30 days)', due: '2026-12-01' },
     { id: 'j1-octasker', step: 'OC Tasker (in the pilot at +100%) pays on the same card as its owner\'s second account, cus_L5O3MAhBHKsiR3 ($100 a month, not in the pilot): give it the same increase with the same notice, or take OC Tasker out of the pilot', owner: 'Josh', due: '2026-11-20' },
     { id: 'j1-fee-line', step: 'Confirm the platform-fee line for the 5 pilot accounts where Stripe bills $50 more than the list\'s price (SBC Cooling + Heating, Evergreen Plumbing, Alan Smith Pool Plastering, A-1 Chimney, Culligan of Charlotte), so the notice and the Stripe schedule agree', owner: 'Josh', due: '2026-11-20' },
     { id: 'j1-faq', step: 'FAQ for the support team on the three changes', owner: 'Zeus Acosta', due: '2026-11-23' },
@@ -4028,7 +4029,7 @@ export const CREDIT_PLAN = {
 // rebuild the upgrade list with diversity"), never retyped; this holds only
 // the dates.
 export const JAN1_PROPOSAL = {
-  asOf: '2026-11-13', decideBy: '2026-11-16', noticesBy: '2026-12-01', noticesTarget: '2026-11-23', effective: '2027-01-01',
+  asOf: '2026-11-13', decideBy: '2026-11-16', noticesBy: '2026-12-01', effective: '2027-01-01',
   // Stage 1 accounts the push carries no name for, named from Stripe (13 Nov 2026).
   names: { cus_LVcUUcvNOfPBpr: 'The Junk Medics', cus_LsOCrjmicWtR5M: 'Neighborly Plumbing & Services', cus_MJIsJFeUvnU2Fe: 'Horizon' },
 };
@@ -4101,8 +4102,8 @@ export function modelPProject(rows, horizon = 12) {
 }
 
 // The Jan 1 platform pilot, phase 1 (Josh, 13 Nov 2026: "update" with
-// price_test_wave1_60_accounts (2).csv, the latest): 60 accounts on the Chiirp Stripe account in two notice
-// batches, arms of +20%, +30% and +60% of the platform price (arm, dTest), then capped (cap: +30%
+// price_test_wave1_60_accounts (2).csv, the latest): 60 accounts on the Chiirp Stripe account, all told on
+// 1 Dec (the list's two batches were dropped, Josh 16 Nov 2026; the batch field stays in the data), arms of +20%, +30% and +60% of the platform price (arm, dTest), then capped (cap: +30%
 // at most, +20% for cleaners, a +100% minimum for small accounts); d, pct and newPrice are after
 // the cap. base = Model C 3-month churn with no increase, fc = the model at the capped increase.
 // flags = the list's review flags. paid / paid12 = what it paid Nov 2025 to Oct 2026, from the
