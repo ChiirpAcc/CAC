@@ -163,6 +163,90 @@
    }
   },
   {
+   "contactId": 460952782549,
+   "company": "Tony Kelly Heating & Air Conditioning",
+   "source": "FieldEdge",
+   "setOn": "2026-11-04",
+   "setBasis": "retargeted",
+   "created": "2026-03-24",
+   "retargeted": {
+    "event": "FieldEdge",
+    "how": "first form fill ever: FieldEdge Partner Form, 4 Nov; held 9 Nov"
+   },
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 364574009044,
+    "on": "2026-11-09",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-09",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
+  },
+  {
+   "contactId": 25427431602,
+   "company": "JEM Plumbing, Inc",
+   "source": "FieldEdge",
+   "setOn": "2026-11-04",
+   "setBasis": "retargeted",
+   "created": "2024-05-29",
+   "retargeted": {
+    "event": "FieldEdge",
+    "how": "first form fill ever: FieldEdge Partner Form, 4 Nov; held 10 Nov"
+   },
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 365603122928,
+    "on": "2026-11-10",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-10",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
+  },
+  {
+   "contactId": 138830432876,
+   "company": "Tech-On-Deck",
+   "source": "FieldEdge",
+   "setOn": "2026-11-03",
+   "setBasis": "retargeted",
+   "created": "2025-07-17",
+   "retargeted": {
+    "event": "FieldEdge",
+    "how": "first form fill ever: FieldEdge Partner Form, 3 Nov; held 12 Nov after a 6 Nov no-show"
+   },
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 367127568112,
+    "on": "2026-11-12",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-12",
+    "outcome": "completed",
+    "shown": "Completed (rebooked after a 6 Nov no-show)"
+   }
+  },
+  {
    "contactId": 583134104287,
    "company": "Reece windows and doors",
    "source": "2026 - Qualified Remodeler Top 500",
@@ -1438,26 +1522,6 @@
    "retargeted": null,
    "demoScheduled": "2026-03-27",
    "demo": null,
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 460952782549,
-   "company": "Tony Kelly Heating & Air Conditioning",
-   "source": "FieldEdge",
-   "setOn": "2026-03-24",
-   "setBasis": "contact created",
-   "created": "2026-03-24",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 364574009044,
-    "on": "2026-11-09",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
-    "laterWonDealId": null
-   },
    "firstDealIsRenewal": false
   },
   {
@@ -2766,26 +2830,6 @@
     "ranBy": "Parker Joos",
     "outcome": "lost",
     "closedOn": "2026-01-27",
-    "amount": null,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 138830432876,
-   "company": "Tech-On-Deck",
-   "source": "FieldEdge",
-   "setOn": "2025-07-17",
-   "setBasis": "contact created",
-   "created": "2025-07-17",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 367127568112,
-    "on": "2026-11-12",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
     "amount": null,
     "laterWonDealId": null
    },
@@ -4199,26 +4243,6 @@
     "outcome": "won",
     "closedOn": "2025-01-14",
     "amount": 650.0,
-    "laterWonDealId": null
-   },
-   "firstDealIsRenewal": false
-  },
-  {
-   "contactId": 25427431602,
-   "company": "JEM Plumbing, Inc",
-   "source": "FieldEdge",
-   "setOn": "2024-05-29",
-   "setBasis": "contact created",
-   "created": "2024-05-29",
-   "retargeted": null,
-   "demoScheduled": null,
-   "demo": {
-    "dealId": 365603122928,
-    "on": "2026-11-10",
-    "ranBy": null,
-    "outcome": "open",
-    "closedOn": null,
-    "amount": null,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
