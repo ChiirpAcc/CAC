@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-16T12:48:31",
+  "pushed_at": "2026-11-16T13:19:06",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -54,7 +54,7 @@
     {
       "tab": "Lead Counts",
       "file": "lead_counts.json",
-      "rows": 95
+      "rows": 96
     },
     {
       "tab": "Marketing Monthly",
@@ -79,7 +79,7 @@
   ],
   "missing_required": [],
   "failed": [],
-  "pull_version": "hs-v101",
+  "pull_version": "hs-v102",
   "row_format": "arrays",
   "pipeline_version": "v190",
   "push_version": "gh-v16"
