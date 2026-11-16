@@ -3954,7 +3954,7 @@ export const PLAN_CHECKLISTS = {
   credit: [
     { id: 'cr-proposal', step: 'Send the proposal to Ryan Fenn, Taylor Roberts and Alicia Schmaling', owner: 'Josh', done: '2026-11-06' },
     { id: 'cr-shared', step: 'Shared-billing check: every group of accounts paying on one card or bank account gets one credit rate (Goettl\'s 8 and Steam Master\'s 7 at +25%; 07_FL moved into Steam Master; Goettl\'s High Desert Mechanical, on its own card, is priced on its own)', owner: 'Josh', done: '2026-11-16' },
-    { id: 'cr-tenpct', step: 'Correct the 6 Nov follow-up: $17,472 assumes no lost volume ($11,108 with 10% less)', owner: 'Josh' },
+    { id: 'cr-tenpct', step: 'Correct the 6 Nov follow-up: $17,422 assumes no lost volume ($11,063 with 10% less)', owner: 'Josh' },
     { id: 'cr-hold', step: 'Decide: hold the 19 accounts already on newer pricing (recommended) or raise them too',
       owner: 'Taylor Roberts and Kevin', due: '2026-11-25', needsSignoff: true },
     { id: 'cr-contracts', step: 'Check signed agreements for a fixed credit price among the top-tier customers', owner: 'Taylor Roberts and Kevin',
