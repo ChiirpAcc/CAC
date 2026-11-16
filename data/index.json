@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-16T14:06:23",
+  "pushed_at": "2026-11-16T16:38:59",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -69,18 +69,23 @@
     {
       "tab": "Setters",
       "file": "setters.json",
-      "rows": 318
+      "rows": 325
     },
     {
       "tab": "Event Leads",
       "file": "event_leads.json",
-      "rows": 4929
+      "rows": 4930
+    },
+    {
+      "tab": "Event Deals",
+      "file": "event_deals.json",
+      "rows": 760
     }
   ],
   "missing_required": [],
   "failed": [],
-  "pull_version": "hs-v103",
+  "pull_version": "hs-v106",
   "row_format": "arrays",
-  "pipeline_version": "v191",
+  "pipeline_version": "v193",
   "push_version": "gh-v16"
 }
