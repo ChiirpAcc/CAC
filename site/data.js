@@ -3836,7 +3836,8 @@ export const DLC_PLAN = {
     { when: 'Today', all: 0.75, monthly: 0.66 },
     // Recomputed 16 Nov 2026 on the 277 campaigns billed from 12 Nov (not the
     // 290 in the export) and $15 on 888: (monthly fees + new revenue after the
-    // haircut) over TCR's cost less the 76 cancelled campaigns.
+    // haircut) over TCR's cost less the 76 cancelled campaigns. Goettl's 2 added
+    // at $15 (16 Nov) is +$5 a month and leaves both at 1.29 / 1.20.
     { when: 'After billing the unbilled campaigns and cancelling unused ones', all: 1.07, monthly: 0.98 },
     { when: 'After $15 from 1 Jan 2027', all: 1.29, monthly: 1.20 },
   ],
@@ -3852,11 +3853,12 @@ export const DLC_PLAN = {
     { step: 'Switch the toggle on (already billed in Stripe)', campaigns: 14, billable: 14, perMonth: 0, owner: 'Kevin', status: 'To do (Kevin)' },
     { step: 'Cancel unused campaigns with TCR (cost saved)', campaigns: 76, billable: 76, perMonth: 760, owner: 'To assign',
       status: '28 by early Dec, 48 by early Feb' },
-    // 613 billed before 12 Nov + 277 billed from 12 Nov - Goettl's 2 = 888.
-    { step: 'Raise $12 to $15 on every billed campaign from 1 Jan', campaigns: 888, billable: 888, perMonth: 2398, owner: 'Leadership',
+    // 613 billed before 12 Nov + 277 billed from 12 Nov = 890, Goettl's 2 included
+    // (Josh, 16 Nov 2026: Goettl goes to $15 too). 890 x $3 x 0.9 = $2,403.
+    { step: 'Raise $12 to $15 on every billed campaign from 1 Jan', campaigns: 890, billable: 890, perMonth: 2403, owner: 'Leadership',
       status: 'From 1 Jan; needs sign-off' },
   ],
-  totalPerMonth: 6150,
+  totalPerMonth: 6155,
   buckets: { total: 1015, billed: 613, unbilled: 290, cancel: 76, review: 36 },
   notPaying: { total: 54, chase: 11, collectOrCut: 7, trialing: 3, cancelCandidates: 33 },
   october: { campaigns: 570, paid: 6668.23, expected: 613 * 12, gap: 687.77, unpaidLines: 39, unpaid: 466, freeCampaigns: 14, givenAway: 173.48, notInvoiced: 4 },
@@ -3869,7 +3871,7 @@ export const DLC_PLAN = {
   billing: { on: '2026-11-12', campaigns: 277, customers: 274, perMonth: 277 * 12, by: '2026-12-12',
     signedOff: { by: 'Taylor Roberts', on: '2026-11-12' }, reviewed: { by: 'Zeus Acosta and Alicia Schmaling', on: '2026-11-11' } },
   stillTexting: { campaigns: 31, ifBilled: 335 },
-  noRaise: 'One customer group (7 accounts sharing 2 TCR campaigns) is excluded from every 10DLC change by agreement.',
+  noRaise: 'Goettl (7 accounts sharing 2 TCR campaigns) goes to $15 with everyone else (decided 16 Nov 2026).',
   timeline: [
     ['Wed 11 Nov 2026', 'Zeus and Alicia finish the campaign review (due date; see progress above)'],
     ['After their approval', 'Kevin starts billing the unbilled campaigns: the handoff list has 277 campaigns for 274 clients'],
@@ -3925,7 +3927,7 @@ export const PLAN_CHECKLISTS = {
     { id: 'plan-readout2', step: 'Stage 2 read-out', due: '2027-03-26' },
   ],
   dlc: [
-    { id: 'dlc-goettl', step: 'Exclude Goettl (7 accounts sharing 2 campaigns) from every 10DLC change', owner: 'Josh', done: '2026-11-06' },
+    { id: 'dlc-goettl', step: 'Goettl (7 accounts sharing 2 campaigns): kept out of the 12 Nov billing step; goes to $15 on 1 January with everyone else (decided 16 Nov)', owner: 'Josh', done: '2026-11-16' },
     { id: 'dlc-review', step: 'Review every campaign and set the exclusions', owner: 'Zeus Acosta and Alicia Schmaling',
       signoff: { by: 'Zeus Acosta and Alicia Schmaling', on: '2026-11-11' }, done: '2026-11-11' },
     { id: 'dlc-list', step: "List the campaigns that should pay $12 but don't: 277 campaigns, 274 customers (live subscription, paid before, Zeus's exclusions applied)",
@@ -3942,7 +3944,7 @@ export const PLAN_CHECKLISTS = {
     { id: 'dlc-nonpay', step: 'Chase the 11 non-paying balances; collect or cut off the other 7', owner: 'Account managers' },
     { id: 'dlc-cancel1', step: 'Cancel with TCR the 28 unused campaigns whose terms end within 30 days', due: '2026-12-01' },
     { id: 'dlc-approve15', step: 'Sign-off on $15 from 1 January', owner: 'Taylor Roberts', due: '2026-11-25', needsSignoff: true },
-    { id: 'dlc-raise', step: 'Move every billed campaign to $15 in Stripe from 1 January (the 2 Goettl campaigns stay at $12)',
+    { id: 'dlc-raise', step: 'Move every billed campaign to $15 in Stripe from 1 January (890, including Goettl\'s 2)',
       owner: 'Product (Kevin and Taylor)', due: '2026-12-31' },
     { id: 'dlc-new15', step: 'Make every new Stripe subscription created from 1 January use the $15 10DLC price', owner: 'Product (Kevin and Taylor)',
       due: '2027-01-01' },
@@ -3951,7 +3953,7 @@ export const PLAN_CHECKLISTS = {
   ],
   credit: [
     { id: 'cr-proposal', step: 'Send the proposal to Ryan Fenn, Taylor Roberts and Alicia Schmaling', owner: 'Josh', done: '2026-11-06' },
-    { id: 'cr-shared', step: 'Shared-billing check: every group of accounts paying on one card or bank account gets one credit rate (Goettl\'s 8 and Steam Master\'s 7 at +25%; 07_FL moved into Steam Master)', owner: 'Josh', done: '2026-11-16' },
+    { id: 'cr-shared', step: 'Shared-billing check: every group of accounts paying on one card or bank account gets one credit rate (Goettl\'s 8 and Steam Master\'s 7 at +25%; 07_FL moved into Steam Master; Goettl\'s High Desert Mechanical, on its own card, is priced on its own)', owner: 'Josh', done: '2026-11-16' },
     { id: 'cr-tenpct', step: 'Correct the 6 Nov follow-up: $17,472 assumes no lost volume ($11,108 with 10% less)', owner: 'Josh' },
     { id: 'cr-hold', step: 'Decide: hold the 19 accounts already on newer pricing (recommended) or raise them too',
       owner: 'Taylor Roberts and Kevin', due: '2026-11-25', needsSignoff: true },
@@ -3980,7 +3982,7 @@ export const PLAN_CHECKLISTS = {
     { id: 'j1-contracts', step: 'Check the standard agreement allows a price change on 30 days\' notice; leave off custom contracts and price locks', owner: 'Josh', done: '2026-11-13', note: 'It does, with notice' },
     // Josh, 16 Nov 2026: "no batches. just all at once on dec 1".
     { id: 'j1-send', step: 'Send all the notices at once on 1 Dec: 10DLC and credits by in-Chiirp message, the platform pilot\'s increase by email to all 60 (2 Dec is the last day that still gives 30 days)', due: '2026-12-01' },
-    { id: 'j1-octasker', step: 'OC Tasker (in the pilot at +100%) pays on the same card as its owner\'s second account, cus_L5O3MAhBHKsiR3 ($100 a month, not in the pilot): give it the same increase with the same notice, or take OC Tasker out of the pilot', owner: 'Josh', due: '2026-11-20' },
+    { id: 'j1-octasker', step: 'OC Tasker\'s second account on the same card (cus_L5O3MAhBHKsiR3, $100 a month) gets the same increase, whichever is lower of +100% and +$130: $100 to $200, told with OC Tasker on 1 Dec; not part of the test read-out', owner: 'Josh', done: '2026-11-16' },
     { id: 'j1-fee-line', step: 'Confirm the platform-fee line for the 5 pilot accounts where Stripe bills $50 more than the list\'s price (SBC Cooling + Heating, Evergreen Plumbing, Alan Smith Pool Plastering, A-1 Chimney, Culligan of Charlotte), so the notice and the Stripe schedule agree', owner: 'Josh', due: '2026-11-20' },
     { id: 'j1-faq', step: 'FAQ for the support team on the three changes', owner: 'Zeus Acosta', due: '2026-11-23' },
     { id: 'j1-stripe', step: 'Set each pilot Stripe subscription schedule the day its notice goes out (first new bill 1 Jan)', owner: 'Josh or Product (Kevin and Taylor)', due: '2026-12-01' },
@@ -4032,6 +4034,14 @@ export const JAN1_PROPOSAL = {
   asOf: '2026-11-13', decideBy: '2026-11-16', noticesBy: '2026-12-01', effective: '2027-01-01',
   // Stage 1 accounts the push carries no name for, named from Stripe (13 Nov 2026).
   names: { cus_LVcUUcvNOfPBpr: 'The Junk Medics', cus_LsOCrjmicWtR5M: 'Neighborly Plumbing & Services', cus_MJIsJFeUvnU2Fe: 'Horizon' },
+  // Accounts sharing a pilot account's card, raised with it but not in the test
+  // (Josh, 16 Nov 2026: "same whichever is lower"). OC Tasker goes +100%
+  // (+$130); on $100, +100% (+$100) is lower than +$130. Leave chances are
+  // OC Tasker's (same owner, same decision). Stripe: $1,200 over 12 charges.
+  linked: [
+    { id: 'cus_L5O3MAhBHKsiR3', name: 'OC Tasker\'s second account', with: 'OC Tasker', price: 100, spend: 100, d: 100, pct: 100, newPrice: 200,
+      base: 0.19, fc: 0.3 },
+  ],
 };
 
 // ---- The new churn model and its two upgrade lists (Josh, 13 Nov 2026: "two

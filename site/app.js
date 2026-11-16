@@ -7900,8 +7900,10 @@ function renderJan1Proposal() {
   const price = sum(x => x.price), bill = sum(x => x.spend), added = sum(x => x.d), pilot = sum(gainOf);
   const smallN = T.filter(x => x.cap === 'small account: +100% minimum').length;
   const leave = sum(x => x.fc), leave0 = sum(x => x.base), paid12 = sum(x => x.paid12 || 0);
-  const total = dlc + credit + pilot;
-  const downside = dlc + credit10 + pilot;
+  const LK = J.linked || [];
+  const linked = LK.reduce((t, x) => t + gainOf(x), 0), linkedAdded = LK.reduce((t, x) => t + x.d, 0);
+  const total = dlc + credit + pilot + linked;
+  const downside = dlc + credit10 + pilot + linked;
   const optionB = p50 ? p50.stages.stage1.gain : null;
   const ARMS = ['+20%', '+30%', '+60%'];
   const CAPS = ['30% cap', '20% cleaning cap', 'small account: +100% minimum'];
@@ -7938,6 +7940,9 @@ function renderJan1Proposal() {
     + `${smallN} small accounts go up 100%</td>`
     + `<td>The ${T.length} accounts listed below, billed ${fmt.money(bill)} a month today (${fmt.money(price)} of it platform fees)</td>`
     + `<td class="n">${sm(pilot)}<br><span class="muted ci">${sm(added)} if all stay</span></td></tr>`
+    + LK.map(x => `<tr><td>4</td><td>${x.name}: pays on ${x.with}'s card, so it gets the same increase (the lower of the two ways to `
+      + `apply it): ${fmt.money(x.price)} → ${fmt.money(x.newPrice)}</td><td>Told with ${x.with} on ${checkDay(J.noticesBy)}; not part of the test</td>`
+      + `<td class="n">${sm(gainOf(x))}<br><span class="muted ci">${sm(x.d)} if it stays</span></td></tr>`).join('')
     + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td class="muted">${fmt.money(total * 12)} a year</td>`
     + `<td class="n"><strong>+${fmt.money(total)}</strong><br><span class="muted ci">+${fmt.money(downside)} with 10% fewer credits</span></td></tr>`
     + '</tbody></table></div>'
@@ -7958,6 +7963,10 @@ function renderJan1Proposal() {
     + `are billed ${fmt.money(bill)} a month today (${fmt.money(price)} of it platform fees) and paid ${fmt.money(paid12)} over the last 12 months${T.some(x => !x.paid) ? ` (${T.filter(x => !x.paid).map(x => x.name).join(', ')} not in the payment file)` : ''}. The model forecasts about `
     + `${leave.toFixed(1)} of the ${T.length} leaving on the notice, against ${leave0.toFixed(1)} with no increase, so the increases add `
     + `${sm(pilot)} a month after leavers (${sm(added)} if all stay).</p>`
+    + (LK.length ? `<p>Not in the test: ${LK.map(x => `${x.name} (<span class="mono">${x.id}</span>) pays on ${x.with}'s card, `
+      + `so it gets the same increase, ${fmt.money(x.price)} → ${fmt.money(x.newPrice)} (+${x.pct}%, lower than ${x.with}'s +$${Math.round(T.find(t => t.name === x.with).d)}), `
+      + `told with it on ${checkDay(J.noticesBy)}`).join('; ')}. It is counted in the total (${sm(linked)} a month after leavers, `
+      + `${sm(linkedAdded)} if it stays) but left out of the test's counts and read-out.</p>` : '')
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Industry group</th>'
     + BANDS.map(([l]) => `<th class="n">${l}</th>`).join('') + ARMS.map(a => `<th class="n">Arm ${a}</th>`).join('') + '<th class="n">Capped</th>'
     + '<th class="n">All</th></tr></thead><tbody>'
