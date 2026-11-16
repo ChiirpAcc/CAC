@@ -2,8 +2,19 @@
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
 
   <style>
-    /* Faces actually used by this frame. Real .woff2 staged in the project at
-       assets/fonts/ — project-root-relative, never a network fetch (determinism). */
+    /* ──────────────────────────────────────────────────────────────────────
+       Faces staged on disk in assets/fonts/ — referenced project-root-relative.
+       Never a fonts.gstatic.com / fonts.googleapis.com URL: the render machine
+       is clean headless Chrome and these four files are the only faces present.
+       font-display: block so every parallel render worker paints identically.
+       ────────────────────────────────────────────────────────────────────── */
+    @font-face {
+      font-family: "Newsreader";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("assets/fonts/Newsreader-400.woff2") format("woff2");
+    }
     @font-face {
       font-family: "DM Mono";
       font-style: normal;
@@ -26,7 +37,7 @@
       src: url("assets/fonts/HankenGrotesk-600.woff2") format("woff2");
     }
 
-    /* ── frame root — styled by #root, never by a class on the composition element ── */
+    /* ── frame root — styled via #root, never a class on the composition node ── */
     #root {
       position: absolute;
       inset: 0;
@@ -34,224 +45,275 @@
       height: 100%;
       overflow: hidden;
       container-type: size;
-      /* frame.md tokens */
-      --mw03-paper: #f4f5f6;
-      --mw03-ink: #15181c;
-      --mw03-ink-soft: #474d55;
-      --mw03-grid: rgba(21, 24, 28, 0.08);
-      --mw03-ink-faint: rgba(21, 24, 28, 0.16);
-      /* series — meaning, never decoration */
-      --mw03-teal: #1f6f8b; /* neutral series: what it cost */
-      --mw03-positive: #2e7d5b; /* at or above break-even */
-      --mw03-amber: #b07d2b; /* accent label */
+
+      /* frame.md atoms */
+      --m03-paper: #f4f5f6;
+      --m03-ink: #15181c;
+      --m03-ink-soft: #474d55;
+      --m03-grid: rgba(21, 24, 28, 0.08);
+      --m03-ink-faint: rgba(21, 24, 28, 0.16);
+
+      /* frame.md series colours — meaning-bearing, never decorative */
+      --m03-teal: #1f6f8b; /* neutral series — the cost side */
+      --m03-positive: #2e7d5b; /* at or above break-even — the return, the ratio */
+      --m03-amber: #b07d2b; /* accent label */
+
+      /* THE SHARED GRID — one set of numbers every zone below reads from */
+      --m03-margin: 8cqw; /* left + right */
+      --m03-col-a: 23cqw;
+      --m03-gap-a: 2.5cqw;
+      --m03-col-b: 23cqw;
+      --m03-gap-b: 4cqw;
+      --m03-col-c: 31.5cqw; /* 23 + 2.5 + 23 + 4 + 31.5 = 84cqw = 100 − 2×8 */
+      --m03-hair: 0.12cqw;
     }
 
-    /* ── ground: full-bleed paper + permanent graph-paper grid, on a clip layer ── */
-    .mw03-ground {
+    /* ── background role · full-bleed ground on a clip layer, never on #root ── */
+    .m03-ground {
       position: absolute;
       inset: 0;
-      background: var(--mw03-paper);
+      background: var(--m03-paper);
     }
-    .mw03-grid {
+    /* the permanent graph-paper grid — frame.md furniture, never disabled */
+    .m03-grid {
       position: absolute;
       inset: 0;
-      /* ~2cqw cells, 10% ink — background role, dimmed ~35% */
       background-image:
-        linear-gradient(to right, var(--mw03-grid) 0.1cqw, transparent 0.1cqw),
-        linear-gradient(to bottom, var(--mw03-grid) 0.1cqw, transparent 0.1cqw);
+        linear-gradient(to right, var(--m03-grid) 0.06cqw, transparent 0.06cqw),
+        linear-gradient(to bottom, var(--m03-grid) 0.06cqw, transparent 0.06cqw);
       background-size: 2cqw 2cqw;
       background-position: 0 0;
-      opacity: 0.65;
+      opacity: 0.9;
+      transform-origin: 50% 50%;
     }
-    /* the two persistent hairlines framing every composition */
-    .mw03-hair {
+
+    /* the two persistent hairlines framing every composition in this system.
+       INITIAL STATE IN CSS — undrawn until their own cue. */
+    .m03-frame-rule {
       position: absolute;
       left: 4cqw;
       right: 4cqw;
-      height: 0.12cqw;
-      background: var(--mw03-ink);
+      height: var(--m03-hair);
+      background: var(--m03-ink);
     }
-    .mw03-hair-top {
+    .m03-frame-rule-top {
       top: 3cqw;
+      clip-path: inset(0% 100% 0% 0%);
     }
-    .mw03-hair-bottom {
+    .m03-frame-rule-bottom {
       bottom: 3cqw;
+      clip-path: inset(0% 0% 0% 100%);
     }
 
-    /* ── the cohort label (amber accent) ── */
-    .mw03-cohort {
+    /* ── EYEBROW ZONE · top 9cqw, left set on the 8cqw line ── */
+    .m03-eyebrow {
+      position: absolute;
+      top: 9cqw;
+      left: var(--m03-margin);
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 500;
+      font-size: 1.3cqw;
+      line-height: 1.2;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--m03-amber);
+      white-space: nowrap;
+      opacity: 0; /* INITIAL STATE IN CSS */
+    }
+
+    /* ── CONTENT ZONE · 16cqw → 46cqw, full 84cqw of the shared measure ── */
+    .m03-content {
+      position: absolute;
+      left: var(--m03-margin);
+      right: var(--m03-margin);
+      top: 16cqw;
+      height: 30cqw;
+    }
+
+    /* three columns, stated once — every row below reuses these three widths */
+    .m03-row {
       position: absolute;
       left: 0;
       right: 0;
-      top: 9.1cqw;
-      text-align: center;
-      font-family: "DM Mono", ui-monospace, monospace;
-      font-weight: 500;
-      font-size: 1.5cqw;
-      line-height: 1;
-      letter-spacing: 0.16em;
-      color: var(--mw03-amber);
+      display: flex;
     }
-    /* decorative catalogue ordinal (mono chrome) */
-    .mw03-fig {
+    .m03-a {
+      flex: 0 0 var(--m03-col-a);
+      margin-right: var(--m03-gap-a);
+    }
+    .m03-b {
+      flex: 0 0 var(--m03-col-b);
+      margin-right: var(--m03-gap-b);
+    }
+    .m03-c {
+      flex: 0 0 var(--m03-col-c);
+    }
+
+    /* Scene 1 — the three column rules that define the zone */
+    .m03-row-rules {
+      top: 0;
+      align-items: flex-start;
+    }
+    /* the ordinal is a SIBLING of the rule, never a child: clip-path clips
+       descendants, so an ordinal inside the rule would be clipped to its
+       0.12cqw band and vanish. */
+    .m03-rcell {
+      position: relative;
+    }
+    .m03-crule {
+      height: var(--m03-hair);
+      background: var(--m03-ink);
+      clip-path: inset(0% 100% 0% 0%); /* INITIAL STATE IN CSS */
+    }
+    /* catalogue ordinals — decorative mono chrome, frame.md sanctioned */
+    .m03-ord {
       position: absolute;
-      right: 4cqw;
-      top: 9.1cqw;
+      right: 0;
+      top: 0.55cqw;
       font-family: "DM Mono", ui-monospace, monospace;
       font-weight: 400;
-      font-size: 1.5cqw;
+      font-size: 1.3cqw;
       line-height: 1;
-      letter-spacing: 0.06em;
-      color: var(--mw03-ink-soft);
+      letter-spacing: 0.08em;
+      color: var(--m03-ink-soft);
+      opacity: 0; /* INITIAL STATE IN CSS */
     }
 
-    /* ── the triptych: three columns marked by hairline rules ── */
-    .mw03-tri {
-      position: absolute;
-      left: 4cqw;
-      top: 16.6cqw;
-      width: 92cqw;
-      height: 20.8cqw;
+    /* the column names — Newsreader 400, the display face of the system */
+    .m03-row-labels {
+      top: 1.4cqw;
+      align-items: flex-start;
     }
-    .mw03-col {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-    }
-    .mw03-col-1 {
-      left: 0;
-      width: 26cqw;
-    }
-    .mw03-col-2 {
-      left: 26cqw;
-      width: 28cqw;
-    }
-    .mw03-col-3 {
-      left: 54cqw;
-      width: 38cqw;
-    }
-    .mw03-coltop {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 0.12cqw;
-      background: var(--mw03-ink);
-      transform-origin: left center;
-    }
-    .mw03-div {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 0.06cqw;
-      background: var(--mw03-ink-faint);
-      transform-origin: center top;
-    }
-    .mw03-div-a {
-      left: 26cqw;
-    }
-    .mw03-div-b {
-      left: 54cqw;
-    }
-    .mw03-label {
-      position: absolute;
-      top: 1.2cqw;
-      left: 0;
-      font-family: "Hanken Grotesk", sans-serif;
-      font-weight: 600;
-      font-size: 1.15cqw;
+    .m03-lab {
+      display: block;
+      font-family: "Newsreader", Georgia, serif;
+      font-weight: 400;
+      font-size: 2.6cqw;
       line-height: 1.2;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--mw03-ink-soft);
+      letter-spacing: -0.005em;
+      color: var(--m03-ink);
       white-space: nowrap;
+      opacity: 0; /* INITIAL STATE IN CSS */
     }
-    /* the figures — tabular mono numerals, sharing one baseline */
-    .mw03-fig-num {
-      position: absolute;
-      left: 0;
-      bottom: 3.1cqw;
+    .m03-lab-soft {
+      color: var(--m03-ink-soft);
+    }
+
+    /* the figures — all three share ONE baseline (flex baseline alignment) */
+    .m03-row-figs {
+      top: 11cqw;
+      align-items: baseline;
+    }
+    .m03-fig {
       display: block;
       font-family: "DM Mono", ui-monospace, monospace;
       font-weight: 500;
-      font-size: 3.9cqw;
+      font-size: 5.8cqw;
       line-height: 1;
-      letter-spacing: 0;
+      letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
-      transform-origin: left bottom;
+      font-feature-settings: "tnum" 1;
       white-space: nowrap;
+      opacity: 0; /* INITIAL STATE IN CSS */
     }
-    /* columns 2 and 3 hold their content off the divider; column 1 sits on the page edge */
-    .mw03-col-2 .mw03-label,
-    .mw03-col-2 .mw03-fig-num,
-    .mw03-col-3 .mw03-label,
-    .mw03-col-3 #mw03-ratio {
-      left: 1.4cqw;
+    .m03-fig-cost {
+      color: var(--m03-teal);
     }
-    #mw03-cost {
-      color: var(--mw03-teal);
+    .m03-fig-profit {
+      color: var(--m03-positive);
     }
-    #mw03-profit {
-      color: var(--mw03-positive);
-    }
-    /* the hero: the ratio */
-    #mw03-ratio {
-      position: absolute;
-      left: 0;
-      bottom: 1.5cqw;
+
+    /* the focal: 3.75x, hero scale, green — 1.8× the counters beside it */
+    .m03-hero {
       display: block;
       font-family: "DM Mono", ui-monospace, monospace;
       font-weight: 500;
-      font-size: 11.5cqw;
+      font-size: 10.4cqw;
       line-height: 1;
-      letter-spacing: 0;
+      letter-spacing: 0.01em;
       font-variant-numeric: tabular-nums;
-      color: var(--mw03-positive);
-      transform-origin: left bottom;
+      font-feature-settings: "tnum" 1;
       white-space: nowrap;
+      color: var(--m03-positive);
+    }
+    .m03-hch {
+      display: inline-block;
+      transform-origin: 50% 70%;
+      opacity: 0; /* INITIAL STATE IN CSS */
+      will-change: transform;
     }
 
-    /* ── the hairline that divides the two figures ── */
-    .mw03-oprule {
+    /* Scene 4 — the hairline that divides the two counters from the ratio */
+    .m03-divider {
       position: absolute;
-      left: 4cqw;
-      top: 38.1cqw;
-      width: 54cqw;
-      height: 0.12cqw;
-      background: var(--mw03-ink);
-      transform-origin: left center;
+      left: calc(var(--m03-col-a) + var(--m03-gap-a) + var(--m03-col-b) + (var(--m03-gap-b) / 2));
+      top: 0.9cqw;
+      width: var(--m03-hair);
+      height: 20.6cqw;
+      background: var(--m03-ink-faint);
+      clip-path: inset(0% 0% 100% 0%); /* INITIAL STATE IN CSS */
     }
 
-    /* ── the 3.0x goal reference (supporting) ── */
-    .mw03-goalrule {
+    /* Scene 5 — the 3.0x goal reference, beneath the ratio */
+    .m03-goal {
       position: absolute;
-      left: 59.4cqw;
-      top: 40.5cqw;
-      width: 36.6cqw;
-      height: 0.12cqw;
+      left: calc(var(--m03-col-a) + var(--m03-gap-a) + var(--m03-col-b) + var(--m03-gap-b));
+      width: var(--m03-col-c);
+      top: 23.5cqw;
+    }
+    /* THE BUG THIS REBUILD FIXES: the dashed rule is hidden by its OWN CSS rule,
+       not by a fromTo's from-state. It cannot leak onto the frame at t=0. */
+    .m03-goal-rule {
+      position: relative;
+      height: var(--m03-hair);
       background-image: repeating-linear-gradient(
         to right,
-        var(--mw03-ink-soft) 0 0.6cqw,
-        transparent 0.6cqw 1.2cqw
+        var(--m03-ink-soft) 0 0.7cqw,
+        transparent 0.7cqw 1.5cqw
       );
-      /* Hidden until Scene 5 draws it. The initial state lives here rather
-         than relying on a fromTo stamping it at build time: that only works
-         with immediateRender on, which in turn leaks the END state of every
-         later cut onto the frame from t=0. */
       clip-path: inset(0% 100% 0% 0%);
     }
-    .mw03-goallabel {
-      position: absolute;
-      left: 59.4cqw;
-      top: 41.2cqw;
-      font-family: "Hanken Grotesk", sans-serif;
+    .m03-goal-tag {
+      display: flex;
+      align-items: baseline;
+      margin-top: 0.9cqw;
+      opacity: 0; /* INITIAL STATE IN CSS */
+    }
+    .m03-goal-num {
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 3cqw;
+      line-height: 1.15;
+      letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+      color: var(--m03-ink-soft);
+    }
+    .m03-goal-word {
+      margin-left: 1.2cqw;
+      font-family: "Hanken Grotesk", "Helvetica Neue", sans-serif;
       font-weight: 600;
-      font-size: 1.15cqw;
-      line-height: 1.2;
+      font-size: 2.2cqw;
+      line-height: 1.15;
       letter-spacing: 0.18em;
-      /* no uppercase transform here — the multiplier keeps its lowercase x */
-      color: var(--mw03-ink-soft);
+      text-transform: uppercase;
+      color: var(--m03-ink-soft);
+    }
+
+    /* ── FOOTNOTE ZONE · top 49cqw, on the same 8cqw line ── */
+    .m03-footnote {
+      position: absolute;
+      top: 49cqw;
+      left: var(--m03-margin);
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 1.15cqw;
+      line-height: 1.4;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--m03-ink-soft);
       white-space: nowrap;
+      opacity: 0; /* INITIAL STATE IN CSS */
     }
   </style>
 
@@ -259,79 +321,85 @@
     id="root"
     data-composition-id="03-the-model-worked"
     data-start="0"
-    data-duration="9.5"
+    data-duration="8.5"
     data-width="1920"
     data-height="1080"
   >
-    <!-- background: paper + permanent grid + the two hairlines -->
-    <div class="clip mw03-ground" data-start="0" data-duration="9.5" data-track-index="0">
-      <div class="mw03-grid"></div>
-      <div class="mw03-hair mw03-hair-top"></div>
-      <div class="mw03-hair mw03-hair-bottom"></div>
+    <!-- track 0 · background role: paper + the permanent graph-paper grid -->
+    <div class="clip m03-ground" data-start="0" data-duration="8.5" data-track-index="0">
+      <div id="m03-grid" class="m03-grid"></div>
     </div>
 
-    <div
-      id="mw03-cohort"
-      class="clip mw03-cohort"
-      data-start="0"
-      data-duration="9.5"
-      data-track-index="1"
-    >2024-10 COHORT</div>
-
-    <div
-      id="mw03-figtag"
-      class="clip mw03-fig"
-      data-start="0"
-      data-duration="9.5"
-      data-track-index="2"
-    >FIG. 03</div>
-
-    <!-- the triptych -->
-    <div class="clip mw03-tri" data-start="0" data-duration="9.5" data-track-index="3">
-      <i id="mw03-div-a" class="mw03-div mw03-div-a"></i>
-      <i id="mw03-div-b" class="mw03-div mw03-div-b"></i>
-
-      <div class="mw03-col mw03-col-1">
-        <i id="mw03-top-1" class="mw03-coltop"></i>
-        <div id="mw03-label-1" class="mw03-label">Cost per logo</div>
-        <span id="mw03-cost" class="mw03-fig-num">$0</span>
-      </div>
-
-      <div class="mw03-col mw03-col-2">
-        <i id="mw03-top-2" class="mw03-coltop"></i>
-        <div id="mw03-label-2" class="mw03-label">Gross profit per logo</div>
-        <span id="mw03-profit" class="mw03-fig-num">$0</span>
-      </div>
-
-      <div class="mw03-col mw03-col-3">
-        <i id="mw03-top-3" class="mw03-coltop"></i>
-        <div id="mw03-label-3" class="mw03-label">Ratio</div>
-        <span id="mw03-ratio">3.75x</span>
+    <!-- track 1 · frame furniture + the eyebrow / footnote zones -->
+    <div class="clip m03-chrome" data-start="0" data-duration="8.5" data-track-index="1">
+      <div id="m03-frame-rule-top" class="m03-frame-rule m03-frame-rule-top"></div>
+      <div id="m03-frame-rule-bottom" class="m03-frame-rule m03-frame-rule-bottom"></div>
+      <div id="m03-eyebrow" class="m03-eyebrow">2024-10 cohort</div>
+      <div id="m03-footnote" class="m03-footnote">
+        ratio = gross profit per logo / cost per logo
       </div>
     </div>
 
-    <i
-      id="mw03-oprule"
-      class="clip mw03-oprule"
-      data-start="0"
-      data-duration="9.5"
-      data-track-index="4"
-    ></i>
+    <!-- track 2 · the content zone: three columns on the shared measure -->
+    <div class="clip m03-content" data-start="0" data-duration="8.5" data-track-index="2">
+      <!-- Scene 1 · three hairline rules draw across the zone -->
+      <div class="m03-row m03-row-rules">
+        <div class="m03-a m03-rcell">
+          <div id="m03-crule-1" class="m03-crule"></div>
+          <i id="m03-ord-1" class="m03-ord">01</i>
+        </div>
+        <div class="m03-b m03-rcell">
+          <div id="m03-crule-2" class="m03-crule"></div>
+          <i id="m03-ord-2" class="m03-ord">02</i>
+        </div>
+        <div class="m03-c m03-rcell">
+          <div id="m03-crule-3" class="m03-crule"></div>
+          <i id="m03-ord-3" class="m03-ord">03</i>
+        </div>
+      </div>
 
-    <i
-      id="mw03-goalrule"
-      class="clip mw03-goalrule"
-      data-start="0"
-      data-duration="9.5"
-      data-track-index="5"
-    ></i>
-    <div
-      id="mw03-goallabel"
-      class="clip mw03-goallabel"
-      data-start="0"
-      data-duration="9.5"
-      data-track-index="6"
-    >3.0x GOAL</div>
+      <!-- the column names -->
+      <div class="m03-row m03-row-labels">
+        <div class="m03-a">
+          <span id="m03-lab-1a" class="m03-lab">Cost</span>
+          <span id="m03-lab-1b" class="m03-lab m03-lab-soft">per logo</span>
+        </div>
+        <div class="m03-b">
+          <span id="m03-lab-2a" class="m03-lab">Gross profit</span>
+          <span id="m03-lab-2b" class="m03-lab m03-lab-soft">per logo</span>
+        </div>
+        <div class="m03-c">
+          <span id="m03-lab-3a" class="m03-lab">Ratio</span>
+          <span id="m03-lab-3b" class="m03-lab m03-lab-soft">profit to cost</span>
+        </div>
+      </div>
+
+      <!-- the figures — one shared baseline across all three columns -->
+      <div class="m03-row m03-row-figs">
+        <div class="m03-a">
+          <span id="m03-fig-cost" class="m03-fig m03-fig-cost">$0</span>
+        </div>
+        <div class="m03-b">
+          <span id="m03-fig-profit" class="m03-fig m03-fig-profit">$0</span>
+        </div>
+        <div class="m03-c">
+          <span class="m03-hero"
+            ><span class="m03-hch">3</span><span class="m03-hch">.</span
+            ><span class="m03-hch">7</span><span class="m03-hch">5</span
+            ><span class="m03-hch">x</span></span
+          >
+        </div>
+      </div>
+
+      <!-- Scene 4 · the divider · Scene 5 · the 3.0x goal reference -->
+      <i id="m03-divider" class="m03-divider"></i>
+      <div class="m03-goal">
+        <div id="m03-goal-rule" class="m03-goal-rule"></div>
+        <div id="m03-goal-tag" class="m03-goal-tag">
+          <span class="m03-goal-num">3.0x</span><span class="m03-goal-word">goal</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -339,161 +407,238 @@
       window.__timelines = window.__timelines || {};
       var tl = gsap.timeline({ paused: true });
 
-      var costEl = document.getElementById("mw03-cost");
-      var profitEl = document.getElementById("mw03-profit");
-      var cost = { value: 0 };
-      var profit = { value: 0 };
-
-      function money(v) {
-        return "$" + Math.round(v).toLocaleString("en-US");
-      }
-      /* The count-up is driven by the timeline itself, never a timer. It is written in
-         BOTH a `modifiers` hook and `onUpdate` so the digits are correct however the host
-         drives the playhead: `modifiers` runs inside the tween's render (so it survives
-         `tl.seek(t)`, which suppresses callbacks by default), `onUpdate` covers
-         `.time()` / `.progress()` hosts. Both write the identical formatted value, and
-         the tween's end state lands exactly on the real figure. */
-      function writer(el) {
-        return function (v) {
-          el.textContent = money(v);
-          return v;
-        };
+      /* Every hidden-at-t=0 element already carries its own CSS start state
+         (opacity:0 / clip-path inset). Every fromTo positioned later than 0
+         therefore carries immediateRender:false — a fromTo defaults to
+         immediateRender:true and applies its FROM values when the tween is
+         BUILT, which is exactly what leaked the goal rule onto frame 0 before. */
+      var LATE = { immediateRender: false };
+      function to(vars, extra) {
+        var o = {};
+        for (var k in vars) o[k] = vars[k];
+        for (var j in extra) o[j] = extra[j];
+        return o;
       }
 
-      /* ── Scene 1 (0.0–1.2s) — the cohort label sets dead centre, then rises to the
-         top third to clear the field; the triptych frame draws itself in behind it. ── */
-      tl.fromTo(
-        "#mw03-cohort",
-        { opacity: 0, y: 330, scale: 0.98 },
-        { opacity: 1, y: 330, scale: 1, duration: 0.42, ease: "power3.out" },
-        0.06
-      );
-      tl.to("#mw03-cohort", { y: 0, duration: 0.56, ease: "power3.inOut" }, 0.56);
+      /* ═══ Scene 1 (0.0–1.2s) ══════════════════════════════════════════════
+         The measured plane arrives: grid settles, the two frame hairlines draw,
+         the amber eyebrow sets on the 8cqw line, then the three column rules
+         draw left→right across the full content zone — the shared grid made
+         visible before any number lands on it.                               */
 
       tl.fromTo(
-        "#mw03-figtag",
-        { opacity: 0 },
-        { opacity: 1, duration: 0.4, ease: "power1.out" },
-        0.62
-      );
-
-      /* three empty columns marked by hairline rules */
-      ["#mw03-top-1", "#mw03-top-2", "#mw03-top-3"].forEach(function (sel, i) {
-        tl.fromTo(
-          sel,
-          { scaleX: 0 },
-          { scaleX: 1, duration: 0.42, ease: "power2.inOut" },
-          0.55 + i * 0.1
-        );
-      });
-      ["#mw03-div-a", "#mw03-div-b"].forEach(function (sel, i) {
-        tl.fromTo(
-          sel,
-          { scaleY: 0 },
-          { scaleY: 1, duration: 0.34, ease: "power2.out" },
-          0.8 + i * 0.08
-        );
-      });
-
-      /* ── Scene 2 (1.2–3.2s) — the left column fills: label, then the cost counts up
-         from zero in teal. Count-up only; nothing else moves. (counting-dynamic-scale) ── */
-      tl.fromTo(
-        "#mw03-label-1",
-        { opacity: 0, y: 14 },
-        { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" },
-        1.26
-      );
-      tl.fromTo("#mw03-cost", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 1.52);
-      tl.fromTo(
-        cost,
-        { value: 0 },
-        {
-          value: 2583,
-          duration: 1.45,
-          ease: "power3.out",
-          modifiers: { value: writer(costEl) },
-          onUpdate: function () {
-            costEl.textContent = money(cost.value);
-          },
-        },
-        1.52
+        "#m03-grid",
+        { opacity: 0, scale: 1.03 },
+        { opacity: 0.9, scale: 1, duration: 1.0, ease: "power3.out" },
+        0
       );
       tl.fromTo(
-        "#mw03-cost",
-        { scale: 0.56 },
-        { scale: 1, duration: 1.45, ease: "power3.out" },
-        1.52
-      );
-
-      /* ── Scene 3 (3.2–5.4s) — the centre column fills the same way, in green.
-         Both figures now sit on one baseline; the eye compares them unprompted. ── */
-      tl.fromTo(
-        "#mw03-label-2",
-        { opacity: 0, y: 14 },
-        { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" },
-        3.26
-      );
-      tl.fromTo("#mw03-profit", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 3.52);
-      tl.fromTo(
-        profit,
-        { value: 0 },
-        {
-          value: 9696,
-          duration: 1.5,
-          ease: "power3.out",
-          modifiers: { value: writer(profitEl) },
-          onUpdate: function () {
-            profitEl.textContent = money(profit.value);
-          },
-        },
-        3.52
+        "#m03-frame-rule-top",
+        { clipPath: "inset(0% 100% 0% 0%)" },
+        to({ clipPath: "inset(0% 0% 0% 0%)", duration: 0.8, ease: "power2.inOut" }, LATE),
+        0.05
       );
       tl.fromTo(
-        "#mw03-profit",
-        { scale: 0.56 },
-        { scale: 1, duration: 1.5, ease: "power3.out" },
-        3.52
-      );
-
-      /* ── Scene 4 (5.4–7.2s) — a hairline divides the two figures and the ratio
-         springs in at hero scale, green, the largest thing on screen.
-         (spring-pop-entrance, smooth power3 settle — no overshoot on data) ── */
-      tl.fromTo(
-        "#mw03-oprule",
-        { scaleX: 0 },
-        { scaleX: 1, duration: 0.62, ease: "power2.inOut" },
-        5.44
+        "#m03-frame-rule-bottom",
+        { clipPath: "inset(0% 0% 0% 100%)" },
+        to({ clipPath: "inset(0% 0% 0% 0%)", duration: 0.8, ease: "power2.inOut" }, LATE),
+        0.12
       );
       tl.fromTo(
-        "#mw03-label-3",
-        { opacity: 0, y: 14 },
-        { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" },
-        5.7
-      );
-      tl.fromTo(
-        "#mw03-ratio",
-        { scale: 0, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.78, ease: "power3.out" },
-        6.02
-      );
-
-      /* ── Scene 5 (7.2–9.0s) — the dashed 3.0x reference draws in beneath the ratio,
-         which sits clearly above it. Then a full stop: held STILL, no drift. ── */
-      tl.fromTo(
-        "#mw03-goalrule",
-        { clipPath: "inset(0% 100% 0% 0%)", opacity: 1 },
-        { clipPath: "inset(0% 0% 0% 0%)", duration: 0.72, ease: "power2.inOut", immediateRender: false },
-        7.28
-      );
-      tl.fromTo(
-        "#mw03-goallabel",
+        "#m03-eyebrow",
         { opacity: 0, y: 10 },
-        { opacity: 1, y: 0, duration: 0.44, ease: "power2.out" },
-        7.74
+        to({ opacity: 1, y: 0, duration: 0.42, ease: "power3.out" }, LATE),
+        0.1
       );
 
-      /* span the full allocated duration — the last ~0.8s is pure stillness */
-      tl.to({}, { duration: 9 }, 0);
+      ["#m03-crule-1", "#m03-crule-2", "#m03-crule-3"].forEach(function (sel, i) {
+        tl.fromTo(
+          sel,
+          { clipPath: "inset(0% 100% 0% 0%)" },
+          to({ clipPath: "inset(0% 0% 0% 0%)", duration: 0.52, ease: "power2.inOut" }, LATE),
+          0.3 + i * 0.16
+        );
+      });
+      ["#m03-ord-1", "#m03-ord-2", "#m03-ord-3"].forEach(function (sel, i) {
+        tl.fromTo(
+          sel,
+          { opacity: 0 },
+          to({ opacity: 1, duration: 0.34, ease: "power1.out" }, LATE),
+          0.62 + i * 0.16
+        );
+      });
+
+      /* ── the count-up driver ───────────────────────────────────────────────
+         A numeric proxy tweened ON THE TIMELINE and written inside the tween's
+         OWN RENDER via `modifiers` — not via onUpdate. A renderer walks the
+         timeline with seek()/time(), and BOTH suppress callbacks by default
+         (gsap's suppressEvents defaults to true), so an onUpdate count-up paints
+         "$0" on every rendered frame. A modifier is part of the PropTween render
+         pipeline, so it runs on every seek, forwards and backwards.
+         No clock, no rAF. At progress 1 the proxy holds the exact integer, so
+         $2,583 and $9,696 render verbatim.                                     */
+      var figCost = document.getElementById("m03-fig-cost");
+      var figProfit = document.getElementById("m03-fig-profit");
+
+      function money(n) {
+        return "$" + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      }
+
+      var costProxy = { v: 0 };
+      var profitProxy = { v: 0 };
+
+      /* ═══ Scene 2 (1.2–3.2s) ══════════════════════════════════════════════
+         Column 01. The name sets, then the cost counts up from zero in mono,
+         teal — the neutral series, the money spent.                          */
+
+      tl.fromTo(
+        "#m03-lab-1a",
+        { opacity: 0, y: 14 },
+        to({ opacity: 1, y: 0, duration: 0.46, ease: "power3.out" }, LATE),
+        1.22
+      );
+      tl.fromTo(
+        "#m03-lab-1b",
+        { opacity: 0, y: 14 },
+        to({ opacity: 1, y: 0, duration: 0.46, ease: "power3.out" }, LATE),
+        1.32
+      );
+      tl.fromTo(
+        "#m03-fig-cost",
+        { opacity: 0, y: 18 },
+        to({ opacity: 1, y: 0, duration: 0.42, ease: "power3.out" }, LATE),
+        1.58
+      );
+      tl.fromTo(
+        costProxy,
+        { v: 0 },
+        to(
+          {
+            v: 2583,
+            duration: 1.3,
+            ease: "power2.out",
+            lazy: false,
+            modifiers: {
+              v: function (v) {
+                figCost.textContent = money(v);
+                return v;
+              },
+            },
+          },
+          LATE
+        ),
+        1.58
+      );
+
+      /* ═══ Scene 3 (3.2–5.2s) ══════════════════════════════════════════════
+         Column 02 fills the same way and lands on the SAME baseline as 01.
+         Green: at or above break-even — the money that came back.            */
+
+      tl.fromTo(
+        "#m03-lab-2a",
+        { opacity: 0, y: 14 },
+        to({ opacity: 1, y: 0, duration: 0.46, ease: "power3.out" }, LATE),
+        3.22
+      );
+      tl.fromTo(
+        "#m03-lab-2b",
+        { opacity: 0, y: 14 },
+        to({ opacity: 1, y: 0, duration: 0.46, ease: "power3.out" }, LATE),
+        3.32
+      );
+      tl.fromTo(
+        "#m03-fig-profit",
+        { opacity: 0, y: 18 },
+        to({ opacity: 1, y: 0, duration: 0.42, ease: "power3.out" }, LATE),
+        3.58
+      );
+      tl.fromTo(
+        profitProxy,
+        { v: 0 },
+        to(
+          {
+            v: 9696,
+            duration: 1.3,
+            ease: "power2.out",
+            lazy: false,
+            modifiers: {
+              v: function (v) {
+                figProfit.textContent = money(v);
+                return v;
+              },
+            },
+          },
+          LATE
+        ),
+        3.58
+      );
+
+      /* ═══ Scene 4 (5.2–7.0s) ══════════════════════════════════════════════
+         Column 03 resolves. A hairline draws top-down to divide the two
+         counters from their quotient, the name sets, and 3.75x springs in
+         per character at hero scale — 1.8× the counters, the largest thing
+         on screen and the only element that overshoots.                      */
+
+      tl.fromTo(
+        "#m03-divider",
+        { clipPath: "inset(0% 0% 100% 0%)" },
+        to({ clipPath: "inset(0% 0% 0% 0%)", duration: 0.5, ease: "power2.inOut" }, LATE),
+        5.22
+      );
+      tl.fromTo(
+        "#m03-lab-3a",
+        { opacity: 0, y: 14 },
+        to({ opacity: 1, y: 0, duration: 0.46, ease: "power3.out" }, LATE),
+        5.42
+      );
+      tl.fromTo(
+        "#m03-lab-3b",
+        { opacity: 0, y: 14 },
+        to({ opacity: 1, y: 0, duration: 0.46, ease: "power3.out" }, LATE),
+        5.52
+      );
+      gsap.utils.toArray(".m03-hch").forEach(function (ch, i) {
+        tl.fromTo(
+          ch,
+          { opacity: 0, scale: 0.6, y: 22 },
+          to(
+            { opacity: 1, scale: 1, y: 0, duration: 0.62, ease: "back.out(2.2)" },
+            LATE
+          ),
+          5.74 + i * 0.07
+        );
+      });
+
+      /* the footnote settles under the composition as scene 4 lands, so the
+         held read of scene 5 is the goal rule alone */
+      tl.fromTo(
+        "#m03-footnote",
+        { opacity: 0, y: 8 },
+        to({ opacity: 1, y: 0, duration: 0.44, ease: "power2.out" }, LATE),
+        6.45
+      );
+
+      /* ═══ Scene 5 (7.0–8.5s) ══════════════════════════════════════════════
+         The dashed 3.0x reference draws in BENEATH the ratio — hidden by its
+         own CSS clip-path until this instant, never before. Then STILL.      */
+
+      tl.fromTo(
+        "#m03-goal-rule",
+        { clipPath: "inset(0% 100% 0% 0%)" },
+        to({ clipPath: "inset(0% 0% 0% 0%)", duration: 0.72, ease: "power2.inOut" }, LATE),
+        7.0
+      );
+      tl.fromTo(
+        "#m03-goal-tag",
+        { opacity: 0, y: 10 },
+        to({ opacity: 1, y: 0, duration: 0.48, ease: "power2.out" }, LATE),
+        7.34
+      );
+
+      /* the held read: an empty tween carries the timeline out to the frame's
+         full 8.5s so its duration matches data-duration and the last 0.7s is an
+         explicit STILL, not an accidental short timeline. */
+      tl.to({}, { duration: 0.68 }, 7.82);
 
       window.__timelines["03-the-model-worked"] = tl;
       tl.seek(0);

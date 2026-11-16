@@ -4006,7 +4006,7 @@ export const CREDIT_PLAN = {
     { tier: 'Ranks 26 to 50', rise: 0.50, companies: 25, now: 6767, after: 10033, added: 3267 },
     { tier: '51 and up (incl. the 10 S2 buyers)', rise: 1.00, companies: 107, now: 8973, after: 16847, added: 7873 },
   ],
-  total: { companies: 157, now: 46167, after: 63589, added: 17422, perYear: 209061, next12: 196241, blended: 0.377 },
+  total: { companies: 157, now: 46167, after: 63589, added: 17422, perYear: 209066, next12: 196237, blended: 0.377 },
   held: { accounts: 19, perMonth: 6632, ifRaised: 19964, ifRaisedYear: 239565 },
   topShare: { income: 0.66, ofIncrease: 0.361 },
   flat50: 23083,

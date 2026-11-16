@@ -37,7 +37,7 @@
       id="root"
       data-composition-id="main"
       data-start="0"
-      data-duration="55"
+      data-duration="82"
       data-width="1920"
       data-height="1080"
     >
@@ -47,8 +47,8 @@
         data-composition-id="01-what-a-customer-costs"
         data-composition-src="compositions/frames/01-what-a-customer-costs.html"
         data-start="0"
-        data-duration="6.5"
-        data-track-index="0"
+        data-duration="7.5"
+        data-track-index="1"
       ></div>
 
       <div
@@ -56,8 +56,8 @@
         class="scene"
         data-composition-id="02-what-it-measures"
         data-composition-src="compositions/frames/02-what-it-measures.html"
-        data-start="6"
-        data-duration="8.5"
+        data-start="7.5"
+        data-duration="11"
         data-track-index="1"
       ></div>
 
@@ -66,9 +66,9 @@
         class="scene"
         data-composition-id="03-the-model-worked"
         data-composition-src="compositions/frames/03-the-model-worked.html"
-        data-start="14"
-        data-duration="9.5"
-        data-track-index="0"
+        data-start="18.5"
+        data-duration="8.5"
+        data-track-index="1"
       ></div>
 
       <div
@@ -76,8 +76,8 @@
         class="scene"
         data-composition-id="04-below-the-bar"
         data-composition-src="compositions/frames/04-below-the-bar.html"
-        data-start="23"
-        data-duration="9.5"
+        data-start="27"
+        data-duration="12"
         data-track-index="1"
       ></div>
 
@@ -86,9 +86,9 @@
         class="scene"
         data-composition-id="05-price-not-value"
         data-composition-src="compositions/frames/05-price-not-value.html"
-        data-start="32"
-        data-duration="9.5"
-        data-track-index="0"
+        data-start="39"
+        data-duration="15"
+        data-track-index="1"
       ></div>
 
       <div
@@ -96,8 +96,8 @@
         class="scene"
         data-composition-id="06-what-would-make-this-wrong"
         data-composition-src="compositions/frames/06-what-would-make-this-wrong.html"
-        data-start="41"
-        data-duration="9.5"
+        data-start="54"
+        data-duration="22"
         data-track-index="1"
       ></div>
 
@@ -106,9 +106,9 @@
         class="scene"
         data-composition-id="07-the-lever"
         data-composition-src="compositions/frames/07-the-lever.html"
-        data-start="50"
-        data-duration="5"
-        data-track-index="0"
+        data-start="76"
+        data-duration="6"
+        data-track-index="1"
       ></div>
 
     </div>
@@ -116,22 +116,6 @@
     <script>
       window.__timelines = window.__timelines || {};
       window.__timelines["main"] = gsap.timeline({ paused: true });
-      // ── frame transitions (injected by transitions.mjs) ──
-      (function () { var tl = window.__timelines["main"];
-        tl.to("#el-01-what-a-customer-costs", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 6);
-        tl.fromTo("#el-02-what-it-measures", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 6);
-        tl.to("#el-02-what-it-measures", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 14);
-        tl.fromTo("#el-03-the-model-worked", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 14);
-        tl.to("#el-03-the-model-worked", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 23);
-        tl.fromTo("#el-04-below-the-bar", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 23);
-        tl.to("#el-04-below-the-bar", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 32);
-        tl.fromTo("#el-05-price-not-value", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 32);
-        tl.to("#el-05-price-not-value", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 41);
-        tl.fromTo("#el-06-what-would-make-this-wrong", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 41);
-        tl.to("#el-06-what-would-make-this-wrong", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 50);
-        tl.fromTo("#el-07-the-lever", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 50);
-        tl.to({}, { duration: 55 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
-      })();
     </script>
   </body>
 </html>

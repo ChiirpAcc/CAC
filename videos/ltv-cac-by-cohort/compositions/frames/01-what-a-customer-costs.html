@@ -2,9 +2,8 @@
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
 
   <style>
-    /* Faces staged on disk in assets/fonts/ — referenced project-root-relative.
-       Only the three families frame.md declares exist; font-display: block so every
-       parallel render worker paints identical glyphs. */
+    /* Faces actually used by this frame. Real .woff2 staged in the project at
+       assets/fonts/ — project-root-relative, never a network fetch (determinism). */
     @font-face {
       font-family: "Newsreader";
       font-style: normal;
@@ -20,14 +19,14 @@
       src: url("assets/fonts/DMMono-400.woff2") format("woff2");
     }
     @font-face {
-      font-family: "Hanken Grotesk";
+      font-family: "DM Mono";
       font-style: normal;
-      font-weight: 600;
+      font-weight: 500;
       font-display: block;
-      src: url("assets/fonts/HankenGrotesk-600.woff2") format("woff2");
+      src: url("assets/fonts/DMMono-500.woff2") format("woff2");
     }
 
-    /* ── frame root — styled via #root, never a class on the composition element ── */
+    /* ── frame root — styled by #root, never by a class on the composition element ── */
     #root {
       position: absolute;
       inset: 0;
@@ -36,363 +35,472 @@
       overflow: hidden;
       container-type: size;
       /* frame.md tokens */
-      --cost01-paper: #f4f5f6;
-      --cost01-ink: #15181c;
-      --cost01-grid: rgba(21, 24, 28, 0.08);
-      /* series colours — meaning-bearing, lifted from the site this video explains */
-      --cost01-teal: #1f6f8b; /* neutral series — the old price */
-      --cost01-negative: #a8423a; /* below break-even — the new price */
-      --cost01-amber: #b07d2b; /* accent label */
+      --wcc-paper: #f4f5f6;
+      --wcc-ink: #15181c;
+      --wcc-ink-soft: #474d55;
+      --wcc-grid: rgba(21, 24, 28, 0.08);
+      --wcc-ink-faint: rgba(21, 24, 28, 0.16);
+      /* series — meaning, never decoration */
+      --wcc-teal: #1f6f8b; /* neutral series: the old cost */
+      --wcc-negative: #a8423a; /* below break-even: the new cost */
+      --wcc-amber: #b07d2b; /* accent label */
+      /* THE SHARED GRID — identical on every frame of this video */
+      --wcc-x: 8cqw; /* left / right content margin */
+      --wcc-measure: 84cqw; /* 100 - 2 * 8 */
+      --wcc-slot-w: 54cqw; /* 6 DM Mono glyphs @ 15cqw = 3.6em — the hero measure */
     }
 
-    /* ── background role: paper + the permanent graph-paper grid, on a clip layer ── */
-    .cost01-ground {
+    /* ── ground: full-bleed paper + permanent graph-paper grid, on a clip layer ── */
+    .wcc-paper {
       position: absolute;
       inset: 0;
-      background: var(--cost01-paper);
+      background: var(--wcc-paper);
     }
-    .cost01-grid {
+    .wcc-grid {
       position: absolute;
       inset: 0;
+      /* ~2cqw cells, 10% ink */
       background-image:
-        linear-gradient(to right, var(--cost01-grid) 0.06cqw, transparent 0.06cqw),
-        linear-gradient(to bottom, var(--cost01-grid) 0.06cqw, transparent 0.06cqw);
+        linear-gradient(to right, var(--wcc-grid) 0.1cqw, transparent 0.1cqw),
+        linear-gradient(to bottom, var(--wcc-grid) 0.1cqw, transparent 0.1cqw);
       background-size: 2cqw 2cqw;
       background-position: 0 0;
-      opacity: 0.9;
-      transform-origin: 50% 50%;
+      opacity: 0; /* resting state authored in CSS — settles on the timeline */
     }
-    /* the two persistent hairlines framing every composition */
-    .cost01-rule {
+
+    /* ── pixel-glitch column (frame.md signature, decorative, right side) ──
+       Lives strictly between the hero measure and the 8cqw right margin. */
+    .wcc-glitch {
+      position: absolute;
+      left: 71cqw;
+      right: 8cqw;
+      top: 16cqw;
+      height: 30cqw;
+      opacity: 0.5;
+    }
+    .wcc-gbar {
+      position: absolute;
+      right: 0;
+      height: 4.1cqw;
+      background-image: repeating-linear-gradient(
+        90deg,
+        var(--wcc-ink) 0 0.1cqw,
+        transparent 0.1cqw 0.44cqw
+      );
+      transform: scaleX(0);
+      transform-origin: right center;
+      opacity: 0;
+    }
+    .wcc-gbar:nth-child(1) { top: 0cqw;    width: 100%; }
+    .wcc-gbar:nth-child(2) { top: 4.35cqw; width: 62%; }
+    .wcc-gbar:nth-child(3) { top: 8.7cqw;  width: 100%; }
+    .wcc-gbar:nth-child(4) { top: 13.05cqw; width: 41%; }
+    .wcc-gbar:nth-child(5) { top: 17.4cqw; width: 83%; }
+    .wcc-gbar:nth-child(6) { top: 21.75cqw; width: 55%; }
+    .wcc-gbar:nth-child(7) { top: 26.1cqw; width: 100%; }
+
+    /* ── permanent furniture: the two cobalt hairlines ── */
+    .wcc-hair {
       position: absolute;
       left: 4cqw;
       right: 4cqw;
       height: 0.12cqw;
-      background: var(--cost01-ink);
-    }
-    .cost01-rule-top {
-      top: 3cqw;
+      background: var(--wcc-ink);
+      transform: scaleX(0);
       transform-origin: left center;
     }
-    .cost01-rule-bottom {
-      bottom: 3cqw;
-      transform-origin: right center;
-    }
+    .wcc-hair-top { top: 3cqw; }
+    .wcc-hair-bottom { bottom: 3cqw; }
 
-    /* ── the type block: centred template, left-set inside itself ── */
-    .cost01-block {
+    /* ── EYEBROW ZONE — top 9cqw, left set on the 8cqw x line ── */
+    .wcc-eyebrow {
       position: absolute;
-      left: 0;
-      right: 0;
-      top: 14.5cqw;
-      text-align: center;
-    }
-    .cost01-inner {
-      display: inline-block;
-      text-align: left;
-    }
-
-    /* supporting: the fixed lead line */
-    .cost01-lede {
-      font-family: "Newsreader", Georgia, serif;
-      font-weight: 400;
-      font-size: 3.2cqw;
-      line-height: 1.1;
-      letter-spacing: -0.005em;
-      color: var(--cost01-ink);
-      white-space: nowrap;
-    }
-
-    /* the slot both figures share — width is set by the figure itself */
-    .cost01-stack {
-      position: relative;
-      display: block;
-      margin-top: 2cqw;
-    }
-
-    /* foreground subject: the cost figure, mono at hero scale */
-    .cost01-figwrap {
-      position: relative;
+      left: var(--wcc-x);
+      top: 9cqw;
       font-family: "DM Mono", ui-monospace, monospace;
-      font-weight: 400;
-      font-size: 12.5cqw;
-      line-height: 0.9;
-      letter-spacing: 0.05em;
-      margin-right: -0.05em; /* swallow the trailing letter-space */
-      font-variant-numeric: tabular-nums;
-      font-feature-settings: "tnum" 1;
-      white-space: nowrap;
-    }
-    .cost01-fig {
-      display: block;
-      white-space: nowrap;
-    }
-    .cost01-fig-b {
-      position: absolute;
-      left: 0;
-      top: 0;
-      visibility: hidden;
-    }
-    .cost01-fig-a {
-      color: var(--cost01-teal);
-    }
-    .cost01-fig-b {
-      color: var(--cost01-negative);
-    }
-    .cost01-ch {
-      display: inline-block;
-      transform-origin: 50% 70%;
-      will-change: transform;
-    }
-
-    /* micro label — amber, tracked Hanken */
-    .cost01-labels {
-      position: absolute;
-      left: 0;
-      top: 15cqw;
-      height: 2cqw;
-    }
-    .cost01-label {
-      position: absolute;
-      left: 0;
-      top: 0;
-      font-family: "Hanken Grotesk", "Helvetica Neue", sans-serif;
-      font-weight: 600;
-      font-size: 1.4cqw;
+      font-weight: 500;
+      font-size: 1.3cqw;
+      line-height: 1;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      white-space: nowrap;
-      color: var(--cost01-amber);
+      color: var(--wcc-amber);
+      opacity: 0;
+      visibility: hidden;
     }
-    .cost01-label-b {
+    /* decorative catalogue ordinal — mono chrome, right end of the same measure */
+    .wcc-ord {
+      position: absolute;
+      right: var(--wcc-x);
+      top: 9cqw;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 1.3cqw;
+      line-height: 1;
+      letter-spacing: 0.06em;
+      color: var(--wcc-ink-soft);
+      opacity: 0;
+      visibility: hidden;
+    }
+    /* topbar rule closing the eyebrow zone, across the full measure */
+    .wcc-toprule {
+      position: absolute;
+      left: var(--wcc-x);
+      width: var(--wcc-measure);
+      top: 11.6cqw;
+      height: 0.08cqw;
+      background: var(--wcc-ink-faint);
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+
+    /* ── CONTENT ZONE — 16cqw to 46cqw ── */
+
+    /* the fixed lead line (supporting) */
+    .wcc-lead {
+      position: absolute;
+      left: var(--wcc-x);
+      top: 14.75cqw;
+      max-width: var(--wcc-measure);
+      font-family: "Newsreader", Georgia, serif;
+      font-weight: 400;
+      font-size: 5.8cqw;
+      line-height: 1.1;
+      letter-spacing: -0.005em;
+      color: var(--wcc-ink);
+      white-space: nowrap;
+    }
+    .wcc-w {
+      display: inline-block;
+      overflow: hidden;
+      vertical-align: bottom;
+    }
+    .wcc-wi {
+      display: inline-block;
+      /* No CSS transform here. GSAP tweens yPercent on this element, and a CSS
+         transform as the rest state means GSAP never cleanly takes the property
+         over: the words stayed parked below the mask and the line never
+         appeared. The parked state is the tween's own `from`, stamped at build
+         time by immediateRender. */
+    }
+
+    /* the hero slot — both figures stand on the SAME baseline, same left edge */
+    .wcc-slot {
+      position: absolute;
+      left: var(--wcc-x);
+      top: 23cqw;
+      width: var(--wcc-slot-w);
+      height: 15cqw;
+    }
+    .wcc-fig {
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 500;
+      font-size: 15cqw; /* still the largest type in the whole video */
+      line-height: 1;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .wcc-fig-a { color: var(--wcc-teal); }
+    .wcc-fig-b {
+      color: var(--wcc-negative);
+      opacity: 0;
+      visibility: hidden;
+    }
+    .wcc-ch {
+      display: inline-block;
+      opacity: 0;
       visibility: hidden;
     }
 
-    /* the bracket that closes the frame — drawn once across the shared slot */
-    .cost01-bracket {
+    /* the cohort micro label — amber, directly under the figure */
+    .wcc-lab {
       position: absolute;
-      left: 0;
-      right: 0;
-      top: 17.7cqw;
-      height: 1.4cqw;
-    }
-    .cost01-br-line {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      height: 0.12cqw;
-      background: var(--cost01-amber);
-      transform-origin: left center;
-    }
-    .cost01-br-tick {
-      position: absolute;
-      top: 0;
-      width: 0.12cqw;
-      height: 100%;
-      background: var(--cost01-amber);
-    }
-    .cost01-br-tick-l {
-      left: 0;
-      transform-origin: center top;
-    }
-    .cost01-br-tick-r {
-      right: 0;
-      transform-origin: center bottom;
-    }
-
-    .cost01-tag {
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 18.2cqw;
-      text-align: center;
+      left: var(--wcc-x);
+      top: 43cqw;
       font-family: "DM Mono", ui-monospace, monospace;
       font-weight: 400;
-      font-size: 1.5cqw;
-      line-height: 1.4;
+      font-size: 2.2cqw;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      color: var(--wcc-amber);
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    /* the measurement bracket across the slot both figures occupied */
+    .wcc-bracket {
+      position: absolute;
+      left: var(--wcc-x);
+      top: 46.6cqw;
+      width: var(--wcc-slot-w);
+      height: 0.14cqw;
+    }
+    .wcc-brline {
+      position: absolute;
+      inset: 0;
+      background: var(--wcc-amber);
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+    .wcc-tick {
+      position: absolute;
+      bottom: 0;
+      width: 0.14cqw;
+      height: 1.3cqw;
+      background: var(--wcc-amber);
+      transform: scaleY(0);
+      transform-origin: bottom center;
+    }
+    .wcc-tick-l { left: 0; }
+    .wcc-tick-r { right: 0; }
+
+    /* ── FOOTNOTE ZONE — top 49cqw, anchored on the 8cqw x line ── */
+    .wcc-foot-chrome {
+      position: absolute;
+      left: var(--wcc-x);
+      top: 49.85cqw;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 400;
+      font-size: 1.15cqw;
+      line-height: 1;
+      letter-spacing: 0.06em;
+      color: var(--wcc-ink-soft);
+      opacity: 0;
+      visibility: hidden;
+    }
+    /* the payoff tag rides the same 8cqw line and centres on the bracket midpoint */
+    .wcc-tagwrap {
+      position: absolute;
+      left: var(--wcc-x);
+      width: var(--wcc-slot-w);
+      top: 49cqw;
+      text-align: center;
+      pointer-events: none;
+    }
+    .wcc-tag {
+      display: inline-block;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-weight: 500;
+      font-size: 2.2cqw;
+      line-height: 1;
       letter-spacing: 0.05em;
-      color: var(--cost01-amber);
+      color: var(--wcc-amber);
+      opacity: 0;
+      visibility: hidden;
     }
   </style>
 
-  <div
-    id="root"
-    data-composition-id="01-what-a-customer-costs"
-    data-start="0"
-    data-duration="6.5"
-    data-width="1920"
-    data-height="1080"
-  >
-    <div class="clip cost01-ground" data-start="0" data-duration="6.5" data-track-index="0">
-      <div id="cost01-grid" class="cost01-grid"></div>
-      <div id="cost01-rule-top" class="cost01-rule cost01-rule-top"></div>
-      <div id="cost01-rule-bottom" class="cost01-rule cost01-rule-bottom"></div>
+  <div id="root" data-composition-id="01-what-a-customer-costs" data-width="1920" data-height="1080">
+    <!-- ground -->
+    <div
+      class="clip wcc-ground"
+      data-start="0"
+      data-duration="7.5"
+      data-track-index="0"
+      style="position: absolute; inset: 0"
+    >
+      <div class="wcc-paper"></div>
+      <div class="wcc-grid"></div>
     </div>
 
-    <div class="clip cost01-block" data-start="0" data-duration="6.5" data-track-index="1">
-      <div class="cost01-inner">
-        <div id="cost01-lede" class="cost01-lede">A customer costs</div>
+    <!-- chrome: hairlines, eyebrow zone -->
+    <div
+      class="clip wcc-chrome"
+      data-start="0"
+      data-duration="7.5"
+      data-track-index="2"
+      style="position: absolute; inset: 0"
+    >
+      <div class="wcc-hair wcc-hair-top"></div>
+      <div class="wcc-hair wcc-hair-bottom"></div>
+      <div class="wcc-eyebrow">Cost per logo</div>
+      <div class="wcc-ord">001</div>
+      <div class="wcc-toprule"></div>
+    </div>
 
-        <div class="cost01-stack">
-          <div class="cost01-figwrap">
-            <span id="cost01-fig-a" class="cost01-fig cost01-fig-a"
-              ><span class="cost01-ch cost01-ch-a">$</span><span class="cost01-ch cost01-ch-a"
-                >2</span
-              ><span class="cost01-ch cost01-ch-a">,</span><span class="cost01-ch cost01-ch-a"
-                >5</span
-              ><span class="cost01-ch cost01-ch-a">8</span><span class="cost01-ch cost01-ch-a"
-                >3</span
-              ></span
-            >
-            <span id="cost01-fig-b" class="cost01-fig cost01-fig-b"
-              ><span class="cost01-ch">$</span><span class="cost01-ch">9</span
-              ><span class="cost01-ch">,</span><span class="cost01-ch">3</span
-              ><span class="cost01-ch">6</span><span class="cost01-ch">7</span></span
-            >
-          </div>
+    <!-- content zone -->
+    <div
+      class="clip wcc-stage"
+      data-start="0"
+      data-duration="7.5"
+      data-track-index="3"
+      style="position: absolute; inset: 0"
+    >
+      <div class="wcc-lead"
+        ><span class="wcc-w"><span class="wcc-wi">A</span></span>
+        <span class="wcc-w"><span class="wcc-wi">customer</span></span>
+        <span class="wcc-w"><span class="wcc-wi">costs</span></span></div
+      >
 
-          <div class="cost01-labels">
-            <span id="cost01-label-a" class="cost01-label cost01-label-a">2024-10 cohort</span>
-            <span id="cost01-label-b" class="cost01-label cost01-label-b">2026-08 cohort</span>
-          </div>
-
-          <div class="cost01-bracket">
-            <i id="cost01-br-tick-l" class="cost01-br-tick cost01-br-tick-l"></i>
-            <i id="cost01-br-line" class="cost01-br-line"></i>
-            <i id="cost01-br-tick-r" class="cost01-br-tick cost01-br-tick-r"></i>
-          </div>
-
-          <div id="cost01-tag" class="cost01-tag">3.6x the price</div>
-        </div>
+      <div class="wcc-slot">
+        <div class="wcc-fig wcc-fig-a"
+          ><span class="wcc-ch">$</span><span class="wcc-ch">2</span
+          ><span class="wcc-ch">,</span><span class="wcc-ch">5</span
+          ><span class="wcc-ch">8</span><span class="wcc-ch">3</span></div
+        >
+        <div class="wcc-fig wcc-fig-b">$9,367</div>
       </div>
+
+      <div class="wcc-lab wcc-lab-a">2024-10 cohort</div>
+      <div class="wcc-lab wcc-lab-b">2026-08 cohort</div>
+
+      <div class="wcc-bracket">
+        <div class="wcc-brline"></div>
+        <div class="wcc-tick wcc-tick-l"></div>
+        <div class="wcc-tick wcc-tick-r"></div>
+      </div>
+    </div>
+
+    <!-- footnote zone -->
+    <div
+      class="clip wcc-foot"
+      data-start="0"
+      data-duration="7.5"
+      data-track-index="4"
+      style="position: absolute; inset: 0"
+    >
+      <div class="wcc-foot-chrome">2024-10 / 2026-08</div>
+      <div class="wcc-tagwrap"><span class="wcc-tag">3.6x the price</span></div>
     </div>
   </div>
 
   <script>
     (function () {
       window.__timelines = window.__timelines || {};
+
+      var root = document.querySelector(
+        '[data-composition-id="01-what-a-customer-costs"]'
+      );
+      var q = function (s) { return root.querySelector(s); };
+      var qa = function (s) { return Array.prototype.slice.call(root.querySelectorAll(s)); };
+
+      var grid = q(".wcc-grid");
+      var hairs = qa(".wcc-hair");
+      var gbars = qa(".wcc-gbar");
+      var eyebrow = q(".wcc-eyebrow");
+      var ord = q(".wcc-ord");
+      var toprule = q(".wcc-toprule");
+      var leadWords = qa(".wcc-wi");
+      var figA = q(".wcc-fig-a");
+      var figAChars = qa(".wcc-fig-a .wcc-ch");
+      var figB = q(".wcc-fig-b");
+      var labA = q(".wcc-lab-a");
+      var labB = q(".wcc-lab-b");
+      var brline = q(".wcc-brline");
+      var ticks = qa(".wcc-tick");
+      var footChrome = q(".wcc-foot-chrome");
+      var tag = q(".wcc-tag");
+
       var tl = gsap.timeline({ paused: true });
 
-      /* ── Scene 1 (0.0–1.4s) — the hairline grid field settles, then the fixed
-         lead line sets. Nothing else on screen. ───────────────────────────── */
+      /* ── Scene 1 (0.0–1.2s) — the grid settles, the eyebrow sets,
+            the lead line writes on in the content zone ── */
       tl.fromTo(
-        "#cost01-grid",
+        grid,
         { opacity: 0, scale: 1.035 },
-        { opacity: 0.9, scale: 1, duration: 1.1, ease: "power3.out" },
+        { opacity: 0.65, scale: 1, duration: 0.75, ease: "power2.out" },
         0
       );
       tl.fromTo(
-        "#cost01-rule-top",
+        hairs,
         { scaleX: 0 },
-        { scaleX: 1, duration: 0.86, ease: "power2.inOut" },
+        { scaleX: 1, duration: 0.7, ease: "power3.out", stagger: 0.06, immediateRender: false },
         0.05
       );
       tl.fromTo(
-        "#cost01-rule-bottom",
-        { scaleX: 0 },
-        { scaleX: 1, duration: 0.86, ease: "power2.inOut" },
+        gbars,
+        { scaleX: 0, opacity: 0 },
+        { scaleX: 1, opacity: 1, duration: 0.5, ease: "power2.out", stagger: 0.045, immediateRender: false },
         0.12
       );
       tl.fromTo(
-        "#cost01-lede",
-        { y: 26, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.62, ease: "power3.out" },
-        0.08
-      );
-
-      /* ── Scene 2 (1.4–3.0s) — "$2,583" springs in beneath the lead line,
-         per character, each on a smooth long-tail settle (spring-pop-entrance),
-         then the amber cohort micro-label rises under it. ──────────────────── */
-      gsap.utils.toArray(".cost01-ch-a").forEach(function (ch, i) {
-        tl.fromTo(
-          ch,
-          { opacity: 0, scale: 0.55, y: 16 },
-          { opacity: 1, scale: 1, y: 0, duration: 0.52, ease: "power3.out" },
-          1.4 + i * 0.058
-        );
-      });
-      tl.fromTo(
-        "#cost01-label-a",
-        { opacity: 0, y: 12 },
-        { opacity: 1, y: 0, duration: 0.48, ease: "power2.out" },
-        2.05
-      );
-
-      /* ── Scene 3 (3.0–4.4s) — THE SIGNATURE MOVE. A discrete state swap at a
-         frame threshold (discrete-text-sequence): "$2,583" is not faded, it is
-         CUT away and "$9,367" stands on the same baseline in its place. The
-         cohort label catches up one beat later. Visibility only — no opacity
-         tween touches these nodes, so the substitution is instant on any frame. */
-      var figA = document.getElementById("cost01-fig-a");
-      var figB = document.getElementById("cost01-fig-b");
-      var labelA = document.getElementById("cost01-label-a");
-      var labelB = document.getElementById("cost01-label-b");
-
-      // The figure and its cohort label swap on the SAME threshold. Staggering
-      // them left $9,367 sitting under "2024-10 cohort" for ~80ms, which is a
-      // wrong label on screen, not a beat.
-      var STATES = [
-        { t: 0.0, fig: "a", label: "a" },
-        { t: 3.0, fig: "b", label: "b" },
-      ];
-
-      function stateAt(time) {
-        for (var i = STATES.length - 1; i >= 0; i--) {
-          if (time >= STATES[i].t) return STATES[i];
-        }
-        return STATES[0];
-      }
-
-      var driver = { t: 0 };
-      tl.to(
-        driver,
-        {
-          t: 6,
-          duration: 6,
-          ease: "none",
-          onUpdate: function () {
-            var s = stateAt(driver.t);
-            figA.style.visibility = s.fig === "a" ? "visible" : "hidden";
-            figB.style.visibility = s.fig === "b" ? "visible" : "hidden";
-            labelA.style.visibility = s.label === "a" ? "visible" : "hidden";
-            labelB.style.visibility = s.label === "b" ? "visible" : "hidden";
-          },
-        },
-        0
-      );
-
-      /* ── Scene 4 (4.4–6.0s) — one thin amber bracket draws once across the slot
-         both numbers occupied (down the left tick, across, up the right tick —
-         one continuous pen), and the mono tag settles at its midpoint. Then the
-         frame holds STILL for the read. ────────────────────────────────────── */
-      tl.fromTo(
-        "#cost01-br-tick-l",
-        { scaleY: 0 },
-        { scaleY: 1, duration: 0.24, ease: "power2.out" },
-        4.4
+        eyebrow,
+        { autoAlpha: 0, yPercent: 70 },
+        { autoAlpha: 1, yPercent: 0, duration: 0.5, ease: "power3.out", immediateRender: false },
+        0.18
       );
       tl.fromTo(
-        "#cost01-br-line",
+        toprule,
         { scaleX: 0 },
-        { scaleX: 1, duration: 0.56, ease: "power2.inOut" },
-        4.58
+        { scaleX: 1, duration: 0.8, ease: "power3.out", immediateRender: false },
+        0.34
+      );
+      /* per-word masked slide — the lead line "writes on", left set on 8cqw */
+      tl.fromTo(
+        leadWords,
+        { yPercent: 110 },
+        { yPercent: 0, duration: 0.52, ease: "power3.out", stagger: 0.1 },
+        0.42
       );
       tl.fromTo(
-        "#cost01-br-tick-r",
+        ord,
+        { autoAlpha: 0 },
+        { autoAlpha: 1, duration: 0.4, ease: "none", immediateRender: false },
+        0.5
+      );
+
+      /* ── Scene 2 (1.2–3.4s) — "$2,583" reveals per character at hero scale,
+            then the amber cohort label rises under it ── */
+      tl.fromTo(
+        figAChars,
+        { autoAlpha: 0, yPercent: 10 },
+        { autoAlpha: 1, yPercent: 0, duration: 0.24, ease: "power3.out", stagger: 0.078, immediateRender: false },
+        1.26
+      );
+      tl.fromTo(
+        labA,
+        { autoAlpha: 0, yPercent: 90 },
+        { autoAlpha: 1, yPercent: 0, duration: 0.55, ease: "back.out(1.5)", immediateRender: false },
+        1.88
+      );
+
+      /* ── Scene 3 (3.4–5.8s) — HARD CUT in place.
+            Figure and label swap on the SAME frame. Nothing fades. ── */
+      tl.set([figA, labA], { autoAlpha: 0 }, 3.4);
+      tl.set([figB, labB], { autoAlpha: 1 }, 3.4);
+
+      /* the only motion under the held cut: a whisper of push on the grid field */
+      tl.fromTo(
+        grid,
+        { scale: 1 },
+        { scale: 1.014, duration: 4, ease: "none", immediateRender: false },
+        3.4
+      );
+
+      /* ── Scene 4 (5.8–7.5s) — the amber bracket draws once across the slot
+            both figures occupied; the mono tag settles at its midpoint. Holds STILL. ── */
+      tl.fromTo(
+        brline,
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.58, ease: "power2.out", immediateRender: false },
+        5.82
+      );
+      tl.fromTo(
+        ticks,
         { scaleY: 0 },
-        { scaleY: 1, duration: 0.24, ease: "power2.out" },
-        5.02
+        { scaleY: 1, duration: 0.26, ease: "power3.out", stagger: 0.07, immediateRender: false },
+        6.18
       );
       tl.fromTo(
-        "#cost01-tag",
-        { opacity: 0, y: 10 },
-        { opacity: 1, y: 0, duration: 0.44, ease: "power2.out" },
-        5.24
+        footChrome,
+        { autoAlpha: 0, yPercent: 60 },
+        { autoAlpha: 1, yPercent: 0, duration: 0.45, ease: "power3.out", immediateRender: false },
+        6.22
       );
+      tl.fromTo(
+        tag,
+        { autoAlpha: 0, yPercent: 70 },
+        { autoAlpha: 1, yPercent: 0, duration: 0.55, ease: "back.out(1.4)", immediateRender: false },
+        6.3
+      );
+
+      /* full-span anchor — the frame's duration is 7.5s */
+      tl.to({}, { duration: 7.5 }, 0);
 
       window.__timelines["01-what-a-customer-costs"] = tl;
-      tl.seek(0);
     })();
   </script>
 </template>
