@@ -2,16 +2,17 @@
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
 
   <style>
-    /* Families declared in frame.md. The real .woff2 files ship in assets/fonts/ and are
-       referenced project-root-relative — never from a CDN — so every parallel render worker
-       paints identical glyphs. font-display: block for the same reason. Only the faces
-       actually used on this frame are declared. */
+    /* Families declared in frame.md — Newsreader 400 (display ramp) + DM Mono 400 (chrome).
+       No .woff2 ships in assets/fonts/ or capture/assets/fonts/ in this project, so the faces
+       point at the real upstream files for these exact Google families (latin subset).
+       font-display: block so every parallel render worker paints the same glyphs. */
     @font-face {
       font-family: "Newsreader";
       font-style: normal;
       font-weight: 400;
       font-display: block;
-      src: url("assets/fonts/Newsreader-400.woff2") format("woff2");
+      src: url("assets/fonts/Newsreader-400.woff2")
+        format("woff2");
     }
     @font-face {
       font-family: "DM Mono";
@@ -19,20 +20,6 @@
       font-weight: 400;
       font-display: block;
       src: url("assets/fonts/DMMono-400.woff2") format("woff2");
-    }
-    @font-face {
-      font-family: "DM Mono";
-      font-style: normal;
-      font-weight: 500;
-      font-display: block;
-      src: url("assets/fonts/DMMono-500.woff2") format("woff2");
-    }
-    @font-face {
-      font-family: "Hanken Grotesk";
-      font-style: normal;
-      font-weight: 600;
-      font-display: block;
-      src: url("assets/fonts/HankenGrotesk-600.woff2") format("woff2");
     }
 
     /* ── frame root — styled by #root, never by a class on the composition element ── */
@@ -44,165 +31,103 @@
       overflow: hidden;
       container-type: size;
       /* frame.md tokens */
-      --lev07-paper: #f4f5f6;
-      --lev07-ink: #15181c;
-      --lev07-ink-soft: #474d55;
-      --lev07-grid: rgba(21, 24, 28, 0.08);
-      --lev07-ink-faint: rgba(21, 24, 28, 0.16);
-      --lev07-amber: #b07d2b; /* series.amber — the eyebrow + the closing rule. Never decoration. */
+      --lever07-paper: #f4f5f6;
+      --lever07-ink: #15181c;
+      --lever07-ink-soft: #474d55;
+      --lever07-grid: rgba(21, 24, 28, 0.08);
+      --lever07-amber: #b07d2b;
     }
 
-    /* ── ground: full-bleed paper + the permanent graph-paper grid, on a clip layer ──
-       Painted on a clip element, never on #root: the frame root is clip-gated to its
-       scene window at assembly, so a background on the root is not a dependable ground. */
-    .lev07-ground {
+    /* ── ground: full-bleed paper + permanent graph-paper grid, on a clip layer ── */
+    .lever07-ground {
       position: absolute;
       inset: 0;
-      background: var(--lev07-paper);
+      background: var(--lever07-paper);
     }
-    .lev07-grid {
+    .lever07-grid {
       position: absolute;
       inset: 0;
-      /* ~2cqw cells at 8% ink — the dim measured plane behind everything */
+      /* ~2cqw cells, 10% ink — the permanent measured plane, dimmed background role */
       background-image:
-        linear-gradient(to right, var(--lev07-grid) 0.06cqw, transparent 0.06cqw),
-        linear-gradient(to bottom, var(--lev07-grid) 0.06cqw, transparent 0.06cqw);
+        linear-gradient(to right, var(--lever07-grid) 0.06cqw, transparent 0.06cqw),
+        linear-gradient(to bottom, var(--lever07-grid) 0.06cqw, transparent 0.06cqw);
       background-size: 2cqw 2cqw;
       background-position: 0 0;
       opacity: 0.9;
     }
-    /* the two persistent hairlines framing every composition in this video */
-    .lev07-rule {
+    /* the two persistent hairlines framing every composition */
+    .lever07-rule {
       position: absolute;
       left: 4cqw;
       right: 4cqw;
       height: 0.12cqw;
-      background: var(--lev07-ink);
+      background: var(--lever07-ink);
     }
-    .lev07-rule-top {
+    .lever07-rule-top {
       top: 3cqw;
     }
-    .lev07-rule-bottom {
+    .lever07-rule-bottom {
       bottom: 3cqw;
     }
 
-    /* ══ THE SHARED GRID ════════════════════════════════════════════════════════════
-       Identical to every other frame in this video: 8cqw left margin, 8cqw right
-       margin, eyebrow at 9cqw, content 16–46cqw, footnote at 49cqw. The closing line
-       is LEFT SET on the 8cqw x-line — it is not centred, because centring the closer
-       is what made the video read as a pile of unrelated slides. */
-
-    /* bare clip wrappers carry no layout of their own — their contents are placed
-       against #root, which is the positioned ancestor */
-    .lev07-layer {
+    /* ── foreground subject: the lever line ── */
+    .lever07-lede {
       position: absolute;
-      inset: 0;
-    }
-
-    /* ── eyebrow zone (top 9cqw) — mono caps, amber, left set ── */
-    .lev07-eyebrow {
-      position: absolute;
-      left: 8cqw;
-      top: 9cqw;
-      font-family: "DM Mono", ui-monospace, monospace;
-      font-weight: 500;
-      font-size: 1.3cqw;
-      letter-spacing: 0.16em;
-      line-height: 1.2;
-      text-transform: uppercase;
-      color: var(--lev07-amber);
-      white-space: nowrap;
-      opacity: 0; /* initial state lives in CSS — the tween is fromTo + immediateRender:false */
-    }
-
-    /* ── content zone (16–46cqw) — the closing line, display-closing, ink, left set ──
-       Anchored at the TOP of the zone, not centred in it: the first line then shares the
-       same 16cqw top line as every other frame's content, which is the whole point of the
-       shared grid. Two lines at 9.4cqw / 0.96 run 16 → ~35.7cqw. The long line
-       ("acquisition cost.") measures ~64cqw — 64% of the canvas, inside the 55–65% fill
-       target and well under frame.md's 78cqw block cap. */
-    .lev07-statement {
-      position: absolute;
-      left: 8cqw;
-      right: 8cqw;
-      top: 16cqw;
+      left: 0;
+      right: 0;
+      top: 14cqw;
+      text-align: center;
       font-family: "Newsreader", Georgia, serif;
       font-weight: 400;
-      font-size: 9.4cqw; /* typography.display-closing */
+      font-size: 8.4cqw; /* display-closing register, fit to a ~64cqw measure */
       line-height: 0.96;
       letter-spacing: -0.005em;
-      color: var(--lev07-ink);
+      color: var(--lever07-ink);
     }
-    /* Each line rides in its own clipping mask so it SLIDES UP into the zone rather than
-       fading in place. The padding/negative-margin pair widens the clip box past the
-       ascenders and the 'q' descender without changing the line advance. */
-    .lev07-mask {
+    .lever07-line {
       display: block;
-      overflow: hidden;
-      padding-top: 1.6cqw;
-      margin-top: -1.6cqw;
-      padding-bottom: 2.2cqw;
-      margin-bottom: -2.2cqw;
-    }
-    .lev07-line {
-      display: block;
-      width: fit-content;
+      padding: 0 4cqw 0.06em;
       white-space: nowrap;
-      /* Parked fully below the mask. 150% clears the whole clip box: the mask runs
-         1.6cqw above and 2.2cqw below the 9.02cqw line box, and Newsreader's ascent
-         reaches ~1.42cqw above that line box — so 130% would leave the ascender tops
-         peeking at t=0. The fromTo drives it home. */
-      /* No CSS transform: GSAP tweens yPercent here and must own the property
-         outright, or the CSS value stays in force and the line never rises.
-         The tween's `from` is the parked state. */
     }
 
-    /* ── footnote zone (top 49cqw) — the two alternatives, mono, ink-soft ── */
-    .lev07-footnote {
+    /* ── supporting: the two struck alternatives ── */
+    .lever07-alts {
       position: absolute;
-      left: 8cqw;
-      right: 8cqw;
-      top: 49cqw;
-      font-size: 0;
-      white-space: nowrap;
+      left: 0;
+      right: 0;
+      top: 36.5cqw;
+      display: flex;
+      justify-content: center;
+      align-items: baseline;
+      gap: 7cqw;
     }
-    .lev07-alt {
+    .lever07-alt {
       position: relative;
-      display: inline-block;
-      margin-right: 6cqw;
       font-family: "DM Mono", ui-monospace, monospace;
       font-weight: 400;
-      font-size: 1.5cqw; /* comfortably above the 1.15cqw mono floor */
+      font-size: 2cqw;
       letter-spacing: 0.05em;
-      line-height: 1.5;
-      color: var(--lev07-ink-soft);
-      opacity: 0;
+      line-height: 1.4;
+      color: var(--lever07-ink-soft);
+      padding: 0 0.3cqw;
     }
-    /* the strike. Centred with top+margin (never a CSS translate) because GSAP drives
-       scaleX on this same element and would overwrite a transform-based centring. */
-    .lev07-strike {
+    .lever07-strike {
       position: absolute;
-      left: -0.3cqw;
-      right: -0.3cqw;
-      top: 50%;
-      margin-top: -0.06cqw;
+      left: 0;
+      right: 0;
+      top: calc(50% - 0.06cqw);
       height: 0.12cqw;
-      background: var(--lev07-ink);
-      transform-origin: left center;
-      transform: scaleX(0);
+      background: var(--lever07-ink);
     }
 
-    /* ── the close: one amber hairline, drawn over the bottom ink rule between the
-       content margins. It draws, it stops, and the frame is still. No logo, no end card. ── */
-    .lev07-close {
+    /* ── the closing amber hairline, at the very bottom edge ── */
+    .lever07-mark {
       position: absolute;
-      left: 8cqw;
-      right: 8cqw;
-      bottom: 3cqw;
-      height: 0.16cqw;
-      background: var(--lev07-amber);
-      transform-origin: left center;
-      transform: scaleX(0);
+      left: 0;
+      right: 0;
+      bottom: 1.6cqw;
+      height: 0.12cqw;
+      background: var(--lever07-amber);
     }
   </style>
 
@@ -210,38 +135,33 @@
     id="root"
     data-composition-id="07-the-lever"
     data-start="0"
-    data-duration="6"
+    data-duration="5"
     data-width="1920"
     data-height="1080"
   >
-    <!-- background: paper + the permanent graph-paper grid + the two ink hairlines -->
-    <div class="clip lev07-ground" data-start="0" data-duration="6" data-track-index="0">
-      <div class="lev07-grid"></div>
-      <div class="lev07-rule lev07-rule-top"></div>
-      <div class="lev07-rule lev07-rule-bottom"></div>
+    <div class="clip lever07-ground" data-start="0" data-duration="5" data-track-index="0">
+      <div class="lever07-grid"></div>
+      <div class="lever07-rule lever07-rule-top"></div>
+      <div class="lever07-rule lever07-rule-bottom"></div>
     </div>
 
-    <!-- supporting: the eyebrow, on the same 8cqw / 9cqw slot as every other frame -->
-    <div class="clip lev07-layer" data-start="0" data-duration="6" data-track-index="1">
-      <div id="lev07-eyebrow" class="lev07-eyebrow">THE LEVER</div>
+    <div id="lever07-lede" class="clip lever07-lede" data-start="0" data-duration="5" data-track-index="1">
+      <span id="lever07-line1" class="lever07-line">The lever is</span>
+      <span id="lever07-line2" class="lever07-line">acquisition cost.</span>
     </div>
 
-    <!-- foreground subject: the closing line, left set on the 8cqw margin -->
-    <div class="clip lev07-statement" data-start="0" data-duration="6" data-track-index="2">
-      <span class="lev07-mask"><span id="lev07-l1" class="lev07-line">The lever is</span></span>
-      <span class="lev07-mask"><span id="lev07-l2" class="lev07-line">acquisition cost.</span></span>
+    <div class="clip lever07-alts" data-start="0" data-duration="5" data-track-index="2">
+      <div id="lever07-alt1" class="lever07-alt">
+        Not upsell.
+        <i id="lever07-strike1" class="lever07-strike"></i>
+      </div>
+      <div id="lever07-alt2" class="lever07-alt">
+        Not pricing.
+        <i id="lever07-strike2" class="lever07-strike"></i>
+      </div>
     </div>
 
-    <!-- supporting: the two alternatives, each struck out in turn -->
-    <div class="clip lev07-footnote" data-start="0" data-duration="6" data-track-index="3">
-      <span id="lev07-a1" class="lev07-alt">Not upsell.<i id="lev07-s1" class="lev07-strike"></i></span
-      ><span id="lev07-a2" class="lev07-alt">Not pricing.<i id="lev07-s2" class="lev07-strike"></i></span>
-    </div>
-
-    <!-- the close -->
-    <div class="clip lev07-layer" data-start="0" data-duration="6" data-track-index="4">
-      <div id="lev07-close" class="lev07-close"></div>
-    </div>
+    <div id="lever07-mark" class="clip lever07-mark" data-start="0" data-duration="5" data-track-index="3"></div>
   </div>
 
   <script>
@@ -249,86 +169,70 @@
       window.__timelines = window.__timelines || {};
       var tl = gsap.timeline({ paused: true });
 
-      /* Every fromTo below is positioned later than 0, so every one carries
-         immediateRender:false — otherwise GSAP applies its `from` values at BUILD time
-         and the frame's landed state is wrong on the first seek. The matching initial
-         state lives in the CSS above, which is the single source of truth for t=0. */
-
-      /* ── Scene 1 (0.0–2.0s) — the eyebrow sets, then the line slides up. ───────────
-         titlecard-reveal, Benefits register: ONE restrained move brings the card in.
-         The eyebrow is chrome, not a beat; the slide-up IS the move. */
+      /* Scene 1 (0.0–1.6s) — the ONE restrained move: a slide-up crossfade brings the
+         lever line to centre, with a whisper of scale settle underneath. Then it holds. */
       tl.fromTo(
-        "#lev07-eyebrow",
-        { yPercent: 60, opacity: 0 },
-        { yPercent: 0, opacity: 1, duration: 0.5, ease: "power2.out", immediateRender: false },
-        0.05
+        "#lever07-lede",
+        { scale: 0.972 },
+        { scale: 1, duration: 1.25, ease: "power2.out" },
+        0.04
+      );
+      tl.fromTo(
+        "#lever07-line1",
+        { yPercent: 34, opacity: 0 },
+        { yPercent: 0, opacity: 1, duration: 0.82, ease: "power3.out" },
+        0.04
+      );
+      tl.fromTo(
+        "#lever07-line2",
+        { yPercent: 34, opacity: 0 },
+        { yPercent: 0, opacity: 1, duration: 0.82, ease: "power3.out" },
+        0.16
       );
 
-      /* the hero. Line 1 is already more than half risen by t=0.5s.
-         These two deliberately keep immediateRender ON. Their `from` IS the
-         CSS rest state (translateY(150%)), so there is nothing to leak, and
-         GSAP has to claim the transform up front or the CSS value stays in
-         force and the line never rises. immediateRender:false belongs only on
-         a fromTo whose `from` is a VISIBLE state. */
+      /* Scene 2 (1.6–3.2s) — the two alternatives settle in mono, each struck in turn. */
       tl.fromTo(
-        "#lev07-l1",
-        { yPercent: 150 },
-        { yPercent: 0, duration: 0.85, ease: "power3.out" },
-        0.3
+        "#lever07-alt1",
+        { y: 16, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.52, ease: "power2.out" },
+        1.62
       );
       tl.fromTo(
-        "#lev07-l2",
-        { yPercent: 150 },
-        { yPercent: 0, duration: 0.85, ease: "power3.out" },
-        0.5
-      );
-      /* 1.35–2.02s: the statement simply holds. */
-
-      /* ── Scene 2 (2.0–4.0s) — the alternatives settle, and each is struck in turn. ──
-         Settle, strike, settle, strike: the cadence of the line being said. The strike
-         is an ink hairline — series red/green carry break-even meaning on this chart and
-         are never borrowed for emphasis. */
-      tl.fromTo(
-        "#lev07-a1",
-        { yPercent: 45, opacity: 0 },
-        { yPercent: 0, opacity: 1, duration: 0.45, ease: "power2.out", immediateRender: false },
-        2.02
-      );
-      tl.fromTo(
-        "#lev07-s1",
+        "#lever07-strike1",
         { scaleX: 0 },
-        { scaleX: 1, duration: 0.48, ease: "power2.inOut", transformOrigin: "left center", immediateRender: false },
-        2.5
+        { scaleX: 1, duration: 0.36, ease: "power2.inOut", transformOrigin: "left center" },
+        1.98
+      );
+      tl.to("#lever07-alt1", { opacity: 0.62, duration: 0.35, ease: "power1.out" }, 2.2);
+
+      tl.fromTo(
+        "#lever07-alt2",
+        { y: 16, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.52, ease: "power2.out" },
+        2.24
       );
       tl.fromTo(
-        "#lev07-a2",
-        { yPercent: 45, opacity: 0 },
-        { yPercent: 0, opacity: 1, duration: 0.45, ease: "power2.out", immediateRender: false },
-        2.92
-      );
-      tl.fromTo(
-        "#lev07-s2",
+        "#lever07-strike2",
         { scaleX: 0 },
-        { scaleX: 1, duration: 0.48, ease: "power2.inOut", transformOrigin: "left center", immediateRender: false },
-        3.45
+        { scaleX: 1, duration: 0.36, ease: "power2.inOut", transformOrigin: "left center" },
+        2.62
+      );
+      tl.to("#lever07-alt2", { opacity: 0.62, duration: 0.35, ease: "power1.out" }, 2.84);
+
+      /* Scene 3 (3.2–5.0s) — everything holds still. One amber hairline draws across the
+         very bottom of the frame and stops. Nothing after it: the sentence is the ending. */
+      tl.fromTo(
+        "#lever07-mark",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.98, ease: "power2.inOut", transformOrigin: "left center" },
+        3.32
       );
 
-      /* ── Scene 3 (4.0–6.0s) — STILL. One amber hairline draws across the bottom,
-         over the ink rule, between the content margins — and stops at 5.65s. The last
-         0.35s is dead still. This is the final frame, so the settle is the exit; there
-         is nothing after it. No logo, no end card. ─────────────────────────────────── */
-      tl.fromTo(
-        "#lev07-close",
-        { scaleX: 0 },
-        { scaleX: 1, duration: 1.45, ease: "power2.out", transformOrigin: "left center", immediateRender: false },
-        4.2
-      );
-
-      /* hold the timeline open to the full 6s so the final stillness is real footage */
-      var hold = { t: 0 };
-      tl.to(hold, { t: 1, duration: 0.001, ease: "none" }, 5.999);
+      /* span the full allocated duration — the last 0.7s is pure stillness */
+      tl.to({}, { duration: 5 }, 0);
 
       window.__timelines["07-the-lever"] = tl;
+      tl.seek(0);
     })();
   </script>
 </template>

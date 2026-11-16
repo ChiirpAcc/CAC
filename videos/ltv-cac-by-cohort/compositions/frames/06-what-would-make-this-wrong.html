@@ -2,12 +2,10 @@
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
 
   <style>
-    /* ──────────────────────────────────────────────────────────────────────
-       Faces staged on disk in assets/fonts/ — referenced project-root-relative.
-       Never a fonts.gstatic.com / fonts.googleapis.com URL: the render machine
-       is clean headless Chrome and these four files are the only faces present.
-       font-display: block so every parallel render worker paints identically.
-       ────────────────────────────────────────────────────────────────────── */
+    /* Families declared in frame.md. Real .woff2 files ship in assets/fonts/ —
+       referenced project-root-relative, never from a CDN, so every parallel render
+       worker paints identical glyphs. font-display: block for the same reason.
+       Only the faces actually used here are declared. */
     @font-face {
       font-family: "Newsreader";
       font-style: normal;
@@ -37,7 +35,7 @@
       src: url("assets/fonts/HankenGrotesk-600.woff2") format("woff2");
     }
 
-    /* ── frame root — styled via #root, never a class on the composition node ── */
+    /* ── frame root — styled by #root, never by a class on the composition element ── */
     #root {
       position: absolute;
       inset: 0;
@@ -45,218 +43,142 @@
       height: 100%;
       overflow: hidden;
       container-type: size;
-
-      /* frame.md atoms */
-      --m06-paper: #f4f5f6;
-      --m06-ink: #15181c;
-      --m06-ink-soft: #474d55;
-      --m06-grid: rgba(21, 24, 28, 0.08);
-      --m06-ink-faint: rgba(21, 24, 28, 0.16);
-      --m06-rule: #d6dade;
-
-      /* frame.md series colour — the ONE second hue on this frame.
-         amber = --series-2, carried here as the standing "this is where the
-         reading is soft" register. It labels the frame and nothing else:
-         the caveats themselves are plain ink, because a coloured caveat
-         would read as a verdict and this frame is deliberately not one. */
-      --m06-amber: #b07d2b;
-
-      /* ── THE SHARED GRID — one set of numbers every zone below reads from ── */
-      --m06-margin: 8cqw; /* left + right; measure = 84cqw */
-      --m06-eyebrow-top: 9cqw;
-      --m06-rail-top: 12.4cqw;
-      --m06-content-top: 16cqw; /* content zone 16cqw → 46cqw */
-      --m06-content-h: 30cqw;
-      --m06-foot-top: 49cqw;
-      --m06-hair: 0.12cqw;
+      /* frame.md tokens */
+      --wrong06-paper: #f4f5f6;
+      --wrong06-ink: #15181c;
+      --wrong06-ink-soft: #474d55;
+      --wrong06-grid: rgba(21, 24, 28, 0.08);
+      --wrong06-ink-faint: rgba(21, 24, 28, 0.16);
+      --wrong06-amber: #b07d2b; /* series.amber — the accent LABEL colour, never decoration */
     }
 
-    /* ── background role · full-bleed ground on a clip layer, never on #root ── */
-    .m06-ground {
+    /* ── ground: full-bleed paper + the permanent graph-paper grid, on a clip layer ── */
+    .wrong06-ground {
       position: absolute;
       inset: 0;
-      background: var(--m06-paper);
+      background: var(--wrong06-paper);
     }
-    /* the permanent graph-paper grid — frame.md furniture, never disabled */
-    .m06-grid {
+    .wrong06-grid {
       position: absolute;
       inset: 0;
+      /* ~2cqw cells at 8% ink — the dim measured plane behind everything */
       background-image:
-        linear-gradient(to right, var(--m06-grid) 0.06cqw, transparent 0.06cqw),
-        linear-gradient(to bottom, var(--m06-grid) 0.06cqw, transparent 0.06cqw);
+        linear-gradient(to right, var(--wrong06-grid) 0.06cqw, transparent 0.06cqw),
+        linear-gradient(to bottom, var(--wrong06-grid) 0.06cqw, transparent 0.06cqw);
       background-size: 2cqw 2cqw;
       background-position: 0 0;
       opacity: 0.9;
     }
-
-    /* ── frame furniture · the two persistent hairlines ──
-       INITIAL STATE IN CSS — undrawn until their own Scene 1 cue. */
-    .m06-frame-rule {
+    /* the two persistent hairlines framing every composition */
+    .wrong06-rule {
       position: absolute;
       left: 4cqw;
       right: 4cqw;
-      height: var(--m06-hair);
-      background: var(--m06-ink);
+      height: 0.12cqw;
+      background: var(--wrong06-ink);
     }
-    .m06-frame-rule-top {
+    .wrong06-rule-top {
       top: 3cqw;
-      clip-path: inset(0% 100% 0% 0%);
     }
-    .m06-frame-rule-bottom {
+    .wrong06-rule-bottom {
       bottom: 3cqw;
-      clip-path: inset(0% 0% 0% 100%);
     }
 
-    /* qr-block — corner punctuation, static ground furniture (frame.md) */
-    .m06-qr {
+    /* ── the narrow left rail of the 70/30 split — standing header + counter ── */
+    .wrong06-rail {
       position: absolute;
-      top: var(--m06-eyebrow-top);
-      right: var(--m06-margin);
-      width: 4cqw;
-      height: 4cqw;
-      display: grid;
-      grid-template-columns: repeat(8, 1fr);
-      grid-template-rows: repeat(8, 1fr);
-      background: var(--m06-paper);
-      box-shadow: 0 0 0 0.12cqw var(--m06-paper); /* anti-shadow, not elevation */
+      left: 4cqw;
+      top: 0;
+      width: 22cqw;
+      height: 100%;
     }
-    .m06-qr i {
-      background: var(--m06-grid);
-    }
-    .m06-qr i.on {
-      background: var(--m06-ink);
-    }
-
-    /* the quiet divider that separates the content zone from the footnote zone */
-    .m06-foot-rule {
+    .wrong06-header {
       position: absolute;
-      left: var(--m06-margin);
-      top: 47.4cqw;
-      width: 10cqw;
-      height: 0.06cqw;
-      background: var(--m06-ink-faint);
+      left: 0;
+      top: 18.1cqw;
+      width: 100%;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 600;
+      font-size: 1.15cqw; /* micro-strong register */
+      letter-spacing: 0.18em;
+      line-height: 1.9;
+      text-transform: uppercase;
+      color: var(--wrong06-amber);
     }
-
-    /* ── EYEBROW ZONE · top 9cqw, left set on the 8cqw line.
-          The standing header. It is set once in Scene 1 and NEVER moves. ── */
-    .m06-eyebrow {
+    .wrong06-hline {
+      display: block;
+      white-space: nowrap;
+    }
+    .wrong06-count {
       position: absolute;
-      top: var(--m06-eyebrow-top);
-      left: var(--m06-margin);
+      left: 0;
+      top: 28.6cqw;
       font-family: "DM Mono", ui-monospace, monospace;
       font-weight: 500;
-      font-size: 1.3cqw;
+      font-size: 1.4cqw;
+      letter-spacing: 0.06em;
       line-height: 1.2;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--m06-amber);
+      color: var(--wrong06-ink-soft);
       white-space: nowrap;
-      clip-path: inset(0% 100% 0% 0%); /* INITIAL STATE IN CSS */
     }
-
-    /* the 01/03 rail counter, beneath the header, on the same 8cqw line */
-    .m06-rail {
+    .wrong06-ticks {
       position: absolute;
-      top: var(--m06-rail-top);
-      left: var(--m06-margin);
+      left: 0;
+      top: 31.9cqw;
       display: flex;
-      align-items: center;
-      opacity: 0; /* INITIAL STATE IN CSS */
+      gap: 0.8cqw;
     }
-    .m06-tick {
-      position: relative;
-      width: 2.4cqw;
-      height: 0.26cqw;
-      margin-right: 0.6cqw;
-      background: var(--m06-rule);
+    .wrong06-tick {
+      width: 3.4cqw;
+      height: 0.24cqw;
+      background: var(--wrong06-ink-faint);
     }
-    .m06-tick-fill {
+    /* the structural divider between rail and column */
+    .wrong06-divider {
       position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 0; /* INITIAL STATE IN CSS — the rail fills on each cut */
-      background: var(--m06-amber);
-    }
-    .m06-count {
-      position: relative;
-      width: 7cqw;
-      height: 1.4cqw;
-      margin-left: 0.8cqw;
-    }
-    .m06-count span {
-      position: absolute;
-      left: 0;
-      top: 0;
-      font-family: "DM Mono", ui-monospace, monospace;
-      font-weight: 400;
-      font-size: 1.2cqw;
-      line-height: 1.33;
-      letter-spacing: 0.08em;
-      color: var(--m06-ink-soft);
-      white-space: nowrap;
-      opacity: 0; /* INITIAL STATE IN CSS — all three counter states hidden */
-    }
-    .m06-count b {
-      font-weight: 400;
-      color: #936824;
+      left: 28cqw;
+      top: 16.4cqw;
+      width: 0.12cqw;
+      height: 21cqw;
+      background: var(--wrong06-ink-faint);
     }
 
-    /* ── CONTENT ZONE · 16cqw → 46cqw, on the full 84cqw measure.
-          All three caveats occupy this ONE slot, top-aligned, so every
-          caveat shares the same first baseline and the swap is a true
-          in-place hard cut: only the words change. ── */
-    .m06-content {
+    /* ── the wide right column — the caveats swap here, on one baseline ── */
+    .wrong06-col {
       position: absolute;
-      left: var(--m06-margin);
-      right: var(--m06-margin);
-      top: var(--m06-content-top);
-      height: var(--m06-content-h);
+      left: 31cqw;
+      right: 6cqw; /* 63cqw measure — inside the 78cqw block cap */
+      top: 17cqw;
     }
-    .m06-cav {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 100%;
+    .wrong06-lines {
       font-family: "Newsreader", Georgia, serif;
       font-weight: 400;
-      /* between frame.md's display-quote (5.7cqw) and display-chapter (6.8cqw):
-         sized so the longest line of the three caveats reaches ~80% of the
-         84cqw measure and caveat 3's four lines still land inside the 46cqw
-         zone floor. Far over the 2.2cqw floor and the 4cqw target. */
-      font-size: 6.4cqw;
-      line-height: 1.05;
+      font-size: 4cqw; /* row-headline/quote register, fit to the 63cqw measure */
+      line-height: 1.12;
       letter-spacing: -0.005em;
-      color: var(--m06-ink);
-      opacity: 0; /* INITIAL STATE IN CSS — every caveat starts hidden */
+      color: var(--wrong06-ink);
     }
-    /* each line wipes on from the left; the vertical −14% keeps ascenders and
-       descenders outside the clip edge so nothing is shaved mid-wipe */
-    .m06-cav .ln {
+    .wrong06-line {
       display: block;
-      clip-path: inset(-14% 100% -14% 0%); /* INITIAL STATE IN CSS */
+      width: fit-content;
+      white-space: nowrap;
     }
-
-    /* ── FOOTNOTE ZONE · top 49cqw. One slot, same as the content zone. ── */
-    .m06-foot {
-      position: absolute;
-      left: var(--m06-margin);
-      right: var(--m06-margin);
-      top: var(--m06-foot-top);
-      height: 3cqw;
-    }
-    .m06-tag {
+    .wrong06-tag {
       position: absolute;
       left: 0;
-      top: 0;
+      top: 17.3cqw; /* beneath the three-line block, same slot for all three caveats */
       font-family: "DM Mono", ui-monospace, monospace;
       font-weight: 400;
-      font-size: 1.15cqw;
-      line-height: 1.4;
+      font-size: 1.4cqw; /* at the legibility floor, mono chrome register */
       letter-spacing: 0.05em;
-      color: var(--m06-ink-soft);
+      line-height: 1.5;
+      color: var(--wrong06-ink-soft);
       white-space: nowrap;
-      opacity: 0; /* INITIAL STATE IN CSS — every tag starts hidden */
+    }
+    /* caveats 2 and 3 are dark until their hard cut; caveat 1 is live at t=0 */
+    #wrong06-g2,
+    #wrong06-g3 {
+      opacity: 0;
     }
   </style>
 
@@ -264,72 +186,61 @@
     id="root"
     data-composition-id="06-what-would-make-this-wrong"
     data-start="0"
-    data-duration="22"
+    data-duration="9.5"
     data-width="1920"
     data-height="1080"
   >
-    <!-- track 0 · background role: paper + the permanent graph-paper grid -->
-    <div class="clip m06-ground" data-start="0" data-duration="22" data-track-index="0">
-      <div class="m06-grid"></div>
+    <!-- background (dim): paper + graph-paper grid + the two hairlines -->
+    <div class="clip wrong06-ground" data-start="0" data-duration="9.5" data-track-index="0">
+      <div class="wrong06-grid"></div>
+      <div class="wrong06-rule wrong06-rule-top"></div>
+      <div class="wrong06-rule wrong06-rule-bottom"></div>
     </div>
 
-    <!-- track 1 · frame furniture: hairlines, qr patch, footnote divider -->
-    <div class="clip m06-chrome" data-start="0" data-duration="22" data-track-index="1">
-      <div id="m06-frame-rule-top" class="m06-frame-rule m06-frame-rule-top"></div>
-      <div id="m06-frame-rule-bottom" class="m06-frame-rule m06-frame-rule-bottom"></div>
-      <div class="m06-qr">
-        <i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i>
-        <i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i></i><i class="on"></i>
-        <i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i>
-        <i></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i></i>
-        <i class="on"></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i></i>
-        <i></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i></i><i></i><i class="on"></i>
-        <i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i>
-        <i class="on"></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i class="on"></i><i></i>
+    <!-- supporting: the standing header. Sets once in Scene 1 and never moves again. -->
+    <div class="clip wrong06-rail" data-start="0" data-duration="9.5" data-track-index="1">
+      <div class="wrong06-header">
+        <span id="wrong06-h1" class="wrong06-hline">What would</span>
+        <span id="wrong06-h2" class="wrong06-hline">make this</span>
+        <span id="wrong06-h3" class="wrong06-hline">wrong</span>
       </div>
-      <div class="m06-foot-rule"></div>
+      <div id="wrong06-count" class="wrong06-count"></div>
+      <div id="wrong06-ticks" class="wrong06-ticks">
+        <i id="wrong06-tick0" class="wrong06-tick"></i>
+        <i id="wrong06-tick1" class="wrong06-tick"></i>
+        <i id="wrong06-tick2" class="wrong06-tick"></i>
+      </div>
+      <div id="wrong06-divider" class="wrong06-divider"></div>
     </div>
 
-    <!-- track 2 · the standing header + rail counter (eyebrow zone) -->
-    <div class="clip m06-head" data-start="0" data-duration="22" data-track-index="2">
-      <div id="m06-eyebrow" class="m06-eyebrow">What would make this wrong</div>
-      <div id="m06-rail" class="m06-rail">
-        <div class="m06-tick"><i id="m06-tick-1" class="m06-tick-fill"></i></div>
-        <div class="m06-tick"><i id="m06-tick-2" class="m06-tick-fill"></i></div>
-        <div class="m06-tick"><i id="m06-tick-3" class="m06-tick-fill"></i></div>
-        <div class="m06-count">
-          <span id="m06-count-1"><b>01</b> / 03</span>
-          <span id="m06-count-2"><b>02</b> / 03</span>
-          <span id="m06-count-3"><b>03</b> / 03</span>
-        </div>
+    <!-- foreground subject — caveat 1 -->
+    <div id="wrong06-g1" class="clip wrong06-col" data-start="0" data-duration="9.5" data-track-index="2">
+      <div class="wrong06-lines">
+        <span id="wrong06-g1l1" class="wrong06-line">Realised, not projected.</span>
+        <span id="wrong06-g1l2" class="wrong06-line">A young cohort sits low</span>
+        <span id="wrong06-g1l3" class="wrong06-line">because it is young.</span>
       </div>
+      <div id="wrong06-g1tag" class="wrong06-tag">the right-hand columns will keep rising</div>
     </div>
 
-    <!-- track 3 · the content zone — three caveats, ONE slot, same baseline -->
-    <div class="clip m06-content" data-start="0" data-duration="22" data-track-index="3">
-      <div id="m06-cav-1" class="m06-cav">
-        <span class="ln" id="m06-c1-l1">Realised, not projected.</span>
-        <span class="ln" id="m06-c1-l2">A young cohort sits low</span>
-        <span class="ln" id="m06-c1-l3">because it is young.</span>
+    <!-- foreground subject — caveat 2, same baseline -->
+    <div id="wrong06-g2" class="clip wrong06-col" data-start="0" data-duration="9.5" data-track-index="3">
+      <div class="wrong06-lines">
+        <span class="wrong06-line">Cost per logo assumes a month</span>
+        <span class="wrong06-line">of spend bought that month</span>
+        <span class="wrong06-line">of logos.</span>
       </div>
-      <div id="m06-cav-2" class="m06-cav">
-        <span class="ln" id="m06-c2-l1">Cost per logo assumes</span>
-        <span class="ln" id="m06-c2-l2">a month of spend bought</span>
-        <span class="ln" id="m06-c2-l3">that month of logos.</span>
-      </div>
-      <div id="m06-cav-3" class="m06-cav">
-        <span class="ln" id="m06-c3-l1">Cohorts before 2024-09</span>
-        <span class="ln" id="m06-c3-l2">are absent because</span>
-        <span class="ln" id="m06-c3-l3">acquisition cost is</span>
-        <span class="ln" id="m06-c3-l4">not recorded then.</span>
-      </div>
+      <div id="wrong06-g2tag" class="wrong06-tag">a long sales cycle would put spend on the wrong cohort.</div>
     </div>
 
-    <!-- track 4 · the footnote zone — three mono tags, ONE slot -->
-    <div class="clip m06-foot" data-start="0" data-duration="22" data-track-index="4">
-      <div id="m06-tag-1" class="m06-tag">The right-hand columns will keep rising.</div>
-      <div id="m06-tag-2" class="m06-tag">A long sales cycle would put spend on the wrong cohort.</div>
-      <div id="m06-tag-3" class="m06-tag">An absence of data, not a verdict.</div>
+    <!-- foreground subject — caveat 3, same baseline; holds to the end -->
+    <div id="wrong06-g3" class="clip wrong06-col" data-start="0" data-duration="9.5" data-track-index="4">
+      <div class="wrong06-lines">
+        <span class="wrong06-line">Cohorts before 2024-09 are</span>
+        <span class="wrong06-line">absent because acquisition</span>
+        <span class="wrong06-line">cost is not recorded then.</span>
+      </div>
+      <div id="wrong06-g3tag" class="wrong06-tag">an absence of data, not a verdict.</div>
     </div>
   </div>
 
@@ -338,139 +249,101 @@
       window.__timelines = window.__timelines || {};
       var tl = gsap.timeline({ paused: true });
 
-      /* ────────────────────────────────────────────────────────────────────
-         THIS FRAME'S PAST BUG, and the two guards against it.
+      var INK = "#15181c";
+      var FAINT = "rgba(21, 24, 28, 0.16)";
 
-         1. gsap.fromTo() defaults to immediateRender: true — the `from`
-            values are stamped when the tween is BUILT, not when it plays.
-            A fromTo scheduled at 6s with from:{opacity:1} therefore made its
-            target visible from t=0, and two caveats printed over each other.
-            EVERY fromTo below carries immediateRender: false. No exceptions.
-         2. Every hidden start state (caveat opacity, tag opacity, line clip,
-            rail fill width, counter opacity) is declared in CSS, so the
-            resting frame is correct before GSAP touches anything.
+      /* ── Scene 1 (0.0–1.2s) — the header sets, once. ───────────────────────────────
+         Amber micro-caps rise into the narrow left rail line by line, and the rail
+         divider draws down beside them. After this the header never moves again. */
+      tl.fromTo("#wrong06-h1", { yPercent: 44, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.42, ease: "power3.out" }, 0.02);
+      tl.fromTo("#wrong06-h2", { yPercent: 44, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.42, ease: "power3.out" }, 0.13);
+      tl.fromTo("#wrong06-h3", { yPercent: 44, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.42, ease: "power3.out" }, 0.24);
+      tl.fromTo(
+        "#wrong06-divider",
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.8, ease: "power2.inOut", transformOrigin: "center top" },
+        0.35
+      );
 
-         Zero-duration tweens (gsap.set) ALSO default to immediateRender:true,
-         so no set() is used anywhere. The hard cuts are 2ms `to` tweens —
-         `to` with a non-zero duration renders lazily and is seek-safe.
-         ──────────────────────────────────────────────────────────────────── */
-      var IR = false; // immediateRender guard, spelled once, read everywhere
+      /* ── Scene 2 (1.2–3.6s) — the first caveat WRITES ON in the wide column. ───────
+         Each Newsreader line reveals left→right under a clip-path wipe, staggered, so
+         the statement arrives as writing rather than as a slide. */
+      var WIPE_FROM = "inset(-10% 100% -10% 0%)";
+      var WIPE_TO = "inset(-10% 0% -10% 0%)";
+      tl.fromTo("#wrong06-g1l1", { clipPath: WIPE_FROM }, { clipPath: WIPE_TO, duration: 0.6, ease: "power2.inOut" }, 1.12);
+      tl.fromTo("#wrong06-g1l2", { clipPath: WIPE_FROM }, { clipPath: WIPE_TO, duration: 0.6, ease: "power2.inOut" }, 1.3);
+      tl.fromTo("#wrong06-g1l3", { clipPath: WIPE_FROM }, { clipPath: WIPE_TO, duration: 0.6, ease: "power2.inOut" }, 1.48);
 
-      // A hard cut: the outgoing state is fully gone 2ms BEFORE the incoming
-      // one starts, so no sampled frame can ever show two caveats at once.
-      var CUT = 0.002;
-      function hardCut(outSel, inSel, t) {
-        var i;
-        for (i = 0; i < outSel.length; i++) {
-          tl.to(outSel[i], { opacity: 0, duration: CUT, ease: "none" }, t - CUT);
+      /* the rail counter + ticks arrive with the first caveat */
+      tl.fromTo("#wrong06-count", { opacity: 0 }, { opacity: 1, duration: 0.42, ease: "power1.out" }, 1.15);
+      tl.fromTo("#wrong06-ticks", { opacity: 0 }, { opacity: 1, duration: 0.42, ease: "power1.out" }, 1.15);
+
+      /* the mono tag settles beneath the line — the same move for all three caveats */
+      tl.fromTo("#wrong06-g1tag", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 2.4);
+
+      /* ── Scene 3 (3.6–6.0s) — HARD CUT in place. ──────────────────────────────────
+         No fade, no blur, no travel: caveat 1 is simply gone and caveat 2 is simply
+         there, on the same baseline. fromTo pairs at 0.001s keep the cut exact and
+         seek-safe in both directions. */
+      tl.fromTo("#wrong06-g1", { opacity: 1 }, { opacity: 0, duration: 0.001, ease: "none", immediateRender: false }, 3.6);
+      tl.fromTo("#wrong06-g2", { opacity: 0 }, { opacity: 1, duration: 0.001, ease: "none" }, 3.6);
+      tl.fromTo("#wrong06-g2tag", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 4.05);
+
+      /* ── Scene 4 (6.0–9.0s) — HARD CUT again to the third caveat. ─────────────────
+         It lands, its tag settles, and then nothing. No payoff beat, no flourish —
+         the frame holds dead still for the last ~2s. That stillness is the point. */
+      tl.fromTo("#wrong06-g2", { opacity: 1 }, { opacity: 0, duration: 0.001, ease: "none", immediateRender: false }, 6.0);
+      tl.fromTo("#wrong06-g3", { opacity: 0 }, { opacity: 1, duration: 0.001, ease: "none" }, 6.0);
+      tl.fromTo("#wrong06-g3tag", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 6.45);
+
+      /* ── rail chrome state machine (discrete-text-sequence) ───────────────────────
+         One linear driver; on every update a reverse threshold search picks the
+         current caveat index and writes the counter text + tick fills. Pure function
+         of time, so every seek renders the same state. */
+      var STATES = [
+        { t: 0.0, i: -1 },
+        { t: 1.15, i: 0 },
+        { t: 3.6, i: 1 },
+        { t: 6.0, i: 2 }
+      ];
+      var LABELS = ["01 / 03", "02 / 03", "03 / 03"];
+      var countEl = document.getElementById("wrong06-count");
+      var tickEls = [
+        document.getElementById("wrong06-tick0"),
+        document.getElementById("wrong06-tick1"),
+        document.getElementById("wrong06-tick2")
+      ];
+
+      function stateAt(time) {
+        for (var k = STATES.length - 1; k >= 0; k--) {
+          if (time >= STATES[k].t) return STATES[k].i;
         }
-        for (i = 0; i < inSel.length; i++) {
-          tl.to(inSel[i], { opacity: 1, duration: CUT, ease: "none" }, t);
-        }
+        return -1;
       }
 
-      // A line wipes on left→right. from-state matches the CSS exactly.
-      function wipeLine(sel, t) {
-        tl.fromTo(
-          sel,
-          { clipPath: "inset(-14% 100% -14% 0%)" },
-          {
-            clipPath: "inset(-14% 0% -14% 0%)",
-            duration: 0.55,
-            ease: "power2.out",
-            immediateRender: IR
-          },
-          t
-        );
-      }
-
-      // A tag settles into the footnote slot: 14px of lift, then still.
-      function settleTag(sel, t) {
-        tl.fromTo(
-          sel,
-          { opacity: 0, y: 14 },
-          {
-            opacity: 1,
-            y: 0,
-            duration: 0.6,
-            ease: "power2.out",
-            immediateRender: IR
-          },
-          t
-        );
-      }
-
-      /* ── SCENE 1 (0.0–0.8s) · the header sets once, and never moves again ── */
-
-      tl.fromTo(
-        "#m06-frame-rule-top",
-        { clipPath: "inset(0% 100% 0% 0%)" },
-        { clipPath: "inset(0% 0% 0% 0%)", duration: 0.6, ease: "power2.out", immediateRender: IR },
-        0.0
+      var driver = { t: 0 };
+      tl.to(
+        driver,
+        {
+          t: 9,
+          duration: 9,
+          ease: "none",
+          onUpdate: function () {
+            var i = stateAt(driver.t);
+            countEl.textContent = i < 0 ? "" : LABELS[i];
+            for (var k = 0; k < 3; k++) {
+              tickEls[k].style.background = k === i ? INK : FAINT;
+            }
+          }
+        },
+        0
       );
-      tl.fromTo(
-        "#m06-frame-rule-bottom",
-        { clipPath: "inset(0% 0% 0% 100%)" },
-        { clipPath: "inset(0% 0% 0% 0%)", duration: 0.6, ease: "power2.out", immediateRender: IR },
-        0.0
-      );
-      tl.fromTo(
-        "#m06-eyebrow",
-        { clipPath: "inset(0% 100% 0% 0%)" },
-        { clipPath: "inset(0% 0% 0% 0%)", duration: 0.45, ease: "power2.out", immediateRender: IR },
-        0.05
-      );
-      tl.to("#m06-rail", { opacity: 1, duration: 0.4, ease: "power1.out" }, 0.3);
-      tl.to("#m06-count-1", { opacity: 1, duration: 0.35, ease: "power1.out" }, 0.4);
-      tl.to("#m06-tick-1", { width: "100%", duration: 0.35, ease: "power2.out" }, 0.45);
 
-      /* ── SCENE 2 (0.8–7.8s) · caveat 1 wipes on line by line, tag settles,
-            then over five seconds of held reading. 12 words in 7.0s. ── */
-
-      hardCut([], ["#m06-cav-1"], 0.8);
-      wipeLine("#m06-c1-l1", 0.8);
-      wipeLine("#m06-c1-l2", 1.1);
-      wipeLine("#m06-c1-l3", 1.4);
-      settleTag("#m06-tag-1", 2.0);
-      // 2.6 → 7.8 · nothing moves.
-
-      /* ── SCENE 3 (7.8–15.0s) · HARD CUT in place to caveat 2. Same slot,
-            same baseline, only the words change. 13 words in 7.2s. ── */
-
-      hardCut(
-        ["#m06-cav-1", "#m06-tag-1", "#m06-count-1"],
-        ["#m06-cav-2", "#m06-count-2"],
-        7.8
-      );
-      tl.to("#m06-tick-2", { width: "100%", duration: 0.35, ease: "power2.out" }, 7.82);
-      wipeLine("#m06-c2-l1", 7.8);
-      wipeLine("#m06-c2-l2", 8.1);
-      wipeLine("#m06-c2-l3", 8.4);
-      settleTag("#m06-tag-2", 9.0);
-      // 9.6 → 15.0 · nothing moves.
-
-      /* ── SCENE 4 (15.0–22.0s) · HARD CUT to caveat 3, which holds dead
-            still to the last frame. 12 words in 7.0s. There is deliberately
-            NO payoff move here: the frame is the video admitting its own
-            limits, and a closing flourish would undercut that. ── */
-
-      hardCut(
-        ["#m06-cav-2", "#m06-tag-2", "#m06-count-2"],
-        ["#m06-cav-3", "#m06-count-3"],
-        15.0
-      );
-      tl.to("#m06-tick-3", { width: "100%", duration: 0.35, ease: "power2.out" }, 15.02);
-      wipeLine("#m06-c3-l1", 15.0);
-      wipeLine("#m06-c3-l2", 15.22);
-      wipeLine("#m06-c3-l3", 15.44);
-      wipeLine("#m06-c3-l4", 15.66);
-      settleTag("#m06-tag-3", 16.2);
-
-      // 16.8 → 22.0 · dead still. No exit, no settle, no closing move.
-      // A silent pad so the timeline measures the frame's full 22s.
-      tl.to({}, { duration: 0.01 }, 21.99);
+      /* span the full allocated duration */
+      tl.to({}, { duration: 9 }, 0);
 
       window.__timelines["06-what-would-make-this-wrong"] = tl;
+      tl.seek(0);
     })();
   </script>
 </template>
