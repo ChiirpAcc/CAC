@@ -7899,6 +7899,11 @@ function renderJan1Proposal() {
   const sum = fn => T.reduce((t, x) => t + fn(x), 0);
   const price = sum(x => x.price), bill = sum(x => x.spend), added = sum(x => x.d), pilot = sum(gainOf);
   const smallN = T.filter(x => x.cap === 'small account: +100% minimum').length;
+  // What each account is actually told, after the caps (Josh, 16 Nov 2026: nobody
+  // goes up 60%; the arms are how the list was drawn, not the increases).
+  const n20 = T.filter(x => x.cap !== 'small account: +100% minimum' && x.pct <= 20.5).length;
+  const n30 = T.filter(x => x.cap !== 'small account: +100% minimum' && x.pct > 20.5).length;
+  const avgPct = T.reduce((t, x) => t + x.pct, 0) / T.length;
   const leave = sum(x => x.fc), leave0 = sum(x => x.base), paid12 = sum(x => x.paid12 || 0);
   const LK = J.linked || [];
   const linked = LK.reduce((t, x) => t + gainOf(x), 0), linkedAdded = LK.reduce((t, x) => t + x.d, 0);
@@ -7936,8 +7941,8 @@ function renderJan1Proposal() {
     + `(<a href="#credits">Credit increase tab</a>)</td><td>Every customer, including those who don't buy credits today. The figure is `
     + `the ${fmt.int(CREDIT_PLAN.total.companies)} companies buying now; the ${CREDIT_PLAN.held.accounts} on newer pricing stay put.</td>`
     + `<td class="n">+${fmt.money(credit)}</td></tr>`
-    + `<tr><td>3</td><td>Platform pilot, phase 1: each account's platform price up 20%, 30% or 60%, capped at +30% (+20% for cleaners); `
-    + `${smallN} small accounts go up 100%</td>`
+    + `<tr><td>3</td><td>Platform pilot, phase 1: ${n20} accounts' platform price up 20%, ${n30} up about 30%, and ${smallN} small accounts `
+    + `up 100% (about +${Math.round(avgPct)}% on average; nobody else goes past +30%)</td>`
     + `<td>The ${T.length} accounts listed below, billed ${fmt.money(bill)} a month today (${fmt.money(price)} of it platform fees)</td>`
     + `<td class="n">${sm(pilot)}<br><span class="muted ci">${sm(added)} if all stay</span></td></tr>`
     + LK.map(x => `<tr><td>4</td><td>${x.name}: pays on ${x.with}'s card, so it gets the same increase (the lower of the two ways to `
@@ -7953,11 +7958,12 @@ function renderJan1Proposal() {
 
     + `<h3 class="sub-head">The platform pilot, phase 1: ${T.length} accounts</h3>`
     + '<p>The final phase 1 list (13 November), built to measure what the August test could not: how leaving changes with the '
-    + '<em>size</em> of an increase. Every August account moved to the same $500, so size was fixed by the starting price; here the '
-    + `accounts are split into three arms, <strong>+20%, +30% and +60% of the platform price</strong> (${ARMS.map(a => T.filter(x => x.arm === a).length).join(', ')}), `
+    + '<em>size</em> of an increase. Every August account moved to the same $500, so size was fixed by the starting price (about +160% '
+    + `on average, from +38% to +707%); here the list was drawn in three arms of +20%, +30% and +60% of the platform price (${ARMS.map(a => T.filter(x => x.arm === a).length).join(', ')}), `
     + `then capped: ${T.filter(x => x.cap === '30% cap').length} held at +30%, ${T.filter(x => x.cap === '20% cleaning cap').length} cleaners held at +20%, `
     + `and ${T.filter(x => x.cap === 'small account: +100% minimum').length} small accounts raised to a +100% minimum. The increases run from `
-    + `+$${Math.min(...T.map(x => x.d))} to +$${Math.max(...T.map(x => x.d))} a month. All ${T.length} are told at once on ${checkDay(J.noticesBy)}.</p>`
+    + `+$${Math.min(...T.map(x => x.d))} to +$${Math.max(...T.map(x => x.d))} a month. <strong>So after the caps ${n20} go up 20%, ${n30} about 30% `
+    + `and ${smallN} go up 100%; nobody goes up 60%</strong> (about +${Math.round(avgPct)}% on average). All ${T.length} are told at once on ${checkDay(J.noticesBy)}.</p>`
     + `<p>${T.length} accounts on the Chiirp Stripe account: ${GROUPS.map(g => `${T.filter(x => x.group === g).length} ${g.toLowerCase()}`).join(', ')}, `
     + `in ${industries} industries, ${BANDS.map(([l, f]) => `${T.filter(f).length} priced ${l.toLowerCase()}`).join(' and ')}. Together they `
     + `are billed ${fmt.money(bill)} a month today (${fmt.money(price)} of it platform fees) and paid ${fmt.money(paid12)} over the last 12 months${T.some(x => !x.paid) ? ` (${T.filter(x => !x.paid).map(x => x.name).join(', ')} not in the payment file)` : ''}. The model forecasts about `
@@ -7968,7 +7974,7 @@ function renderJan1Proposal() {
       + `told with it on ${checkDay(J.noticesBy)}`).join('; ')}. It is counted in the total (${sm(linked)} a month after leavers, `
       + `${sm(linkedAdded)} if it stays) but left out of the test's counts and read-out.</p>` : '')
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Industry group</th>'
-    + BANDS.map(([l]) => `<th class="n">${l}</th>`).join('') + ARMS.map(a => `<th class="n">Arm ${a}</th>`).join('') + '<th class="n">Capped</th>'
+    + BANDS.map(([l]) => `<th class="n">${l}</th>`).join('') + ARMS.map(a => `<th class="n">Drawn ${a}</th>`).join('') + '<th class="n">Capped</th>'
     + '<th class="n">All</th></tr></thead><tbody>'
     + GROUPS.map(g => `<tr><td>${g}</td>` + BANDS.map(([, f]) => `<td class="n">${T.filter(x => x.group === g && f(x)).length}</td>`).join('')
       + ARMS.map(a => `<td class="n">${T.filter(x => x.group === g && x.arm === a).length}</td>`).join('')
@@ -7979,7 +7985,7 @@ function renderJan1Proposal() {
     + `<td class="n">${T.length}</td></tr>`
     + '</tbody></table></div>'
     + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>Company</th><th>Stripe ID</th><th>Industry</th>'
-    + '<th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Price now</th><th class="n">Arm</th><th>Cap</th><th class="n">New price</th>'
+    + '<th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Price now</th><th class="n">Drawn</th><th>Cap</th><th class="n">New price</th>'
     + '<th class="n">Increase</th><th class="n">%</th><th class="n">Leave, no increase</th><th class="n">Leave, with it</th>'
     + '<th class="n">Expected gain</th><th class="pilot-spark">Paid, Nov 2025 to Oct 2026</th><th class="n">Paid, 12 months</th><th class="pilot-watch">Watch</th></tr></thead><tbody>'
     + [...T].sort((a, b) => ARMS.indexOf(a.arm) - ARMS.indexOf(b.arm) || a.price - b.price)

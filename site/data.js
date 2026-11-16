@@ -3974,7 +3974,7 @@ export const PLAN_CHECKLISTS = {
   ],
   jan1: [
     { id: 'j1-options', step: 'Compare: 10DLC + credits + a platform pilot, against a platform rise only', owner: 'Josh', done: '2026-11-13' },
-    { id: 'j1-pilot', step: 'Pilot = the final phase 1 list: 60 accounts, all told at once on 1 Dec (no batches), arms of +20%, +30% and +60% of the price, capped; Chiirp Stripe account only', owner: 'Josh', done: '2026-11-13' },
+    { id: 'j1-pilot', step: 'Pilot = the final phase 1 list: 60 accounts, all told at once on 1 Dec (no batches): 23 up 20%, 33 up about 30%, 4 small accounts up 100% (drawn in arms of +20%, +30% and +60%, then capped; nobody goes up 60%); Chiirp Stripe account only', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-credit', step: 'The pilot accounts that buy credits: hold their credit price until the 1 Feb read-out, so each gets one increase at a time', owner: 'Josh', signoff: { by: 'Josh', on: '2026-11-13' }, done: '2026-11-13' },
     { id: 'j1-owners', step: 'Check with Zeus that the pilot accounts can be in the test', owner: 'Zeus Acosta', due: '2026-11-20' },
     { id: 'j1-notice', step: 'Write the pilot notice (informational, the same wording and timing for all 60)', owner: 'Josh', done: '2026-11-13' },
