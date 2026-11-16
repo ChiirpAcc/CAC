@@ -1,9 +1,58 @@
 {
- "checked": "2026-11-10",
+ "checked": "2026-11-16",
  "setter": "Ryan Peterson",
  "portal": "23947290",
  "note": "HubSpot contacts whose Setter is Ryan Peterson, every source, plus demos whose deal names him as Setter; each demo is the first new-business deal on the contact, which HubSpot opens once the demo is held. Company names and record ids only.",
  "sets": [
+  {
+   "contactId": 597101026041,
+   "company": "Team Leesburg Air LLC.",
+   "source": "FieldEdge",
+   "setOn": "2026-11-16",
+   "setBasis": "contact created",
+   "created": "2026-11-16",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 594539299568,
+   "company": "Major League Comfort Systems",
+   "source": "FieldEdge",
+   "setOn": "2026-11-13",
+   "setBasis": "contact created",
+   "created": "2026-11-13",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 591617770195,
+   "company": "Lawrence Air Conditioning",
+   "source": "FieldEdge",
+   "setOn": "2026-11-11",
+   "setBasis": "contact created",
+   "created": "2026-11-11",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": {
+    "dealId": 367797120700,
+    "on": "2026-11-12",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false,
+   "meeting": {
+    "on": "2026-11-12",
+    "outcome": "completed",
+    "shown": "Completed"
+   }
+  },
   {
    "contactId": 590603546338,
    "company": "Bill's Heating and Air",
@@ -30,12 +79,20 @@
    "created": "2026-11-10",
    "retargeted": null,
    "demoScheduled": null,
-   "demo": null,
+   "demo": {
+    "dealId": 367811509999,
+    "on": "2026-11-12",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false,
    "meeting": {
     "on": "2026-11-12",
-    "outcome": "upcoming",
-    "shown": "Scheduled"
+    "outcome": "completed",
+    "shown": "Completed"
    }
   },
   {
@@ -47,12 +104,20 @@
    "created": "2026-11-09",
    "retargeted": null,
    "demoScheduled": null,
-   "demo": null,
+   "demo": {
+    "dealId": 366610034384,
+    "on": "2026-11-11",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false,
    "meeting": {
     "on": "2026-11-11",
-    "outcome": "upcoming",
-    "shown": "Scheduled"
+    "outcome": "completed",
+    "shown": "Completed"
    }
   },
   {
@@ -64,12 +129,20 @@
    "created": "2026-11-09",
    "retargeted": null,
    "demoScheduled": null,
-   "demo": null,
+   "demo": {
+    "dealId": 367509104366,
+    "on": "2026-11-12",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false,
    "meeting": {
     "on": "2026-11-12",
-    "outcome": "upcoming",
-    "shown": "Scheduled"
+    "outcome": "completed",
+    "shown": "Completed"
    }
   },
   {
@@ -108,19 +181,27 @@
   },
   {
    "contactId": 583051504377,
-   "company": "Pella Windows & Doors",
+   "company": "Pella Window & Door of GA",
    "source": "2026 - Qualified Remodeler Top 500",
    "setOn": "2026-11-02",
    "setBasis": "contact created",
    "created": "2026-11-02",
    "retargeted": null,
    "demoScheduled": "2026-11-12",
-   "demo": null,
+   "demo": {
+    "dealId": 369374389963,
+    "on": "2026-11-16",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false,
    "meeting": {
-    "on": "2026-11-12",
-    "outcome": "upcoming",
-    "shown": "Scheduled"
+    "on": "2026-11-16",
+    "outcome": "completed",
+    "shown": "Completed (moved from 12 Nov)"
    }
   },
   {
@@ -203,8 +284,8 @@
    "firstDealIsRenewal": false,
    "meeting": {
     "on": "2026-11-13",
-    "outcome": "upcoming",
-    "shown": "Scheduled"
+    "outcome": "cancelled",
+    "shown": "the 13 Nov meeting was removed from HubSpot; no deal"
    }
   },
   {
@@ -216,12 +297,22 @@
    "created": "2026-10-28",
    "retargeted": null,
    "demoScheduled": "2026-11-04",
-   "demo": null,
+   "demo": {
+    "dealId": null,
+    "meetingId": 416543606485,
+    "on": "2026-11-11",
+    "ranBy": "Justin Judd",
+    "outcome": "held, no deal",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null,
+    "note": "held (meeting Completed, rebooked by Justin); no new-business deal yet, follow-up booked 18 Nov"
+   },
    "firstDealIsRenewal": false,
    "meeting": {
     "on": "2026-11-11",
-    "outcome": "upcoming",
-    "shown": "Scheduled (first booking for 4 Nov was canceled)"
+    "outcome": "completed",
+    "shown": "Completed (rebooked by Justin)"
    }
   },
   {
@@ -267,12 +358,20 @@
    "created": "2026-10-27",
    "retargeted": null,
    "demoScheduled": "2026-11-11",
-   "demo": null,
+   "demo": {
+    "dealId": 366632650453,
+    "on": "2026-11-11",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false,
    "meeting": {
     "on": "2026-11-11",
-    "outcome": "upcoming",
-    "shown": "Scheduled"
+    "outcome": "completed",
+    "shown": "Completed"
    }
   },
   {
@@ -363,8 +462,8 @@
    "firstDealIsRenewal": false,
    "meeting": {
     "on": "2026-11-10",
-    "outcome": "upcoming",
-    "shown": "today; outcome not logged yet"
+    "outcome": "no-show",
+    "shown": "still Scheduled"
    }
   },
   {
@@ -380,8 +479,8 @@
    "firstDealIsRenewal": false,
    "meeting": {
     "on": "2026-11-11",
-    "outcome": "upcoming",
-    "shown": "Scheduled"
+    "outcome": "no-show",
+    "shown": "still Scheduled"
    }
   },
   {
@@ -475,12 +574,20 @@
     "how": "Partner Jam form naming him, and a booking on the Partner Jam scheduler a minute later"
    },
    "demoScheduled": null,
-   "demo": null,
+   "demo": {
+    "dealId": 367666694893,
+    "on": "2026-11-13",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false,
    "meeting": {
     "on": "2026-11-13",
-    "outcome": "upcoming",
-    "shown": "Scheduled"
+    "outcome": "completed",
+    "shown": "Completed"
    }
   },
   {
@@ -2673,7 +2780,15 @@
    "created": "2025-07-17",
    "retargeted": null,
    "demoScheduled": null,
-   "demo": null,
+   "demo": {
+    "dealId": 367127568112,
+    "on": "2026-11-12",
+    "ranBy": null,
+    "outcome": "open",
+    "closedOn": null,
+    "amount": null,
+    "laterWonDealId": null
+   },
    "firstDealIsRenewal": false
   },
   {
@@ -3212,6 +3327,26 @@
     "outcome": "lost",
     "closedOn": "2025-10-16",
     "amount": 850,
+    "laterWonDealId": null
+   },
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 104012389228,
+   "company": "Bratcher Heating and A/C Inc",
+   "source": "FieldEdge",
+   "setOn": "2025-03-19",
+   "setBasis": "demo date",
+   "created": "2025-03-05",
+   "retargeted": null,
+   "demoScheduled": "2025-03-19",
+   "demo": {
+    "dealId": 34298231703,
+    "on": "2025-03-05",
+    "ranBy": "Colton Lingmann",
+    "outcome": "won",
+    "closedOn": "2025-04-01",
+    "amount": 350.0,
     "laterWonDealId": null
    },
    "firstDealIsRenewal": false
@@ -3927,6 +4062,18 @@
   {
    "contactId": 71985821052,
    "company": "Reliable Tech",
+   "source": "FieldEdge",
+   "setOn": "2024-10-25",
+   "setBasis": "contact created",
+   "created": "2024-10-25",
+   "retargeted": null,
+   "demoScheduled": null,
+   "demo": null,
+   "firstDealIsRenewal": false
+  },
+  {
+   "contactId": 71988168220,
+   "company": "Horns Heating and Cooling",
    "source": "FieldEdge",
    "setOn": "2024-10-25",
    "setBasis": "contact created",

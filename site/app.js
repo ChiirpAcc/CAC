@@ -4939,6 +4939,7 @@ function renderRP() {
       `of the period\u2019s ${fmt.int(demos.length)} demos · ${fmt.int(demos.filter(x => x.demo.outcome === 'open').length)} still open`);
   const outcomeCell = o => (o === 'won' ? '<span class="pos">won</span>' : o === 'later won' ? '<span class="pos">lost, then won</span>'
     : o === 'held, upsell' ? 'held; upsell of an existing customer'
+    : o === 'held, no deal' ? 'held; no new-business deal yet'
     : o === 'open' ? 'still open' : o === 'lost' ? '<span class="muted">lost</span>' : '–');
   const company = x => extLink(hubspotContactUrl(x.contactId), x.company || 'No company on the contact');
   const dateCell = x => `${x.setOn || '–'}${x.countWhy ? `<br><span class="muted">${x.countWhy}</span>` : ''}${x.retargeted ? `<br><span class="muted">older contact, retargeted at ${x.retargeted.event}: ${x.retargeted.how}</span>`
@@ -4954,7 +4955,7 @@ function renderRP() {
       + '</tbody>';
   $('rp-demos').innerHTML = !demos.length ? '<tbody><tr><td class="muted">No demos yet from this period’s sets.</td></tr></tbody>'
     : '<thead><tr><th>Demo completed</th><th>Company (HubSpot contact)</th><th>Deal</th><th>Set</th><th>Outcome</th><th class="n">Deal amount</th></tr></thead><tbody>'
-      + demos.map(x => `<tr><td>${x.demo.on}</td><td>${company(x)}</td><td>${x.demo.dealId ? extLink(hubspotDealUrl(x.demo.dealId), 'Open deal') : '<span class="muted">no deal (upsell)</span>'}`
+      + demos.map(x => `<tr><td>${x.demo.on}</td><td>${company(x)}</td><td>${x.demo.dealId ? extLink(hubspotDealUrl(x.demo.dealId), 'Open deal') : `<span class="muted">${x.demo.outcome === 'held, upsell' ? 'no deal (upsell)' : 'no deal yet'}</span>`}`
         + `${x.demo.laterWonDealId ? `<br>${extLink(hubspotDealUrl(x.demo.laterWonDealId), 'Won deal')}` : ''}</td>`
         + `<td>${x.setOn || '–'}</td><td>${outcomeCell(x.demo.outcome)}</td>`
         + `<td class="n">${x.demo.amount ? fmt.money(x.demo.amount) : '–'}</td></tr>`).join('')
