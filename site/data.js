@@ -3951,6 +3951,7 @@ export const PLAN_CHECKLISTS = {
   ],
   credit: [
     { id: 'cr-proposal', step: 'Send the proposal to Ryan Fenn, Taylor Roberts and Alicia Schmaling', owner: 'Josh', done: '2026-11-06' },
+    { id: 'cr-shared', step: 'Shared-billing check: every group of accounts paying on one card or bank account gets one credit rate (Goettl\'s 8 and Steam Master\'s 7 at +25%; 07_FL moved into Steam Master)', owner: 'Josh', done: '2026-11-16' },
     { id: 'cr-tenpct', step: 'Correct the 6 Nov follow-up: $17,472 assumes no lost volume ($11,108 with 10% less)', owner: 'Josh' },
     { id: 'cr-hold', step: 'Decide: hold the 19 accounts already on newer pricing (recommended) or raise them too',
       owner: 'Taylor Roberts and Kevin', due: '2026-11-25', needsSignoff: true },
@@ -3978,6 +3979,7 @@ export const PLAN_CHECKLISTS = {
     { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot', owner: 'CEO', due: '2026-11-16', needsSignoff: true },
     { id: 'j1-contracts', step: 'Check the standard agreement allows a price change on 30 days\' notice; leave off custom contracts and price locks', owner: 'Josh', done: '2026-11-13', note: 'It does, with notice' },
     { id: 'j1-send', step: 'Send the notices: 10DLC and credits by in-Chiirp message, the platform pilot\'s increase by email to the 60 (1 Dec at the latest; 2 Dec is the last day that still gives 30 days)', due: '2026-11-23' },
+    { id: 'j1-octasker', step: 'OC Tasker (in the pilot at +100%) pays on the same card as its owner\'s second account, cus_L5O3MAhBHKsiR3 ($100 a month, not in the pilot): give it the same increase with the same notice, or take OC Tasker out of the pilot', owner: 'Josh', due: '2026-11-20' },
     { id: 'j1-fee-line', step: 'Confirm the platform-fee line for the 5 pilot accounts where Stripe bills $50 more than the list\'s price (SBC Cooling + Heating, Evergreen Plumbing, Alan Smith Pool Plastering, A-1 Chimney, Culligan of Charlotte), so the notice and the Stripe schedule agree', owner: 'Josh', due: '2026-11-20' },
     { id: 'j1-faq', step: 'FAQ for the support team on the three changes', owner: 'Zeus Acosta', due: '2026-11-23' },
     { id: 'j1-stripe', step: 'Set each pilot Stripe subscription schedule the day its notice goes out (first new bill 1 Jan)', owner: 'Josh or Product (Kevin and Taylor)', due: '2026-12-01' },
@@ -3986,23 +3988,30 @@ export const PLAN_CHECKLISTS = {
     { id: 'j1-readout', step: 'Read the pilot (1 Feb): cancellations by arm, first-bill churn; refit the model with the 36 August accounts', owner: 'Josh', due: '2027-02-01' },
   ],
 };
+// Shared billing (Josh, 16 Nov 2026: "make sure they all get upgraded the
+// same"): 07_FL ($67 a month of credits) pays on Steam Master's card and is
+// Dave's seventh location, so it moves from its own +100% into Steam Master's
+// +25%: top tier now $30,427 -> $36,709 (+$6,282), 51 and up 107 companies at
+// $8,973 -> $16,847 (+$7,873), total +$17,422 (was +$17,472). The stress,
+// break-even and held figures are recomputed on the same tiers. Losing the top
+// 4 companies (Five Star, Steam Master, Goettl, CaterSquad) now erases it.
 export const CREDIT_PLAN = {
-  asOf: '2026-11-05',
+  asOf: '2026-11-05', regrouped: '2026-11-16',
   base: 46167, window: 'Aug to Oct 2026, net of refunds, credit notes, balance-paid invoices and lost disputes',
   tiers: [
-    { tier: 'Top 1 to 25', rise: 0.25, companies: 25, now: 30360, after: 36625, added: 6265 },
+    { tier: 'Top 1 to 25', rise: 0.25, companies: 25, now: 30427, after: 36709, added: 6282 },
     { tier: 'Ranks 26 to 50', rise: 0.50, companies: 25, now: 6767, after: 10033, added: 3267 },
-    { tier: '51 and up (incl. the 10 S2 buyers)', rise: 1.00, companies: 108, now: 9040, after: 16981, added: 7940 },
+    { tier: '51 and up (incl. the 10 S2 buyers)', rise: 1.00, companies: 107, now: 8973, after: 16847, added: 7873 },
   ],
-  total: { companies: 158, now: 46167, after: 63639, added: 17472, perYear: 209666, next12: 196807, blended: 0.378 },
-  held: { accounts: 19, perMonth: 6632, ifRaised: 20014, ifRaisedYear: 240163 },
-  topShare: { income: 0.66, ofIncrease: 0.359 },
+  total: { companies: 157, now: 46167, after: 63589, added: 17422, perYear: 209061, next12: 196241, blended: 0.377 },
+  held: { accounts: 19, perMonth: 6632, ifRaised: 19964, ifRaisedYear: 239565 },
+  topShare: { income: 0.66, ofIncrease: 0.361 },
   flat50: 23083,
   concentration: { buyers: 179, paying: 1036, top10: 0.391, top20: 0.531, heavy: 38, heavyShare: 0.46, topStable: 13 },
   stress: [
-    { lost: 0, added: 17472 }, { lost: 0.10, added: 11108 }, { lost: 0.20, added: 4744 }, { lost: 0.30, added: -1620 },
+    { lost: 0, added: 17422 }, { lost: 0.10, added: 11063 }, { lost: 0.20, added: 4704 }, { lost: 0.30, added: -1655 },
   ],
-  breakEven: 0.275, topCompaniesErase: 5, loseOnlyTop1: 12056,
+  breakEven: 0.274, topCompaniesErase: 4, loseOnlyTop1: 12006,
   trend: -0.010,
   open: [
     'Leadership: confirm holding the 19 accounts already on newer pricing (2 to 7 times the legacy rate) rather than raising them too (+$2,542 a month more if raised).',
