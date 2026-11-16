@@ -7545,7 +7545,7 @@ function renderUpgradePlan() {
     + opts.map(([v, t, s]) => `<button type="button" data-v="${v}" class="${v === cur ? 'is-on' : ''}"><strong>${t}</strong><span>${s}</span></button>`).join('')
     + '</div></fieldset>';
 
-  box.innerHTML = checklistHtml('plan', 'Checklist: the upgrade plan')
+  box.innerHTML = checklistHtml('plan', 'Checklist: the upgrade plan', { dropdown: true })
     + `<p class="finding"><strong>Stage 1 is ${fmt.int(S.stage1.n)} accounts from ${day(D.effective1)}, told by ${day(D.notice1)}: `
     + PLAN.stage1Groups.map(g => `${fmt.int(p.share.get(g))} ${g === 'under200' ? 'under $200' : g === 'plan200' ? 'on the $200 plan'
       : g === 'tier262' ? 'from $213 to $499' : 'from $500 to $799 (no rise has tested these)'}`).join(', ')
@@ -7731,7 +7731,7 @@ function renderDlcPlan() {
   const short = P.year.paidTcr - P.year.collected;
   const taxed = c => c / (1 + P.salesTax);
   const BL = P.billing;
-  box.innerHTML = checklistHtml('dlc', 'Checklist: 10DLC')
+  box.innerHTML = checklistHtml('dlc', 'Checklist: 10DLC', { dropdown: true })
     + `<p class="finding"><strong>Billing has started: on ${checkDay(BL.on)} the $${P.feeNow} 10DLC line went onto the `
     + `${fmt.int(BL.customers)} subscriptions that should have been paying (${fmt.int(BL.campaigns)} campaigns), signed off by `
     + `${BL.signedOff.by} after ${BL.reviewed.by} reviewed and okayed the campaigns on ${checkDay(BL.reviewed.on)}.</strong> `
@@ -7813,7 +7813,7 @@ function renderCreditPlan() {
   const C = CREDIT_PLAN;
   const T = C.total;
   const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
-  box.innerHTML = checklistHtml('credit', 'Checklist: credit increase')
+  box.innerHTML = checklistHtml('credit', 'Checklist: credit increase', { dropdown: true })
     + `<p class="finding"><strong>From 1 January 2027, told to customers by an in-Chiirp message once Taylor Roberts and Kevin sign off, a tiered increase adds ${fmt.money(T.added)} a month (${fmt.money(T.perYear)} a year) if no one buys `
     + `fewer credits: the biggest buyers +25%, the next 25 +50%, everyone else +100%.</strong> Credit income is concentrated: the top 25 `
     + `companies bring ${fmt.pct(C.topShare.income)} of it, so they get the smallest rise and pay ${fmt.pct(C.topShare.ofIncrease)} of the `
