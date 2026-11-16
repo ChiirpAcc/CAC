@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, projectPilot, modelPAsk, modelPSteps, modelPProject, MODEL_P_STEP, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PRICE_TEST_P1, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, projectPilot, modelPProject, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PRICE_TEST_P1, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -1152,7 +1152,6 @@ function showView(which) {
   if ($('view-dlc')) $('view-dlc').hidden = which !== 'dlc';
   if ($('view-credit')) $('view-credit').hidden = which !== 'credit';
   if ($('view-jan1')) $('view-jan1').hidden = which !== 'jan1';
-  if ($('view-mp')) $('view-mp').hidden = which !== 'mp';
   if ($('view-events')) $('view-events').hidden = which !== 'events';
   if ($('view-marketing')) $('view-marketing').hidden = which !== 'marketing';
   if ($('view-event')) $('view-event').hidden = which !== 'event';
@@ -1167,7 +1166,7 @@ function showView(which) {
   if (which !== 'event' && /^#event=/.test(location.hash)) {
     history.replaceState(null, '', which === 'events' ? '#events' : location.pathname + location.search);
   }
-  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'], ['tab-plan', which === 'plan'], ['tab-dlc', which === 'dlc'], ['tab-credit', which === 'credit'], ['tab-jan1', which === 'jan1'], ['tab-mp', which === 'mp'],
+  for (const [id, on] of [['tab-all', which === 'all'], ['tab-list', which === 'list'], ['tab-plan', which === 'plan'], ['tab-dlc', which === 'dlc'], ['tab-credit', which === 'credit'], ['tab-jan1', which === 'jan1'],
                           ['tab-events', which === 'events' || which === 'event'],
                           ['tab-marketing', which === 'marketing' || which === 'source'],
                           ['tab-sales', which === 'sales'], ['tab-summary', which === 'summary']]) {
@@ -1183,7 +1182,7 @@ function showView(which) {
 // #charts, #upgrade-list, #summary, #events, #marketing, #rp. An event's own
 // page is #event=<name> and a source's is #source=<name>. #sales, the RP
 // tab's old address, still works.
-const TAB_HASH = { all: '#charts', list: '#upgrade-list', plan: '#upgrade-plan', dlc: '#10dlc', credit: '#credits', jan1: '#jan1-proposal', mp: '#upgrade-lists', summary: '#summary', events: '#events',
+const TAB_HASH = { all: '#charts', list: '#upgrade-list', plan: '#upgrade-plan', dlc: '#10dlc', credit: '#credits', jan1: '#jan1-proposal', summary: '#summary', events: '#events',
   marketing: '#marketing', sales: '#rp' };
 function wireTabs() {
   const go = which => {
@@ -1197,7 +1196,6 @@ function wireTabs() {
   if ($('tab-dlc')) $('tab-dlc').addEventListener('click', () => go('dlc'));
   if ($('tab-credit')) $('tab-credit').addEventListener('click', () => go('credit'));
   if ($('tab-jan1')) $('tab-jan1').addEventListener('click', () => go('jan1'));
-  if ($('tab-mp')) $('tab-mp').addEventListener('click', () => go('mp'));
   if ($('tab-events')) $('tab-events').addEventListener('click', () => go('events'));
   if ($('tab-marketing')) $('tab-marketing').addEventListener('click', () => go('marketing'));
   if ($('tab-sales')) $('tab-sales').addEventListener('click', () => go('sales'));
@@ -1210,6 +1208,7 @@ function wireTabs() {
     if (src) { renderSourcePage(decodeURIComponent(src[1])); showView('source'); return true; }
     if (h === '#rp' || h === '#sales') { showView('sales'); return true; }
     if (h === '#upgrade-list' || h === '#list') { showView('list'); return true; }
+    if (h === '#upgrade-lists') { showView('jan1'); return true; }
     if (h === '#charts' || h === '#all') { showView('all'); return true; }
     for (const [which, hash] of Object.entries(TAB_HASH)) if (h === hash) { showView(which); return true; }
     return false;
@@ -7545,7 +7544,11 @@ function renderUpgradePlan() {
     + opts.map(([v, t, s]) => `<button type="button" data-v="${v}" class="${v === cur ? 'is-on' : ''}"><strong>${t}</strong><span>${s}</span></button>`).join('')
     + '</div></fieldset>';
 
-  box.innerHTML = checklistHtml('plan', 'Checklist: the upgrade plan', { dropdown: true })
+  box.innerHTML = '<p class="finding"><strong>For 1 January this plan\'s stage 1 is replaced by the platform pilot on the '
+    + '<a href="#jan1-proposal">Jan 1 proposal tab</a>: 60 accounts at +20%, +30% or +60% of the platform price, capped, with notices '
+    + 'by 1 December and results read 1 February.</strong> The stage 1 list, asks and dates below are the earlier plan and will not be '
+    + 'used; later stages are set from the pilot\'s read-out (Josh, 16 Nov 2026).</p>'
+    + checklistHtml('plan', 'Checklist: the upgrade plan', { dropdown: true })
     + `<p class="finding"><strong>Stage 1 is ${fmt.int(S.stage1.n)} accounts from ${day(D.effective1)}, told by ${day(D.notice1)}: `
     + PLAN.stage1Groups.map(g => `${fmt.int(p.share.get(g))} ${g === 'under200' ? 'under $200' : g === 'plan200' ? 'on the $200 plan'
       : g === 'tier262' ? 'from $213 to $499' : 'from $500 to $799 (no rise has tested these)'}`).join(', ')
@@ -7584,8 +7587,8 @@ function renderUpgradePlan() {
 
     + '<h3 class="sub-head">Timeline</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table plan-timeline"><thead><tr><th>Date</th><th>What happens</th></tr></thead><tbody>'
-    + [[`Now to ${day('2026-11-30')}`, 'Refit the model on "paying the new price", confirm the stage 1 list (the 50 matter most: '
-        + 'everything after rests on them), decide Testerman\'s second subscription, write the notice, and schedule each price change '
+    + [[`Now to ${day('2026-11-30')}`, 'Refit the model on "paying the new price", confirm the stage 1 list (it matters most: '
+        + 'everything after rests on it), decide Testerman\'s second subscription, write the notice, and schedule each price change '
         + 'in Stripe from the first bill on or after 1 January, so nobody is charged a part-month.'],
       [day(D.notice1), `<strong>Stage 1 notices: ${fmt.int(S.stage1.n)} accounts.</strong> ${day(D.notice1Latest)} is the last day `
         + `that still gives ${PLAN.noticeDays} days before ${day(D.effective1)}.`],
@@ -7763,8 +7766,8 @@ function renderDlcPlan() {
     + `<tr><td>Billed today</td><td class="n">${fmt.int(P.buckets.billed)}</td><td>Raised to $${P.feeNew} on 1 January. `
     + `${fmt.int(P.notPaying.total)} of them are not paying (${P.notPaying.chase} to chase, ${P.notPaying.collectOrCut} to collect or cut off, `
     + `${P.notPaying.trialing} trialing, ${P.notPaying.cancelCandidates} cancel candidates).</td></tr>`
-    + `<tr><td>Active with TCR, not billed</td><td class="n">${fmt.int(P.buckets.unbilled)}</td><td>Start billing $${P.feeNow} now: `
-    + `steps 1 to 3 below.</td></tr>`
+    + `<tr><td>Active with TCR, not billed</td><td class="n">${fmt.int(P.buckets.unbilled)}</td><td>${fmt.int(BL.campaigns)} of them billed $${P.feeNow} from `
+    + `${checkDay(BL.on)} after the review (step 1 below).</td></tr>`
     + `<tr><td>Unused</td><td class="n">${fmt.int(P.buckets.cancel)}</td><td>Cancel with TCR: ${P.cancelTiming.within30} have terms ending within `
     + `30 days, ${P.cancelTiming.oneToThree} have 1 to 3 months left. A cancelled campaign costs until its current term ends.</td></tr>`
     + `<tr><td>Under review or internal</td><td class="n">${fmt.int(P.buckets.review)}</td><td>${P.stillTexting.campaigns} are still `
@@ -7780,7 +7783,7 @@ function renderDlcPlan() {
     + `<tr class="plan-total"><td><strong>Total</strong></td><td></td><td class="n"><strong>+${fmt.money(P.totalPerMonth)}</strong></td>`
     + `<td class="muted" colspan="2">${fmt.money(P.totalPerMonth * 12)} a year</td></tr>`
     + '</tbody></table></div>'
-    + `<p class="note">Steps 1 and 2 were done as one: turning on the Chiirp toggle does not change Stripe billing (tested on one `
+    + `<p class="note">Step 1 was done in Stripe: turning on the Chiirp toggle does not change Stripe billing (tested on one `
     + `account), so on ${checkDay(BL.on)} the $${P.feeNow} line went straight onto the ${fmt.int(BL.customers)} Stripe subscriptions, `
     + `${fmt.int(BL.campaigns)} campaigns (customers with two campaigns are charged twice). New revenue is counted after a ${fmt.pct(P.haircut)} haircut for campaigns that won't turn into revenue; `
     + `that haircut already covers the ${P.notPaying.total} non-payers, so they are not deducted again. ${P.noRaise}</p>`
@@ -7815,7 +7818,7 @@ function renderCreditPlan() {
   const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
   box.innerHTML = checklistHtml('credit', 'Checklist: credit increase', { dropdown: true })
     + `<p class="finding"><strong>From 1 January 2027, told to customers by an in-Chiirp message once Taylor Roberts and Kevin sign off, a tiered increase adds ${fmt.money(T.added)} a month (${fmt.money(T.perYear)} a year) if no one buys `
-    + `fewer credits: the biggest buyers +25%, the next 25 +50%, everyone else +100%.</strong> Credit income is concentrated: the top 25 `
+    + `fewer credits: almost everyone doubles, from $1 to $2 per 100 credits, and the 50 biggest buyers get a lower rate: the top 25 +25% ($1.25 per 100) and the next 25 +50% ($1.50).</strong> Credit income is concentrated: the top 25 `
     + `companies bring ${fmt.pct(C.topShare.income)} of it, so they get the smallest rise and pay ${fmt.pct(C.topShare.ofIncrease)} of the `
     + `increase. With 10% fewer credits bought it adds ${fmt.money(C.stress[1].added)} a month; it breaks even at `
     + `${fmt.pct(C.breakEven, 1)} lost.</p>`
@@ -7829,7 +7832,9 @@ function renderCreditPlan() {
     + `<tr class="plan-total"><td><strong>Total</strong></td><td class="n">+${(T.blended * 100).toFixed(1)}%</td><td class="n">${fmt.int(T.companies)}</td>`
     + `<td class="n">${fmt.money(T.now)}</td><td class="n">${fmt.money(T.after)}</td><td class="n"><strong>+${fmt.money(T.added)}</strong></td></tr>`
     + '</tbody></table></div>'
-    + `<p class="note">${C.window}. Sub-accounts of one company are grouped so each company gets one price. The ${C.held.accounts} accounts `
+    + `<p class="note">${C.window}. Sub-accounts of one company are grouped so each company gets one price. "Credits a month now" `
+    + `includes the ${C.held.accounts} held accounts' ${fmt.money(C.held.perMonth)}, which is not raised, so "After" is less than "now" `
+    + `times the rise; the companies column counts only the ${fmt.int(T.companies)} being raised. The ${C.held.accounts} accounts `
     + `already on newer credit pricing (${fmt.money(C.held.perMonth)} a month, paying 2 to 7 times the legacy rate) stay where they are; `
     + `raising them too would make it ${fmt.money(C.held.ifRaised)} a month. A flat +50% for everyone would add ${fmt.money(C.flat50)}, `
     + 'but loads the rise onto the few buyers whose loss would wipe it out. Over the next 12 months, with credit buying drifting down '
@@ -7862,7 +7867,7 @@ function renderCreditPlan() {
     + '<p class="note">Timing: the new credit prices start 1 January 2027, the same day as $15 10DLC across the board. They are '
     + 'special pricing, so Taylor Roberts and Kevin sign off and set each customer\'s price, and customers are told by an in-Chiirp '
     + 'message, and so is 10DLC\'s $15. No notice has gone out for either yet. From then on credits are $2 per 100, double the '
-    + `legacy $1 per 100. Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
+    + `legacy $1 per 100, except the 50 biggest buyers ($1.25 and $1.50 per 100). Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
     + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database. The tier list by company `
     + 'stays in the sheet.</p>';
 }
@@ -7886,11 +7891,14 @@ function renderJan1Proposal() {
   const dlc = dlcStep.perMonth;
   const credit = CREDIT_PLAN.total.added;
   const credit10 = CREDIT_PLAN.stress.find(s => s.lost === 0.10).added;
-  // Each pilot account's expected gain on its current price, after the leaving
-  // the model forecasts on the notice, against no increase.
-  const gainOf = x => (x.price + x.d) * (1 - x.fc) - x.price * (1 - x.base);
+  // Each pilot account's expected gain on its whole bill (platform fee plus
+  // add-ons and usage), after the leaving the model forecasts on the notice,
+  // against no increase: a customer who leaves takes the whole bill (audit,
+  // 16 Nov 2026; the fee alone overstated it by about $490 a month).
+  const gainOf = x => (x.spend + x.d) * (1 - x.fc) - x.spend * (1 - x.base);
   const sum = fn => T.reduce((t, x) => t + fn(x), 0);
-  const price = sum(x => x.price), added = sum(x => x.d), pilot = sum(gainOf);
+  const price = sum(x => x.price), bill = sum(x => x.spend), added = sum(x => x.d), pilot = sum(gainOf);
+  const smallN = T.filter(x => x.cap === 'small account: +100% minimum').length;
   const leave = sum(x => x.fc), leave0 = sum(x => x.base), paid12 = sum(x => x.paid12 || 0);
   const total = dlc + credit + pilot;
   const downside = dlc + credit10 + pilot;
@@ -7911,31 +7919,33 @@ function renderJan1Proposal() {
     x.fc - x.base > 0.2 ? 'cleaner: big forecast jump' : '', x.flags || ''].filter(Boolean).join('; ');
 
   box.innerHTML = checklistHtml('jan1', 'Checklist: 1 January proposal', { dropdown: true })
-    + `<p class="finding"><strong>Three changes from ${checkDay(J.effective)} add about ${fmt.money(total)} a month `
-    + `(${fmt.money(total * 12)} a year): 10DLC from $${DLC_PLAN.feeNow} to $${DLC_PLAN.feeNew}, the tiered credit rise, and a `
-    + `${T.length}-account phase 1 priced test of the platform price.</strong> If customers buy 10% fewer credits it still adds ${fmt.money(downside)} `
-    + `a month. Customers need 30 days' notice, so the decision is needed by ${checkDay(J.decideBy)} and notices go out by `
+    + `<p class="finding"><strong>Three changes from ${checkDay(J.effective)} add ${fmt.money(downside)} to ${fmt.money(total)} a month `
+    + `(${fmt.money(downside * 12)} to ${fmt.money(total * 12)} a year): 10DLC from $${DLC_PLAN.feeNow} to $${DLC_PLAN.feeNew}, the tiered credit rise, and a `
+    + `${T.length}-account phase 1 priced test of the platform price.</strong> The lower figure is if customers buy 10% fewer credits, `
+    + `the higher if credit buying holds. Customers need 30 days' notice, so the decision is needed by ${checkDay(J.decideBy)} and notices go out by `
     + `${checkDay(J.noticesTarget)} (${checkDay(J.noticesBy)} at the latest).</p>`
 
     + '<h3 class="sub-head">The ask</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>Change</th><th>Who it reaches</th>'
     + '<th class="n">Added a month</th></tr></thead><tbody>'
     + `<tr><td>1</td><td>10DLC: $${DLC_PLAN.feeNow} → $${DLC_PLAN.feeNew} per campaign a month (<a href="#10dlc">10DLC tab</a>)</td>`
-    + `<td>Every billed campaign, about ${fmt.int(dlcStep.billable)}, including the ${fmt.int(DLC_PLAN.billing.campaigns)} added to billing on `
+    + `<td>Every billed campaign, ${fmt.int(dlcStep.billable)}, including the ${fmt.int(DLC_PLAN.billing.campaigns)} added to billing on `
     + `${checkDay(DLC_PLAN.billing.on)}. ${DLC_PLAN.noRaise}</td><td class="n">+${fmt.money(dlc)}</td></tr>`
-    + `<tr><td>2</td><td>Credits: $100 per 10,000 → $125 for the top 25 buyers, $150 for ranks 26 to 50, $200 for everyone else `
+    + `<tr><td>2</td><td>Credits: $1 → $2 per 100 for almost everyone; the 50 biggest buyers get a lower rate, $1.25 for the top 25 and $1.50 for ranks 26 to 50 `
     + `(<a href="#credits">Credit increase tab</a>)</td><td>Every customer, including those who don't buy credits today. The figure is `
     + `the ${fmt.int(CREDIT_PLAN.total.companies)} companies buying now; the ${CREDIT_PLAN.held.accounts} on newer pricing stay put.</td>`
     + `<td class="n">+${fmt.money(credit)}</td></tr>`
-    + `<tr><td>3</td><td>Platform pilot, phase 1: each account's price up 20%, 30% or 60%, capped (<a href="#upgrade-lists">new model</a>)</td>`
-    + `<td>The ${T.length} accounts listed below, at ${fmt.money(price)} a month today</td>`
+    + `<tr><td>3</td><td>Platform pilot, phase 1: each account's platform price up 20%, 30% or 60%, capped at +30% (+20% for cleaners); `
+    + `${smallN} small accounts go up 100%</td>`
+    + `<td>The ${T.length} accounts listed below, billed ${fmt.money(bill)} a month today (${fmt.money(price)} of it platform fees)</td>`
     + `<td class="n">${sm(pilot)}<br><span class="muted ci">${sm(added)} if all stay</span></td></tr>`
     + `<tr class="plan-total"><td></td><td><strong>Total</strong></td><td class="muted">${fmt.money(total * 12)} a year</td>`
-    + `<td class="n"><strong>+${fmt.money(total)}</strong></td></tr>`
+    + `<td class="n"><strong>+${fmt.money(total)}</strong><br><span class="muted ci">+${fmt.money(downside)} with 10% fewer credits</span></td></tr>`
     + '</tbody></table></div>'
     + `<p class="note">10DLC is counted after a ${fmt.pct(DLC_PLAN.haircut)} haircut for campaigns that won't turn into revenue. Credits `
-    + `assume no fewer credits bought; with 10% fewer the credit rise adds ${fmt.money(credit10)}. The pilot's figure is after the `
-    + 'customers the new model expects to leave on the notice; its job is to measure, not to earn.</p>'
+    + `assume no fewer credits bought; with 10% fewer the credit rise adds ${fmt.money(credit10)}. The pilot's figure is on each `
+    + 'account\'s whole bill, after the customers the new model expects to leave on the notice (a leaver takes the whole bill); '
+    + 'its job is to measure, not to earn.</p>'
 
     + `<h3 class="sub-head">The platform pilot, phase 1: ${T.length} accounts</h3>`
     + '<p>The final phase 1 list (13 November), built to measure what the August test could not: how leaving changes with the '
@@ -7947,7 +7957,7 @@ function renderJan1Proposal() {
     + `${BATCHES.map(b => T.filter(x => x.batch === b).length).join(' and ')}.</p>`
     + `<p>${T.length} accounts on the Chiirp Stripe account: ${GROUPS.map(g => `${T.filter(x => x.group === g).length} ${g.toLowerCase()}`).join(', ')}, `
     + `in ${industries} industries, ${BANDS.map(([l, f]) => `${T.filter(f).length} priced ${l.toLowerCase()}`).join(' and ')}. Together they `
-    + `are at ${fmt.money(price)} a month today and paid ${fmt.money(paid12)} over the last 12 months${T.some(x => !x.paid) ? ` (${T.filter(x => !x.paid).map(x => x.name).join(', ')} not in the payment file)` : ''}. The model forecasts about `
+    + `are billed ${fmt.money(bill)} a month today (${fmt.money(price)} of it platform fees) and paid ${fmt.money(paid12)} over the last 12 months${T.some(x => !x.paid) ? ` (${T.filter(x => !x.paid).map(x => x.name).join(', ')} not in the payment file)` : ''}. The model forecasts about `
     + `${leave.toFixed(1)} of the ${T.length} leaving on the notice, against ${leave0.toFixed(1)} with no increase, so the increases add `
     + `${sm(pilot)} a month after leavers (${sm(added)} if all stay).</p>`
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Industry group</th>'
@@ -7980,6 +7990,7 @@ function renderJan1Proposal() {
     + '</tbody></table></div>'
     + '<p class="note">"Leave" is the chance of cancelling within 3 months: with no increase from the baseline model, and with the increase '
     + 'from the notice model on top of it. Neither covers cancelling at the first higher bill, which this test measures for the first time. '
+    + '"Expected gain" is on the whole bill (platform fee plus add-ons and usage), since a leaver takes all of it. '
     + '"Paid" is what each account paid in each month from November 2025 to October 2026 (● paid, 0 nothing that month; hover a mark '
     + 'for the amount). "Arm" is the increase the account was drawn for; "Cap" is what changed it; the price and increase shown are '
     + 'after the cap. The watch column carries the review flags from the list.</p>'
@@ -8000,7 +8011,7 @@ function renderJan1Proposal() {
 
     + '<h3 class="sub-head">The pilot\'s next 12 months: with the increase against no increase</h3>'
     + '<fieldset class="preset-group"><legend>Show</legend><div class="calc-presets" id="jan1-view">'
-    + [['logos', 'Customers', `How many of the ${T.length} are still paying.`], ['mrr', 'Revenue', `Monthly price of the ${T.length}.`],
+    + [['logos', 'Customers', `How many of the ${T.length} are still paying.`], ['mrr', 'Revenue', `Monthly bill of the ${T.length}.`],
       ['total', 'Difference, running total', 'Extra revenue collected from January.']]
       .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${JAN1_UI.view === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
     + '</div></fieldset>'
@@ -8010,13 +8021,13 @@ function renderJan1Proposal() {
 
     + '<h3 class="sub-head">Why these three, not a platform rise only</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">This proposal</th>'
-    + `<th class="n">Platform rise only: the Upgrade plan with ${J50} accounts</th></tr></thead><tbody>`
+    + `<th class="n">Platform rise only: the earlier Upgrade plan, ${J50} accounts on the round-one model</th></tr></thead><tbody>`
     + `<tr><td>Added a month</td><td class="n"><strong>+${fmt.money(total)}</strong></td><td class="n">${optionB == null ? '–' : sm(optionB)}</td></tr>`
     + `<tr><td>A year</td><td class="n">+${fmt.money(total * 12)}</td><td class="n">${optionB == null ? '–' : sm(optionB * 12)}</td></tr>`
     + `<tr><td>10DLC after TCR adds sales tax</td><td class="n">Covers its cost</td><td class="n">About break-even at $${DLC_PLAN.feeNow}</td></tr>`
     + '</tbody></table></div>'
     + '<ul class="plan-rules">'
-    + (optionB ? `<li>About ${(total / optionB).toFixed(1)} times the revenue. Most of it is credits, which a platform-only plan leaves out.</li>` : '')
+    + (optionB ? `<li>About ${(total / optionB).toFixed(1)} times the revenue. Most of it is credits, which a platform-only plan leaves out. The comparison uses the earlier round-one model, so read it as a rough guide.</li>` : '')
     + '<li>TCR\'s cost rises on 1 January either way; without the 10DLC rise it is break-even at best.</li>'
     + `<li>The pilot keeps the risk small and is built to learn: ${T.length} accounts at three increase sizes tell us how big an increase `
     + 'the book can take before anything wider.</li>'
@@ -8035,7 +8046,7 @@ function renderJan1Proposal() {
 
   // The pilot's 12 months both ways: the new model's projection (modelPProject).
   const H = 12;
-  const f = modelPProject(T.map(x => ({ a: { spend: x.price, pC: x.base }, ask: { d: x.d, total: x.fc } })), H);
+  const f = modelPProject(T.map(x => ({ a: { spend: x.spend, pC: x.base }, ask: { d: x.d, total: x.fc } })), H);
   const labels = Array.from({ length: H + 1 }, (_, t) => (t === 0 ? "Dec '26" : fmt.monthLabel(monthAdd('2026-12', t))));
   const NO = 'No increase', YES = 'With the increase';
   const one = v => v.toFixed(1);
@@ -8052,7 +8063,7 @@ function renderJan1Proposal() {
     const nv = isL ? f.none.logos : f.none.mrr, rv = isL ? f.rise.logos : f.rise.mrr;
     const yf = isL ? one : fmt.money;
     multiLineChart($('jan1-chart'), { labels, yMin: 0, ...(isL ? { yMax: T.length } : {}), yFormat: isL ? fmt.int : fmt.money,
-      yTitle: isL ? 'Pilot accounts still paying' : `Monthly price of the ${T.length}`,
+      yTitle: isL ? 'Pilot accounts still paying' : `Monthly bill of the ${T.length}`,
       series: [{ label: NO, colour: INK.secondary, values: nv, dashed: true }, { label: YES, colour: INK.primary, values: rv }],
       xMarks: marks,
       describe: i => `<strong>${labels[i]}</strong><span>${NO}: ${yf(nv[i])}</span><span>${YES}: ${yf(rv[i])}</span>` });
@@ -8060,7 +8071,7 @@ function renderJan1Proposal() {
   const row = (label, m, r12) => `<tr><td>${label}</td><td class="n">${one(m.logos[1])}</td><td class="n">${one(m.logos[H])}</td>`
     + `<td class="n">${fmt.money(m.mrr[1])}</td><td class="n">${fmt.money(m.mrr[H])}</td><td class="n"><strong>${fmt.money(r12)}</strong></td></tr>`;
   $('jan1-12').innerHTML = '<thead><tr><th></th><th class="n">Accounts, Jan</th><th class="n">Accounts, Dec 2027</th>'
-    + '<th class="n">Price, Jan</th><th class="n">Price, Dec 2027</th><th class="n">12 months collected</th></tr></thead><tbody>'
+    + '<th class="n">Bill, Jan</th><th class="n">Bill, Dec 2027</th><th class="n">12 months collected</th></tr></thead><tbody>'
     + row(NO, f.none, f.revenue12.none) + row(YES, f.rise, f.revenue12.rise)
     + `<tr class="plan-total"><td><strong>Difference</strong></td><td class="n">${one(f.rise.logos[1] - f.none.logos[1])}</td>`
     + `<td class="n">${one(f.rise.logos[H] - f.none.logos[H])}</td><td class="n">${sm(f.rise.mrr[1] - f.none.mrr[1])}</td>`
@@ -8074,177 +8085,6 @@ function renderJan1Proposal() {
 }
 const JAN1_UI = { view: 'logos' };
 const J50 = 50;
-
-// The new model's two upgrade lists (Josh, 13 Nov 2026). The scored book is
-// fetched once; both lists and the 12-month view are worked out here from
-// modelPAsk, so the slider moves everything together.
-let MP_DATA = null, MP_ASKED = false;
-const MP_UI = { goal: 'revenue', cap: 0.10, view: 'logos' };
-function loadModelP() {
-  if (MP_ASKED) return;
-  MP_ASKED = true;
-  fetch('upgrade_model_p.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
-    .then(j => { MP_DATA = j || { failed: true }; if (viewsDrawn.has('mp')) renderModelPLists(); });
-}
-function renderModelPLists() {
-  const box = $('mp-body');
-  if (!box) return;
-  loadModelP();
-  if (!MP_DATA) { box.innerHTML = '<p class="muted">Loading the scored book…</p>'; return; }
-  if (MP_DATA.failed) { box.innerHTML = '<p class="empty">The scored book (upgrade_model_p.json) could not be read.</p>'; return; }
-  const J = MP_DATA, spec = J.spec;
-  const steps = modelPSteps(spec);
-  const top = steps[steps.length - 1];
-  const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
-  const pc = v => `${Math.round(v * 100)}%`;
-  const listOf = goal => J.accounts.map(a => ({ a, ask: modelPAsk(spec, a, { goal, cap: MP_UI.cap, steps }) })).filter(x => x.ask.asked);
-  const stats = rows => ({
-    n: rows.length, fee: rows.reduce((t, x) => t + x.a.spend, 0), asks: rows.reduce((t, x) => t + x.a.spend + x.ask.d, 0),
-    gain: rows.reduce((t, x) => t + x.ask.gain, 0), leave: rows.reduce((t, x) => t + x.ask.total, 0),
-    driven: rows.reduce((t, x) => t + x.ask.driven, 0), atTop: rows.filter(x => x.ask.d === top).length,
-    untestedFee: rows.filter(x => x.a.fee > 362).length, under500: rows.filter(x => x.a.fee < 500).length });
-  const rev = listOf('revenue'), low = listOf('lowChurn');
-  const R = stats(rev), L = stats(low);
-  const rows = MP_UI.goal === 'revenue' ? rev : low;
-  const S = MP_UI.goal === 'revenue' ? R : L;
-  const capPct = Math.round(MP_UI.cap * 100);
-  const label = MP_UI.goal === 'revenue' ? 'Highest revenue' : `Lowest churn (at most ${capPct}% leave)`;
-
-  box.innerHTML = `<p class="finding"><strong>Highest revenue: ${fmt.int(R.n)} accounts asked, ${sm(R.gain)} a month expected, about `
-    + `${R.leave.toFixed(0)} leaving within 3 months. Lowest churn (at most ${capPct}% likely to leave): ${fmt.int(L.n)} accounts, `
-    + `${sm(L.gain)} a month, about ${L.leave.toFixed(0)} leaving.</strong> Both come from the new churn model, scored on `
-    + `${checkDay(J.asOf)}, on the Chiirp Stripe account only. ${fmt.int(R.atTop)} of the highest-revenue asks sit at +$${top}, the top `
-    + 'of what the August test covered: the test showed that getting an increase mattered and its size barely did, so the search runs to the top.</p>'
-
-    + '<div class="plan-controls">'
-    + '<fieldset class="preset-group"><legend>Which list</legend><div class="calc-presets" id="mp-goal">'
-    + [['revenue', 'Highest revenue', 'Each account\'s increase that adds the most expected revenue on its total spend, with the increase adding at most 10 points of churn (the model\'s own rule).'],
-      ['lowChurn', 'Lowest churn', 'Each account\'s best increase that keeps its total chance of leaving at or under the cap; accounts already over it are not asked.']]
-      .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${MP_UI.goal === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
-    + '</div></fieldset>'
-    + `<div class="chart-control"><label for="mp-cap">Lowest churn: most an account may be likely to leave</label>`
-    + `<input type="range" id="mp-cap" min="3" max="25" step="1" value="${capPct}"><output id="mp-cap-out">${capPct}%</output></div>`
-    + '</div>'
-
-    + '<h3 class="sub-head">The two lists side by side</h3>'
-    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">Highest revenue</th>'
-    + `<th class="n">Lowest churn (≤ ${capPct}%)</th></tr></thead><tbody>`
-    + [['Accounts asked', fmt.int(R.n), fmt.int(L.n)], ['Total spend now', fmt.money(R.fee), fmt.money(L.fee)],
-      ['Total spend after the increase', fmt.money(R.asks), fmt.money(L.asks)], ['Expected gain a month, after leavers', sm(R.gain), sm(L.gain)],
-      ['Expected to leave within 3 months', R.leave.toFixed(1), L.leave.toFixed(1)],
-      ['… of which the increase causes', R.driven.toFixed(1), L.driven.toFixed(1)],
-      [`Asks at +$${top}, the top of the tested range`, fmt.int(R.atTop), fmt.int(L.atTop)],
-      ['Fee above the $62 to $362 the test covered', fmt.int(R.untestedFee), fmt.int(L.untestedFee)],
-      ['Fee under $500: baseline extrapolated', fmt.int(R.under500), fmt.int(L.under500)]]
-      .map(([k, a, b]) => `<tr><td>${k}</td><td class="n">${a}</td><td class="n">${b}</td></tr>`).join('')
-    + '</tbody></table></div>'
-
-    + `<h3 class="sub-head">${label}: the next 12 months, with the increase against no increase</h3>`
-    + '<fieldset class="preset-group"><legend>Show</legend><div class="calc-presets" id="mp-view">'
-    + [['logos', 'Customers', 'How many on the list are still paying.'], ['mrr', 'Revenue', 'Total monthly spend of the list.'],
-      ['total', 'Difference, running total', 'Extra revenue collected from January.']]
-      .map(([k, l, b]) => `<button type="button" data-k="${k}" class="${MP_UI.view === k ? 'is-on' : ''}"><strong>${l}</strong><span>${b}</span></button>`).join('')
-    + '</div></fieldset>'
-    + '<div class="plot" id="mp-chart"></div>'
-    + '<p class="note" id="mp-chart-note"></p>'
-
-    + `<h3 class="sub-head">${label}: ${fmt.int(rows.length)} accounts</h3>`
-    + '<p><button type="button" class="calc-download" id="mp-download">Download this list (CSV)</button><span class="muted" id="mp-status"></span></p>'
-    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Company</th><th>Stripe ID</th><th>Industry</th>'
-    + '<th class="n">Account age (years)</th><th class="n">Contacts replying a month</th><th class="n">Platform fee now</th>'
-    + '<th class="n">Total spend now</th><th class="n">Increase</th><th class="n">New platform fee</th><th class="n">Rise on spend</th><th class="n">Leave, no increase</th>'
-    + '<th class="n">Leave, with it</th><th class="n">Expected gain</th></tr></thead><tbody>'
-    + [...rows].sort((x, y) => y.ask.gain - x.ask.gain).map(({ a, ask }) => `<tr><td>${a.name || '–'}</td><td class="mono">${a.id}</td>`
-      + `<td>${a.industry || '–'}</td><td class="n">${a.age.toFixed(1)}</td><td class="n">${fmt.int(a.replying)}</td>`
-      + `<td class="n">${fmt.money(a.fee)}</td><td class="n">${fmt.money(a.spend)}</td><td class="n"><strong>+${fmt.money(ask.d)}</strong></td><td class="n">${fmt.money(a.fee + ask.d)}</td>`
-      + `<td class="n">+${pc(ask.d / a.spend)}</td><td class="n">${pc(a.pC)}</td><td class="n">${pc(ask.total)}</td>`
-      + `<td class="n">${sm(ask.gain)}</td></tr>`).join('')
-    + '</tbody></table></div>'
-
-    + '<h3 class="sub-head">How the model works</h3>'
-    + '<ol class="plan-rules">'
-    + '<li><strong>Who is scored.</strong> Accounts on the Chiirp Stripe account that are active, not moved to Chiirp AI, not in the '
-    + 'August test, at least 12 months old, with billing current and 20 or more contacts replying a month, and with a platform fee in Stripe.</li>'
-    + `<li><strong>Baseline (Model C).</strong> The chance of leaving within 3 months with no increase, fitted on 643 $500+ accounts from `
-    + 'contacts replying, reply rate, age, price, failed payments, share of the last year paid and industry '
-    + `(AUC ${spec.C.unseen.map(u => u.AUC.toFixed(2)).join(' / ')} on accounts it had not seen).</li>`
-    + `<li><strong>The notice (Model L).</strong> What the increase adds on top of each account's own baseline, fitted on the 36 August `
-    + `test accounts: any increase raises the odds of leaving about ${Math.exp(spec.L.b0_any_increase).toFixed(1)}×, the size of the `
-    + `increase barely matters (+${spec.L.b1_per_log10_usd.toFixed(2)} on the log-odds per tenfold), and a cleaner's odds are about `
-    + `${Math.exp(spec.L.b2_cleaning).toFixed(1)}× more on top (AUC ${spec.L.unseen_loo.AUC.toFixed(2)} on accounts it had not seen, `
-    + `against ${spec.L.baseline_C_on_test.AUC.toFixed(2)} for the baseline alone). An increase can never come out free.</li>`
-    + '<li><strong>The first bill.</strong> Not modelled yet: refit in early December once the 11 November bills settle.</li>'
-    + `<li><strong>Combine and pick.</strong> Every +$${MODEL_P_STEP} step up to +$${top} is tried; expected gain is on total spend `
-    + '(fee, add-ons and overage): (spend + increase) × (1 − chance of leaving) − spend × (1 − baseline), so losing a heavy payer '
-    + 'counts in full. The two lists differ only in the limit.</li>'
-    + '</ol>'
-    + '<h3 class="sub-head">Read with care</h3>'
-    + '<ul class="plan-rules">'
-    + `<li><strong>Size barely matters, so asks run to the top.</strong> ${fmt.int(R.atTop)} of ${fmt.int(R.n)} highest-revenue asks are `
-    + `+$${top}. That is notice-stage evidence from 36 accounts, most of which were never billed the new price: run the list as a priced test.</li>`
-    + '<li><strong>Cleaners are held.</strong> Their extra churn takes them over the 10-point limit at any increase.</li>'
-    + `<li><strong>The 10-point limit is a policy.</strong> ${fmt.int((J.summary.find(x => /^Hold/.test(x.rule)) || {}).n || 0)} accounts are held; most `
-    + 'would still add revenue at the top but cross the limit (cleaners, and trades whose baseline is already 16% or more).</li>'
-    + `<li><strong>Outside what was fitted.</strong> ${fmt.int(R.under500)} highest-revenue accounts pay under $500, below anything the `
-    + `baseline model was fitted on; ${fmt.int(R.untestedFee)} pay more than the $362 the August test reached.</li>`
-    + '<li><strong>Gain is a ceiling.</strong> It counts only accounts that leave on the notice, not on the first bill.</li>'
-    + '<li><strong>Not covered.</strong> 83 accounts with $100+ subscriptions have no standard platform product in Stripe and need their '
-    + 'plan checked before they can be scored.</li>'
-    + '</ul>'
-    + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>Every account in the book</th><th class="n">Accounts</th>'
-    + '<th class="n">Platform fees</th></tr></thead><tbody>'
-    + J.summary.map(s => `<tr><td>${s.rule}</td><td class="n">${fmt.int(s.n)}</td><td class="n">${s.fee ? fmt.money(s.fee) : '–'}</td></tr>`).join('')
-    + '</tbody></table></div>'
-    + `<p class="note">From churn_models.py v2 and the rescored export of ${checkDay(J.asOf)} (${J.source}). The highest-revenue list `
-    + 'reproduces that file\'s recommended increase for every account. "Leave" is within 3 months of the notice.</p>';
-
-  // The 12-month view for the chosen list.
-  const H = 12;
-  const f = modelPProject(rows, H);
-  const labels = Array.from({ length: H + 1 }, (_, t) => (t === 0 ? "Dec '26" : fmt.monthLabel(monthAdd('2026-12', t))));
-  const NO = 'No increase', YES = 'With the increase';
-  if (MP_UI.view === 'total') {
-    let c = 0;
-    const cum = f.rise.mrr.map((v, t) => (t ? (c += v - f.none.mrr[t]) : 0));
-    multiLineChart($('mp-chart'), { labels, yFormat: fmt.money, yTitle: 'Extra revenue collected so far',
-      series: [{ label: 'With the increase, less no increase', colour: INK.primary, values: cum }],
-      refs: [{ value: 0, label: 'No increase' }], xMarks: [{ index: H, label: '12 months', highlight: true }],
-      describe: i => `<strong>${labels[i]}</strong><span>${sm(cum[i])} so far</span>` });
-  } else {
-    const isL = MP_UI.view === 'logos';
-    const nv = isL ? f.none.logos : f.none.mrr, rv = isL ? f.rise.logos : f.rise.mrr;
-    const yf = isL ? (v => v.toFixed(1)) : fmt.money;
-    multiLineChart($('mp-chart'), { labels, yMin: 0, yFormat: isL ? fmt.int : fmt.money,
-      yTitle: isL ? 'Accounts on the list still paying' : 'Total monthly spend of the list',
-      series: [{ label: NO, colour: INK.muted, values: nv, dashed: true }, { label: YES, colour: INK.primary, values: rv }],
-      xMarks: [{ index: H, label: '12 months', highlight: true }],
-      describe: i => `<strong>${labels[i]}</strong><span>${NO}: ${yf(nv[i])}</span><span>${YES}: ${yf(rv[i])}</span>` });
-  }
-  $('mp-chart-note').innerHTML = `Over 12 months the list collects ${fmt.money(f.revenue12.rise)} with the increase against `
-    + `${fmt.money(f.revenue12.none)} without (${sm(f.revenue12.rise - f.revenue12.none)}); ${f.rise.logos[H].toFixed(1)} of `
-    + `${fmt.int(rows.length)} still paying against ${f.none.logos[H].toFixed(1)}. Each account leaves at its baseline every month `
-    + '(its 3-month chance as a monthly rate); the increase\'s extra leaving comes in January, on the notice. No first-bill churn yet.';
-
-  const keep = fn => () => { const y = window.scrollY; fn(); renderModelPLists(); window.scrollTo(0, y); };
-  for (const b of $('mp-goal').querySelectorAll('button')) b.addEventListener('click', keep(() => { MP_UI.goal = b.dataset.k; }));
-  for (const b of $('mp-view').querySelectorAll('button')) b.addEventListener('click', keep(() => { MP_UI.view = b.dataset.k; }));
-  $('mp-cap').addEventListener('change', keep(() => { MP_UI.cap = Number($('mp-cap').value) / 100; }));
-  $('mp-cap').addEventListener('input', () => { $('mp-cap-out').textContent = `${$('mp-cap').value}%`; });
-  $('mp-download').addEventListener('click', () => {
-    const q = v => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
-    const head = ['list', 'company', 'stripe_id', 'client_id', 'industry', 'state', 'account_age_years', 'contacts_replying_a_month',
-      'platform_fee_now', 'total_spend_now', 'increase', 'new_platform_fee', 'rise_on_spend', 'leave_3mo_no_increase', 'leave_3mo_with_increase',
-      'increase_driven', 'expected_gain_a_month'];
-    const lines = [head.join(',')].concat(rows.map(({ a, ask }) => [label, a.name || '', a.id, a.client, a.industry || '', a.state || '',
-      a.age, a.replying, a.fee, a.spend, ask.d, a.fee + ask.d, (ask.d / a.spend).toFixed(3), a.pC.toFixed(3), ask.total.toFixed(3),
-      ask.driven.toFixed(3), ask.gain.toFixed(2)].map(q).join(',')));
-    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
-    const el = document.createElement('a');
-    el.href = url; el.download = `chiirp-upgrade-${MP_UI.goal === 'revenue' ? 'highest-revenue' : `lowest-churn-${capPct}pct`}.csv`;
-    document.body.appendChild(el); el.click(); el.remove(); URL.revokeObjectURL(url);
-    $('mp-status').textContent = ` ${fmt.int(rows.length)} accounts exported.`;
-  });
-}
 
 const campTrust = () => TRUST_PRESETS.find(p => p.key === CAMP.trust) || TRUST_PRESETS[0];
 const campOptions = () => ({ textsScale: campTrust().textsScale ?? 1, churnScale: campTrust().churnScale ?? 1 });
@@ -9398,7 +9238,6 @@ const VIEW_DRAWS = {
   dlc: () => renderDlcPlan(),
   credit: () => renderCreditPlan(),
   jan1: () => renderJan1Proposal(),
-  mp: () => renderModelPLists(),
   events: () => { renderEvents(); renderEventAttribution(); },
   marketing: () => renderMarketing(),
   sales: () => renderRP(),

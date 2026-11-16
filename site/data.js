@@ -3834,23 +3834,29 @@ export const DLC_PLAN = {
   perMonth: { tcr: 11858, collectedAll: 8906, collectedMonthly: 7878 },
   coverage: [
     { when: 'Today', all: 0.75, monthly: 0.66 },
-    { when: 'After billing the unbilled campaigns and cancelling unused ones', all: 1.08, monthly: 0.99 },
-    { when: 'After $15 from 1 Jan 2027', all: 1.30, monthly: 1.21 },
+    // Recomputed 16 Nov 2026 on the 277 campaigns billed from 12 Nov (not the
+    // 290 in the export) and $15 on 888: (monthly fees + new revenue after the
+    // haircut) over TCR's cost less the 76 cancelled campaigns.
+    { when: 'After billing the unbilled campaigns and cancelling unused ones', all: 1.07, monthly: 0.98 },
+    { when: 'After $15 from 1 Jan 2027', all: 1.29, monthly: 1.20 },
   ],
   salesTax: 0.07, // TCR adds sales tax from 1 Jan 2027 (opted in); 7% is an assumption.
   haircut: 0.10,
   steps: [
-    { step: 'Turn on the 10DLC charge in Chiirp', campaigns: 125, billable: 114, perMonth: 1231, owner: 'Kevin (bulk update)',
-      status: 'Done 12 Nov, in Stripe instead (see below)' },
-    { step: 'Add the 10DLC line item in Stripe', campaigns: 184, billable: 176, perMonth: 1901, owner: 'Kevin and account managers',
-      status: 'Done 12 Nov (see below)' },
+    // Josh, 16 Nov 2026: the non-payers were upgraded +$12 (done 12 Nov); on
+    // 1 Jan every billed campaign goes from $12 to $15. The export's two steps
+    // (114 in Chiirp + 176 in Stripe = 290) were done as one, in Stripe, on the
+    // 277 campaigns left after the review.
+    { step: 'Bill the campaigns nobody was charged for: the $12 line on 274 Stripe subscriptions', campaigns: 277, billable: 277,
+      perMonth: 2992, owner: 'Josh (signed off by Taylor Roberts)', status: 'Done 12 Nov; each starts at its next renewal, all by 12 Dec' },
     { step: 'Switch the toggle on (already billed in Stripe)', campaigns: 14, billable: 14, perMonth: 0, owner: 'Kevin', status: 'To do (Kevin)' },
     { step: 'Cancel unused campaigns with TCR (cost saved)', campaigns: 76, billable: 76, perMonth: 760, owner: 'To assign',
       status: '28 by early Dec, 48 by early Feb' },
-    { step: 'Raise $12 to $15 on every billed campaign from 1 Jan', campaigns: 901, billable: 901, perMonth: 2433, owner: 'Leadership',
+    // 613 billed before 12 Nov + 277 billed from 12 Nov - Goettl's 2 = 888.
+    { step: 'Raise $12 to $15 on every billed campaign from 1 Jan', campaigns: 888, billable: 888, perMonth: 2398, owner: 'Leadership',
       status: 'From 1 Jan; needs sign-off' },
   ],
-  totalPerMonth: 6325,
+  totalPerMonth: 6150,
   buckets: { total: 1015, billed: 613, unbilled: 290, cancel: 76, review: 36 },
   notPaying: { total: 54, chase: 11, collectOrCut: 7, trialing: 3, cancelCandidates: 33 },
   october: { campaigns: 570, paid: 6668.23, expected: 613 * 12, gap: 687.77, unpaidLines: 39, unpaid: 466, freeCampaigns: 14, givenAway: 173.48, notInvoiced: 4 },
@@ -3902,9 +3908,9 @@ export const PLAN_CHECKLISTS = {
     { id: 'plan-rollout', step: 'Rollout set: 50 accounts from 1 Jan, 50 or more from 1 Mar', owner: 'Josh', done: '2026-11-12' },
     { id: 'plan-twenty', step: 'Stage 1 cut to 20, the platform pilot beside the 1 Jan 10DLC and credit rises: 5 per price group, every engagement level, spread over industry; nobody on Chiirp AI, no credit buyers', owner: 'Josh', done: '2026-11-13' },
     { id: 'plan-refit', step: 'Refit the model counting only "paid the new price" as accepted', owner: 'Josh', due: '2026-11-30' },
-    { id: 'plan-list', step: 'Confirm the 20 stage 1 accounts: 5 from each price group, spread over engagement and industry', owner: 'Josh', due: '2026-11-30' },
+    { id: 'plan-list', step: 'Stage 1 replaced by the Jan 1 platform pilot: 60 accounts, +20%, +30% or +60%, capped (Jan 1 proposal tab)', owner: 'Josh', done: '2026-11-13', note: 'Josh, 16 Nov: the Jan 1 tab is the plan' },
     { id: 'plan-testerman', step: "Decide Testerman's Pro Wash's second subscription", owner: 'Josh', due: '2026-11-30' },
-    { id: 'plan-notice-text', step: 'Write the price-change notice', due: '2026-11-30' },
+    { id: 'plan-notice-text', step: 'Write the price-change notice', owner: 'Josh', done: '2026-11-13', note: 'The pilot notice, on the Jan 1 tab' },
     { id: 'plan-approve1', step: 'Sign-off on the stage 1 accounts, asks and notice', owner: 'Leadership', due: '2026-11-30', needsSignoff: true },
     { id: 'plan-stripe1', step: 'Schedule each stage 1 price in Stripe from the first bill on or after 1 Jan (no part-month charges)', due: '2026-11-30' },
     { id: 'plan-notices1', step: 'Send stage 1 notices (30 days; 2 Dec is the last day)', due: '2026-12-01' },
@@ -3958,7 +3964,7 @@ export const PLAN_CHECKLISTS = {
     { id: 'cr-pilot', step: 'Keep the 9 platform-pilot accounts that buy credits on their current credit price until the pilot read-out (Josh, 13 Nov)', owner: 'Taylor Roberts and Kevin', due: '2027-01-01' },
     { id: 'cr-start', step: 'New credit prices take effect', due: '2027-01-01' },
     { id: 'cr-pilot-end', step: 'Move the 9 platform-pilot accounts to their new credit price after the read-out', owner: 'Taylor Roberts and Kevin', due: '2027-02-01' },
-    { id: 'cr-standard', step: 'Charge $2 per 100 credits (2 cents a credit, double the legacy $1 per 100) going forward', owner: 'Product (Kevin and Taylor)',
+    { id: 'cr-standard', step: 'Charge $2 per 100 credits (2 cents a credit, double the legacy $1 per 100) going forward, except the 50 biggest buyers ($1.25 and $1.50 per 100)', owner: 'Product (Kevin and Taylor)',
       due: '2027-01-01' },
     { id: 'cr-recharge', step: 'Confirm that auto-recharge firing several times within seconds is intended', owner: 'Product (Kevin and Taylor)' },
     { id: 'cr-future', step: 'Consider future credit increases, re-ranking the tiers on trailing 3-month spend' },
@@ -3971,7 +3977,8 @@ export const PLAN_CHECKLISTS = {
     { id: 'j1-notice', step: 'Write the pilot notice (informational, the same wording and timing for all 60)', owner: 'Josh', done: '2026-11-13' },
     { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot', owner: 'CEO', due: '2026-11-16', needsSignoff: true },
     { id: 'j1-contracts', step: 'Check the standard agreement allows a price change on 30 days\' notice; leave off custom contracts and price locks', owner: 'Josh', done: '2026-11-13', note: 'It does, with notice' },
-    { id: 'j1-send', step: 'Send the notices: 10DLC and credits by in-Chiirp message, the platform pilot\'s increase by email to the 60 (2 Dec is the last day)', due: '2026-11-23' },
+    { id: 'j1-send', step: 'Send the notices: 10DLC and credits by in-Chiirp message, the platform pilot\'s increase by email to the 60 (1 Dec at the latest; 2 Dec is the last day that still gives 30 days)', due: '2026-11-23' },
+    { id: 'j1-fee-line', step: 'Confirm the platform-fee line for the 5 pilot accounts where Stripe bills $50 more than the list\'s price (SBC Cooling + Heating, Evergreen Plumbing, Alan Smith Pool Plastering, A-1 Chimney, Culligan of Charlotte), so the notice and the Stripe schedule agree', owner: 'Josh', due: '2026-11-20' },
     { id: 'j1-faq', step: 'FAQ for the support team on the three changes', owner: 'Zeus Acosta', due: '2026-11-23' },
     { id: 'j1-stripe', step: 'Set each pilot Stripe subscription schedule the day its notice goes out (first new bill 1 Jan)', owner: 'Josh or Product (Kevin and Taylor)', due: '2026-12-01' },
     { id: 'j1-log', step: 'Log notice, schedule, first bill paid, cancellations and negotiations in the test sheet (tracking)', owner: 'Josh', due: '2027-01-31' },
@@ -4021,7 +4028,7 @@ export const JAN1_PROPOSAL = {
 // goals highest revenue increasing upgrade list and lowest churn with price
 // increase list"; "get the upgrade list and models into the site"). From the
 // other chat's churn_models.py v2 with its audit fixes (13 Nov 2026), scored
-// book in site/upgrade_model_p.json. Stages per account:
+// book was site/upgrade_model_p.json (removed 16 Nov 2026 with its tab; Josh: the Jan 1 tab is the plan). Stages per account:
 //   1 Baseline  Model C: 3-month churn with no increase (fit on 643 $500+ accounts); scored in the file as pC.
 //   2 Notice    Model L: lift on top of the account's own baseline, fit on the 36 August test accounts:
 //               logit p = logit pC + b0 (any increase) + b1 x log10(clip($ increase) / 300) + b2 x cleaning.
