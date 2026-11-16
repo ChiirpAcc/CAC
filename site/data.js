@@ -3852,7 +3852,7 @@ export const DLC_PLAN = {
       perMonth: 2992, owner: 'Josh (signed off by Taylor Roberts)', status: 'Done 12 Nov; each starts at its next renewal, all by 12 Dec' },
     { step: 'Switch the toggle on (already billed in Stripe)', campaigns: 14, billable: 14, perMonth: 0, owner: 'Kevin', status: 'To do (Kevin)' },
     { step: 'Cancel unused campaigns with TCR (cost saved)', campaigns: 76, billable: 76, perMonth: 760, owner: 'To assign',
-      status: '28 by early Dec, 48 by early Feb' },
+      status: '24 by early Dec, 52 by early Feb' },
     // 613 billed before 12 Nov + 277 billed from 12 Nov = 890, Goettl's 2 included
     // (Josh, 16 Nov 2026: Goettl goes to $15 too). 890 x $3 x 0.9 = $2,403.
     { step: 'Raise $12 to $15 on every billed campaign from 1 Jan', campaigns: 890, billable: 890, perMonth: 2403, owner: 'Leadership',
@@ -3862,7 +3862,7 @@ export const DLC_PLAN = {
   buckets: { total: 1015, billed: 613, unbilled: 290, cancel: 76, review: 36 },
   notPaying: { total: 54, chase: 11, collectOrCut: 7, trialing: 3, cancelCandidates: 33 },
   october: { campaigns: 570, paid: 6668.23, expected: 613 * 12, gap: 687.77, unpaidLines: 39, unpaid: 466, freeCampaigns: 14, givenAway: 173.48, notInvoiced: 4 },
-  cancelTiming: { within30: 28, oneToThree: 48 },
+  cancelTiming: { within30: 24, oneToThree: 52 }, // live sheet, 16 Nov 2026 (was 28 / 48 on 12 Nov)
   review: { done: 154, of: 492, kevin: 4, cancelToSubmit: 83, cancelSubmitted: 0 },
   handoff: { campaigns: 277, clients: 274 },
   // 12 Nov 2026: turning on the Chiirp toggle does not change Stripe billing
@@ -3876,9 +3876,9 @@ export const DLC_PLAN = {
     ['Wed 11 Nov 2026', 'Zeus and Alicia finish the campaign review (due date; see progress above)'],
     ['After their approval', 'Kevin starts billing the unbilled campaigns: the handoff list has 277 campaigns for 274 clients'],
     ['By 1 Dec 2026', 'Tell customers by in-Chiirp message that 10DLC goes from $12 to $15 a month on 1 January'],
-    ['Early Dec 2026', 'Cancel with TCR the 28 unused campaigns whose terms end within 30 days'],
+    ['Early Dec 2026', 'Cancel with TCR the 24 unused campaigns whose terms end within 30 days'],
     ['Fri 1 Jan 2027', '$15 a month starts on every billed campaign; TCR starts adding sales tax'],
-    ['Early Feb 2027', 'The other 48 unused campaigns are out of their TCR terms; all 76 saved'],
+    ['Early Feb 2027', 'The other 52 unused campaigns are out of their TCR terms; all 76 saved'],
   ],
 };
 // Checklists for the plan pages (Josh, 12 Nov 2026: "make a checklist of the
@@ -3942,14 +3942,14 @@ export const PLAN_CHECKLISTS = {
     { id: 'dlc-stop', step: 'Stop billing the 1 Stripe 10DLC line with no campaign', owner: 'Kevin' },
     { id: 'dlc-texting', step: 'Decide on the 31 campaigns still texting with no live subscription: bill or cut off', owner: 'Account managers' },
     { id: 'dlc-nonpay', step: 'Chase the 11 non-paying balances; collect or cut off the other 7', owner: 'Account managers' },
-    { id: 'dlc-cancel1', step: 'Cancel with TCR the 28 unused campaigns whose terms end within 30 days', due: '2026-12-01' },
+    { id: 'dlc-cancel1', step: 'Cancel with TCR the 24 unused campaigns whose terms end within 30 days (none submitted yet; Zeus and Alicia have marked 83)', due: '2026-12-01' },
     { id: 'dlc-approve15', step: 'Sign-off on $15 from 1 January', owner: 'Taylor Roberts', due: '2026-11-25', needsSignoff: true },
     { id: 'dlc-raise', step: 'Move every billed campaign to $15 in Stripe from 1 January (890, including Goettl\'s 2)',
       owner: 'Product (Kevin and Taylor)', due: '2026-12-31' },
     { id: 'dlc-new15', step: 'Make every new Stripe subscription created from 1 January use the $15 10DLC price', owner: 'Product (Kevin and Taylor)',
       due: '2027-01-01' },
     { id: 'dlc-start15', step: '$15 starts; TCR starts adding sales tax', due: '2027-01-01' },
-    { id: 'dlc-cancel2', step: 'Cancel the other 48 unused campaigns as their terms end', due: '2027-02-01' },
+    { id: 'dlc-cancel2', step: 'Cancel the other 52 unused campaigns as their terms end', due: '2027-02-01' },
   ],
   credit: [
     { id: 'cr-proposal', step: 'Send the proposal to Ryan Fenn, Taylor Roberts and Alicia Schmaling', owner: 'Josh', done: '2026-11-06' },
@@ -4113,6 +4113,9 @@ export function modelPProject(rows, horizon = 12) {
 
 // The Jan 1 platform pilot, phase 1 (Josh, 13 Nov 2026: "update" with
 // price_test_wave1_60_accounts (2).csv, the latest): 60 accounts on the Chiirp Stripe account, all told on
+// Cleaners (16 Nov 2026): fc for the 6 cleaners is recomputed without the notice model's cleaning term
+// (b2 = 1.27 on the log-odds), which the 12 Nov refit found adds nothing once contacts replying are
+// counted (p = 0.35; ROUND_ONE.logistic.cleaning = 0). Josh: cleaners losing money "doesn't sound right".
 // 1 Dec (the list's two batches were dropped, Josh 16 Nov 2026; the batch field stays in the data), arms of +20%, +30% and +60% of the platform price (arm, dTest), then capped (cap: +30%
 // at most, +20% for cleaners, a +100% minimum for small accounts); d, pct and newPrice are after
 // the cap. base = Model C 3-month churn with no increase, fc = the model at the capped increase.
@@ -4175,12 +4178,12 @@ export const PRICE_TEST_P1 = [
   {"id": "cus_ONRa6Iw0cg5yu6", "client": "3638", "name": "A-1 Chimney Specialist LLC", "industry": "Hearth & Fireplace", "group": "Specialty trades", "band": "$500-799", "batch": "Batch 2", "age": 3.3, "replying": 34, "price": 650.0, "spend": 785.67, "arm": "+20%", "dTest": 130.0, "d": 130.0, "pct": 20.0, "newPrice": 780.0, "cap": "none", "base": 0.193, "fc": 0.304, "flags": null, "credit": false, "paid": [724.0, 724.0, 724.0, 724.0, 724.0, 724.0, 784.13, 784.13, 784.13, 784.13, 784.13, 784.13], "paid12": 9048.78},
   {"id": "cus_T6TJKjFc9U9f1o", "client": "5477", "name": "Alan Smith Pool Plastering, Inc.", "industry": "Pool & Spa", "group": "Specialty trades", "band": "$500-799", "batch": "Batch 1", "age": 1.1, "replying": 72, "price": 699.0, "spend": 761.0, "arm": "+60%", "dTest": 300.0, "d": 205.0, "pct": 29.3, "newPrice": 904.0, "cap": "30% cap", "base": 0.128, "fc": 0.215, "flags": "Stripe subscription $749 vs fee+add-ons $761: confirm line items; just over 1 year old", "credit": false, "paid": [749.0, 749.0, 749.0, 749.0, 749.0, 749.0, 749.0, 749.0, 749.0, 749.0, 749.0, 749.0], "paid12": 8988.0},
   {"id": "cus_SwM9XRSqkHvshH", "client": "5407", "name": "Kilauea Pest Control", "industry": "Pest Control", "group": "Specialty trades", "band": "$500-799", "batch": "Batch 2", "age": 1.2, "replying": 58, "price": 500.0, "spend": 512.0, "arm": "+60%", "dTest": 300.0, "d": 150.0, "pct": 30.0, "newPrice": 650.0, "cap": "30% cap", "base": 0.114, "fc": 0.191, "flags": "Stripe subscription $500 vs fee+add-ons $512: confirm line items; just over 1 year old", "credit": false, "paid": [500.0, 500.0, 500.0, 500.0, 500.0, 500.0, 500.0, 500.0, 500.0, 500.0, 500.0, 500.0], "paid12": 6000.0},
-  {"id": "cus_MJhOZl7KXezDBK", "client": "2807", "name": "T&T Powerwash", "industry": "Window & Exterior Cleaning", "group": "Cleaning", "band": "<$500", "batch": "Batch 1", "age": 4.2, "replying": 26, "price": 200.0, "spend": 212.0, "arm": "+60%", "dTest": 120.0, "d": 40.0, "pct": 20.0, "newPrice": 240.0, "cap": "20% cleaning cap", "base": 0.12, "fc": 0.47, "flags": null, "credit": false, "paid": [212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0], "paid12": 2544.0},
-  {"id": "cus_LQL9R1wfZ0ZpUH", "client": "2493", "name": "Steam Smart Pro", "industry": "Carpet & Upholstery Cleaning", "group": "Cleaning", "band": "<$500", "batch": "Batch 1", "age": 4.6, "replying": 286, "price": 200.0, "spend": 462.73, "arm": "+20%", "dTest": 40.0, "d": 40.0, "pct": 20.0, "newPrice": 240.0, "cap": "none", "base": 0.06, "fc": 0.293, "flags": "pays $463/mo vs $212 subscription (usage/overage)", "credit": true, "paid": [612.0, 412.0, 629.4, 629.4, 429.4, 429.4, 429.4, 329.4, 429.4, 429.4, 429.4, 329.4], "paid12": 5518.0},
-  {"id": "cus_MOKewbgk94ozyh", "client": "2864", "name": "Allen Rapid Dry", "industry": "Carpet & Upholstery Cleaning", "group": "Cleaning", "band": "<$500", "batch": "Batch 1", "age": 4.2, "replying": 33, "price": 200.0, "spend": 212.0, "arm": "+30%", "dTest": 60.0, "d": 40.0, "pct": 20.0, "newPrice": 240.0, "cap": "20% cleaning cap", "base": 0.217, "fc": 0.643, "flags": "Stripe subscription $200 vs fee+add-ons $212: confirm line items", "credit": false, "paid": [200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0], "paid12": 2400.0},
-  {"id": "cus_OvcIdgXcisyhUI", "client": "3812", "name": "Interior Care Carpet Cleaning Inc", "industry": "Carpet & Upholstery Cleaning", "group": "Cleaning", "band": "$500-799", "batch": "Batch 2", "age": 3.0, "replying": 24, "price": 500.0, "spend": 545.33, "arm": "+60%", "dTest": 300.0, "d": 100.0, "pct": 20.0, "newPrice": 600.0, "cap": "20% cleaning cap", "base": 0.113, "fc": 0.453, "flags": "borderline engagement (<25 replying/mo)", "credit": true, "paid": [612.0, 612.0, 512.0, 512.0, 512.0, 712.0, 512.0, 512.0, 512.0, 512.0, 512.0, 612.0], "paid12": 6644.0},
-  {"id": "cus_Pk71NwppRvtm5b", "client": "4147", "name": "Gladiator Pro Wash", "industry": "Window & Exterior Cleaning", "group": "Cleaning", "band": "$500-799", "batch": "Batch 2", "age": 2.7, "replying": 685, "price": 350.0, "spend": 750.0, "arm": "+30%", "dTest": 105.0, "d": 70.0, "pct": 20.0, "newPrice": 420.0, "cap": "20% cleaning cap", "base": 0.07, "fc": 0.329, "flags": "pays $750/mo vs $350 subscription (usage/overage)", "credit": true, "paid": [550.0, 350.0, 450.0, 350.0, 0.0, 400.0, 200.0, 0.0, 0.0, 550.0, 750.0, 650.0], "paid12": 4250.0},
-  {"id": "cus_PQQiZQeSfq0kGE", "client": "3977", "name": "Marshall Cleaning Service", "industry": "Carpet & Upholstery Cleaning", "group": "Cleaning", "band": "$500-799", "batch": "Batch 2", "age": 2.8, "replying": 141, "price": 650.0, "spend": 722.13, "arm": "+20%", "dTest": 130.0, "d": 130.0, "pct": 20.0, "newPrice": 780.0, "cap": "none", "base": 0.113, "fc": 0.453, "flags": "1 failed charge(s) in 3 mo", "credit": false, "paid": [662.0, 662.0, 662.0, 662.0, 662.0, 722.13, 722.13, 722.13, 722.13, 722.13, 722.13, 722.13], "paid12": 8364.91},
+  {"id": "cus_MJhOZl7KXezDBK", "client": "2807", "name": "T&T Powerwash", "industry": "Window & Exterior Cleaning", "group": "Cleaning", "band": "<$500", "batch": "Batch 1", "age": 4.2, "replying": 26, "price": 200.0, "spend": 212.0, "arm": "+60%", "dTest": 120.0, "d": 40.0, "pct": 20.0, "newPrice": 240.0, "cap": "20% cleaning cap", "base": 0.12, "fc": 0.199, "flags": null, "credit": false, "paid": [212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0, 212.0], "paid12": 2544.0},
+  {"id": "cus_LQL9R1wfZ0ZpUH", "client": "2493", "name": "Steam Smart Pro", "industry": "Carpet & Upholstery Cleaning", "group": "Cleaning", "band": "<$500", "batch": "Batch 1", "age": 4.6, "replying": 286, "price": 200.0, "spend": 462.73, "arm": "+20%", "dTest": 40.0, "d": 40.0, "pct": 20.0, "newPrice": 240.0, "cap": "none", "base": 0.06, "fc": 0.104, "flags": "pays $463/mo vs $212 subscription (usage/overage)", "credit": true, "paid": [612.0, 412.0, 629.4, 629.4, 429.4, 429.4, 429.4, 329.4, 429.4, 429.4, 429.4, 329.4], "paid12": 5518.0},
+  {"id": "cus_MOKewbgk94ozyh", "client": "2864", "name": "Allen Rapid Dry", "industry": "Carpet & Upholstery Cleaning", "group": "Cleaning", "band": "<$500", "batch": "Batch 1", "age": 4.2, "replying": 33, "price": 200.0, "spend": 212.0, "arm": "+30%", "dTest": 60.0, "d": 40.0, "pct": 20.0, "newPrice": 240.0, "cap": "20% cleaning cap", "base": 0.217, "fc": 0.336, "flags": "Stripe subscription $200 vs fee+add-ons $212: confirm line items", "credit": false, "paid": [200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0], "paid12": 2400.0},
+  {"id": "cus_OvcIdgXcisyhUI", "client": "3812", "name": "Interior Care Carpet Cleaning Inc", "industry": "Carpet & Upholstery Cleaning", "group": "Cleaning", "band": "$500-799", "batch": "Batch 2", "age": 3.0, "replying": 24, "price": 500.0, "spend": 545.33, "arm": "+60%", "dTest": 300.0, "d": 100.0, "pct": 20.0, "newPrice": 600.0, "cap": "20% cleaning cap", "base": 0.113, "fc": 0.189, "flags": "borderline engagement (<25 replying/mo)", "credit": true, "paid": [612.0, 612.0, 512.0, 512.0, 512.0, 712.0, 512.0, 512.0, 512.0, 512.0, 512.0, 612.0], "paid12": 6644.0},
+  {"id": "cus_Pk71NwppRvtm5b", "client": "4147", "name": "Gladiator Pro Wash", "industry": "Window & Exterior Cleaning", "group": "Cleaning", "band": "$500-799", "batch": "Batch 2", "age": 2.7, "replying": 685, "price": 350.0, "spend": 750.0, "arm": "+30%", "dTest": 105.0, "d": 70.0, "pct": 20.0, "newPrice": 420.0, "cap": "20% cleaning cap", "base": 0.07, "fc": 0.121, "flags": "pays $750/mo vs $350 subscription (usage/overage)", "credit": true, "paid": [550.0, 350.0, 450.0, 350.0, 0.0, 400.0, 200.0, 0.0, 0.0, 550.0, 750.0, 650.0], "paid12": 4250.0},
+  {"id": "cus_PQQiZQeSfq0kGE", "client": "3977", "name": "Marshall Cleaning Service", "industry": "Carpet & Upholstery Cleaning", "group": "Cleaning", "band": "$500-799", "batch": "Batch 2", "age": 2.8, "replying": 141, "price": 650.0, "spend": 722.13, "arm": "+20%", "dTest": 130.0, "d": 130.0, "pct": 20.0, "newPrice": 780.0, "cap": "none", "base": 0.113, "fc": 0.189, "flags": "1 failed charge(s) in 3 mo", "credit": false, "paid": [662.0, 662.0, 662.0, 662.0, 662.0, 722.13, 722.13, 722.13, 722.13, 722.13, 722.13, 722.13], "paid12": 8364.91},
 ];
 
 // Twelve months of the list's revenue under a scenario. Normal churn runs
