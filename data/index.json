@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-16T16:38:59",
+  "pushed_at": "2026-11-16T17:43:34",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -59,7 +59,7 @@
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 1025
+      "rows": 1026
     },
     {
       "tab": "Webinars",
@@ -84,7 +84,7 @@
   ],
   "missing_required": [],
   "failed": [],
-  "pull_version": "hs-v106",
+  "pull_version": "hs-v107",
   "row_format": "arrays",
   "pipeline_version": "v193",
   "push_version": "gh-v16"
