@@ -21,7 +21,7 @@ import {
   costCalculator, COST_LAYERS, LOGO_TYPES, CALC_PRESETS,
   campaign, CHURN_PRESETS, PRICING_PRESETS, ruleSpread,
   bandEconomics, bandCampaign, ENGAGEMENT, roundTwo, PRICE_GROUPS, TRUST_PRESETS,
-  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, projectPilot, modelPProject, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, PRICE_TEST_P1, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
+  optimalAsks, tradeoffCurve, portfolioCurve, projectScenario, TYPICAL, USAGE_LEVELS, typicalAccount, ROUND_ONE, groupMedianPrices, groupMedianUsage, underMoveCurve, roundTwoRange, curveRange, projectRange, riskShiftFor, ROUND_ONE_UNCERTAINTY, roundOneAsk, sweepPool, sweepLines, SWEEP_UNKNOWN, upgradePlan, projectPilot, modelPProject, PLAN, PLAN_GROUPS, DLC_PLAN, CREDIT_PLAN, JAN1_PROPOSAL, CREDIT_TIER_LIST, CREDIT_SHEET_URL, DLC_CANCEL_LIST, DLC_SHEET_URL, PRICE_TEST_P1, PLAN_CHECKLISTS, KNOWN_EVENTS, pastDueNow, revenueCheck,
   cohortRevenueRetention, revenueRetentionAtAges, windowRetentionCurve,
   leverProjection, CHURN_MODES, PROSPECT_MODES, SCENARIO_CARDS, costForecast, COST_BASES,
   silentLogos, logosStarted, eventSpendingCsv,
@@ -7804,8 +7804,25 @@ function renderDlcPlan() {
     + `${P.october.unpaidLines} lines (${fmt.money(P.october.unpaid)}) went unpaid, about ${P.october.notInvoiced} campaigns were not `
     + `invoiced, and ${P.october.freeCampaigns} campaigns were charged nothing (${fmt.money(P.october.givenAway)} given away in discounts).</p>`
 
-    + `<p class="note">The timeline and who signed off are in the checklist at the top. From the "10DLC and Credit Price Increase Proposal (Nov 2026)" sheet in Drive, read ${P.asOf}: TCR invoices and `
-    + 'Stripe (S1 and S2), October 2025 to September 2026, and the TCR campaign export of 3 November 2026. The per-campaign lists '
+    + (() => {
+      const today = new Date().toISOString().slice(0, 10);
+      const days = d => Math.round((Date.parse(d) - Date.parse(today)) / 86400000);
+      const L = [...DLC_CANCEL_LIST].sort((p, q) => p.termEnds.localeCompare(q.termEnds));
+      const soon = L.filter(c => days(c.termEnds) <= 30).length;
+      return `<h3 class="sub-head">The ${L.length} unused campaigns to cancel with TCR</h3>`
+        + `<p>Each one has no active subscription and sent no texts in the 30 days before the 3 November export. TCR bills $10 a campaign `
+        + `a month in 3-month terms, so cancelling stops the cost only when the current term ends: <strong>${soon} terms end within `
+        + `30 days</strong>. None has been submitted yet. Zeus and Alicia sent All Pro Plumbing and Air's 2 campaigns to Kevin's billing `
+        + 'list instead (its S1 subscription carries the 10DLC line).</p>'
+        + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>TCR term ends</th>'
+        + '<th class="n">Days left</th><th>Campaign</th><th>Client</th><th>Platform</th><th>Why</th><th>Review</th></tr></thead><tbody>'
+        + L.map((c, i) => `<tr><td>${i + 1}</td><td>${c.termEnds}</td><td class="n">${days(c.termEnds) <= 30 ? `<strong>${days(c.termEnds)}</strong>` : days(c.termEnds)}</td>`
+          + `<td class="mono">${c.campaign}</td><td>${c.name} <span class="muted">#${c.client}</span></td><td>${c.platform}</td>`
+          + `<td class="muted">${c.why}</td><td>${c.status}</td></tr>`).join('')
+        + '</tbody></table></div>';
+    })()
+    + `<p class="note">The timeline and who signed off are in the checklist at the top. From the <a href="${DLC_SHEET_URL}" target="_blank" rel="noopener">"10DLC and Credit Price Increase Proposal (Nov 2026)" sheet in Drive</a>, read ${P.asOf}: TCR invoices and `
+    + 'Stripe (S1 and S2), October 2025 to September 2026, and the TCR campaign export of 3 November 2026. The full per-campaign list (all 1,015) '
     + 'and the review stay in the sheet.</p>';
 }
 
@@ -7869,8 +7886,30 @@ function renderCreditPlan() {
     + 'special pricing, so Taylor Roberts and Kevin sign off and set each customer\'s price, and customers are told by an in-Chiirp '
     + 'message, and so is 10DLC\'s $15. No notice has gone out for either yet. From then on credits are $2 per 100, double the '
     + `legacy $1 per 100, except the 50 biggest buyers ($1.25 and $1.50 per 100). Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
-    + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database. The tier list by company `
-    + 'stays in the sheet.</p>';
+    + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database.</p>`
+    + (() => {
+      const tierOf = r => r[0] <= 25 ? 'Top 25' : r[0] <= 50 ? 'Ranks 26–50' : 'Everyone else';
+      const price = r => r[4] ? `$${r[4].toFixed(2)} (held)` : r[0] <= 25 ? '$1.25' : r[0] <= 50 ? '$1.50' : '$2.00';
+      const sumOf = (rows, k) => rows.reduce((t, r) => t + r[k], 0);
+      const paying = CREDIT_TIER_LIST.filter(r => !r[4]);
+      const companies = paying.reduce((t, r) => t + (/^Chiirp AI/.test(r[1]) ? 10 : 1), 0);
+      return '<h3 class="sub-head">Who is in each tier</h3>'
+        + `<p>Every credit-buying company, ranked by net credit spend (Aug–Oct 2026 average), sub-accounts on one card grouped. `
+        + `${fmt.int(companies)} companies pay more, about ${fmt.money(sumOf(paying, 5) / companies)} a month each on average; `
+        + `${CREDIT_TIER_LIST.length - paying.length} on newer pricing are held at their current price.</p>`
+        + ['Top 25', 'Ranks 26–50', 'Everyone else'].map((t, ti) => {
+          const R = CREDIT_TIER_LIST.filter(r => tierOf(r) === t);
+          return `<details class="tier-list"><summary><strong>${t}</strong>: ${R.length} rows, ${fmt.money(C.tiers[ti].now)} a month now, `
+            + `+${fmt.money(C.tiers[ti].added)} a month</summary>`
+            + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>Rank</th><th>Company</th>'
+            + '<th class="n">Accounts</th><th class="n">Credits a month now</th><th class="n">Price per 100 from 1 Jan</th><th class="n">Added a month</th></tr></thead><tbody>'
+            + R.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="n">${r[2]}</td><td class="n">${fmt.money(r[3])}</td>`
+              + `<td class="n">${price(r)}</td><td class="n">${r[5] ? '+' + fmt.money(r[5]) : '<span class="muted">held</span>'}</td></tr>`).join('')
+            + '</tbody></table></div></details>';
+        }).join('')
+        + `<p class="note">Rows are rounded to the dollar as the sheet shows them, so they add to within a few dollars of the totals above. `
+        + `Source: the <a href="${CREDIT_SHEET_URL}" target="_blank" rel="noopener">Credit Price Increase Model</a> (Tier Assignments tab), read 16 Nov 2026.</p>`;
+    })();
 }
 
 // The 1 January proposal tab (Josh, 13 Nov 2026: "a page on the economics
@@ -7956,6 +7995,10 @@ function renderJan1Proposal() {
     + `assume no fewer credits bought; with 10% fewer the credit rise adds ${fmt.money(credit10)}. The pilot's figure is on each `
     + 'account\'s whole bill, after the customers the new model expects to leave on the notice (a leaver takes the whole bill); '
     + 'its job is to measure, not to earn.</p>'
+    + `<p class="note">Detail behind each change: 10DLC campaigns in the <a href="${DLC_SHEET_URL}" target="_blank" rel="noopener">10DLC sheet</a> `
+    + `and on the <a href="#10dlc">10DLC tab</a> (with the 76 campaigns to cancel); every company's credit tier in the `
+    + `<a href="${CREDIT_SHEET_URL}" target="_blank" rel="noopener">Credit Price Increase Model</a> and on the <a href="#credits">Credit tab</a>; `
+    + 'the pilot\'s 60 accounts in the table below.</p>'
 
     + `<h3 class="sub-head">The platform pilot, phase 1: ${T.length} accounts</h3>`
     + '<p>The final phase 1 list (13 November), built to measure what the August test could not: how leaving changes with the '
