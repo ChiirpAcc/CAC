@@ -7923,7 +7923,7 @@ function renderJan1Proposal() {
   const spark = paid => (!paid ? '<span class="muted">not in the payment file</span>' : paid.map((v, i) => `<span title="${MONTHS[i]}: ${fmt.money(v)}" class="${v === 0 ? 'tag risk' : ''}">${v === 0 ? '0' : '●'}</span>`).join(''));
   const watch = x => [x.credit ? 'buys credits: credit price held to 1 Feb' : '',
     x.paid && x.paid[10] === 0 && x.paid[11] === 0 ? 'paid nothing in Sep and Oct' : missed(x) ? `${missed(x)} month${missed(x) > 1 ? 's' : ''} with no payment` : '',
-    x.fc - x.base > 0.2 ? 'big forecast jump' : '', x.flags || ''].filter(Boolean).join('; ');
+    x.fc - x.base > 0.2 ? 'cleaner: big forecast jump' : '', x.flags || ''].filter(Boolean).join('; ');
 
   box.innerHTML = checklistHtml('jan1', 'Checklist: 1 January proposal', { dropdown: true })
     + `<p class="finding"><strong>Three changes from ${checkDay(J.effective)} add ${fmt.money(downside)} to ${fmt.money(total)} a month `
