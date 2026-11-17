@@ -3954,7 +3954,7 @@ export const PLAN_CHECKLISTS = {
   credit: [
     { id: 'cr-proposal', step: 'Send the proposal to Ryan Fenn, Taylor Roberts and Alicia Schmaling', owner: 'Josh', done: '2026-11-06' },
     { id: 'cr-shared', step: 'Shared-billing check: every group of accounts paying on one card or bank account gets one credit rate (Goettl\'s 8 and Steam Master\'s 7 at +25%; 07_FL moved into Steam Master; Goettl\'s High Desert Mechanical, on its own card, is priced on its own)', owner: 'Josh', done: '2026-11-16' },
-    { id: 'cr-tenpct', step: 'Correct the 6 Nov follow-up: $17,422 assumes no lost volume ($11,063 with 10% less)', owner: 'Josh' },
+    { id: 'cr-tenpct', step: 'Correct the 6 Nov follow-up: $17,422 assumes no lost volume ($11,063 with 10% less)', owner: 'Josh', done: '2026-11-16', note: 'In the final proposal message, 16 Nov' },
     { id: 'cr-hold', step: 'Decide: hold the 19 accounts already on newer pricing (recommended) or raise them too',
       owner: 'Taylor Roberts and Kevin', due: '2026-11-25', needsSignoff: true },
     { id: 'cr-contracts', step: 'Check signed agreements for a fixed credit price among the top-tier customers', owner: 'Taylor Roberts and Kevin',
@@ -3978,7 +3978,8 @@ export const PLAN_CHECKLISTS = {
     { id: 'j1-credit', step: 'The pilot accounts that buy credits: hold their credit price until the 1 Feb read-out, so each gets one increase at a time', owner: 'Josh', signoff: { by: 'Josh', on: '2026-11-13' }, done: '2026-11-13' },
     { id: 'j1-owners', step: 'Check with Zeus that the pilot accounts can be in the test', owner: 'Zeus Acosta', due: '2026-11-20' },
     { id: 'j1-notice', step: 'Write the pilot notice (informational, the same wording and timing for all 60)', owner: 'Josh', done: '2026-11-13' },
-    { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot', owner: 'CEO', due: '2026-11-16', needsSignoff: true },
+    // 16 Nov 2026: proposal sent 3:36 PM; Ryan: "Let's talk tomorrow", so the decision moves to the 17 Nov meeting.
+    { id: 'j1-approve', step: 'CEO sign-off on all three: 10DLC $15, the credit tiers, and the platform pilot (meeting 17 Nov)', owner: 'CEO', due: '2026-11-17', needsSignoff: true },
     { id: 'j1-contracts', step: 'Check the standard agreement allows a price change on 30 days\' notice; leave off custom contracts and price locks', owner: 'Josh', done: '2026-11-13', note: 'It does, with notice' },
     // Josh, 16 Nov 2026: "no batches. just all at once on dec 1".
     { id: 'j1-send', step: 'Send all the notices at once on 1 Dec: 10DLC and credits by in-Chiirp message, the platform pilot\'s increase by email to all 60 (2 Dec is the last day that still gives 30 days)', due: '2026-12-01' },
@@ -4031,7 +4032,7 @@ export const CREDIT_PLAN = {
 // rebuild the upgrade list with diversity"), never retyped; this holds only
 // the dates.
 export const JAN1_PROPOSAL = {
-  asOf: '2026-11-13', decideBy: '2026-11-16', noticesBy: '2026-12-01', effective: '2027-01-01',
+  asOf: '2026-11-13', decideBy: '2026-11-17', noticesBy: '2026-12-01', effective: '2027-01-01',
   // Stage 1 accounts the push carries no name for, named from Stripe (13 Nov 2026).
   names: { cus_LVcUUcvNOfPBpr: 'The Junk Medics', cus_LsOCrjmicWtR5M: 'Neighborly Plumbing & Services', cus_MJIsJFeUvnU2Fe: 'Horizon' },
   // Accounts sharing a pilot account's card, raised with it but not in the test
