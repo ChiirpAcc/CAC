@@ -8033,6 +8033,7 @@ function renderJan1Proposal() {
     + 'month-to-month accounts go up only at their 12-month point. The renewal date is HubSpot’s Renewal Pipeline date where there is one, otherwise start date plus term.</li>'
     + `<li><strong>Notices go out ${checkDay(J.noticesBy)}.</strong> That is too late for a 60-day contract renewing in January, so those go up on 1 February with Wave 2.</li>`
     + '<li><strong>Dormant accounts are left alone</strong> even when they renew (no texts sent in the 3 months to 11 Nov).</li>'
+    + '<li><strong>Migrations count once.</strong> A customer with both a Chiirp and a Chiirp AI record (Migration Key) is one account, dated from its original Chiirp start; accounts still migrating wait until the move is done.</li>'
     + '<li><strong>Rates are spread evenly at random</strong> within each cap group, trade group and price band, so the read-out gives a trend by trade.</li>'
     + '<li><strong>New prices are rounded up</strong> to the next dollar, on the whole monthly subscription.</li>'
     + '</ul>'
@@ -8047,6 +8048,7 @@ function renderJan1Proposal() {
     + `<h3 class="sub-head">Wave 2: ${A.feb.length} for February</h3>`
     + rateTable(A.feb) + tradeTable(A.feb)
     + (A.skipped.feb.length ? `<p class="note">Not billing, so skipped: ${A.skipped.feb.join(', ')}.</p>` : '')
+    + (A.migrating && A.migrating.length ? `<p class="note">Migrating to Chiirp AI, so left out until the move is done: ${A.migrating.map(m => m[0]).join(', ')}.</p>` : '')
     + `<details><summary>The ${A.feb.length} Wave 2 accounts</summary>${listTable(A.feb)}</details>`
 
     + `<h3 class="sub-head">Dormant: renews, but not touched (${A.dormant.length})</h3>`
