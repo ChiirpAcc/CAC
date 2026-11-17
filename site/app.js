@@ -7811,9 +7811,10 @@ function renderDlcPlan() {
       const soon = L.filter(c => days(c.termEnds) <= 30).length;
       return `<h3 class="sub-head">The ${L.length} unused campaigns to cancel with TCR</h3>`
         + `<p>Each one has no active subscription and sent no texts in the 30 days before the 3 November export. TCR bills $10 a campaign `
-        + `a month in 3-month terms, so cancelling stops the cost only when the current term ends: <strong>${soon} terms end within `
-        + `30 days</strong>. None has been submitted yet. Zeus and Alicia sent All Pro Plumbing and Air's 2 campaigns to Kevin's billing `
-        + 'list instead (its S1 subscription carries the 10DLC line).</p>'
+        + `a month in 3-month terms and keeps billing for up to 3 months after a campaign is cancelled, so the cost stops only when the `
+        + `current term ends: <strong>${soon} terms end within 30 days</strong>. Some of these are already cancelled in TCR and are in that `
+        + 'last billed stretch; the sheet does not record which. Zeus and Alicia sent All Pro Plumbing and Air's 2 campaigns to Kevin's '
+        + 'billing list instead (its S1 subscription carries the 10DLC line).</p>'
         + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>TCR term ends</th>'
         + '<th class="n">Days left</th><th>Campaign</th><th>Client</th><th>Platform</th><th>Why</th><th>Review</th></tr></thead><tbody>'
         + L.map((c, i) => `<tr><td>${i + 1}</td><td>${c.termEnds}</td><td class="n">${days(c.termEnds) <= 30 ? `<strong>${days(c.termEnds)}</strong>` : days(c.termEnds)}</td>`
