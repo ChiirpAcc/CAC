@@ -7725,7 +7725,7 @@ function checklistHtml(key, title, { dropdown = false } = {}) {
     + 'page; tell Josh when a step is done and it is recorded for everyone.</p>' + (dropdown ? '</details>' : '') + '</figure>';
 }
 
-// The 10DLC tab (Josh, 12 Nov 2026): the billing fix and the $12 to $15
+// The 10DLC tab (Josh, 12 Nov 2026): the billing fix and the $12 to $20 (was $15 until 17 Nov)
 // increase, from the proposal sheet (DLC_PLAN in data.js).
 function renderDlcPlan() {
   const box = $('dlc-body');
@@ -7790,23 +7790,23 @@ function renderDlcPlan() {
     + `that haircut already covers the ${P.notPaying.total} non-payers, so they are not deducted again. ${P.noRaise}</p>`
 
     + (() => {
-      const A2 = P.alt20;
-      const s15 = P.steps.find(s => /\$15/.test(s.step)).perMonth;
-      const row = (label, a, b) => `<tr><td>${label}</td><td class="n">${a}</td><td class="n"><strong>${b}</strong></td></tr>`;
-      return `<h3 class="sub-head">If the fee went to $${A2.fee} instead of $${P.feeNew}</h3>`
+      const A2 = P.alt15;
+      const step = P.steps.find(s => /^Raise \$12/.test(s.step));
+      const row = (label, a, b) => `<tr><td>${label}</td><td class="n"><strong>${a}</strong></td><td class="n">${b}</td></tr>`;
+      return `<h3 class="sub-head">$${P.feeNew} against the earlier $${A2.fee} plan</h3>`
         + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th>A month, from 1 January</th>'
         + `<th class="n">$${P.feeNew} (the plan)</th><th class="n">$${A2.fee}</th></tr></thead><tbody>`
-        + row(`Rise on the ${fmt.int(P.steps.find(s => /\$15/.test(s.step)).billable)} billed campaigns, after the ${fmt.pct(P.haircut)} haircut`, `+${fmt.money(s15)}`, `+${fmt.money(A2.raise)}`)
+        + row(`Rise on the ${fmt.int(step.billable)} billed campaigns, after the ${fmt.pct(P.haircut)} haircut`, `+${fmt.money(step.perMonth)}`, `+${fmt.money(A2.raise)}`)
         + row('The whole 10DLC plan (with billing the unbilled and cancelling unused campaigns)', `+${fmt.money(P.totalPerMonth)}`, `+${fmt.money(A2.total)}`)
-        + row('Collected, all fees', fmt.money(A2.collected15), fmt.money(A2.collected))
-        + row(`Share of TCR's cost covered (cost ${fmt.money(A2.cost)} a month after the cancellations)`, x(A2.collected15 / A2.cost), x(A2.collected / A2.cost))
-        + row('Monthly fees only, after TCR sales tax', x(A2.monthly15 / A2.cost / (1 + P.salesTax)), x(A2.monthly / A2.cost / (1 + P.salesTax)))
-        + row('Left over after TCR, before / after its sales tax', `+${fmt.money(A2.collected15 - A2.cost)} / +${fmt.money(A2.collected15 - A2.cost * (1 + P.salesTax))}`,
+        + row('Collected, all fees', fmt.money(A2.planCollected), fmt.money(A2.collected))
+        + row(`Share of TCR's cost covered (cost ${fmt.money(A2.cost)} a month after the cancellations)`, x(A2.planCollected / A2.cost), x(A2.collected / A2.cost))
+        + row('Monthly fees only, after TCR sales tax', x(A2.planMonthly / A2.cost / (1 + P.salesTax)), x(A2.monthly / A2.cost / (1 + P.salesTax)))
+        + row('Left over after TCR, before / after its sales tax', `+${fmt.money(A2.planCollected - A2.cost)} / +${fmt.money(A2.planCollected - A2.cost * (1 + P.salesTax))}`,
           `+${fmt.money(A2.collected - A2.cost)} / +${fmt.money(A2.collected - A2.cost * (1 + P.salesTax))}`)
-        + row('A year, the rise alone', `+${fmt.money(s15 * 12)}`, `+${fmt.money(A2.raise * 12)}`)
+        + row('A year, the rise alone', `+${fmt.money(step.perMonth * 12)}`, `+${fmt.money(A2.raise * 12)}`)
         + '</tbody></table></div>'
-        + `<p class="note">Josh asked for these figures on 17 November; the plan is still $${P.feeNew}. $${P.feeNow} to $${A2.fee} is a ${Math.round((A2.fee / P.feeNow - 1) * 100)}% rise, so the `
-        + `${fmt.pct(P.haircut)} haircut is less safe than at $${P.feeNew}. Against $${P.feeNew}, $${A2.fee} still brings in more unless over ${fmt.pct(A2.breakEvenLoss)} of billed campaigns drop.</p>`;
+        + `<p class="note">The plan moved from $${A2.fee} to $${P.feeNew} on 17 November (Josh). $${P.feeNow} to $${P.feeNew} is a ${Math.round((P.feeNew / P.feeNow - 1) * 100)}% rise, so the `
+        + `${fmt.pct(P.haircut)} haircut is less safe than it was at $${A2.fee}. Against $${A2.fee}, $${P.feeNew} still brings in more unless over ${fmt.pct(A2.breakEvenLoss)} of billed campaigns drop.</p>`;
     })()
     + '<h3 class="sub-head">How much of TCR\'s cost the fees cover</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table"><thead><tr><th></th><th class="n">All fees</th>'
@@ -7902,9 +7902,9 @@ function renderCreditPlan() {
 
     + '<h3 class="sub-head">Still open</h3>'
     + '<ol class="plan-rules">' + C.open.map(o => `<li>${o}</li>`).join('') + '</ol>'
-    + '<p class="note">Timing: the new credit prices start 1 January 2027, the same day as $15 10DLC across the board. They are '
+    + '<p class="note">Timing: the new credit prices start 1 January 2027, the same day as $' + DLC_PLAN.feeNew + ' 10DLC across the board. They are '
     + 'special pricing, so Taylor Roberts and Kevin sign off and set each customer\'s price, and customers are told by an in-Chiirp '
-    + 'message, and so is 10DLC\'s $15. No notice has gone out for either yet. From then on credits are $2 per 100, double the '
+    + 'message, and so is 10DLC\'s $' + DLC_PLAN.feeNew + '. No notice has gone out for either yet. From then on credits are $2 per 100, double the '
     + `legacy $1 per 100, except the 50 biggest buyers ($1.25 and $1.50 per 100). Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
     + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database.</p>`
     + (() => {
@@ -7944,9 +7944,9 @@ function renderJan1Proposal() {
   const A = ANNIV_PLAN;
   const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
   const rp = r => `+${(r * 100).toFixed(r < 0.1 ? 1 : 0)}%`;
-  const dlcStep = DLC_PLAN.steps.find(s => /\$15/.test(s.step));
+  const dlcStep = DLC_PLAN.steps.find(s => /^Raise \$12/.test(s.step));
   const dlc = dlcStep.perMonth;
-  const D20 = DLC_PLAN.alt20;
+  const D15 = DLC_PLAN.alt15;
   const credit = CREDIT_PLAN.total.added;
   const credit10 = CREDIT_PLAN.stress.find(s => s.lost === 0.10).added;
   // Row fields (see ANNIV_PLAN in data.js).
@@ -7997,15 +7997,15 @@ function renderJan1Proposal() {
     + `<p class="finding"><strong>Three changes from ${checkDay(J.effective)} add ${fmt.money(downside)} to ${fmt.money(total)} a month `
     + `(${fmt.money(downside * 12)} to ${fmt.money(total * 12)} a year): 10DLC from $${DLC_PLAN.feeNow} to $${DLC_PLAN.feeNew}, the tiered credit rise, `
     + `and a price increase at every account’s anniversary, starting with the ${A.jan.length} accounts whose anniversary falls in January.</strong> `
-    + `February’s ${A.feb.length} add ${sm(w2)} more, and every later anniversary adds to it. At $${D20.fee} for 10DLC instead of $${DLC_PLAN.feeNew}, add `
-    + `${fmt.money(D20.raise - dlc)} a month. The lower figure is if customers buy 10% fewer credits. Every notice goes out at once on ${checkDay(J.noticesBy)}.</p>`
+    + `February’s ${A.feb.length} add ${sm(w2)} more, and every later anniversary adds to it. 10DLC at $${DLC_PLAN.feeNew} adds `
+    + `${fmt.money(dlc - D15.raise)} a month more than the earlier $${D15.fee} plan. The lower figure is if customers buy 10% fewer credits. Every notice goes out at once on ${checkDay(J.noticesBy)}.</p>`
 
     + '<h3 class="sub-head">The ask</h3>'
     + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>Change</th><th>Who it reaches</th>'
     + '<th class="n">Added a month</th></tr></thead><tbody>'
     + `<tr><td>1</td><td>10DLC: $${DLC_PLAN.feeNow} → $${DLC_PLAN.feeNew} per campaign a month (<a href="#10dlc">10DLC tab</a>)</td>`
     + `<td>Every billed campaign, ${fmt.int(dlcStep.billable)}. ${DLC_PLAN.noRaise}</td><td class="n">+${fmt.money(dlc)}`
-    + `<br><span class="muted ci">+${fmt.money(D20.raise)} at $${D20.fee}</span></td></tr>`
+    + `<br><span class="muted ci">+${fmt.money(D15.raise)} at $${D15.fee}</span></td></tr>`
     + `<tr><td>2</td><td>Credits: $1 → $2 per 100 for almost everyone; $1.25 for the top 25 buyers and $1.50 for ranks 26 to 50 `
     + `(<a href="#credits">Credit increase tab</a>)</td><td>The ${fmt.int(CREDIT_PLAN.total.companies)} companies buying now; the `
     + `${CREDIT_PLAN.held.accounts} on newer pricing stay put.</td><td class="n">+${fmt.money(credit)}<br><span class="muted ci">+${fmt.money(credit10)} with 10% fewer credits</span></td></tr>`

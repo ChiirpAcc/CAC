@@ -3829,7 +3829,7 @@ export function upgradePlan(data, { engagement = null, lowBand = 800, stage2Size
 // and tier figures only: the sheets hold the per-account detail.
 export const DLC_PLAN = {
   asOf: '2026-11-12',
-  feeNow: 12, feeNew: 15, newFrom: '2027-01-01', tcrMonthly: 10, tcrBrand: 4.5,
+  feeNow: 12, feeNew: 20, newFrom: '2027-01-01', tcrMonthly: 10, tcrBrand: 4.5,
   year: { paidTcr: 142301.50, collected: 106873.84, monthly: 94538.84, oneTime: 12335 },
   perMonth: { tcr: 11858, collectedAll: 8906, collectedMonthly: 7878 },
   coverage: [
@@ -3839,7 +3839,9 @@ export const DLC_PLAN = {
     // haircut) over TCR's cost less the 76 cancelled campaigns. Goettl's 2 added
     // at $15 (16 Nov) is +$5 a month and leaves both at 1.29 / 1.20.
     { when: 'After billing the unbilled campaigns and cancelling unused ones', all: 1.07, monthly: 0.98 },
-    { when: 'After $15 from 1 Jan 2027', all: 1.29, monthly: 1.20 },
+    // Josh, 17 Nov 2026: "make $20 the plan". At $20: $18,306 collected ($17,323 monthly fees) over
+    // TCR's $11,098 after the 76 cancellations = 1.65 / 1.56.
+    { when: 'After $20 from 1 Jan 2027', all: 1.65, monthly: 1.56 },
   ],
   salesTax: 0.07, // TCR adds sales tax from 1 Jan 2027 (opted in); 7% is an assumption.
   haircut: 0.10,
@@ -3854,16 +3856,18 @@ export const DLC_PLAN = {
     { step: 'Cancel unused campaigns with TCR (cost saved)', campaigns: 76, billable: 76, perMonth: 760, owner: 'To assign',
       status: '24 by early Dec, 52 by early Feb' },
     // 613 billed before 12 Nov + 277 billed from 12 Nov = 890, Goettl's 2 included
-    // (Josh, 16 Nov 2026: Goettl goes to $15 too). 890 x $3 x 0.9 = $2,403.
-    { step: 'Raise $12 to $15 on every billed campaign from 1 Jan', campaigns: 890, billable: 890, perMonth: 2403, owner: 'Leadership',
+    // (Josh, 16 Nov 2026: Goettl goes up too). 890 x $8 x 0.9 = $6,408 at $20 (Josh, 17 Nov 2026: "make $20
+    // the plan"; it was 890 x $3 x 0.9 = $2,403 at $15).
+    { step: 'Raise $12 to $20 on every billed campaign from 1 Jan', campaigns: 890, billable: 890, perMonth: 6408, owner: 'Leadership',
       status: 'From 1 Jan; needs sign-off' },
   ],
-  totalPerMonth: 6155,
-  // Josh, 17 Nov 2026: "if 10 dlc went from 12 to 20 give me those numbers". Same 890 billed campaigns and
-  // 10% haircut: 890 x $8 x 0.9 = $6,408 (vs $2,403 at $15). Collected from 1 Jan rises by 890 x $5 x 0.9 =
-  // $4,005 over the $15 plan's $14,301 (all fees; $13,318 monthly fees) against TCR's $11,098 after the 76
-  // cancellations, before its sales tax. Not decided: the plan stays at $15 unless changed.
-  alt20: { fee: 20, raise: 6408, total: 10160, collected15: 14301, collected: 18306, monthly15: 13318, monthly: 17323, cost: 11098,
+  totalPerMonth: 10160, // 6,155 at $15, + $4,005 for $20
+  // $20 against the earlier $15 plan (Josh, 17 Nov 2026: "if 10 dlc went from 12 to 20 give me those numbers",
+  // then "make $20 the plan"). Same 890 billed campaigns and 10% haircut: $6,408 at $20 vs $2,403 at $15.
+  // Collected from 1 Jan, all fees: $18,306 at $20, $14,301 at $15 ($17,323 / $13,318 monthly fees), against
+  // TCR's $11,098 after the 76 cancellations, before its sales tax. $20 beats $15 unless over 25% of billed
+  // campaigns drop.
+  alt15: { fee: 15, raise: 2403, total: 6155, collected: 14301, monthly: 13318, planCollected: 18306, planMonthly: 17323, cost: 11098,
     breakEvenLoss: 0.25 },
   buckets: { total: 1015, billed: 613, unbilled: 290, cancel: 76, review: 36 },
   notPaying: { total: 54, chase: 11, collectOrCut: 7, trialing: 3, cancelCandidates: 33 },
@@ -3877,13 +3881,13 @@ export const DLC_PLAN = {
   billing: { on: '2026-11-12', campaigns: 277, customers: 274, perMonth: 277 * 12, by: '2026-12-12',
     signedOff: { by: 'Taylor Roberts', on: '2026-11-12' }, reviewed: { by: 'Zeus Acosta and Alicia Schmaling', on: '2026-11-11' } },
   stillTexting: { campaigns: 31, ifBilled: 335 },
-  noRaise: 'Goettl (7 accounts sharing 2 TCR campaigns) goes to $15 with everyone else (decided 16 Nov 2026).',
+  noRaise: 'Goettl (7 accounts sharing 2 TCR campaigns) goes to $20 with everyone else (decided 16 Nov 2026).',
   timeline: [
     ['Wed 11 Nov 2026', 'Zeus and Alicia finish the campaign review (due date; see progress above)'],
     ['After their approval', 'Kevin starts billing the unbilled campaigns: the handoff list has 277 campaigns for 274 clients'],
-    ['By 1 Dec 2026', 'Tell customers by in-Chiirp message that 10DLC goes from $12 to $15 a month on 1 January'],
+    ['By 1 Dec 2026', 'Tell customers by in-Chiirp message that 10DLC goes from $12 to $20 a month on 1 January'],
     ['Early Dec 2026', 'Cancel with TCR the 24 unused campaigns whose terms end within 30 days'],
-    ['Fri 1 Jan 2027', '$15 a month starts on every billed campaign; TCR starts adding sales tax'],
+    ['Fri 1 Jan 2027', '$20 a month starts on every billed campaign; TCR starts adding sales tax'],
     ['Early Feb 2027', 'The other 52 unused campaigns are out of their TCR terms; all 76 saved'],
   ],
 };
@@ -3933,7 +3937,7 @@ export const PLAN_CHECKLISTS = {
     { id: 'plan-readout2', step: 'Stage 2 read-out', due: '2027-03-26' },
   ],
   dlc: [
-    { id: 'dlc-goettl', step: 'Goettl (7 accounts sharing 2 campaigns): kept out of the 12 Nov billing step; goes to $15 on 1 January with everyone else (decided 16 Nov)', owner: 'Josh', done: '2026-11-16' },
+    { id: 'dlc-goettl', step: 'Goettl (7 accounts sharing 2 campaigns): kept out of the 12 Nov billing step; goes to $20 on 1 January with everyone else (decided 16 Nov)', owner: 'Josh', done: '2026-11-16' },
     { id: 'dlc-review', step: 'Review every campaign and set the exclusions', owner: 'Zeus Acosta and Alicia Schmaling',
       signoff: { by: 'Zeus Acosta and Alicia Schmaling', on: '2026-11-11' }, done: '2026-11-11' },
     { id: 'dlc-list', step: "List the campaigns that should pay $12 but don't: 277 campaigns, 274 customers (live subscription, paid before, Zeus's exclusions applied)",
@@ -3942,19 +3946,19 @@ export const PLAN_CHECKLISTS = {
     { id: 'dlc-bulk', step: 'Add the $12 10DLC line to all 274 Stripe subscriptions (no part-month charge; each starts at its next renewal)',
       owner: 'Josh', signoff: { by: 'Taylor Roberts', on: '2026-11-12' }, done: '2026-11-12', note: 'First charge invoiced the same day' },
     { id: 'dlc-renewals', step: 'Every one of the 274 renewed with the $12 line; follow up failed payments', due: '2026-12-12' },
-    { id: 'dlc-email', step: 'In-Chiirp message to customers that 10DLC goes from $12 to $15 a month on 1 January (not sent yet; 30 days\' notice, 2 Dec at the latest)',
+    { id: 'dlc-email', step: 'In-Chiirp message to customers that 10DLC goes from $12 to $20 a month on 1 January (not sent yet; 30 days\' notice, 2 Dec at the latest)',
       due: '2026-12-01' },
     { id: 'dlc-kevin', step: "Kevin's list: 4 campaigns not billed that should be", owner: 'Kevin' },
     { id: 'dlc-stop', step: 'Stop billing the 1 Stripe 10DLC line with no campaign', owner: 'Kevin' },
     { id: 'dlc-texting', step: 'Decide on the 31 campaigns still texting with no live subscription: bill or cut off', owner: 'Account managers' },
     { id: 'dlc-nonpay', step: 'Chase the 11 non-paying balances; collect or cut off the other 7', owner: 'Account managers' },
     { id: 'dlc-cancel1', step: 'Cancel with TCR the 24 unused campaigns whose terms end within 30 days (some are already cancelled: TCR bills for up to 3 months after a cancellation)', due: '2026-12-01' },
-    { id: 'dlc-approve15', step: 'Sign-off on $15 from 1 January', owner: 'Taylor Roberts', due: '2026-11-25', needsSignoff: true },
-    { id: 'dlc-raise', step: 'Move every billed campaign to $15 in Stripe from 1 January (890, including Goettl\'s 2)',
+    { id: 'dlc-approve15', step: 'Sign-off on $20 from 1 January', owner: 'Taylor Roberts', due: '2026-11-25', needsSignoff: true },
+    { id: 'dlc-raise', step: 'Move every billed campaign to $20 in Stripe from 1 January (890, including Goettl\'s 2)',
       owner: 'Product (Kevin and Taylor)', due: '2026-12-31' },
-    { id: 'dlc-new15', step: 'Make every new Stripe subscription created from 1 January use the $15 10DLC price', owner: 'Product (Kevin and Taylor)',
+    { id: 'dlc-new15', step: 'Make every new Stripe subscription created from 1 January use the $20 10DLC price', owner: 'Product (Kevin and Taylor)',
       due: '2027-01-01' },
-    { id: 'dlc-start15', step: '$15 starts; TCR starts adding sales tax', due: '2027-01-01' },
+    { id: 'dlc-start15', step: '$20 starts; TCR starts adding sales tax', due: '2027-01-01' },
     { id: 'dlc-cancel2', step: 'Cancel the other 52 unused campaigns as their terms end', due: '2027-02-01' },
   ],
   credit: [
@@ -4029,7 +4033,7 @@ export const CREDIT_PLAN = {
   ],
 };
 
-// The 1 January 2027 proposal for the CEO (Josh, 13 Nov 2026): 10DLC to $15
+// The 1 January 2027 proposal for the CEO (Josh, 13 Nov 2026): 10DLC to $20 (was $15 until 17 Nov)
 // and the credit tiers on 1 Jan, plus a platform pilot instead of a platform
 // rise for everyone. Every figure on the tab is read from DLC_PLAN,
 // CREDIT_PLAN and upgradePlan's stage 1 (the pilot: "use the upgrade plan and
