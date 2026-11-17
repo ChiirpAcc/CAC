@@ -8033,6 +8033,7 @@ function renderJan1Proposal() {
     + 'month-to-month accounts go up only at their 12-month point. The renewal date is HubSpot’s Renewal Pipeline date where there is one, otherwise start date plus term.</li>'
     + `<li><strong>Notices go out ${checkDay(J.noticesBy)}.</strong> That is too late for a 60-day contract renewing in January, so those go up on 1 February with Wave 2.</li>`
     + '<li><strong>Dormant accounts are left alone</strong> even when they renew (no texts sent in the 3 months to 11 Nov).</li>'
+    + '<li><strong>HSMH referrals are never upgraded.</strong> Accounts referred by Home Service Marketing Hub (Nancy O’Hare-Zika) are on partner pricing; they are left out of every wave and of the 2027 totals.</li>'
     + '<li><strong>Migrations count once.</strong> A customer with both a Chiirp and a Chiirp AI record (Migration Key) is one account, dated from its original Chiirp start; accounts still migrating wait until the move is done.</li>'
     + '<li><strong>Rates are spread evenly at random</strong> within each cap group, trade group and price band, so the read-out gives a trend by trade.</li>'
     + '<li><strong>New prices are rounded up</strong> to the next dollar, on the whole monthly subscription.</li>'
@@ -8059,6 +8060,14 @@ function renderJan1Proposal() {
       + `<td>${CT[d[5]]}</td><td class="n">${fmt.money(d[6])}</td><td>${d[7]}</td></tr>`).join('')
     + '</tbody></table></div>'
 
+    + (A.hsmh && A.hsmh.length ? `<h3 class="sub-head">HSMH referrals: never upgraded (${A.hsmh.length})</h3>`
+      + '<p>Referred by Home Service Marketing Hub (Nancy O’Hare-Zika). Their price is not raised at any anniversary.</p>'
+      + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>Company</th><th>Stripe ID</th><th>Would have been in</th>'
+      + '<th>2027 anniversary</th><th>Contract</th><th class="n">MRR</th></tr></thead><tbody>'
+      + A.hsmh.map((d, i) => `<tr><td>${i + 1}</td><td>${d[0]}</td><td class="mono">${d[1]}</td><td>${d[2] === 'Jan' ? 'Wave 1' : d[2] === 'Feb' ? 'Wave 2' : '—'}</td>`
+        + `<td>${d[3] || 'After 2027'}</td><td>${CT[d[4]]}</td><td class="n">${fmt.money(d[5])}</td></tr>`).join('')
+      + '</tbody></table></div>' : '')
+
     + '<h3 class="sub-head">The year ahead: every anniversary in 2027</h3>'
     + '<p>If each account goes up at its first 2027 anniversary and all stay. Waves 1 and 2 use their test rates; after February the rates are set by the '
     + 'read-out, so the three columns show every account at the low, middle or high rate of its cap group.</p>'
@@ -8078,10 +8087,10 @@ function renderJan1Proposal() {
     + '<li><strong>Set each Stripe schedule the day the notice goes out.</strong> In August only 2 of 21 stayers were ever billed the new price, '
     + 'so first-bill churn is still unknown.</li>'
     + '<li><strong>Same notice wording for all;</strong> if an account negotiates, log it in the sheet.</li>'
-    + '<li><strong>Partners and affiliates:</strong> Ryan P and Justin are checking which referral terms block an increase; those accounts come off the lists.</li>'
+    + '<li><strong>Partners and affiliates:</strong> Ryan P and Justin are checking which referral terms block an increase; those accounts come off the lists. HSMH referrals are already off.</li>'
     + '</ul>'
     + `<p class="note">Every list, with HubSpot and Stripe links, Who / churn likelihood / verdict columns and the dormant accounts, is in the `
-    + `<a href="${ANNIV_SHEET_URL}" target="_blank" rel="noopener">Price Increase Test sheet</a> (Accounts, Dormant, Wave 1, Wave 2, 2027 schedule tabs). `
+    + `<a href="${ANNIV_SHEET_URL}" target="_blank" rel="noopener">Price Increase Test sheet</a> (Accounts, Dormant, HSMH, Wave 1, Wave 2, 2027 schedule tabs). `
     + `Detail behind the other changes: the <a href="#10dlc">10DLC tab</a> and <a href="#credits">Credit tab</a>. Prepared ${checkDay(A.asOf)}.</p>`;
 }
 const JAN1_UI = { view: 'logos' };
