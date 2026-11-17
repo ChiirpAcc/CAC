@@ -7813,7 +7813,7 @@ function renderDlcPlan() {
         + `<p>Each one has no active subscription and sent no texts in the 30 days before the 3 November export. TCR bills $10 a campaign `
         + `a month in 3-month terms and keeps billing for up to 3 months after a campaign is cancelled, so the cost stops only when the `
         + `current term ends: <strong>${soon} terms end within 30 days</strong>. Some of these are already cancelled in TCR and are in that `
-        + 'last billed stretch; the sheet does not record which. Zeus and Alicia sent All Pro Plumbing and Air's 2 campaigns to Kevin's '
+        + 'last billed stretch; the sheet does not record which. Zeus and Alicia sent All Pro Plumbing and Air’s 2 campaigns to Kevin’s '
         + 'billing list instead (its S1 subscription carries the 10DLC line).</p>'
         + '<div class="table-scroll"><table class="data-table plan-table num-first"><thead><tr><th>#</th><th>TCR term ends</th>'
         + '<th class="n">Days left</th><th>Campaign</th><th>Client</th><th>Platform</th><th>Why</th><th>Review</th></tr></thead><tbody>'
