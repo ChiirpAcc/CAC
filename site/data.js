@@ -3859,7 +3859,7 @@ export const DLC_PLAN = {
     // (Josh, 16 Nov 2026: Goettl goes up too). 890 x $8 x 0.9 = $6,408 at $20 (Josh, 17 Nov 2026: "make $20
     // the plan"; it was 890 x $3 x 0.9 = $2,403 at $15).
     { step: 'Raise $12 to $20 on every billed campaign from 1 Jan', campaigns: 890, billable: 890, perMonth: 6408, owner: 'Leadership',
-      status: 'From 1 Jan; needs sign-off' },
+      status: 'From 1 Jan; signed off by Ryan Fenn 17 Nov' },
   ],
   totalPerMonth: 10160, // 6,155 at $15, + $4,005 for $20
   // $20 against the earlier $15 plan (Josh, 17 Nov 2026: "if 10 dlc went from 12 to 20 give me those numbers",
@@ -3953,7 +3953,8 @@ export const PLAN_CHECKLISTS = {
     { id: 'dlc-texting', step: 'Decide on the 31 campaigns still texting with no live subscription: bill or cut off', owner: 'Account managers' },
     { id: 'dlc-nonpay', step: 'Chase the 11 non-paying balances; collect or cut off the other 7', owner: 'Account managers' },
     { id: 'dlc-cancel1', step: 'Cancel with TCR the 24 unused campaigns whose terms end within 30 days (some are already cancelled: TCR bills for up to 3 months after a cancellation)', due: '2026-12-01' },
-    { id: 'dlc-approve15', step: 'Sign-off on $20 from 1 January', owner: 'Taylor Roberts', due: '2026-11-25', needsSignoff: true },
+    // Josh, 17 Nov 2026: "ryan fenn signed off today".
+    { id: 'dlc-approve15', step: 'Sign-off on $20 from 1 January', owner: 'Ryan Fenn', signoff: { by: 'Ryan Fenn', on: '2026-11-17' }, done: '2026-11-17' },
     { id: 'dlc-raise', step: 'Move every billed campaign to $20 in Stripe from 1 January (890, including Goettl\'s 2)',
       owner: 'Product (Kevin and Taylor)', due: '2026-12-31' },
     { id: 'dlc-new15', step: 'Make every new Stripe subscription created from 1 January use the $20 10DLC price', owner: 'Product (Kevin and Taylor)',
