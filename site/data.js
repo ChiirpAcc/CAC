@@ -4011,21 +4011,22 @@ export const PLAN_CHECKLISTS = {
 // 4 companies (Five Star, Steam Master, Goettl, CaterSquad) now erases it.
 // HSMH referrals (Josh, 17 Nov 2026: "exclude upgrading those"): Moss Mechanical ($166.67 a month of credits),
 // Torq Electricians ($33.33) and McCullough Solutions on Chiirp AI ($221.67) stay at $1 per 100: $421.67 of
-// +100% spend not raised. 51 and up: 104 companies, +$7,451; total +$17,000 (was +$17,422). Stress, break-even,
-// flat +50%, next 12 months and losing the top buyer are recomputed the same way on the new 'after'.
+// +100% spend not raised. 51 and up: +$7,451; total +$17,000 (was +$17,422); company counts unchanged (they include
+// held accounts, as the model's Dashboard does). Stress, break-even, next 12 months and losing the top buyer are
+// recomputed the same way on the new 'after'; the flat +50% comparison is on all credit income, so it is unchanged.
 export const CREDIT_PLAN = {
   asOf: '2026-11-05', regrouped: '2026-11-16',
   base: 46167, window: 'Aug to Oct 2026, net of refunds, credit notes, balance-paid invoices and lost disputes',
   tiers: [
     { tier: 'Top 1 to 25', rise: 0.25, companies: 25, now: 30427, after: 36709, added: 6282 },
     { tier: 'Ranks 26 to 50', rise: 0.50, companies: 25, now: 6767, after: 10033, added: 3267 },
-    { tier: '51 and up (incl. 9 of the 10 S2 buyers)', rise: 1.00, companies: 104, now: 8973, after: 16425, added: 7451 },
+    { tier: '51 and up (incl. the 10 S2 buyers)', rise: 1.00, companies: 107, now: 8973, after: 16425, added: 7451 },
   ],
-  total: { companies: 154, now: 46167, after: 63167, added: 17000, perYear: 204004, next12: 191485, blended: 0.368 },
+  total: { companies: 157, now: 46167, after: 63167, added: 17000, perYear: 204004, next12: 191485, blended: 0.368 },
   held: { accounts: 19, perMonth: 6632, ifRaised: 19542, ifRaisedYear: 234508 },
   hsmh: { accounts: 3, perMonth: 422, names: 'Moss Mechanical, Torq Electricians and McCullough Solutions (Chiirp AI)' },
   topShare: { income: 0.66, ofIncrease: 0.370 },
-  flat50: 22872,
+  flat50: 23083,
   concentration: { buyers: 179, paying: 1036, top10: 0.391, top20: 0.531, heavy: 38, heavyShare: 0.46, topStable: 13 },
   stress: [
     { lost: 0, added: 17000 }, { lost: 0.10, added: 10684 }, { lost: 0.20, added: 4367 }, { lost: 0.30, added: -1950 },

@@ -7872,7 +7872,7 @@ function renderCreditPlan() {
     + '</tbody></table></div>'
     + `<p class="note">${C.window}. Sub-accounts of one company are grouped so each company gets one price. "Credits a month now" `
     + `includes the ${C.held.accounts} held accounts' ${fmt.money(C.held.perMonth)}, which is not raised, so "After" is less than "now" `
-    + `times the rise; the companies column counts only the ${fmt.int(T.companies)} being raised. The ${C.held.accounts} accounts `
+    + `times the rise; the companies column counts all ${fmt.int(T.companies)} buying companies, held ones included. The ${C.held.accounts} accounts `
     + `already on newer credit pricing (${fmt.money(C.held.perMonth)} a month, paying 2 to 7 times the legacy rate) stay where they are; `
     + `raising them too would make it ${fmt.money(C.held.ifRaised)} a month. HSMH referrals are never raised: ${C.hsmh.names} (${fmt.money(C.hsmh.perMonth)} a month of credits) stay at $1 per 100. A flat +50% for everyone would add ${fmt.money(C.flat50)}, `
     + 'but loads the rise onto the few buyers whose loss would wipe it out. Over the next 12 months, with credit buying drifting down '
