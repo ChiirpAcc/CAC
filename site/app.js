@@ -7855,7 +7855,7 @@ function renderCreditPlan() {
   const T = C.total;
   const sm = v => `${v >= 0 ? '+' : '−'}${fmt.money(Math.abs(v))}`;
   box.innerHTML = checklistHtml('credit', 'Checklist: credit increase', { dropdown: true })
-    + `<p class="finding"><strong>From 1 January 2027, told to customers by an in-Chiirp message once Taylor Roberts and Kevin sign off, a tiered increase adds ${fmt.money(T.added)} a month (${fmt.money(T.perYear)} a year) if no one buys `
+    + `<p class="finding"><strong>From 1 January 2027, signed off by Ryan Fenn on 17 November and told to customers by an in-Chiirp message, a tiered increase adds ${fmt.money(T.added)} a month (${fmt.money(T.perYear)} a year) if no one buys `
     + `fewer credits: almost everyone doubles, from $1 to $2 per 100 credits, and the 50 biggest buyers get a lower rate: the top 25 +25% ($1.25 per 100) and the next 25 +50% ($1.50).</strong> Credit income is concentrated: the top 25 `
     + `companies bring ${fmt.pct(C.topShare.income)} of it, so they get the smallest rise and pay ${fmt.pct(C.topShare.ofIncrease)} of the `
     + `increase. With 10% fewer credits bought it adds ${fmt.money(C.stress[1].added)} a month; it breaks even at `
@@ -7903,7 +7903,7 @@ function renderCreditPlan() {
     + '<h3 class="sub-head">Still open</h3>'
     + '<ol class="plan-rules">' + C.open.map(o => `<li>${o}</li>`).join('') + '</ol>'
     + '<p class="note">Timing: the new credit prices start 1 January 2027, the same day as $' + DLC_PLAN.feeNew + ' 10DLC across the board. They are '
-    + 'special pricing, so Taylor Roberts and Kevin sign off and set each customer\'s price, and customers are told by an in-Chiirp '
+    + 'special pricing (signed off by Ryan Fenn on 17 November), so Taylor Roberts and Kevin set each customer\'s price, and customers are told by an in-Chiirp '
     + 'message, and so is 10DLC\'s $' + DLC_PLAN.feeNew + '. No notice has gone out for either yet. From then on credits are $2 per 100, double the '
     + `legacy $1 per 100, except the 50 biggest buyers ($1.25 and $1.50 per 100). Together the two add about ${fmt.money(T.added + DLC_PLAN.totalPerMonth)} a month. From the "Credit Price `
     + `Increase Model" sheet in Drive (verified ${C.asOf}): Stripe Sigma for S1 and S2 and the Chiirp database.</p>`
