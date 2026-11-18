@@ -7874,7 +7874,7 @@ function renderCreditPlan() {
     + `includes the ${C.held.accounts} held accounts' ${fmt.money(C.held.perMonth)}, which is not raised, so "After" is less than "now" `
     + `times the rise; the companies column counts only the ${fmt.int(T.companies)} being raised. The ${C.held.accounts} accounts `
     + `already on newer credit pricing (${fmt.money(C.held.perMonth)} a month, paying 2 to 7 times the legacy rate) stay where they are; `
-    + `raising them too would make it ${fmt.money(C.held.ifRaised)} a month. A flat +50% for everyone would add ${fmt.money(C.flat50)}, `
+    + `raising them too would make it ${fmt.money(C.held.ifRaised)} a month. HSMH referrals are never raised: ${C.hsmh.names} (${fmt.money(C.hsmh.perMonth)} a month of credits) stay at $1 per 100. A flat +50% for everyone would add ${fmt.money(C.flat50)}, `
     + 'but loads the rise onto the few buyers whose loss would wipe it out. Over the next 12 months, with credit buying drifting down '
     + `${Math.abs(C.trend * 100).toFixed(1)}% a month as it has, the tiers add ${fmt.money(T.next12)}.</p>`
 
@@ -7912,11 +7912,11 @@ function renderCreditPlan() {
       const price = r => r[4] ? `$${r[4].toFixed(2)} (held)` : r[0] <= 25 ? '$1.25' : r[0] <= 50 ? '$1.50' : '$2.00';
       const sumOf = (rows, k) => rows.reduce((t, r) => t + r[k], 0);
       const paying = CREDIT_TIER_LIST.filter(r => !r[4]);
-      const companies = paying.reduce((t, r) => t + (/^Chiirp AI/.test(r[1]) ? 10 : 1), 0);
+      const companies = paying.reduce((t, r) => t + (/^Chiirp AI/.test(r[1]) ? r[2] : 1), 0);
       return '<h3 class="sub-head">Who is in each tier</h3>'
         + `<p>Every credit-buying company, ranked by net credit spend (Aug–Oct 2026 average), sub-accounts on one card grouped. `
         + `${fmt.int(companies)} companies pay more, about ${fmt.money(sumOf(paying, 5) / companies)} a month each on average; `
-        + `${CREDIT_TIER_LIST.length - paying.length} on newer pricing are held at their current price.</p>`
+        + `${CREDIT_TIER_LIST.length - paying.length - C.hsmh.accounts} on newer pricing and ${C.hsmh.accounts} HSMH referrals are held at their current price.</p>`
         + ['Top 25', 'Ranks 26–50', 'Everyone else'].map((t, ti) => {
           const R = CREDIT_TIER_LIST.filter(r => tierOf(r) === t);
           return `<details class="tier-list"><summary><strong>${t}</strong>: ${R.length} rows, ${fmt.money(C.tiers[ti].now)} a month now, `
