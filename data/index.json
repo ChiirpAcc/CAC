@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-23T05:15:07",
+  "pushed_at": "2026-11-24T05:06:08",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -29,12 +29,12 @@
     {
       "tab": "Customer Waterfall",
       "file": "customer_waterfall.json",
-      "rows": 53338
+      "rows": 53340
     },
     {
       "tab": "Cash Detail",
       "file": "cash_detail.json",
-      "rows": 48063
+      "rows": 48093
     },
     {
       "tab": "Subscription Lifetimes",
@@ -59,7 +59,7 @@
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 1038
+      "rows": 1040
     },
     {
       "tab": "Webinars",
@@ -79,7 +79,7 @@
     {
       "tab": "Event Deals",
       "file": "event_deals.json",
-      "rows": 766
+      "rows": 770
     }
   ],
   "missing_required": [],
