@@ -1,5 +1,5 @@
 {
-  "pushed_at": "2026-11-24T05:06:08",
+  "pushed_at": "2026-11-25T05:17:29",
   "files": [
     {
       "tab": "Waterfall Summary",
@@ -29,12 +29,12 @@
     {
       "tab": "Customer Waterfall",
       "file": "customer_waterfall.json",
-      "rows": 53340
+      "rows": 53345
     },
     {
       "tab": "Cash Detail",
       "file": "cash_detail.json",
-      "rows": 48093
+      "rows": 48113
     },
     {
       "tab": "Subscription Lifetimes",
@@ -59,7 +59,7 @@
     {
       "tab": "Marketing Monthly",
       "file": "marketing_monthly.json",
-      "rows": 1040
+      "rows": 1041
     },
     {
       "tab": "Webinars",
